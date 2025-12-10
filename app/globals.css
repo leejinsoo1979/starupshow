@@ -93,7 +93,7 @@
   }
 
   body {
-    @apply antialiased transition-colors duration-200;
+    @apply antialiased;
     font-feature-settings: "rlig" 1, "calt" 1;
     background-color: rgb(var(--background));
     color: rgb(var(--foreground));

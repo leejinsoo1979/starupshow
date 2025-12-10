@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useTheme } from 'next-themes'
@@ -29,13 +29,9 @@ export function Header() {
   const { resolvedTheme } = useTheme()
   const [showUserMenu, setShowUserMenu] = useState(false)
   const [searchFocused, setSearchFocused] = useState(false)
-  const [mounted, setMounted] = useState(false)
 
-  useEffect(() => {
-    setMounted(true)
-  }, [])
-
-  const isDark = mounted ? resolvedTheme === 'dark' : true
+  // resolvedTheme이 undefined일 때(SSR) dark로 기본값
+  const isDark = resolvedTheme === 'dark' || resolvedTheme === undefined
 
   const handleLogout = async () => {
     const supabase = createClient()

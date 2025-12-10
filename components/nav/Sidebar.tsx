@@ -1,6 +1,5 @@
 'use client'
 
-import { useEffect, useState } from 'react'
 import { usePathname } from 'next/navigation'
 import Link from 'next/link'
 import { motion, AnimatePresence } from 'framer-motion'
@@ -50,13 +49,9 @@ export function Sidebar() {
   const { sidebarOpen, toggleSidebar } = useUIStore()
   const { user, currentTeam } = useAuthStore()
   const { resolvedTheme } = useTheme()
-  const [mounted, setMounted] = useState(false)
 
-  useEffect(() => {
-    setMounted(true)
-  }, [])
-
-  const isDark = mounted ? resolvedTheme === 'dark' : true
+  // resolvedTheme이 undefined일 때(SSR) dark로 기본값
+  const isDark = resolvedTheme === 'dark' || resolvedTheme === undefined
   const isVC = user?.role === 'INVESTOR'
   const navItems = isVC ? investorNav : navigation
 
