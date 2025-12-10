@@ -24,6 +24,7 @@ import {
   TrendingUp,
   FileText,
   Workflow,
+  Bot,
 } from 'lucide-react'
 
 const navigation = [
@@ -33,6 +34,7 @@ const navigation = [
   { name: 'KPI', href: '/dashboard-group/kpis', icon: TrendingUp },
   { name: '커밋 기록', href: '/dashboard-group/commits', icon: GitCommit },
   { name: '워크플로우', href: '/dashboard-group/workflows', icon: Workflow },
+  { name: 'AI 에이전트', href: '/dashboard-group/agents', icon: Bot },
   { name: '리포트', href: '/dashboard-group/reports', icon: FileText },
   { name: '팀 관리', href: '/dashboard-group/team', icon: Users },
   { name: 'AI 인사이트', href: '/dashboard-group/insights', icon: Sparkles },
