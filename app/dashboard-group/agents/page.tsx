@@ -128,9 +128,9 @@ export default function AgentsPage() {
   )
 
   return (
-    <div className="h-full flex flex-col bg-zinc-950">
+    <div className="h-full flex flex-col bg-gray-50 dark:bg-zinc-950">
       {/* Header */}
-      <div className="px-6 py-4 border-b border-zinc-800 bg-zinc-900/50">
+      <div className="px-6 py-4 border-b border-zinc-200 dark:border-zinc-800 bg-white/50 dark:bg-zinc-900/50">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div
@@ -143,7 +143,7 @@ export default function AgentsPage() {
               />
             </div>
             <div>
-              <h1 className="text-xl font-bold text-zinc-100">AI 에이전트</h1>
+              <h1 className="text-xl font-bold text-zinc-900 dark:text-zinc-100">AI 에이전트</h1>
               <p className="text-sm text-zinc-500">
                 AI 에이전트를 생성하고 관리하세요
               </p>
@@ -152,13 +152,13 @@ export default function AgentsPage() {
 
           <div className="flex items-center gap-3">
             {/* View Toggle */}
-            <div className="flex bg-zinc-800 rounded-lg p-1">
+            <div className="flex rounded-lg p-1 bg-zinc-200 dark:bg-zinc-800">
               <button
                 onClick={() => setViewMode("list")}
                 className={`p-2 rounded-md transition-colors ${
                   viewMode === "list"
-                    ? "bg-zinc-700 text-zinc-100"
-                    : "text-zinc-400 hover:text-zinc-100"
+                    ? "bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 shadow-sm"
+                    : "text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100"
                 }`}
               >
                 <LayoutList className="w-4 h-4" />
@@ -167,8 +167,8 @@ export default function AgentsPage() {
                 onClick={() => setViewMode("builder")}
                 className={`p-2 rounded-md transition-colors ${
                   viewMode === "builder"
-                    ? "bg-zinc-700 text-zinc-100"
-                    : "text-zinc-400 hover:text-zinc-100"
+                    ? "bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 shadow-sm"
+                    : "text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100"
                 }`}
               >
                 <Grid3X3 className="w-4 h-4" />
@@ -200,39 +200,39 @@ export default function AgentsPage() {
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              className="p-4 bg-zinc-900 border border-zinc-800 rounded-xl"
+              className="p-4 rounded-xl border bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800"
             >
               <div className="flex items-center justify-between mb-2">
                 <span className="text-sm text-zinc-500">전체 에이전트</span>
-                <Bot className="w-4 h-4 text-zinc-500" />
+                <Bot className="w-4 h-4 text-zinc-400 dark:text-zinc-500" />
               </div>
-              <div className="text-2xl font-bold text-zinc-100">{totalAgents}</div>
+              <div className="text-2xl font-bold text-zinc-900 dark:text-zinc-100">{totalAgents}</div>
             </motion.div>
 
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.1 }}
-              className="p-4 bg-zinc-900 border border-zinc-800 rounded-xl"
+              className="p-4 rounded-xl border bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800"
             >
               <div className="flex items-center justify-between mb-2">
                 <span className="text-sm text-zinc-500">활성 에이전트</span>
                 <Zap className="w-4 h-4 text-green-500" />
               </div>
-              <div className="text-2xl font-bold text-zinc-100">{activeAgents}</div>
+              <div className="text-2xl font-bold text-zinc-900 dark:text-zinc-100">{activeAgents}</div>
             </motion.div>
 
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.2 }}
-              className="p-4 bg-zinc-900 border border-zinc-800 rounded-xl"
+              className="p-4 rounded-xl border bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800"
             >
               <div className="flex items-center justify-between mb-2">
                 <span className="text-sm text-zinc-500">총 실행 수</span>
                 <Play className="w-4 h-4 text-blue-500" />
               </div>
-              <div className="text-2xl font-bold text-zinc-100">
+              <div className="text-2xl font-bold text-zinc-900 dark:text-zinc-100">
                 {totalRuns.toLocaleString()}
               </div>
             </motion.div>
@@ -241,13 +241,13 @@ export default function AgentsPage() {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.3 }}
-              className="p-4 bg-zinc-900 border border-zinc-800 rounded-xl"
+              className="p-4 rounded-xl border bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800"
             >
               <div className="flex items-center justify-between mb-2">
                 <span className="text-sm text-zinc-500">평균 노드 수</span>
                 <Grid3X3 className="w-4 h-4 text-purple-500" />
               </div>
-              <div className="text-2xl font-bold text-zinc-100">{avgNodes}</div>
+              <div className="text-2xl font-bold text-zinc-900 dark:text-zinc-100">{avgNodes}</div>
             </motion.div>
           </div>
 
@@ -264,7 +264,7 @@ export default function AgentsPage() {
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: index * 0.05 }}
-                  className="p-4 bg-zinc-900 border border-zinc-800 rounded-xl hover:border-zinc-700 transition-colors"
+                  className="p-4 rounded-xl border transition-colors bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800 hover:border-zinc-300 dark:hover:border-zinc-700"
                 >
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-4">
@@ -286,7 +286,7 @@ export default function AgentsPage() {
 
                       <div>
                         <div className="flex items-center gap-2">
-                          <h3 className="text-base font-semibold text-zinc-100">
+                          <h3 className="text-base font-semibold text-zinc-900 dark:text-zinc-100">
                             {agent.name}
                           </h3>
                           <span
@@ -299,7 +299,7 @@ export default function AgentsPage() {
                             {status.label}
                           </span>
                         </div>
-                        <p className="text-sm text-zinc-500 mt-0.5">
+                        <p className="text-sm mt-0.5 text-zinc-500">
                           {agent.description}
                         </p>
                       </div>
@@ -307,7 +307,7 @@ export default function AgentsPage() {
 
                     <div className="flex items-center gap-6">
                       {/* Stats */}
-                      <div className="flex items-center gap-4 text-sm text-zinc-400">
+                      <div className="flex items-center gap-4 text-sm text-zinc-500 dark:text-zinc-400">
                         <div className="flex items-center gap-1">
                           <Grid3X3 className="w-4 h-4" />
                           <span>{agent.nodeCount} 노드</span>
