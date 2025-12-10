@@ -98,6 +98,7 @@ module.exports = {
         'shimmer': 'shimmer 2s linear infinite',
         'float': 'float 6s ease-in-out infinite',
         'glow': 'glow 2s ease-in-out infinite alternate',
+        'spotlight': 'spotlight 2s ease .75s 1 forwards',
       },
       keyframes: {
         fadeIn: {
@@ -143,6 +144,16 @@ module.exports = {
         glow: {
           '0%': { boxShadow: '0 0 20px rgba(14, 165, 233, 0.2)' },
           '100%': { boxShadow: '0 0 30px rgba(14, 165, 233, 0.4)' },
+        },
+        spotlight: {
+          '0%': {
+            opacity: '0',
+            transform: 'translate(-72%, -62%) scale(0.5)',
+          },
+          '100%': {
+            opacity: '1',
+            transform: 'translate(-50%,-40%) scale(1)',
+          },
         },
       },
       borderRadius: {

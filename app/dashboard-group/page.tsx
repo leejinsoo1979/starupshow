@@ -19,6 +19,7 @@ import {
   Clock,
   Loader2,
 } from 'lucide-react'
+import { ActivityHeatmap, EngagementOverview, TasksChart, ProductivityChart, ChatbotWidget } from '@/components/dashboard'
 
 interface RecentCommit {
   id: string
@@ -150,7 +151,7 @@ export default function DashboardPage() {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
         <div className="text-center space-y-4">
-          <Loader2 className="w-8 h-8 animate-spin text-primary-500 mx-auto" />
+          <Loader2 className="w-8 h-8 animate-spin text-accent mx-auto" />
           <p className="text-zinc-500">대시보드 데이터를 불러오는 중...</p>
         </div>
       </div>
@@ -224,12 +225,12 @@ export default function DashboardPage() {
           <Card variant="default" className="h-full">
             <CardHeader className="flex flex-row items-center justify-between">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary-500 to-primary-600 flex items-center justify-center shadow-lg shadow-primary-500/25">
+                <div className="w-10 h-10 rounded-xl bg-accent flex items-center justify-center shadow-accent">
                   <GitCommit className="w-5 h-5 text-white" />
                 </div>
                 <CardTitle>최근 커밋</CardTitle>
               </div>
-              <button className="text-sm text-primary-400 hover:text-primary-300 flex items-center gap-1 font-medium group">
+              <button className="text-sm text-accent hover:text-accent/80 flex items-center gap-1 font-medium group">
                 전체 보기
                 <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
               </button>
@@ -245,11 +246,11 @@ export default function DashboardPage() {
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ delay: index * 0.1 }}
                   >
-                    <div className="w-10 h-10 bg-gradient-to-br from-zinc-700 to-zinc-800 rounded-xl flex items-center justify-center flex-shrink-0 group-hover:from-primary-500/20 group-hover:to-primary-600/20 transition-colors">
-                      <GitCommit className="w-5 h-5 text-zinc-400 group-hover:text-primary-400 transition-colors" />
+                    <div className="w-10 h-10 bg-gradient-to-br from-zinc-700 to-zinc-800 rounded-xl flex items-center justify-center flex-shrink-0 group-hover:bg-accent/20 transition-colors">
+                      <GitCommit className="w-5 h-5 text-zinc-400 group-hover:text-accent transition-colors" />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-zinc-100 group-hover:text-primary-400 transition-colors">
+                      <p className="text-sm font-medium text-zinc-100 group-hover:text-accent transition-colors">
                         {commit.description}
                       </p>
                       <div className="flex items-center gap-2 mt-1.5">
@@ -296,7 +297,7 @@ export default function DashboardPage() {
                     <div className="flex items-start gap-3">
                       <div className={`w-2 h-2 rounded-full mt-2 ${badge.dot}`} />
                       <div className="flex-1">
-                        <p className="text-sm font-medium text-zinc-100 group-hover:text-primary-400 transition-colors">
+                        <p className="text-sm font-medium text-zinc-100 group-hover:text-accent transition-colors">
                           {task.title}
                         </p>
                         <div className="flex items-center justify-between mt-2">
@@ -317,14 +318,14 @@ export default function DashboardPage() {
 
       {/* AI Insights */}
       <motion.div variants={item}>
-        <Card variant="gradient" className="border-2 border-primary-500/20 overflow-hidden relative">
+        <Card variant="gradient" className="border-2 border-accent/20 overflow-hidden relative">
           {/* Background decoration */}
-          <div className="absolute top-0 right-0 w-64 h-64 bg-gradient-to-br from-primary-500/10 to-purple-500/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2" />
+          <div className="absolute top-0 right-0 w-64 h-64 bg-accent/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2" />
 
           <CardContent className="py-6 relative">
             <div className="flex items-start gap-5">
               <motion.div
-                className="w-14 h-14 rounded-2xl bg-gradient-to-br from-primary-500 to-purple-500 flex items-center justify-center flex-shrink-0 shadow-lg shadow-primary-500/30"
+                className="w-14 h-14 rounded-2xl bg-accent flex items-center justify-center flex-shrink-0 shadow-accent"
                 animate={{
                   scale: [1, 1.05, 1],
                 }}
@@ -339,17 +340,17 @@ export default function DashboardPage() {
               <div className="flex-1">
                 <h3 className="text-lg font-bold text-zinc-100 mb-2 flex items-center gap-2">
                   AI 인사이트
-                  <span className="px-2 py-0.5 text-xs font-medium bg-primary-500/20 text-primary-400 rounded-full">
+                  <span className="px-2 py-0.5 text-xs font-medium bg-accent/20 text-accent rounded-full">
                     New
                   </span>
                 </h3>
                 <p className="text-zinc-400 leading-relaxed">
                   이번 스프린트에서 <span className="font-semibold text-zinc-100">결제 시스템 연동</span> 태스크가 예상보다 지연되고 있습니다.
                   현재 진행 속도를 감안하면 마감일까지 완료하기 어려울 수 있습니다.
-                  <span className="font-semibold text-primary-400"> 추가 리소스 배치를 고려해보세요.</span>
+                  <span className="font-semibold text-accent"> 추가 리소스 배치를 고려해보세요.</span>
                 </p>
                 <div className="flex gap-3 mt-4">
-                  <button className="px-4 py-2 text-sm font-semibold text-primary-400 hover:text-primary-300 hover:bg-primary-500/10 rounded-lg transition-colors">
+                  <button className="px-4 py-2 text-sm font-semibold text-accent hover:text-accent/80 hover:bg-accent/10 rounded-lg transition-colors">
                     자세히 보기 →
                   </button>
                   <button className="px-4 py-2 text-sm font-medium text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800 rounded-lg transition-colors">
@@ -361,6 +362,25 @@ export default function DashboardPage() {
           </CardContent>
         </Card>
       </motion.div>
+
+      {/* Engagement Overview */}
+      <motion.div variants={item}>
+        <EngagementOverview />
+      </motion.div>
+
+      {/* Charts Section */}
+      <motion.div variants={item} className="grid lg:grid-cols-2 gap-6">
+        <TasksChart />
+        <ProductivityChart />
+      </motion.div>
+
+      {/* Activity Heatmap */}
+      <motion.div variants={item}>
+        <ActivityHeatmap />
+      </motion.div>
+
+      {/* Chatbot Widget */}
+      <ChatbotWidget />
     </motion.div>
   )
 }

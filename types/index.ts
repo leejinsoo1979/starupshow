@@ -26,6 +26,30 @@ export interface User {
   updated_at: string
 }
 
+export interface Startup {
+  id: string
+  name: string
+  description?: string
+  industry: string
+  stage: 'IDEA' | 'MVP' | 'EARLY' | 'GROWTH' | 'SCALE'
+  founded_at?: string
+  website?: string
+  logo_url?: string
+  monthly_revenue?: number
+  monthly_burn?: number
+  runway_months?: number
+  total_funding?: number
+  employee_count?: number
+  country?: string
+  city?: string
+  founder_id: string
+  created_at: string
+  updated_at: string
+  // Relations
+  founder?: User
+  team_members?: TeamMember[]
+}
+
 export interface Team {
   id: string
   name: string
@@ -84,25 +108,34 @@ export interface Project {
 
 export interface Task {
   id: string
-  project_id: string
+  project_id?: string
+  startup_id?: string
   parent_task_id?: string
   assignee_id?: string
+  author_id?: string
   title: string
   description?: string
   status: TaskStatus
   priority: TaskPriority
-  labels: string[]
+  labels?: string[]
+  tags?: string[]
+  category?: string
   start_date?: string
   end_date?: string
+  due_date?: string
   estimated_hours?: number
   actual_hours?: number
+  completed_at?: string
   sprint_number?: number
   order_index?: number
+  ai_summary?: string
+  impact_score?: number
   created_at: string
-  updated_at: string
+  updated_at?: string
   // Relations
   project?: Project
   assignee?: User
+  author?: User
   commits?: Commit[]
 }
 

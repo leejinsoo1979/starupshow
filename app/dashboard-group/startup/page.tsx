@@ -23,11 +23,11 @@ import {
 } from 'lucide-react'
 
 const STAGES: { value: StartupStage; label: string; color: string }[] = [
-  { value: 'IDEA', label: '아이디어', color: 'bg-gray-100 text-gray-700' },
-  { value: 'MVP', label: 'MVP', color: 'bg-blue-100 text-blue-700' },
-  { value: 'EARLY', label: '초기', color: 'bg-green-100 text-green-700' },
-  { value: 'GROWTH', label: '성장', color: 'bg-purple-100 text-purple-700' },
-  { value: 'SCALE', label: '스케일업', color: 'bg-orange-100 text-orange-700' },
+  { value: 'IDEA', label: '아이디어', color: 'bg-zinc-700 text-zinc-300' },
+  { value: 'MVP', label: 'MVP', color: 'bg-blue-500/20 text-blue-400' },
+  { value: 'EARLY', label: '초기', color: 'bg-green-500/20 text-green-400' },
+  { value: 'GROWTH', label: '성장', color: 'bg-purple-500/20 text-purple-400' },
+  { value: 'SCALE', label: '스케일업', color: 'bg-orange-500/20 text-orange-400' },
 ]
 
 const INDUSTRIES = [
@@ -164,8 +164,8 @@ export default function StartupPage() {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
         <div className="text-center space-y-4">
-          <Loader2 className="w-8 h-8 animate-spin text-primary-500 mx-auto" />
-          <p className="text-gray-500">스타트업 정보를 불러오는 중...</p>
+          <Loader2 className="w-8 h-8 animate-spin text-accent mx-auto" />
+          <p className="text-zinc-500">스타트업 정보를 불러오는 중...</p>
         </div>
       </div>
     )
@@ -176,8 +176,8 @@ export default function StartupPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">스타트업 관리</h1>
-          <p className="text-gray-500 mt-1">스타트업 정보를 관리하세요</p>
+          <h1 className="text-2xl font-bold text-zinc-100">스타트업 관리</h1>
+          <p className="text-zinc-500 mt-1">스타트업 정보를 관리하세요</p>
         </div>
         <Button onClick={() => setShowCreateModal(true)} leftIcon={<Plus className="w-4 h-4" />}>
           스타트업 추가
@@ -189,10 +189,10 @@ export default function StartupPage() {
         <motion.div
           initial={{ opacity: 0, y: -10 }}
           animate={{ opacity: 1, y: 0 }}
-          className="p-4 bg-danger-50 border border-danger-200 rounded-xl flex items-center gap-3"
+          className="p-4 bg-danger-500/10 border border-danger-500/20 rounded-xl flex items-center gap-3"
         >
-          <AlertCircle className="w-5 h-5 text-danger-500" />
-          <p className="text-danger-700">{error}</p>
+          <AlertCircle className="w-5 h-5 text-danger-400" />
+          <p className="text-danger-400">{error}</p>
           <button onClick={() => setError(null)} className="ml-auto">
             <X className="w-4 h-4 text-danger-500" />
           </button>
@@ -203,12 +203,12 @@ export default function StartupPage() {
       {startups.length === 0 ? (
         <Card variant="default" className="py-16">
           <div className="text-center space-y-4">
-            <div className="w-16 h-16 bg-gray-100 rounded-2xl flex items-center justify-center mx-auto">
-              <Building2 className="w-8 h-8 text-gray-400" />
+            <div className="w-16 h-16 bg-zinc-800 rounded-2xl flex items-center justify-center mx-auto">
+              <Building2 className="w-8 h-8 text-zinc-500" />
             </div>
             <div>
-              <h3 className="text-lg font-semibold text-gray-900">등록된 스타트업이 없습니다</h3>
-              <p className="text-gray-500 mt-1">첫 번째 스타트업을 추가해보세요</p>
+              <h3 className="text-lg font-semibold text-zinc-100">등록된 스타트업이 없습니다</h3>
+              <p className="text-zinc-500 mt-1">첫 번째 스타트업을 추가해보세요</p>
             </div>
             <Button onClick={() => setShowCreateModal(true)} leftIcon={<Plus className="w-4 h-4" />}>
               스타트업 추가
@@ -230,7 +230,7 @@ export default function StartupPage() {
                   <CardHeader>
                     <div className="flex items-start justify-between">
                       <div className="flex items-center gap-3">
-                        <div className="w-12 h-12 bg-gradient-to-br from-primary-500 to-primary-600 rounded-xl flex items-center justify-center text-white font-bold text-lg">
+                        <div className="w-12 h-12 bg-accent rounded-xl flex items-center justify-center text-white font-bold text-lg">
                           {startup.name.charAt(0)}
                         </div>
                         <div>
@@ -245,38 +245,38 @@ export default function StartupPage() {
 
                   <CardContent className="flex-1 space-y-4">
                     {startup.description && (
-                      <p className="text-sm text-gray-600 line-clamp-2">{startup.description}</p>
+                      <p className="text-sm text-zinc-400 line-clamp-2">{startup.description}</p>
                     )}
 
                     <div className="space-y-2">
-                      <div className="flex items-center gap-2 text-sm text-gray-500">
+                      <div className="flex items-center gap-2 text-sm text-zinc-400">
                         <Building2 className="w-4 h-4" />
                         <span>{startup.industry}</span>
                       </div>
                       {startup.website && (
-                        <div className="flex items-center gap-2 text-sm text-gray-500">
+                        <div className="flex items-center gap-2 text-sm text-zinc-400">
                           <Globe className="w-4 h-4" />
-                          <a href={startup.website} target="_blank" rel="noopener noreferrer" className="text-primary-600 hover:underline truncate">
+                          <a href={startup.website} target="_blank" rel="noopener noreferrer" className="text-accent hover:underline truncate">
                             {startup.website}
                           </a>
                         </div>
                       )}
-                      <div className="flex items-center gap-2 text-sm text-gray-500">
+                      <div className="flex items-center gap-2 text-sm text-zinc-400">
                         <Users className="w-4 h-4" />
                         <span>{startup.employee_count}명</span>
                       </div>
                     </div>
 
-                    <div className="pt-3 border-t border-gray-100 grid grid-cols-2 gap-3">
+                    <div className="pt-3 border-t border-zinc-800 grid grid-cols-2 gap-3">
                       <div>
-                        <p className="text-xs text-gray-400">월 매출</p>
-                        <p className="text-sm font-semibold text-gray-900">
+                        <p className="text-xs text-zinc-500">월 매출</p>
+                        <p className="text-sm font-semibold text-zinc-100">
                           {formatCurrency(startup.monthly_revenue)}
                         </p>
                       </div>
                       <div>
-                        <p className="text-xs text-gray-400">월 지출</p>
-                        <p className="text-sm font-semibold text-gray-900">
+                        <p className="text-xs text-zinc-500">월 지출</p>
+                        <p className="text-sm font-semibold text-zinc-100">
                           {formatCurrency(startup.monthly_burn)}
                         </p>
                       </div>
@@ -321,22 +321,22 @@ export default function StartupPage() {
             onClick={handleCloseModal}
           >
             <motion.div
-              className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto"
+              className="bg-zinc-900 border border-zinc-800 rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto"
               initial={{ scale: 0.95, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.95, opacity: 0 }}
               onClick={e => e.stopPropagation()}
             >
-              <div className="p-6 border-b border-gray-100">
+              <div className="p-6 border-b border-zinc-800">
                 <div className="flex items-center justify-between">
-                  <h2 className="text-xl font-bold text-gray-900">
+                  <h2 className="text-xl font-bold text-zinc-100">
                     {editingStartup ? '스타트업 수정' : '새 스타트업 추가'}
                   </h2>
                   <button
                     onClick={handleCloseModal}
-                    className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                    className="p-2 hover:bg-zinc-800 rounded-lg transition-colors"
                   >
-                    <X className="w-5 h-5 text-gray-500" />
+                    <X className="w-5 h-5 text-zinc-400" />
                   </button>
                 </div>
               </div>
@@ -344,16 +344,16 @@ export default function StartupPage() {
               <form onSubmit={handleSubmit} className="p-6 space-y-5">
                 <Input
                   label="스타트업 이름"
-                  placeholder="예: 스타트업쇼"
+                  placeholder="예: GlowUS"
                   value={formData.name}
                   onChange={e => setFormData({ ...formData, name: e.target.value })}
                   required
                 />
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">산업 분야</label>
+                  <label className="block text-sm font-medium text-zinc-300 mb-2">산업 분야</label>
                   <select
-                    className="w-full h-11 px-4 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20"
+                    className="w-full h-11 px-4 bg-zinc-800 border border-zinc-700 rounded-xl text-sm text-zinc-100 focus:outline-none focus-accent"
                     value={formData.industry}
                     onChange={e => setFormData({ ...formData, industry: e.target.value })}
                     required
@@ -366,7 +366,7 @@ export default function StartupPage() {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">성장 단계</label>
+                  <label className="block text-sm font-medium text-zinc-300 mb-2">성장 단계</label>
                   <div className="grid grid-cols-5 gap-2">
                     {STAGES.map(stage => (
                       <button
@@ -374,8 +374,8 @@ export default function StartupPage() {
                         type="button"
                         className={`py-2 px-3 rounded-lg text-xs font-medium transition-all ${
                           formData.stage === stage.value
-                            ? 'bg-primary-500 text-white'
-                            : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                            ? 'bg-accent text-white'
+                            : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700'
                         }`}
                         onClick={() => setFormData({ ...formData, stage: stage.value })}
                       >
@@ -394,9 +394,9 @@ export default function StartupPage() {
                 />
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">소개</label>
+                  <label className="block text-sm font-medium text-zinc-300 mb-2">소개</label>
                   <textarea
-                    className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 resize-none"
+                    className="w-full px-4 py-3 bg-zinc-800 border border-zinc-700 rounded-xl text-sm text-zinc-100 placeholder:text-zinc-500 focus:outline-none focus-accent resize-none"
                     rows={3}
                     placeholder="스타트업에 대해 간단히 소개해주세요"
                     value={formData.description}
@@ -430,8 +430,8 @@ export default function StartupPage() {
                 </div>
 
                 {error && (
-                  <div className="p-3 bg-danger-50 border border-danger-200 rounded-lg">
-                    <p className="text-sm text-danger-700">{error}</p>
+                  <div className="p-3 bg-danger-500/10 border border-danger-500/20 rounded-lg">
+                    <p className="text-sm text-danger-400">{error}</p>
                   </div>
                 )}
 

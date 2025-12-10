@@ -1,6 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import type { CreateStartupInput } from '@/types/database'
+import type { CreateStartupInput, User, Startup, TeamMember } from '@/types/database'
+
+// Type helpers for Supabase queries
+interface UserProfile {
+  role: string
+}
+
+interface TeamMembership {
+  startup_id: string
+}
+
+interface InvestorAccess {
+  startup_id: string
+}
 
 // GET /api/startups - List startups for current user
 export async function GET(request: NextRequest) {
@@ -18,7 +31,7 @@ export async function GET(request: NextRequest) {
       .from('users')
       .select('role')
       .eq('id', user.id)
-      .single()
+      .single() as { data: UserProfile | null }
 
     const limit = parseInt(searchParams.get('limit') || '20')
     const offset = parseInt(searchParams.get('offset') || '0')
@@ -46,9 +59,9 @@ export async function GET(request: NextRequest) {
       const { data: memberships } = await supabase
         .from('team_members')
         .select('startup_id')
-        .eq('user_id', user.id)
+        .eq('user_id', user.id) as { data: TeamMembership[] | null }
 
-      const startupIds = memberships?.map(m => m.startup_id) || []
+      const startupIds = memberships?.map((m: TeamMembership) => m.startup_id) || []
       if (startupIds.length > 0) {
         query = query.in('id', startupIds)
       } else {
@@ -60,9 +73,9 @@ export async function GET(request: NextRequest) {
         .from('investor_access')
         .select('startup_id')
         .eq('investor_id', user.id)
-        .eq('status', 'APPROVED')
+        .eq('status', 'APPROVED') as { data: InvestorAccess[] | null }
 
-      const startupIds = access?.map(a => a.startup_id) || []
+      const startupIds = access?.map((a: InvestorAccess) => a.startup_id) || []
       if (startupIds.length > 0) {
         query = query.in('id', startupIds)
       } else {
@@ -106,7 +119,7 @@ export async function POST(request: NextRequest) {
       .from('users')
       .select('role')
       .eq('id', user.id)
-      .single()
+      .single() as { data: UserProfile | null }
 
     if (profile?.role !== 'FOUNDER' && profile?.role !== 'ADMIN') {
       return NextResponse.json(
@@ -128,15 +141,21 @@ export async function POST(request: NextRequest) {
     const { data, error } = await supabase
       .from('startups')
       .insert({
-        ...body,
+        name: body.name,
+        description: body.description,
+        industry: body.industry,
         founder_id: user.id,
         stage: body.stage || 'IDEA',
+        founded_at: body.founded_at,
+        website: body.website,
+        logo_url: body.logo_url,
         monthly_revenue: body.monthly_revenue || 0,
         monthly_burn: body.monthly_burn || 0,
         total_funding: body.total_funding || 0,
         employee_count: body.employee_count || 1,
         country: body.country || 'KR',
-      })
+        city: body.city,
+      } as any)
       .select(`
         *,
         founder:users!startups_founder_id_fkey(id, name, email, avatar_url)

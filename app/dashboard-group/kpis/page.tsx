@@ -227,7 +227,7 @@ export default function KpisPage() {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
         <div className="text-center space-y-4">
-          <Loader2 className="w-8 h-8 animate-spin text-primary-500 mx-auto" />
+          <Loader2 className="w-8 h-8 animate-spin text-accent mx-auto" />
           <p className="text-zinc-500">KPI 데이터를 불러오는 중...</p>
         </div>
       </div>
@@ -254,7 +254,7 @@ export default function KpisPage() {
               <select
                 value={selectedStartup}
                 onChange={(e) => setSelectedStartup(e.target.value)}
-                className="appearance-none bg-zinc-800 text-zinc-100 px-4 py-2.5 pr-10 rounded-xl border border-zinc-700 focus:border-primary-500 focus:outline-none cursor-pointer"
+                className="appearance-none bg-zinc-800 text-zinc-100 px-4 py-2.5 pr-10 rounded-xl border border-zinc-700 focus:outline-none focus-accent cursor-pointer"
               >
                 {startups.map((startup) => (
                   <option key={startup.id} value={startup.id}>
@@ -465,7 +465,7 @@ export default function KpisPage() {
                         setFormData({ ...formData, metric_type: e.target.value })
                         setSelectedKpiType(e.target.value)
                       }}
-                      className="w-full appearance-none bg-zinc-800 text-zinc-100 px-4 py-3 pr-10 rounded-xl border border-zinc-700 focus:border-primary-500 focus:outline-none"
+                      className="w-full appearance-none bg-zinc-800 text-zinc-100 px-4 py-3 pr-10 rounded-xl border border-zinc-700 focus:outline-none focus-accent"
                       required
                     >
                       {Object.entries(KPI_TYPE_INFO).map(([key, info]) => (

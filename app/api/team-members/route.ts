@@ -1,6 +1,21 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 
+// Type helpers
+interface StartupOwnership {
+  founder_id: string
+}
+
+interface TargetUser {
+  id: string
+  email: string
+  name: string
+}
+
+interface UserProfile {
+  role: string
+}
+
 // GET /api/team-members - List team members for a startup
 export async function GET(request: NextRequest) {
   try {
@@ -64,7 +79,7 @@ export async function POST(request: NextRequest) {
       .from('startups')
       .select('founder_id')
       .eq('id', startup_id)
-      .single()
+      .single() as { data: StartupOwnership | null }
 
     if (!startup || startup.founder_id !== user.id) {
       return NextResponse.json(
@@ -78,7 +93,7 @@ export async function POST(request: NextRequest) {
       .from('users')
       .select('id, email, name')
       .eq('email', email)
-      .single()
+      .single() as { data: TargetUser | null }
 
     if (!targetUser) {
       return NextResponse.json(
@@ -109,7 +124,7 @@ export async function POST(request: NextRequest) {
         startup_id,
         user_id: targetUser.id,
         role,
-      })
+      } as any)
       .select(`
         *,
         user:users(id, name, email, avatar_url)
@@ -126,7 +141,7 @@ export async function POST(request: NextRequest) {
       .from('users')
       .select('role')
       .eq('id', targetUser.id)
-      .single()
+      .single() as { data: UserProfile | null }
 
     if (userProfile?.role === 'FOUNDER') {
       const { data: ownedStartups } = await supabase
@@ -136,8 +151,8 @@ export async function POST(request: NextRequest) {
         .limit(1)
 
       if (!ownedStartups || ownedStartups.length === 0) {
-        await supabase
-          .from('users')
+        await (supabase
+          .from('users') as any)
           .update({ role: 'TEAM_MEMBER' })
           .eq('id', targetUser.id)
       }
@@ -173,7 +188,7 @@ export async function DELETE(request: NextRequest) {
       .from('startups')
       .select('founder_id')
       .eq('id', startupId)
-      .single()
+      .single() as { data: StartupOwnership | null }
 
     if (!startup || startup.founder_id !== user.id) {
       return NextResponse.json(

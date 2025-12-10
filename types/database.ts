@@ -145,6 +145,20 @@ export interface KpiMetric {
   created_at: string
 }
 
+export interface Commit {
+  id: string
+  user_id: string
+  team_id: string
+  task_id: string | null
+
+  description: string
+  impact_level: 'low' | 'medium' | 'high'
+  next_action: string | null
+  files: string[] | null
+
+  created_at: string
+}
+
 // ============================================
 // Join Types (with relations)
 // ============================================
@@ -324,38 +338,368 @@ export interface Database {
     Tables: {
       users: {
         Row: User
-        Insert: CreateUserInput & { id: string }
-        Update: UpdateUserInput
+        Insert: {
+          id: string
+          email: string
+          name: string
+          role?: UserRole
+          avatar_url?: string | null
+          phone?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          email?: string
+          name?: string
+          role?: UserRole
+          avatar_url?: string | null
+          phone?: string | null
+          updated_at?: string
+        }
+        Relationships: []
       }
       startups: {
         Row: Startup
-        Insert: CreateStartupInput & { founder_id: string }
-        Update: UpdateStartupInput
+        Insert: {
+          id?: string
+          name: string
+          description?: string | null
+          industry: string
+          stage?: StartupStage
+          founded_at?: string | null
+          website?: string | null
+          logo_url?: string | null
+          monthly_revenue?: number
+          monthly_burn?: number
+          runway_months?: number | null
+          total_funding?: number
+          employee_count?: number
+          country?: string
+          city?: string | null
+          founder_id: string
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          name?: string
+          description?: string | null
+          industry?: string
+          stage?: StartupStage
+          founded_at?: string | null
+          website?: string | null
+          logo_url?: string | null
+          monthly_revenue?: number
+          monthly_burn?: number
+          runway_months?: number | null
+          total_funding?: number
+          employee_count?: number
+          country?: string
+          city?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "startups_founder_id_fkey"
+            columns: ["founder_id"]
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          }
+        ]
       }
       team_members: {
         Row: TeamMember
-        Insert: Omit<TeamMember, 'id' | 'joined_at'>
-        Update: { role?: string }
+        Insert: {
+          id?: string
+          startup_id: string
+          user_id: string
+          role: string
+          joined_at?: string
+        }
+        Update: {
+          role?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "team_members_startup_id_fkey"
+            columns: ["startup_id"]
+            referencedRelation: "startups"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "team_members_user_id_fkey"
+            columns: ["user_id"]
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          }
+        ]
       }
       tasks: {
         Row: Task
-        Insert: CreateTaskInput & { author_id: string }
-        Update: UpdateTaskInput
+        Insert: {
+          id?: string
+          startup_id: string
+          author_id: string
+          title: string
+          description?: string | null
+          status?: TaskStatus
+          priority?: TaskPriority
+          estimated_hours?: number | null
+          actual_hours?: number | null
+          due_date?: string | null
+          completed_at?: string | null
+          category?: string | null
+          tags?: string[] | null
+          ai_summary?: string | null
+          impact_score?: number | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          title?: string
+          description?: string | null
+          status?: TaskStatus
+          priority?: TaskPriority
+          estimated_hours?: number | null
+          actual_hours?: number | null
+          due_date?: string | null
+          completed_at?: string | null
+          category?: string | null
+          tags?: string[] | null
+          ai_summary?: string | null
+          impact_score?: number | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tasks_startup_id_fkey"
+            columns: ["startup_id"]
+            referencedRelation: "startups"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tasks_author_id_fkey"
+            columns: ["author_id"]
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          }
+        ]
       }
       updates: {
         Row: Update
-        Insert: CreateUpdateInput & { author_id: string }
-        Update: Partial<CreateUpdateInput>
+        Insert: {
+          id?: string
+          startup_id: string
+          author_id: string
+          title: string
+          content: string
+          metrics?: Record<string, unknown>
+          ai_generated?: boolean
+          ai_summary?: string | null
+          is_public?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          title?: string
+          content?: string
+          metrics?: Record<string, unknown>
+          ai_generated?: boolean
+          ai_summary?: string | null
+          is_public?: boolean
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "updates_startup_id_fkey"
+            columns: ["startup_id"]
+            referencedRelation: "startups"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "updates_author_id_fkey"
+            columns: ["author_id"]
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          }
+        ]
       }
       investor_access: {
         Row: InvestorAccess
-        Insert: CreateInvestorAccessInput & { investor_id: string }
-        Update: RespondInvestorAccessInput
+        Insert: {
+          id?: string
+          startup_id: string
+          investor_id: string
+          status?: AccessStatus
+          requested_at?: string
+          approved_at?: string | null
+          expires_at?: string | null
+          can_view_financials?: boolean
+          can_view_team?: boolean
+          can_view_tasks?: boolean
+          can_download_reports?: boolean
+          request_message?: string | null
+          response_message?: string | null
+        }
+        Update: {
+          status?: AccessStatus
+          approved_at?: string | null
+          expires_at?: string | null
+          can_view_financials?: boolean
+          can_view_team?: boolean
+          can_view_tasks?: boolean
+          can_download_reports?: boolean
+          response_message?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "investor_access_startup_id_fkey"
+            columns: ["startup_id"]
+            referencedRelation: "startups"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "investor_access_investor_id_fkey"
+            columns: ["investor_id"]
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          }
+        ]
       }
       kpi_metrics: {
         Row: KpiMetric
-        Insert: Omit<KpiMetric, 'id' | 'created_at'>
-        Update: never
+        Insert: {
+          id?: string
+          startup_id: string
+          metric_type: string
+          metric_value: number
+          metric_unit?: string | null
+          period_start: string
+          period_end: string
+          created_at?: string
+        }
+        Update: {
+          metric_type?: string
+          metric_value?: number
+          metric_unit?: string | null
+          period_start?: string
+          period_end?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "kpi_metrics_startup_id_fkey"
+            columns: ["startup_id"]
+            referencedRelation: "startups"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
+      commits: {
+        Row: Commit
+        Insert: {
+          id?: string
+          user_id: string
+          team_id: string
+          task_id?: string | null
+          description: string
+          impact_level?: 'low' | 'medium' | 'high'
+          next_action?: string | null
+          files?: string[] | null
+          created_at?: string
+        }
+        Update: {
+          task_id?: string | null
+          description?: string
+          impact_level?: 'low' | 'medium' | 'high'
+          next_action?: string | null
+          files?: string[] | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "commits_user_id_fkey"
+            columns: ["user_id"]
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "commits_team_id_fkey"
+            columns: ["team_id"]
+            referencedRelation: "startups"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "commits_task_id_fkey"
+            columns: ["task_id"]
+            referencedRelation: "tasks"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
+      teams: {
+        Row: {
+          id: string
+          name: string
+          founder_id: string
+          work_style: string
+          team_size: string | null
+          business_type: string | null
+          industry: string | null
+          description: string | null
+          logo_url: string | null
+          website: string | null
+          funding_stage: string | null
+          is_open_call: boolean
+          is_public: boolean
+          mrr: number | null
+          arr: number | null
+          total_funding: number | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          name: string
+          founder_id: string
+          work_style?: string
+          team_size?: string | null
+          business_type?: string | null
+          industry?: string | null
+          description?: string | null
+          logo_url?: string | null
+          website?: string | null
+          funding_stage?: string | null
+          is_open_call?: boolean
+          is_public?: boolean
+          mrr?: number | null
+          arr?: number | null
+          total_funding?: number | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          name?: string
+          work_style?: string
+          team_size?: string | null
+          business_type?: string | null
+          industry?: string | null
+          description?: string | null
+          logo_url?: string | null
+          website?: string | null
+          funding_stage?: string | null
+          is_open_call?: boolean
+          is_public?: boolean
+          mrr?: number | null
+          arr?: number | null
+          total_funding?: number | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "teams_founder_id_fkey"
+            columns: ["founder_id"]
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          }
+        ]
       }
     }
     Views: {
@@ -374,8 +718,10 @@ export interface Database {
           total_tasks: number
           created_at: string
         }
+        Relationships: []
       }
     }
+    Functions: Record<string, never>
     Enums: {
       user_role: UserRole
       access_status: AccessStatus
@@ -383,5 +729,6 @@ export interface Database {
       task_priority: TaskPriority
       startup_stage: StartupStage
     }
+    CompositeTypes: Record<string, never>
   }
 }

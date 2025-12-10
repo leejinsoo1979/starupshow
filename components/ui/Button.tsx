@@ -8,26 +8,28 @@ import { Loader2 } from 'lucide-react'
 import { motion } from 'framer-motion'
 
 const buttonVariants = cva(
-  'inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-xl text-sm font-semibold transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500/50 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-950 disabled:pointer-events-none disabled:opacity-50 active:scale-[0.98]',
+  'inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-xl text-sm font-semibold transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-zinc-950 disabled:pointer-events-none disabled:opacity-50 active:scale-[0.98]',
   {
     variants: {
       variant: {
         default:
-          'bg-gradient-to-r from-primary-600 to-primary-500 text-white shadow-lg shadow-primary-500/25 hover:shadow-xl hover:shadow-primary-500/30 hover:from-primary-500 hover:to-primary-400',
+          'btn-accent',
+        accent:
+          'btn-accent',
         secondary:
-          'bg-zinc-800 text-zinc-100 hover:bg-zinc-700 shadow-sm',
+          'bg-gray-100 text-zinc-800 hover:bg-gray-200 dark:bg-zinc-800 dark:text-zinc-100 dark:hover:bg-zinc-700 shadow-sm',
         outline:
-          'border-2 border-zinc-700 bg-zinc-900/80 backdrop-blur-sm text-zinc-300 hover:bg-zinc-800 hover:border-zinc-600 shadow-sm',
+          'border-2 border-gray-300 bg-white/80 backdrop-blur-sm text-zinc-700 hover:bg-gray-100 hover:border-gray-400 dark:border-zinc-700 dark:bg-zinc-900/80 dark:text-zinc-300 dark:hover:bg-zinc-800 dark:hover:border-zinc-600 shadow-sm',
         ghost:
-          'text-zinc-400 hover:bg-zinc-800 hover:text-zinc-100',
+          'text-zinc-600 hover:bg-gray-100 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-100',
         danger:
           'bg-gradient-to-r from-danger-600 to-danger-500 text-white shadow-lg shadow-danger-500/25 hover:shadow-xl hover:shadow-danger-500/30',
         success:
           'bg-gradient-to-r from-success-600 to-success-500 text-white shadow-lg shadow-success-500/25 hover:shadow-xl hover:shadow-success-500/30',
         link:
-          'text-primary-400 underline-offset-4 hover:underline hover:text-primary-300',
+          'text-accent underline-offset-4 hover:underline',
         glass:
-          'bg-zinc-800/50 backdrop-blur-xl border border-zinc-700/50 text-zinc-100 hover:bg-zinc-700/50 shadow-lg',
+          'bg-white/50 backdrop-blur-xl border border-gray-200 text-zinc-800 hover:bg-white/70 dark:bg-zinc-800/50 dark:border-zinc-700/50 dark:text-zinc-100 dark:hover:bg-zinc-700/50 shadow-lg',
       },
       size: {
         sm: 'h-9 px-4 text-xs',

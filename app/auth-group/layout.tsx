@@ -1,8 +1,9 @@
 'use client'
 
 import Link from 'next/link'
-import { Sparkles } from 'lucide-react'
-import { motion } from 'framer-motion'
+import { ChevronLeft } from 'lucide-react'
+import { Button, Logo } from '@/components/ui'
+import { Particles } from '@/components/ui/particles'
 
 export default function AuthLayout({
   children,
@@ -10,107 +11,63 @@ export default function AuthLayout({
   children: React.ReactNode
 }) {
   return (
-    <div className="min-h-screen relative overflow-hidden bg-zinc-950">
-      {/* Animated background */}
-      <div className="fixed inset-0 -z-10">
-        <div className="absolute inset-0 bg-gradient-to-br from-zinc-950 via-zinc-900 to-zinc-950" />
+    <div className="relative min-h-screen md:h-screen md:overflow-hidden w-full bg-zinc-950">
+      {/* Particles Background */}
+      <Particles
+        color="#666666"
+        quantity={120}
+        ease={20}
+        className="absolute inset-0"
+      />
 
-        {/* Animated gradient orbs */}
-        <motion.div
-          className="absolute top-1/4 -left-20 w-96 h-96 bg-primary-500/10 rounded-full blur-3xl"
-          animate={{
-            x: [0, 50, 0],
-            y: [0, 30, 0],
-            scale: [1, 1.1, 1],
-          }}
-          transition={{
-            duration: 8,
-            repeat: Infinity,
-            ease: 'easeInOut',
-          }}
-        />
-        <motion.div
-          className="absolute bottom-1/4 -right-20 w-96 h-96 bg-purple-500/10 rounded-full blur-3xl"
-          animate={{
-            x: [0, -50, 0],
-            y: [0, -30, 0],
-            scale: [1, 1.2, 1],
-          }}
-          transition={{
-            duration: 10,
-            repeat: Infinity,
-            ease: 'easeInOut',
-          }}
-        />
-        <motion.div
-          className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-gradient-to-r from-primary-500/5 to-purple-500/5 rounded-full blur-3xl"
-          animate={{
-            rotate: [0, 360],
-          }}
-          transition={{
-            duration: 30,
-            repeat: Infinity,
-            ease: 'linear',
-          }}
-        />
-
-        {/* Grid pattern */}
-        <div
-          className="absolute inset-0 opacity-[0.03]"
-          style={{
-            backgroundImage: `
-              linear-gradient(rgba(255,255,255,0.1) 1px, transparent 1px),
-              linear-gradient(90deg, rgba(255,255,255,0.1) 1px, transparent 1px)
-            `,
-            backgroundSize: '60px 60px',
-          }}
-        />
+      {/* Radial gradient backgrounds */}
+      <div
+        aria-hidden
+        className="absolute inset-0 isolate -z-10 contain-strict"
+      >
+        <div className="bg-[radial-gradient(68.54%_68.72%_at_55.02%_31.46%,rgba(255,255,255,0.06)_0,rgba(140,140,140,0.02)_50%,rgba(255,255,255,0.01)_80%)] absolute top-0 left-0 h-[80rem] w-[35rem] -translate-y-[22rem] -rotate-45 rounded-full" />
+        <div className="bg-[radial-gradient(50%_50%_at_50%_50%,rgba(255,255,255,0.04)_0,rgba(255,255,255,0.01)_80%,transparent_100%)] absolute top-0 left-0 h-[80rem] w-[15rem] translate-x-[5%] -translate-y-1/2 -rotate-45 rounded-full" />
+        <div className="bg-[radial-gradient(50%_50%_at_50%_50%,rgba(255,255,255,0.04)_0,rgba(255,255,255,0.01)_80%,transparent_100%)] absolute top-0 left-0 h-[80rem] w-[15rem] -translate-y-[22rem] -rotate-45 rounded-full" />
       </div>
 
-      {/* Header */}
-      <header className="relative z-10 py-6 px-4">
-        <div className="max-w-7xl mx-auto">
-          <Link href="/" className="inline-flex items-center gap-3 group">
-            <motion.div
-              className="w-10 h-10 bg-gradient-to-br from-primary-500 to-primary-600 rounded-xl flex items-center justify-center shadow-lg shadow-primary-500/30"
-              whileHover={{ scale: 1.05, rotate: 5 }}
-              whileTap={{ scale: 0.95 }}
-            >
-              <Sparkles className="w-5 h-5 text-white" />
-            </motion.div>
-            <span className="text-xl font-bold bg-gradient-to-r from-zinc-100 to-zinc-300 bg-clip-text text-transparent">
-              StartupShow
-            </span>
+      {/* Content */}
+      <div className="relative mx-auto flex min-h-screen max-w-6xl flex-col justify-center px-4">
+        {/* Back to Home Button */}
+        <Button variant="ghost" className="absolute top-4 left-4 text-zinc-400 hover:text-zinc-100" asChild>
+          <Link href="/">
+            <ChevronLeft className="me-1 size-4" />
+            홈으로
           </Link>
-        </div>
-      </header>
+        </Button>
 
-      {/* Main Content */}
-      <main className="relative z-10 flex-1 flex items-center justify-center px-4 py-12">
-        <motion.div
-          className="w-full max-w-md"
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5, ease: 'easeOut' }}
-        >
+        {/* Auth Card */}
+        <div className="mx-auto w-full max-w-sm space-y-6">
+          {/* Logo */}
+          <Logo size="lg" href="/" />
+
+          {/* Children (Login/Signup Form) */}
           {children}
-        </motion.div>
-      </main>
 
-      {/* Footer */}
-      <footer className="relative z-10 py-6 px-4 text-center">
-        <p className="text-sm text-zinc-500">
-          © 2024 StartupShow. All rights reserved.
-        </p>
-        <div className="mt-2 flex justify-center gap-4">
-          <Link href="/terms" className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors">
-            이용약관
-          </Link>
-          <Link href="/privacy" className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors">
-            개인정보처리방침
-          </Link>
+          {/* Terms */}
+          <p className="text-zinc-500 text-sm">
+            계속하면{' '}
+            <Link
+              href="/terms"
+              className="hover:text-accent underline underline-offset-4 transition-colors"
+            >
+              이용약관
+            </Link>
+            {' '}및{' '}
+            <Link
+              href="/privacy"
+              className="hover:text-accent underline underline-offset-4 transition-colors"
+            >
+              개인정보처리방침
+            </Link>
+            에 동의하는 것으로 간주됩니다.
+          </p>
         </div>
-      </footer>
+      </div>
     </div>
   )
 }

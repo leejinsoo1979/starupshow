@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 
+// Type helpers
+interface StartupOwnership {
+  founder_id: string
+}
+
 // KPI metric types
 const KPI_TYPES = [
   'mrr', // Monthly Recurring Revenue
@@ -98,7 +103,7 @@ export async function POST(request: NextRequest) {
       .from('startups')
       .select('founder_id')
       .eq('id', startup_id)
-      .single()
+      .single() as { data: StartupOwnership | null }
 
     if (!startup) {
       return NextResponse.json({ error: '스타트업을 찾을 수 없습니다.' }, { status: 404 })
@@ -128,7 +133,7 @@ export async function POST(request: NextRequest) {
         metric_unit: metric_unit || null,
         period_start,
         period_end,
-      })
+      } as any)
       .select()
       .single()
 
@@ -167,7 +172,7 @@ export async function DELETE(request: NextRequest) {
       .from('startups')
       .select('founder_id')
       .eq('id', startupId)
-      .single()
+      .single() as { data: StartupOwnership | null }
 
     if (!startup || startup.founder_id !== user.id) {
       return NextResponse.json(

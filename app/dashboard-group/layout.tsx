@@ -4,10 +4,11 @@ import { useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { Sidebar } from '@/components/nav/Sidebar'
 import { Header } from '@/components/nav/Header'
+import { CommitModal } from '@/components/commits/CommitModal'
 import { useUIStore } from '@/stores/uiStore'
 import { useAuthStore } from '@/stores/authStore'
 import { createClient } from '@/lib/supabase/client'
-import type { User } from '@/types'
+import type { User, Startup } from '@/types'
 
 export default function DashboardLayout({
   children,
@@ -16,7 +17,7 @@ export default function DashboardLayout({
 }) {
   const router = useRouter()
   const { sidebarOpen } = useUIStore()
-  const { setUser, setIsLoading, isLoading } = useAuthStore()
+  const { setUser, setCurrentStartup, setIsLoading, isLoading } = useAuthStore()
 
   useEffect(() => {
     const supabase = createClient()
@@ -24,7 +25,7 @@ export default function DashboardLayout({
     // Get initial session
     const getUser = async () => {
       const { data: { user: authUser } } = await supabase.auth.getUser()
-      
+
       if (!authUser) {
         router.push('/auth-group/login')
         return
@@ -45,13 +46,24 @@ export default function DashboardLayout({
           id: authUser.id,
           email: authUser.email!,
           name: authUser.user_metadata.name || 'User',
-          role: authUser.user_metadata.role || 'founder',
+          role: authUser.user_metadata.role || 'FOUNDER',
           company: authUser.user_metadata.company,
           created_at: authUser.created_at,
           updated_at: authUser.created_at,
         } as User)
       }
-      
+
+      // Fetch user's startup
+      const { data: startup } = await supabase
+        .from('startups')
+        .select('*')
+        .eq('founder_id', authUser.id)
+        .single()
+
+      if (startup) {
+        setCurrentStartup(startup as Startup)
+      }
+
       setIsLoading(false)
     }
 
@@ -59,9 +71,10 @@ export default function DashboardLayout({
 
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
+      async (event) => {
         if (event === 'SIGNED_OUT') {
           setUser(null)
+          setCurrentStartup(null)
           router.push('/auth-group/login')
         }
       }
@@ -70,23 +83,24 @@ export default function DashboardLayout({
     return () => {
       subscription.unsubscribe()
     }
-  }, [router, setUser, setIsLoading])
+  }, [router, setUser, setCurrentStartup, setIsLoading])
 
   if (isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-zinc-950">
+      <div className="min-h-screen flex items-center justify-center bg-theme">
         <div className="text-center">
-          <div className="w-8 h-8 border-4 border-primary-500 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-          <p className="text-zinc-400">로딩 중...</p>
+          <div className="w-8 h-8 border-4 border-accent border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+          <p className="text-theme-muted">로딩 중...</p>
         </div>
       </div>
     )
   }
 
   return (
-    <div className="min-h-screen bg-zinc-950">
+    <div className="min-h-screen bg-theme">
       <Sidebar />
       <Header />
+      <CommitModal />
       <main
         className={`pt-16 min-h-screen transition-all duration-300 ${
           sidebarOpen ? 'pl-64' : 'pl-20'

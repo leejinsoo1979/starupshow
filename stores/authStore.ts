@@ -1,12 +1,14 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
-import type { User, Team } from '@/types'
+import type { User, Startup, Team } from '@/types'
 
 interface AuthState {
   user: User | null
+  currentStartup: Startup | null
   currentTeam: Team | null
   isLoading: boolean
   setUser: (user: User | null) => void
+  setCurrentStartup: (startup: Startup | null) => void
   setCurrentTeam: (team: Team | null) => void
   setIsLoading: (loading: boolean) => void
   logout: () => void
@@ -16,16 +18,18 @@ export const useAuthStore = create<AuthState>()(
   persist(
     (set) => ({
       user: null,
+      currentStartup: null,
       currentTeam: null,
       isLoading: true,
       setUser: (user) => set({ user }),
+      setCurrentStartup: (startup) => set({ currentStartup: startup }),
       setCurrentTeam: (team) => set({ currentTeam: team }),
       setIsLoading: (loading) => set({ isLoading: loading }),
-      logout: () => set({ user: null, currentTeam: null }),
+      logout: () => set({ user: null, currentStartup: null, currentTeam: null }),
     }),
     {
       name: 'auth-storage',
-      partialize: (state) => ({ currentTeam: state.currentTeam }),
+      partialize: (state) => ({ currentStartup: state.currentStartup, currentTeam: state.currentTeam }),
     }
   )
 )

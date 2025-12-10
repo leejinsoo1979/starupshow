@@ -77,7 +77,7 @@ export async function POST(request: NextRequest) {
       impact_level: impact_level || 'medium',
       next_action: next_action || null,
       files: files || [],
-    })
+    } as any)
     .select(`
       *,
       user:users(id, name, email, avatar_url)

@@ -1,6 +1,33 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 
+// Type helpers
+interface StartupId {
+  id: string
+}
+
+interface TeamMembership {
+  startup_id: string
+}
+
+interface TaskBasic {
+  id: string
+  status: string
+  priority: string
+  created_at: string
+}
+
+interface TaskWithAuthor {
+  id: string
+  title: string
+  description: string | null
+  status: string
+  priority: string
+  impact_score: number | null
+  created_at: string
+  author: { id: string; name: string } | null
+}
+
 // GET /api/dashboard - Get dashboard metrics for current user's startup
 export async function GET(request: NextRequest) {
   try {
@@ -22,7 +49,7 @@ export async function GET(request: NextRequest) {
         .from('startups')
         .select('id')
         .eq('founder_id', user.id)
-        .limit(1)
+        .limit(1) as { data: StartupId[] | null }
 
       if (startups && startups.length > 0) {
         targetStartupId = startups[0].id
@@ -32,7 +59,7 @@ export async function GET(request: NextRequest) {
           .from('team_members')
           .select('startup_id')
           .eq('user_id', user.id)
-          .limit(1)
+          .limit(1) as { data: TeamMembership[] | null }
 
         if (memberships && memberships.length > 0) {
           targetStartupId = memberships[0].startup_id
@@ -61,7 +88,7 @@ export async function GET(request: NextRequest) {
     const { data: tasks } = await supabase
       .from('tasks')
       .select('id, status, priority, created_at')
-      .eq('startup_id', targetStartupId)
+      .eq('startup_id', targetStartupId) as { data: TaskBasic[] | null }
 
     const tasksTotal = tasks?.length || 0
     const tasksCompleted = tasks?.filter(t => t.status === 'DONE').length || 0
@@ -75,7 +102,7 @@ export async function GET(request: NextRequest) {
       .from('tasks')
       .select('id')
       .eq('startup_id', targetStartupId)
-      .gte('created_at', weekAgo.toISOString())
+      .gte('created_at', weekAgo.toISOString()) as { data: { id: string }[] | null }
 
     const commitCount = weekTasks?.length || 0
 
@@ -94,7 +121,7 @@ export async function GET(request: NextRequest) {
       `)
       .eq('startup_id', targetStartupId)
       .order('created_at', { ascending: false })
-      .limit(5)
+      .limit(5) as { data: TaskWithAuthor[] | null }
 
     // Get urgent/high priority tasks
     const { data: urgentTasks } = await supabase
@@ -110,7 +137,7 @@ export async function GET(request: NextRequest) {
       .in('priority', ['URGENT', 'HIGH'])
       .neq('status', 'DONE')
       .order('priority', { ascending: false })
-      .limit(5)
+      .limit(5) as { data: TaskWithAuthor[] | null }
 
     // Calculate risk index (based on overdue/blocked tasks)
     const blockedTasks = tasks?.filter(t => t.status === 'BLOCKED').length || 0

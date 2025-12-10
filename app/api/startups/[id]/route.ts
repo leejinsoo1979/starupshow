@@ -6,6 +6,15 @@ interface RouteParams {
   params: { id: string }
 }
 
+// Type helpers
+interface StartupOwnership {
+  founder_id: string
+}
+
+interface UserProfile {
+  role: string
+}
+
 // GET /api/startups/[id] - Get single startup
 export async function GET(request: NextRequest, { params }: RouteParams) {
   try {
@@ -63,7 +72,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
       .from('startups')
       .select('founder_id')
       .eq('id', id)
-      .single()
+      .single() as { data: StartupOwnership | null }
 
     if (!startup) {
       return NextResponse.json({ error: '스타트업을 찾을 수 없습니다.' }, { status: 404 })
@@ -74,7 +83,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
       .from('users')
       .select('role')
       .eq('id', user.id)
-      .single()
+      .single() as { data: UserProfile | null }
 
     if (startup.founder_id !== user.id && profile?.role !== 'ADMIN') {
       return NextResponse.json(
@@ -85,8 +94,8 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
 
     const body: UpdateStartupInput = await request.json()
 
-    const { data, error } = await supabase
-      .from('startups')
+    const { data, error } = await (supabase
+      .from('startups') as any)
       .update(body)
       .eq('id', id)
       .select(`
@@ -122,7 +131,7 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
       .from('startups')
       .select('founder_id')
       .eq('id', id)
-      .single()
+      .single() as { data: StartupOwnership | null }
 
     if (!startup) {
       return NextResponse.json({ error: '스타트업을 찾을 수 없습니다.' }, { status: 404 })
@@ -133,7 +142,7 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
       .from('users')
       .select('role')
       .eq('id', user.id)
-      .single()
+      .single() as { data: UserProfile | null }
 
     if (startup.founder_id !== user.id && profile?.role !== 'ADMIN') {
       return NextResponse.json(

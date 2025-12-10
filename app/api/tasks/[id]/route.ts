@@ -59,8 +59,8 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
       body.completed_at = new Date().toISOString()
     }
 
-    const { data, error } = await supabase
-      .from('tasks')
+    const { data, error } = await (supabase
+      .from('tasks') as any)
       .update(body)
       .eq('id', id)
       .select(`

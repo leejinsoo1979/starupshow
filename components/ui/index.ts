@@ -15,3 +15,5 @@ export {
   StatCard,
   cardVariants
 } from './Card'
+
+export { Logo, LogoMini, LogoWordmark } from './Logo'

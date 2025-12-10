@@ -6,6 +6,24 @@ import { createClient } from '@/lib/supabase/client'
 import { useAuthStore } from '@/stores/authStore'
 import type { User, Team } from '@/types'
 
+// Type helpers for Supabase queries
+interface UserProfile {
+  id: string
+  email: string
+  name: string
+  role: string
+  avatar_url?: string
+  company?: string
+  bio?: string
+  phone?: string
+  created_at: string
+  updated_at: string
+}
+
+interface TeamMemberWithTeam {
+  team: Team | null
+}
+
 export function useAuth() {
   const router = useRouter()
   const { user, currentTeam, setUser, setCurrentTeam, setIsLoading, isLoading } = useAuthStore()
@@ -15,9 +33,9 @@ export function useAuth() {
 
     const getSession = async () => {
       setIsLoading(true)
-      
+
       const { data: { user: authUser } } = await supabase.auth.getUser()
-      
+
       if (!authUser) {
         setIsLoading(false)
         return
@@ -28,21 +46,21 @@ export function useAuth() {
         .from('users')
         .select('*')
         .eq('id', authUser.id)
-        .single()
+        .single() as { data: UserProfile | null }
 
       if (profile) {
         setUser(profile as User)
 
         // Fetch user's team if founder
-        if (profile.role === 'founder') {
+        if (profile.role === 'FOUNDER') {
           const { data: teamMember } = await supabase
             .from('team_members')
             .select('team:teams(*)')
             .eq('user_id', authUser.id)
-            .single()
+            .single() as { data: TeamMemberWithTeam | null }
 
           if (teamMember?.team) {
-            setCurrentTeam(teamMember.team as unknown as Team)
+            setCurrentTeam(teamMember.team)
           }
         }
       }

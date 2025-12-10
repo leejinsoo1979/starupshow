@@ -4,6 +4,13 @@
 
 @layer base {
   :root {
+    /* Theme accent color (can be changed by user) */
+    --accent-color: #3b82f6;
+    --accent-color-hover: #2563eb;
+    --accent-color-rgb: 59, 130, 246;
+    --radius: 0.75rem;
+
+    /* Default to dark mode */
     --background: 9 9 11;
     --foreground: 250 250 250;
     --card: 24 24 27;
@@ -21,26 +28,84 @@
     --border: 39 39 42;
     --input: 39 39 42;
     --ring: 14 165 233;
-    --radius: 0.75rem;
+  }
+
+  /* Dark mode variables */
+  .dark {
+    --background: 9 9 11;
+    --foreground: 250 250 250;
+    --card: 24 24 27;
+    --card-foreground: 250 250 250;
+    --primary: 14 165 233;
+    --primary-foreground: 255 255 255;
+    --secondary: 39 39 42;
+    --secondary-foreground: 161 161 170;
+    --muted: 39 39 42;
+    --muted-foreground: 161 161 170;
+    --accent: 39 39 42;
+    --accent-foreground: 250 250 250;
+    --destructive: 239 68 68;
+    --destructive-foreground: 255 255 255;
+    --border: 39 39 42;
+    --input: 39 39 42;
+    --ring: 14 165 233;
+  }
+
+  /* Light mode variables */
+  .light {
+    --background: 255 255 255;
+    --foreground: 24 24 27;
+    --card: 255 255 255;
+    --card-foreground: 24 24 27;
+    --primary: 14 165 233;
+    --primary-foreground: 255 255 255;
+    --secondary: 244 244 245;
+    --secondary-foreground: 39 39 42;
+    --muted: 244 244 245;
+    --muted-foreground: 113 113 122;
+    --accent: 244 244 245;
+    --accent-foreground: 24 24 27;
+    --destructive: 239 68 68;
+    --destructive-foreground: 255 255 255;
+    --border: 228 228 231;
+    --input: 228 228 231;
+    --ring: 14 165 233;
   }
 
   * {
     @apply border-zinc-800;
   }
 
+  .light * {
+    @apply border-zinc-200;
+  }
+
   html {
     @apply scroll-smooth;
+  }
+
+  html.dark {
     color-scheme: dark;
   }
 
+  html.light {
+    color-scheme: light;
+  }
+
   body {
-    @apply bg-zinc-950 text-zinc-100 antialiased;
+    @apply antialiased transition-colors duration-200;
     font-feature-settings: "rlig" 1, "calt" 1;
+    background-color: rgb(var(--background));
+    color: rgb(var(--foreground));
   }
 
   /* Smooth focus rings */
   *:focus-visible {
     @apply outline-none ring-2 ring-primary-500/50 ring-offset-2 ring-offset-zinc-950;
+  }
+
+  .light *:focus-visible {
+    @apply ring-offset-white;
   }
 }
 
@@ -179,6 +244,184 @@
 @layer utilities {
   .text-balance {
     text-wrap: balance;
+  }
+
+  /* Theme-aware background utilities */
+  .bg-theme {
+    background-color: rgb(255 255 255);
+  }
+
+  .bg-theme-secondary {
+    background-color: rgb(244 244 245);
+  }
+
+  .bg-theme-card {
+    background-color: rgb(255 255 255);
+    border-color: rgb(228 228 231);
+  }
+
+  .bg-theme-nav {
+    background-color: rgb(255 255 255 / 0.8);
+    border-color: rgb(228 228 231);
+  }
+
+  /* Theme-aware text utilities */
+  .text-theme {
+    color: rgb(24 24 27);
+  }
+
+  .text-theme-secondary {
+    color: rgb(82 82 91);
+  }
+
+  .text-theme-muted {
+    color: rgb(113 113 122);
+  }
+
+  /* Dark mode overrides */
+  .dark .bg-theme {
+    background-color: rgb(9 9 11);
+  }
+
+  .dark .bg-theme-secondary {
+    background-color: rgb(24 24 27);
+  }
+
+  .dark .bg-theme-card {
+    background-color: rgb(24 24 27);
+    border-color: rgb(39 39 42);
+  }
+
+  .dark .bg-theme-nav {
+    background-color: rgb(9 9 11 / 0.8);
+    border-color: rgb(39 39 42);
+  }
+
+  .dark .text-theme {
+    color: rgb(244 244 245);
+  }
+
+  .dark .text-theme-secondary {
+    color: rgb(161 161 170);
+  }
+
+  .dark .text-theme-muted {
+    color: rgb(113 113 122);
+  }
+
+  /* Accent color utilities - uses CSS variable set by theme dropdown */
+  .bg-accent {
+    background-color: var(--accent-color);
+  }
+
+  .bg-accent:hover {
+    background-color: var(--accent-color-hover);
+  }
+
+  .text-accent {
+    color: var(--accent-color);
+  }
+
+  .border-accent {
+    border-color: var(--accent-color);
+  }
+
+  .ring-accent {
+    --tw-ring-color: var(--accent-color);
+  }
+
+  /* Primary button with accent color */
+  .btn-accent {
+    background-color: var(--accent-color);
+    color: white;
+    transition: all 0.2s ease;
+  }
+
+  .btn-accent:hover {
+    background-color: var(--accent-color-hover);
+    transform: translateY(-1px);
+  }
+
+  .btn-accent:active {
+    transform: translateY(0);
+  }
+
+  /* Accent gradient */
+  .bg-accent-gradient {
+    background: linear-gradient(135deg, var(--accent-color), var(--accent-color-hover));
+  }
+
+  /* Accent glow */
+  .glow-accent {
+    box-shadow: 0 0 20px rgba(var(--accent-color-rgb, 59, 130, 246), 0.4);
+  }
+
+  /* Accent shadow */
+  .shadow-accent {
+    box-shadow: 0 10px 25px -3px rgba(var(--accent-color-rgb, 59, 130, 246), 0.25);
+  }
+
+  /* Accent opacity utilities */
+  .bg-accent\/10 {
+    background-color: rgba(var(--accent-color-rgb, 59, 130, 246), 0.1);
+  }
+
+  .bg-accent\/20 {
+    background-color: rgba(var(--accent-color-rgb, 59, 130, 246), 0.2);
+  }
+
+  .bg-accent\/30 {
+    background-color: rgba(var(--accent-color-rgb, 59, 130, 246), 0.3);
+  }
+
+  .text-accent\/80 {
+    color: rgba(var(--accent-color-rgb, 59, 130, 246), 0.8);
+  }
+
+  /* Focus accent utilities */
+  .focus-accent:focus {
+    border-color: var(--accent-color);
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(var(--accent-color-rgb, 59, 130, 246), 0.2);
+  }
+
+  /* Active accent state */
+  .active-accent {
+    background-color: var(--accent-color);
+    color: white;
+  }
+
+  /* Hover accent state */
+  .hover\:text-accent:hover {
+    color: var(--accent-color);
+  }
+
+  .hover\:bg-accent\/10:hover {
+    background-color: rgba(var(--accent-color-rgb, 59, 130, 246), 0.1);
+  }
+
+  .hover\:bg-accent\/20:hover {
+    background-color: rgba(var(--accent-color-rgb, 59, 130, 246), 0.2);
+  }
+
+  /* Group hover accent */
+  .group-hover\:text-accent:hover,
+  .group:hover .group-hover\:text-accent {
+    color: var(--accent-color);
+  }
+
+  .group-hover\:bg-accent\/20:hover,
+  .group:hover .group-hover\:bg-accent\/20 {
+    background-color: rgba(var(--accent-color-rgb, 59, 130, 246), 0.2);
+  }
+
+  /* Border accent opacity */
+  .border-accent\/20 {
+    border-color: rgba(var(--accent-color-rgb, 59, 130, 246), 0.2);
+  }
+
+  .border-accent\/30 {
+    border-color: rgba(var(--accent-color-rgb, 59, 130, 246), 0.3);
   }
 
   /* Hide scrollbar but allow scroll */

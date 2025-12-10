@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { Card, CardHeader, CardTitle, CardContent, Button, Input } from '@/components/ui'
 import { useAuthStore } from '@/stores/authStore'
 import { formatDate, getInitials } from '@/lib/utils'
-import type { Startup } from '@/types/database'
+import type { Startup } from '@/types'
 import {
   Users,
   Plus,
@@ -210,8 +210,8 @@ export default function TeamPage() {
               key={startup.id}
               className={`px-4 py-2 rounded-xl text-sm font-medium transition-colors ${
                 selectedStartup === startup.id
-                  ? 'bg-primary-500 text-white'
-                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                  ? 'bg-accent text-white'
+                  : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700'
               }`}
               onClick={() => setSelectedStartup(startup.id)}
             >
@@ -249,23 +249,23 @@ export default function TeamPage() {
 
       {/* Founder Card */}
       {currentStartup && (
-        <Card variant="gradient" className="border-2 border-primary-100">
+        <Card variant="gradient" className="border-2 border-accent/20">
           <CardContent className="py-5">
             <div className="flex items-center gap-4">
-              <div className="w-14 h-14 bg-gradient-to-br from-primary-500 to-primary-600 rounded-2xl flex items-center justify-center text-white font-bold text-lg shadow-lg shadow-primary-500/25">
+              <div className="w-14 h-14 bg-accent rounded-2xl flex items-center justify-center text-white font-bold text-lg shadow-accent">
                 {currentStartup.founder?.name ? getInitials(currentStartup.founder.name) : 'F'}
               </div>
               <div className="flex-1">
                 <div className="flex items-center gap-2">
-                  <h3 className="text-lg font-semibold text-gray-900">
+                  <h3 className="text-lg font-semibold text-zinc-100">
                     {currentStartup.founder?.name || '창업자'}
                   </h3>
-                  <span className="px-2 py-0.5 bg-primary-100 text-primary-700 text-xs font-medium rounded-full flex items-center gap-1">
+                  <span className="px-2 py-0.5 bg-accent/20 text-accent text-xs font-medium rounded-full flex items-center gap-1">
                     <Crown className="w-3 h-3" />
                     창업자
                   </span>
                 </div>
-                <p className="text-sm text-gray-500">{currentStartup.founder?.email}</p>
+                <p className="text-sm text-zinc-500">{currentStartup.founder?.email}</p>
               </div>
             </div>
           </CardContent>
@@ -275,7 +275,7 @@ export default function TeamPage() {
       {/* Team Members List */}
       {isLoading ? (
         <div className="flex items-center justify-center py-12">
-          <Loader2 className="w-8 h-8 animate-spin text-primary-500" />
+          <Loader2 className="w-8 h-8 animate-spin text-accent" />
         </div>
       ) : teamMembers.length === 0 ? (
         <Card variant="default" className="py-12">
@@ -342,49 +342,49 @@ export default function TeamPage() {
             onClick={() => setShowInviteModal(false)}
           >
             <motion.div
-              className="bg-white rounded-2xl shadow-2xl w-full max-w-md"
+              className="bg-zinc-900 border border-zinc-800 rounded-2xl shadow-2xl w-full max-w-md"
               initial={{ scale: 0.95, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.95, opacity: 0 }}
               onClick={e => e.stopPropagation()}
             >
-              <div className="p-6 border-b border-gray-100">
+              <div className="p-6 border-b border-zinc-800">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 bg-primary-100 rounded-xl flex items-center justify-center">
-                      <UserPlus className="w-5 h-5 text-primary-600" />
+                    <div className="w-10 h-10 bg-accent/20 rounded-xl flex items-center justify-center">
+                      <UserPlus className="w-5 h-5 text-accent" />
                     </div>
-                    <h2 className="text-xl font-bold text-gray-900">팀원 초대</h2>
+                    <h2 className="text-xl font-bold text-zinc-100">팀원 초대</h2>
                   </div>
-                  <button onClick={() => setShowInviteModal(false)} className="p-2 hover:bg-gray-100 rounded-lg">
-                    <X className="w-5 h-5 text-gray-500" />
+                  <button onClick={() => setShowInviteModal(false)} className="p-2 hover:bg-zinc-800 rounded-lg">
+                    <X className="w-5 h-5 text-zinc-400" />
                   </button>
                 </div>
               </div>
 
               <form onSubmit={handleInvite} className="p-6 space-y-5">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label className="block text-sm font-medium text-zinc-300 mb-2">
                     이메일 주소
                   </label>
                   <div className="relative">
-                    <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                    <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-zinc-500" />
                     <input
                       type="email"
-                      className="w-full h-11 pl-12 pr-4 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20"
+                      className="w-full h-11 pl-12 pr-4 bg-zinc-800 border border-zinc-700 rounded-xl text-sm text-zinc-100 focus:outline-none focus-accent"
                       placeholder="team@example.com"
                       value={inviteData.email}
                       onChange={e => setInviteData({ ...inviteData, email: e.target.value })}
                       required
                     />
                   </div>
-                  <p className="mt-1.5 text-xs text-gray-500">
+                  <p className="mt-1.5 text-xs text-zinc-500">
                     초대하려는 사용자가 이미 가입되어 있어야 합니다.
                   </p>
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">역할</label>
+                  <label className="block text-sm font-medium text-zinc-300 mb-2">역할</label>
                   <div className="grid grid-cols-2 gap-2">
                     {ROLE_OPTIONS.map(role => (
                       <button
@@ -392,16 +392,16 @@ export default function TeamPage() {
                         type="button"
                         className={`flex items-center gap-2 p-3 rounded-xl border-2 transition-all ${
                           inviteData.role === role.value
-                            ? 'border-primary-500 bg-primary-50'
-                            : 'border-gray-200 hover:border-gray-300'
+                            ? 'border-accent bg-accent/10'
+                            : 'border-zinc-700 hover:border-zinc-600'
                         }`}
                         onClick={() => setInviteData({ ...inviteData, role: role.value })}
                       >
                         <role.icon className={`w-4 h-4 ${
-                          inviteData.role === role.value ? 'text-primary-600' : 'text-gray-400'
+                          inviteData.role === role.value ? 'text-accent' : 'text-zinc-400'
                         }`} />
                         <span className={`text-sm font-medium ${
-                          inviteData.role === role.value ? 'text-primary-700' : 'text-gray-600'
+                          inviteData.role === role.value ? 'text-accent' : 'text-zinc-400'
                         }`}>
                           {role.label}
                         </span>

@@ -4,18 +4,20 @@ import { useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
-import {
-  Button,
-  Input,
-  Card,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-  CardContent,
-  CardFooter
-} from '@/components/ui'
+import { Button, Input } from '@/components/ui'
 import { createClient } from '@/lib/supabase/client'
-import { Mail, Lock, AlertCircle, ArrowRight, Sparkles } from 'lucide-react'
+import { Mail, Lock, AlertCircle, ArrowRight, Github } from 'lucide-react'
+
+const GoogleIcon = (props: React.ComponentProps<'svg'>) => (
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    viewBox="0 0 24 24"
+    fill="currentColor"
+    {...props}
+  >
+    <path d="M12.479,14.265v-3.279h11.049c0.108,0.571,0.164,1.247,0.164,1.979c0,2.46-0.672,5.502-2.84,7.669C18.744,22.829,16.051,24,12.483,24C5.869,24,0.308,18.613,0.308,12S5.869,0,12.483,0c3.659,0,6.265,1.436,8.223,3.307L18.392,5.62c-1.404-1.317-3.307-2.341-5.913-2.341C7.65,3.279,3.873,7.171,3.873,12s3.777,8.721,8.606,8.721c3.132,0,4.916-1.258,6.059-2.401c0.927-0.927,1.537-2.251,1.777-4.059L12.479,14.265z" />
+  </svg>
+)
 
 export default function LoginPage() {
   const router = useRouter()
@@ -43,138 +45,136 @@ export default function LoginPage() {
 
       router.push('/dashboard-group')
       router.refresh()
-    } catch (err) {
+    } catch {
       setError('로그인 중 오류가 발생했습니다.')
     } finally {
       setIsLoading(false)
     }
   }
 
+  const handleOAuthLogin = async (provider: 'google' | 'github') => {
+    const supabase = createClient()
+    await supabase.auth.signInWithOAuth({
+      provider,
+      options: {
+        redirectTo: `${window.location.origin}/auth/callback`,
+      },
+    })
+  }
+
   return (
-    <Card variant="glass" className="backdrop-blur-xl border-zinc-700/50 shadow-2xl shadow-black/30">
-      <CardHeader className="text-center space-y-3 pb-2">
-        <motion.div
-          className="w-14 h-14 mx-auto bg-gradient-to-br from-primary-500 to-primary-600 rounded-2xl flex items-center justify-center shadow-lg shadow-primary-500/30"
-          initial={{ scale: 0, rotate: -180 }}
-          animate={{ scale: 1, rotate: 0 }}
-          transition={{ type: 'spring', stiffness: 200, damping: 15 }}
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex flex-col space-y-1">
+        <h1 className="text-2xl font-bold tracking-wide text-zinc-100">
+          로그인
+        </h1>
+        <p className="text-zinc-400 text-base">
+          <span className="font-semibold text-accent">GlowUS</span> 계정으로 로그인하세요
+        </p>
+      </div>
+
+      {/* Error Message */}
+      <AnimatePresence mode="wait">
+        {error && (
+          <motion.div
+            initial={{ opacity: 0, y: -10, height: 0 }}
+            animate={{ opacity: 1, y: 0, height: 'auto' }}
+            exit={{ opacity: 0, y: -10, height: 0 }}
+            className="flex items-center gap-3 p-4 bg-red-500/10 border border-red-500/30 rounded-xl text-red-400 text-sm"
+          >
+            <div className="w-8 h-8 rounded-full bg-red-500/20 flex items-center justify-center flex-shrink-0">
+              <AlertCircle className="w-4 h-4" />
+            </div>
+            <span>{error}</span>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* OAuth Buttons */}
+      <div className="space-y-3">
+        <Button
+          type="button"
+          size="lg"
+          variant="outline"
+          className="w-full border-zinc-700 bg-zinc-900/50 hover:bg-zinc-800 text-zinc-100"
+          onClick={() => handleOAuthLogin('google')}
         >
-          <Sparkles className="w-7 h-7 text-white" />
-        </motion.div>
-        <div>
-          <CardTitle className="text-2xl font-bold">다시 오신 것을 환영해요</CardTitle>
-          <CardDescription className="mt-2">
-            계정에 로그인하여 대시보드에 접속하세요
-          </CardDescription>
+          <GoogleIcon className="me-2 size-4" />
+          Google로 계속하기
+        </Button>
+        <Button
+          type="button"
+          size="lg"
+          variant="outline"
+          className="w-full border-zinc-700 bg-zinc-900/50 hover:bg-zinc-800 text-zinc-100"
+          onClick={() => handleOAuthLogin('github')}
+        >
+          <Github strokeWidth={2.5} className="me-2 size-4" />
+          GitHub로 계속하기
+        </Button>
+      </div>
+
+      {/* Divider */}
+      <div className="relative">
+        <div className="absolute inset-0 flex items-center">
+          <div className="w-full border-t border-zinc-800" />
         </div>
-      </CardHeader>
+        <div className="relative flex justify-center text-xs uppercase">
+          <span className="bg-zinc-950 px-3 text-zinc-500">또는 이메일로</span>
+        </div>
+      </div>
 
-      <form onSubmit={handleSubmit}>
-        <CardContent className="space-y-5 pt-4">
-          <AnimatePresence mode="wait">
-            {error && (
-              <motion.div
-                initial={{ opacity: 0, y: -10, height: 0 }}
-                animate={{ opacity: 1, y: 0, height: 'auto' }}
-                exit={{ opacity: 0, y: -10, height: 0 }}
-                className="flex items-center gap-3 p-4 bg-danger-500/10 border border-danger-500/30 rounded-xl text-danger-400 text-sm"
-              >
-                <div className="w-8 h-8 rounded-full bg-danger-500/20 flex items-center justify-center flex-shrink-0">
-                  <AlertCircle className="w-4 h-4" />
-                </div>
-                <span>{error}</span>
-              </motion.div>
-            )}
-          </AnimatePresence>
+      {/* Email Form */}
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <Input
+          type="email"
+          placeholder="이메일 주소"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          leftIcon={<Mail className="w-5 h-5" />}
+          required
+        />
+        <Input
+          type="password"
+          placeholder="비밀번호"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          leftIcon={<Lock className="w-5 h-5" />}
+          showPasswordToggle
+          required
+        />
 
-          <motion.div
-            className="space-y-4"
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.1 }}
+        <div className="flex justify-end">
+          <Link
+            href="/auth-group/forgot-password"
+            className="text-sm text-accent hover:text-accent/80 font-medium transition-colors"
           >
-            <Input
-              type="email"
-              placeholder="이메일 주소"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              leftIcon={<Mail className="w-5 h-5" />}
-              required
-            />
-            <Input
-              type="password"
-              placeholder="비밀번호"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              leftIcon={<Lock className="w-5 h-5" />}
-              showPasswordToggle
-              required
-            />
-          </motion.div>
+            비밀번호를 잊으셨나요?
+          </Link>
+        </div>
 
-          <motion.div
-            className="flex justify-end"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 0.2 }}
-          >
-            <Link
-              href="/auth-group/forgot-password"
-              className="text-sm text-primary-400 hover:text-primary-300 font-medium transition-colors"
-            >
-              비밀번호를 잊으셨나요?
-            </Link>
-          </motion.div>
-        </CardContent>
-
-        <CardFooter className="flex flex-col gap-5">
-          <motion.div
-            className="w-full"
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.3 }}
-          >
-            <Button
-              type="submit"
-              className="w-full h-12"
-              size="lg"
-              isLoading={isLoading}
-              rightIcon={!isLoading && <ArrowRight className="w-4 h-4" />}
-            >
-              로그인
-            </Button>
-          </motion.div>
-
-          <motion.div
-            className="relative w-full"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 0.4 }}
-          >
-            <div className="absolute inset-0 flex items-center">
-              <div className="w-full border-t border-zinc-700" />
-            </div>
-            <div className="relative flex justify-center text-xs uppercase">
-              <span className="bg-zinc-900 px-3 text-zinc-500">또는</span>
-            </div>
-          </motion.div>
-
-          <motion.p
-            className="text-sm text-zinc-400 text-center"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 0.5 }}
-          >
-            계정이 없으신가요?{' '}
-            <Link
-              href="/auth-group/signup"
-              className="text-primary-400 hover:text-primary-300 font-semibold transition-colors"
-            >
-              회원가입
-            </Link>
-          </motion.p>
-        </CardFooter>
+        <Button
+          type="submit"
+          className="w-full h-12"
+          size="lg"
+          isLoading={isLoading}
+          rightIcon={!isLoading ? <ArrowRight className="w-4 h-4" /> : undefined}
+        >
+          로그인
+        </Button>
       </form>
-    </Card>
+
+      {/* Sign Up Link */}
+      <p className="text-sm text-zinc-400 text-center">
+        계정이 없으신가요?{' '}
+        <Link
+          href="/auth-group/signup"
+          className="text-accent hover:text-accent/80 font-semibold transition-colors"
+        >
+          회원가입
+        </Link>
+      </p>
+    </div>
   )
 }

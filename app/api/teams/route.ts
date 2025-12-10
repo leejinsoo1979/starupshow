@@ -1,6 +1,45 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 
+// Type helpers
+interface TeamMemberWithTeam {
+  role: string
+  team: {
+    id: string
+    name: string
+    founder_id: string
+    work_style: string
+    industry?: string
+    description?: string
+    logo_url?: string
+    website?: string
+    is_open_call: boolean
+    is_public: boolean
+    created_at: string
+    updated_at: string
+    founder?: {
+      id: string
+      name: string
+      email: string
+      avatar_url?: string
+    }
+    team_members?: {
+      user: {
+        id: string
+        name: string
+        email: string
+        avatar_url?: string
+      }
+      role: string
+    }[]
+  }
+}
+
+interface CreatedTeam {
+  id: string
+  name: string
+}
+
 // GET /api/teams - List user's teams
 export async function GET(request: NextRequest) {
   const supabase = createClient()
@@ -25,7 +64,7 @@ export async function GET(request: NextRequest) {
         )
       )
     `)
-    .eq('user_id', user.id)
+    .eq('user_id', user.id) as { data: TeamMemberWithTeam[] | null; error: any }
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 })
@@ -66,12 +105,16 @@ export async function POST(request: NextRequest) {
       industry,
       description,
       website,
-    })
+    } as any)
     .select()
-    .single()
+    .single() as { data: CreatedTeam | null; error: any }
 
   if (teamError) {
     return NextResponse.json({ error: teamError.message }, { status: 500 })
+  }
+
+  if (!team) {
+    return NextResponse.json({ error: 'Failed to create team' }, { status: 500 })
   }
 
   // Add founder as team member
@@ -81,7 +124,7 @@ export async function POST(request: NextRequest) {
       team_id: team.id,
       user_id: user.id,
       role: 'founder',
-    })
+    } as any)
 
   if (memberError) {
     // Rollback team creation

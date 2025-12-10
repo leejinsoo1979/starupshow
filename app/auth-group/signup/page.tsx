@@ -4,16 +4,7 @@ import { useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
-import {
-  Button,
-  Input,
-  Card,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-  CardContent,
-  CardFooter
-} from '@/components/ui'
+import { Button, Input } from '@/components/ui'
 import { createClient } from '@/lib/supabase/client'
 import {
   Mail,
@@ -25,10 +16,22 @@ import {
   ArrowRight,
   ArrowLeft,
   Rocket,
-  TrendingUp
+  TrendingUp,
+  Github
 } from 'lucide-react'
 
 type UserRole = 'founder' | 'vc'
+
+const GoogleIcon = (props: React.ComponentProps<'svg'>) => (
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    viewBox="0 0 24 24"
+    fill="currentColor"
+    {...props}
+  >
+    <path d="M12.479,14.265v-3.279h11.049c0.108,0.571,0.164,1.247,0.164,1.979c0,2.46-0.672,5.502-2.84,7.669C18.744,22.829,16.051,24,12.483,24C5.869,24,0.308,18.613,0.308,12S5.869,0,12.483,0c3.659,0,6.265,1.436,8.223,3.307L18.392,5.62c-1.404-1.317-3.307-2.341-5.913-2.341C7.65,3.279,3.873,7.171,3.873,12s3.777,8.721,8.606,8.721c3.132,0,4.916-1.258,6.059-2.401c0.927-0.927,1.537-2.251,1.777-4.059L12.479,14.265z" />
+  </svg>
+)
 
 const roleOptions = [
   {
@@ -36,22 +39,12 @@ const roleOptions = [
     title: '스타트업 창업자',
     description: '팀을 운영하고, 프로젝트를 관리하며, 투자자에게 어필하세요.',
     icon: Rocket,
-    gradient: 'from-primary-500 to-primary-600',
-    shadowColor: 'shadow-primary-500/30',
-    bgColor: 'bg-primary-500/10',
-    borderColor: 'border-zinc-700',
-    hoverBorder: 'hover:border-primary-500/50',
   },
   {
     id: 'vc' as const,
     title: '투자자 (VC)',
     description: '유망한 스타트업을 발굴하고 투자 파이프라인을 관리하세요.',
     icon: TrendingUp,
-    gradient: 'from-success-500 to-success-600',
-    shadowColor: 'shadow-success-500/30',
-    bgColor: 'bg-success-500/10',
-    borderColor: 'border-zinc-700',
-    hoverBorder: 'hover:border-success-500/50',
   },
 ]
 
@@ -75,7 +68,7 @@ export default function SignupPage() {
     try {
       const supabase = createClient()
 
-      const { data, error: signUpError } = await supabase.auth.signUp({
+      const { error: signUpError } = await supabase.auth.signUp({
         email,
         password,
         options: {
@@ -93,61 +86,109 @@ export default function SignupPage() {
       }
 
       setSuccess(true)
-    } catch (err) {
+    } catch {
       setError('회원가입 중 오류가 발생했습니다.')
     } finally {
       setIsLoading(false)
     }
   }
 
+  const handleOAuthSignup = async (provider: 'google' | 'github') => {
+    const supabase = createClient()
+    await supabase.auth.signInWithOAuth({
+      provider,
+      options: {
+        redirectTo: `${window.location.origin}/auth/callback`,
+      },
+    })
+  }
+
   // Success state
   if (success) {
     return (
-      <Card variant="glass" className="backdrop-blur-xl border-zinc-700/50 shadow-2xl shadow-black/30">
-        <CardContent className="py-12 text-center">
-          <motion.div
-            className="w-20 h-20 mx-auto mb-6 bg-gradient-to-br from-success-400 to-success-500 rounded-full flex items-center justify-center shadow-lg shadow-success-500/30"
-            initial={{ scale: 0, rotate: -180 }}
-            animate={{ scale: 1, rotate: 0 }}
-            transition={{ type: 'spring', stiffness: 200, damping: 15 }}
-          >
-            <CheckCircle2 className="w-10 h-10 text-white" />
-          </motion.div>
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.2 }}
-          >
-            <h2 className="text-2xl font-bold text-zinc-100 mb-3">
-              이메일을 확인해주세요
-            </h2>
-            <p className="text-zinc-400 mb-8 leading-relaxed">
-              <span className="font-medium text-primary-400">{email}</span>로<br />
-              확인 메일을 보냈습니다.<br />
-              이메일의 링크를 클릭하여 가입을 완료해주세요.
-            </p>
-            <Link href="/auth-group/login">
-              <Button variant="outline" size="lg">
-                로그인 페이지로
-              </Button>
-            </Link>
-          </motion.div>
-        </CardContent>
-      </Card>
+      <div className="space-y-6 text-center">
+        <motion.div
+          className="w-20 h-20 mx-auto bg-green-500 rounded-full flex items-center justify-center"
+          initial={{ scale: 0, rotate: -180 }}
+          animate={{ scale: 1, rotate: 0 }}
+          transition={{ type: 'spring', stiffness: 200, damping: 15 }}
+        >
+          <CheckCircle2 className="w-10 h-10 text-white" />
+        </motion.div>
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.2 }}
+          className="space-y-4"
+        >
+          <h2 className="text-2xl font-bold text-zinc-100">
+            이메일을 확인해주세요
+          </h2>
+          <p className="text-zinc-400 leading-relaxed">
+            <span className="font-medium text-accent">{email}</span>로<br />
+            확인 메일을 보냈습니다.<br />
+            이메일의 링크를 클릭하여 가입을 완료해주세요.
+          </p>
+          <Link href="/auth-group/login">
+            <Button variant="outline" size="lg" className="mt-4 border-zinc-700">
+              로그인 페이지로
+            </Button>
+          </Link>
+        </motion.div>
+      </div>
     )
   }
 
   // Role selection step
   if (step === 'role') {
     return (
-      <Card variant="glass" className="backdrop-blur-xl border-zinc-700/50 shadow-2xl shadow-black/30">
-        <CardHeader className="text-center space-y-2">
-          <CardTitle className="text-2xl font-bold">회원가입</CardTitle>
-          <CardDescription>
+      <div className="space-y-6">
+        {/* Header */}
+        <div className="flex flex-col space-y-1">
+          <h1 className="text-2xl font-bold tracking-wide text-zinc-100">
+            회원가입
+          </h1>
+          <p className="text-zinc-400 text-base">
             어떤 역할로 가입하시겠습니까?
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
+          </p>
+        </div>
+
+        {/* OAuth Buttons */}
+        <div className="space-y-3">
+          <Button
+            type="button"
+            size="lg"
+            variant="outline"
+            className="w-full border-zinc-700 bg-zinc-900/50 hover:bg-zinc-800 text-zinc-100"
+            onClick={() => handleOAuthSignup('google')}
+          >
+            <GoogleIcon className="me-2 size-4" />
+            Google로 계속하기
+          </Button>
+          <Button
+            type="button"
+            size="lg"
+            variant="outline"
+            className="w-full border-zinc-700 bg-zinc-900/50 hover:bg-zinc-800 text-zinc-100"
+            onClick={() => handleOAuthSignup('github')}
+          >
+            <Github strokeWidth={2.5} className="me-2 size-4" />
+            GitHub로 계속하기
+          </Button>
+        </div>
+
+        {/* Divider */}
+        <div className="relative">
+          <div className="absolute inset-0 flex items-center">
+            <div className="w-full border-t border-zinc-800" />
+          </div>
+          <div className="relative flex justify-center text-xs uppercase">
+            <span className="bg-zinc-950 px-3 text-zinc-500">또는 역할 선택</span>
+          </div>
+        </div>
+
+        {/* Role Selection */}
+        <div className="space-y-3">
           {roleOptions.map((option, index) => (
             <motion.button
               key={option.id}
@@ -155,40 +196,40 @@ export default function SignupPage() {
                 setRole(option.id)
                 setStep('form')
               }}
-              className={`w-full p-5 border-2 rounded-2xl text-left group transition-all duration-300 bg-zinc-800/50 ${option.borderColor} ${option.hoverBorder} hover:shadow-lg hover:shadow-black/30`}
+              className="w-full p-4 border border-zinc-800 rounded-xl text-left group transition-all duration-300 bg-zinc-900/30 hover:bg-zinc-800/50 hover:border-zinc-700"
               initial={{ opacity: 0, x: -20 }}
               animate={{ opacity: 1, x: 0 }}
               transition={{ delay: index * 0.1 }}
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
+              whileHover={{ scale: 1.01 }}
+              whileTap={{ scale: 0.99 }}
             >
-              <div className="flex items-start gap-4">
-                <div className={`w-14 h-14 rounded-xl bg-gradient-to-br ${option.gradient} flex items-center justify-center ${option.shadowColor} shadow-lg group-hover:scale-110 transition-transform duration-300`}>
-                  <option.icon className="w-7 h-7 text-white" />
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 rounded-xl bg-zinc-800 flex items-center justify-center group-hover:bg-accent/20 transition-colors">
+                  <option.icon className="w-6 h-6 text-zinc-400 group-hover:text-accent transition-colors" />
                 </div>
                 <div className="flex-1">
-                  <h3 className="font-semibold text-zinc-100 mb-1 text-lg">{option.title}</h3>
-                  <p className="text-sm text-zinc-400 leading-relaxed">
+                  <h3 className="font-semibold text-zinc-100 mb-0.5">{option.title}</h3>
+                  <p className="text-sm text-zinc-500">
                     {option.description}
                   </p>
                 </div>
-                <ArrowRight className="w-5 h-5 text-zinc-600 group-hover:text-zinc-400 group-hover:translate-x-1 transition-all mt-2" />
+                <ArrowRight className="w-5 h-5 text-zinc-600 group-hover:text-zinc-400 group-hover:translate-x-1 transition-all" />
               </div>
             </motion.button>
           ))}
-        </CardContent>
-        <CardFooter className="justify-center">
-          <p className="text-sm text-zinc-500">
-            이미 계정이 있으신가요?{' '}
-            <Link
-              href="/auth-group/login"
-              className="text-primary-400 hover:text-primary-300 font-semibold transition-colors"
-            >
-              로그인
-            </Link>
-          </p>
-        </CardFooter>
-      </Card>
+        </div>
+
+        {/* Login Link */}
+        <p className="text-sm text-zinc-400 text-center">
+          이미 계정이 있으신가요?{' '}
+          <Link
+            href="/auth-group/login"
+            className="text-accent hover:text-accent/80 font-semibold transition-colors"
+          >
+            로그인
+          </Link>
+        </p>
+      </div>
     )
   }
 
@@ -196,119 +237,99 @@ export default function SignupPage() {
   const selectedRole = roleOptions.find(r => r.id === role)!
 
   return (
-    <Card variant="glass" className="backdrop-blur-xl border-zinc-700/50 shadow-2xl shadow-black/30">
-      <CardHeader className="text-center space-y-3 pb-2">
-        <motion.div
-          className={`w-14 h-14 mx-auto bg-gradient-to-br ${selectedRole.gradient} rounded-2xl flex items-center justify-center shadow-lg ${selectedRole.shadowColor}`}
-          initial={{ scale: 0, rotate: -180 }}
-          animate={{ scale: 1, rotate: 0 }}
-          transition={{ type: 'spring', stiffness: 200, damping: 15 }}
-        >
-          <selectedRole.icon className="w-7 h-7 text-white" />
-        </motion.div>
-        <div>
-          <CardTitle className="text-2xl font-bold">
-            {role === 'founder' ? '창업자 회원가입' : '투자자 회원가입'}
-          </CardTitle>
-          <CardDescription className="mt-2">
-            계정을 생성하고 시작하세요
-          </CardDescription>
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex flex-col space-y-1">
+        <div className="flex items-center gap-3 mb-2">
+          <div className="w-10 h-10 rounded-lg bg-accent/20 flex items-center justify-center">
+            <selectedRole.icon className="w-5 h-5 text-accent" />
+          </div>
+          <span className="text-sm text-zinc-500 font-medium">
+            {role === 'founder' ? '창업자' : '투자자'}
+          </span>
         </div>
-      </CardHeader>
+        <h1 className="text-2xl font-bold tracking-wide text-zinc-100">
+          계정 만들기
+        </h1>
+        <p className="text-zinc-400 text-base">
+          정보를 입력하고 시작하세요
+        </p>
+      </div>
 
-      <form onSubmit={handleSubmit}>
-        <CardContent className="space-y-5 pt-4">
-          <AnimatePresence mode="wait">
-            {error && (
-              <motion.div
-                initial={{ opacity: 0, y: -10, height: 0 }}
-                animate={{ opacity: 1, y: 0, height: 'auto' }}
-                exit={{ opacity: 0, y: -10, height: 0 }}
-                className="flex items-center gap-3 p-4 bg-danger-500/10 border border-danger-500/30 rounded-xl text-danger-400 text-sm"
-              >
-                <div className="w-8 h-8 rounded-full bg-danger-500/20 flex items-center justify-center flex-shrink-0">
-                  <AlertCircle className="w-4 h-4" />
-                </div>
-                <span>{error}</span>
-              </motion.div>
-            )}
-          </AnimatePresence>
-
+      {/* Error Message */}
+      <AnimatePresence mode="wait">
+        {error && (
           <motion.div
-            className="space-y-4"
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.1 }}
+            initial={{ opacity: 0, y: -10, height: 0 }}
+            animate={{ opacity: 1, y: 0, height: 'auto' }}
+            exit={{ opacity: 0, y: -10, height: 0 }}
+            className="flex items-center gap-3 p-4 bg-red-500/10 border border-red-500/30 rounded-xl text-red-400 text-sm"
           >
-            <Input
-              type="text"
-              placeholder="이름"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              leftIcon={<User className="w-5 h-5" />}
-              required
-            />
-            <Input
-              type="email"
-              placeholder="이메일 주소"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              leftIcon={<Mail className="w-5 h-5" />}
-              required
-            />
-            <Input
-              type="password"
-              placeholder="비밀번호 (최소 6자)"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              leftIcon={<Lock className="w-5 h-5" />}
-              showPasswordToggle
-              hint="영문, 숫자를 포함한 6자 이상"
-              minLength={6}
-              required
-            />
-            <Input
-              type="text"
-              placeholder={role === 'founder' ? '회사명' : '소속 기관'}
-              value={company}
-              onChange={(e) => setCompany(e.target.value)}
-              leftIcon={<Building2 className="w-5 h-5" />}
-            />
+            <div className="w-8 h-8 rounded-full bg-red-500/20 flex items-center justify-center flex-shrink-0">
+              <AlertCircle className="w-4 h-4" />
+            </div>
+            <span>{error}</span>
           </motion.div>
-        </CardContent>
+        )}
+      </AnimatePresence>
 
-        <CardFooter className="flex flex-col gap-4">
-          <motion.div
-            className="w-full"
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.2 }}
-          >
-            <Button
-              type="submit"
-              className="w-full h-12"
-              size="lg"
-              isLoading={isLoading}
-              rightIcon={!isLoading && <ArrowRight className="w-4 h-4" />}
-            >
-              회원가입
-            </Button>
-          </motion.div>
+      {/* Form */}
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <Input
+          type="text"
+          placeholder="이름"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          leftIcon={<User className="w-5 h-5" />}
+          required
+        />
+        <Input
+          type="email"
+          placeholder="이메일 주소"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          leftIcon={<Mail className="w-5 h-5" />}
+          required
+        />
+        <Input
+          type="password"
+          placeholder="비밀번호 (최소 6자)"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          leftIcon={<Lock className="w-5 h-5" />}
+          showPasswordToggle
+          hint="영문, 숫자를 포함한 6자 이상"
+          minLength={6}
+          required
+        />
+        <Input
+          type="text"
+          placeholder={role === 'founder' ? '회사명' : '소속 기관'}
+          value={company}
+          onChange={(e) => setCompany(e.target.value)}
+          leftIcon={<Building2 className="w-5 h-5" />}
+        />
 
-          <motion.button
-            type="button"
-            onClick={() => setStep('role')}
-            className="flex items-center justify-center gap-2 text-sm text-zinc-500 hover:text-zinc-300 transition-colors"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 0.3 }}
-            whileHover={{ x: -3 }}
-          >
-            <ArrowLeft className="w-4 h-4" />
-            역할 다시 선택
-          </motion.button>
-        </CardFooter>
+        <Button
+          type="submit"
+          className="w-full h-12"
+          size="lg"
+          isLoading={isLoading}
+          rightIcon={!isLoading ? <ArrowRight className="w-4 h-4" /> : undefined}
+        >
+          회원가입
+        </Button>
       </form>
-    </Card>
+
+      {/* Back Button */}
+      <button
+        type="button"
+        onClick={() => setStep('role')}
+        className="flex items-center justify-center gap-2 w-full text-sm text-zinc-500 hover:text-zinc-300 transition-colors"
+      >
+        <ArrowLeft className="w-4 h-4" />
+        역할 다시 선택
+      </button>
+    </div>
   )
 }
