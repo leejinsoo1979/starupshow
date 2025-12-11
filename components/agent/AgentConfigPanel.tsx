@@ -1,10 +1,18 @@
 "use client"
 
+import { useState } from "react"
+import dynamic from "next/dynamic"
 import { Node } from "reactflow"
 import { motion, AnimatePresence } from "framer-motion"
-import { X, Trash2, Settings, Sparkles } from "lucide-react"
+import { X, Trash2, Settings, Sparkles, Maximize2, Minimize2 } from "lucide-react"
 import { Button } from "@/components/ui/Button"
 import type { AgentNodeData, AgentType } from "@/lib/agent"
+
+// Monaco Editor 동적 import (SSR 비활성화)
+const MonacoCodeEditor = dynamic(
+  () => import('@/components/editor/MonacoCodeEditor').then(mod => mod.MonacoCodeEditor),
+  { ssr: false, loading: () => <div className="h-[300px] bg-zinc-800 animate-pulse rounded-lg" /> }
+)
 
 interface AgentConfigPanelProps {
   node: Node<AgentNodeData> | null
@@ -17,6 +25,8 @@ export function AgentConfigPanel({
   onClose,
   onUpdate,
 }: AgentConfigPanelProps) {
+  const [isCodeExpanded, setIsCodeExpanded] = useState(false)
+
   if (!node) return null
 
   const handleChange = (key: keyof AgentNodeData, value: unknown) => {
@@ -35,7 +45,7 @@ export function AgentConfigPanel({
               <select
                 value={node.data.model || "gpt-4-turbo"}
                 onChange={(e) => handleChange("model", e.target.value)}
-                className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-violet-500/50"
+                className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-800 border border-zinc-400 dark:border-zinc-700 rounded-lg text-sm text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-violet-500/50"
               >
                 <option value="gpt-4">GPT-4</option>
                 <option value="gpt-4-turbo">GPT-4 Turbo</option>
@@ -72,7 +82,7 @@ export function AgentConfigPanel({
                 onChange={(e) =>
                   handleChange("maxTokens", parseInt(e.target.value))
                 }
-                className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-violet-500/50"
+                className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-800 border border-zinc-400 dark:border-zinc-700 rounded-lg text-sm text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-violet-500/50"
               />
             </div>
 
@@ -84,7 +94,7 @@ export function AgentConfigPanel({
                 value={node.data.systemPrompt || ""}
                 onChange={(e) => handleChange("systemPrompt", e.target.value)}
                 rows={4}
-                className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-violet-500/50 resize-none"
+                className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-800 border border-zinc-400 dark:border-zinc-700 rounded-lg text-sm text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-violet-500/50 resize-none"
                 placeholder="시스템 프롬프트를 입력하세요..."
               />
             </div>
@@ -101,7 +111,7 @@ export function AgentConfigPanel({
               value={node.data.prompt || ""}
               onChange={(e) => handleChange("prompt", e.target.value)}
               rows={6}
-              className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-violet-500/50 resize-none"
+              className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-800 border border-zinc-400 dark:border-zinc-700 rounded-lg text-sm text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-violet-500/50 resize-none"
               placeholder="프롬프트를 입력하세요..."
             />
             <p className="text-xs text-zinc-400 dark:text-zinc-500 mt-1">
@@ -120,7 +130,7 @@ export function AgentConfigPanel({
               <select
                 value={node.data.memoryType || "buffer"}
                 onChange={(e) => handleChange("memoryType", e.target.value)}
-                className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-violet-500/50"
+                className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-800 border border-zinc-400 dark:border-zinc-700 rounded-lg text-sm text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-violet-500/50"
               >
                 <option value="buffer">Buffer Memory</option>
                 <option value="summary">Summary Memory</option>
@@ -139,7 +149,7 @@ export function AgentConfigPanel({
                 onChange={(e) =>
                   handleChange("memoryLimit", parseInt(e.target.value))
                 }
-                className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-violet-500/50"
+                className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-800 border border-zinc-400 dark:border-zinc-700 rounded-lg text-sm text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-violet-500/50"
               />
             </div>
           </>
@@ -155,7 +165,7 @@ export function AgentConfigPanel({
               <select
                 value={node.data.vectorStore || "supabase"}
                 onChange={(e) => handleChange("vectorStore", e.target.value)}
-                className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-violet-500/50"
+                className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-800 border border-zinc-400 dark:border-zinc-700 rounded-lg text-sm text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-violet-500/50"
               >
                 <option value="supabase">Supabase</option>
                 <option value="pinecone">Pinecone</option>
@@ -173,7 +183,7 @@ export function AgentConfigPanel({
                 onChange={(e) =>
                   handleChange("embeddingModel", e.target.value)
                 }
-                className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-violet-500/50"
+                className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-800 border border-zinc-400 dark:border-zinc-700 rounded-lg text-sm text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-violet-500/50"
               >
                 <option value="text-embedding-3-small">
                   text-embedding-3-small
@@ -197,7 +207,7 @@ export function AgentConfigPanel({
                 onChange={(e) =>
                   handleChange("retrievalCount", parseInt(e.target.value))
                 }
-                className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-violet-500/50"
+                className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-800 border border-zinc-400 dark:border-zinc-700 rounded-lg text-sm text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-violet-500/50"
               />
             </div>
           </>
@@ -213,7 +223,7 @@ export function AgentConfigPanel({
               <select
                 value={node.data.routingLogic || "conditional"}
                 onChange={(e) => handleChange("routingLogic", e.target.value)}
-                className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-violet-500/50"
+                className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-800 border border-zinc-400 dark:border-zinc-700 rounded-lg text-sm text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-violet-500/50"
               >
                 <option value="conditional">조건부 분기</option>
                 <option value="sequential">순차 실행</option>
@@ -230,7 +240,7 @@ export function AgentConfigPanel({
                   value={node.data.code || "// return 'handle1' or 'handle2' based on input\nif (input.includes('hello')) return 'a';\nreturn 'b';"}
                   onChange={(e) => handleChange("code", e.target.value)}
                   rows={8}
-                  className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm text-zinc-900 dark:text-zinc-100 font-mono focus:outline-none focus:ring-2 focus:ring-violet-500/50 resize-none"
+                  className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-800 border border-zinc-400 dark:border-zinc-700 rounded-lg text-sm text-zinc-900 dark:text-zinc-100 font-mono focus:outline-none focus:ring-2 focus:ring-violet-500/50 resize-none"
                   placeholder="// 조건 로직을 작성하세요"
                 />
               </div>
@@ -255,7 +265,7 @@ export function AgentConfigPanel({
               <select
                 value={node.data.evaluationType || "quality"}
                 onChange={(e) => handleChange("evaluationType", e.target.value)}
-                className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-violet-500/50"
+                className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-800 border border-zinc-400 dark:border-zinc-700 rounded-lg text-sm text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-violet-500/50"
               >
                 <option value="quality">품질 평가</option>
                 <option value="relevance">관련성 평가</option>
@@ -293,7 +303,7 @@ export function AgentConfigPanel({
               <select
                 value={node.data.inputType || "text"}
                 onChange={(e) => handleChange("inputType", e.target.value)}
-                className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-violet-500/50"
+                className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-800 border border-zinc-400 dark:border-zinc-700 rounded-lg text-sm text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-violet-500/50"
               >
                 <option value="text">텍스트</option>
                 <option value="file">파일</option>
@@ -315,7 +325,7 @@ export function AgentConfigPanel({
               <select
                 value={node.data.outputType || "text"}
                 onChange={(e) => handleChange("outputType", e.target.value)}
-                className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-violet-500/50"
+                className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-800 border border-zinc-400 dark:border-zinc-700 rounded-lg text-sm text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-violet-500/50"
               >
                 <option value="text">텍스트</option>
                 <option value="json">JSON</option>
@@ -338,7 +348,7 @@ export function AgentConfigPanel({
                 value={node.data.functionName || ""}
                 onChange={(e) => handleChange("functionName", e.target.value)}
                 placeholder="함수 이름을 입력하세요"
-                className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm text-zinc-100 focus:outline-none focus:ring-2 focus:ring-violet-500/50"
+                className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-800 border border-zinc-400 dark:border-zinc-700 rounded-lg text-sm text-zinc-100 focus:outline-none focus:ring-2 focus:ring-violet-500/50"
               />
             </div>
 
@@ -350,7 +360,7 @@ export function AgentConfigPanel({
                 value={node.data.functionArgs || "{}"}
                 onChange={(e) => handleChange("functionArgs", e.target.value)}
                 rows={4}
-                className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm text-zinc-900 dark:text-zinc-100 font-mono focus:outline-none focus:ring-2 focus:ring-violet-500/50 resize-none"
+                className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-800 border border-zinc-400 dark:border-zinc-700 rounded-lg text-sm text-zinc-900 dark:text-zinc-100 font-mono focus:outline-none focus:ring-2 focus:ring-violet-500/50 resize-none"
                 placeholder='{"param1": "value1"}'
               />
             </div>
@@ -360,16 +370,32 @@ export function AgentConfigPanel({
       case "javascript":
         return (
           <div className="space-y-2">
-            <label className="text-xs font-medium text-zinc-500 dark:text-zinc-400">
-              코드 (JavaScript):
-            </label>
-            <textarea
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-medium text-zinc-500 dark:text-zinc-400">
+                코드 (JavaScript):
+              </label>
+              <button
+                onClick={() => setIsCodeExpanded(!isCodeExpanded)}
+                className="p-1 hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded transition-colors"
+                title={isCodeExpanded ? "축소" : "확대"}
+              >
+                {isCodeExpanded ? (
+                  <Minimize2 className="w-4 h-4 text-zinc-500" />
+                ) : (
+                  <Maximize2 className="w-4 h-4 text-zinc-500" />
+                )}
+              </button>
+            </div>
+            <MonacoCodeEditor
               value={node.data.code || "// Access inputs as input1, etc.\nreturn input1.toUpperCase()"}
-              onChange={(e) => handleChange("code", e.target.value)}
-              rows={12}
-              className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm text-zinc-900 dark:text-zinc-100 font-mono focus:outline-none focus:ring-2 focus:ring-violet-500/50 resize-none"
-              placeholder="// 여기에 자바스크립트 코드를 작성하세요"
+              onChange={(value) => handleChange("code", value)}
+              language="javascript"
+              height={isCodeExpanded ? "400px" : "200px"}
+              minimap={isCodeExpanded}
             />
+            <p className="text-xs text-zinc-400 dark:text-zinc-500">
+              입력값은 input1, input2 등으로 접근합니다. 마지막 표현식이 반환됩니다.
+            </p>
           </div>
         )
 
@@ -385,19 +411,32 @@ export function AgentConfigPanel({
                 value={node.data.functionName || ""}
                 onChange={(e) => handleChange("functionName", e.target.value)}
                 placeholder="사용자 정의 도구 이름"
-                className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-violet-500/50"
+                className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-800 border border-zinc-400 dark:border-zinc-700 rounded-lg text-sm text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-violet-500/50"
               />
             </div>
             <div className="space-y-2">
-              <label className="text-xs font-medium text-zinc-500 dark:text-zinc-400">
-                구현 (JavaScript)
-              </label>
-              <textarea
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-medium text-zinc-500 dark:text-zinc-400">
+                  구현 (JavaScript)
+                </label>
+                <button
+                  onClick={() => setIsCodeExpanded(!isCodeExpanded)}
+                  className="p-1 hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded transition-colors"
+                  title={isCodeExpanded ? "축소" : "확대"}
+                >
+                  {isCodeExpanded ? (
+                    <Minimize2 className="w-4 h-4 text-zinc-500" />
+                  ) : (
+                    <Maximize2 className="w-4 h-4 text-zinc-500" />
+                  )}
+                </button>
+              </div>
+              <MonacoCodeEditor
                 value={node.data.code || "// Tool implementation\nasync function execute(args) {\n  // Your code here\n  return result;\n}"}
-                onChange={(e) => handleChange("code", e.target.value)}
-                rows={12}
-                className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm text-zinc-900 dark:text-zinc-100 font-mono focus:outline-none focus:ring-2 focus:ring-violet-500/50 resize-none"
-                placeholder="// Implementation"
+                onChange={(value) => handleChange("code", value)}
+                language="javascript"
+                height={isCodeExpanded ? "400px" : "250px"}
+                minimap={isCodeExpanded}
               />
             </div>
           </>
@@ -413,7 +452,7 @@ export function AgentConfigPanel({
               <select
                 value={node.data.model || "dall-e-3"}
                 onChange={(e) => handleChange("model", e.target.value)}
-                className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-violet-500/50"
+                className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-800 border border-zinc-400 dark:border-zinc-700 rounded-lg text-sm text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-violet-500/50"
               >
                 <option value="dall-e-3">DALL·E 3</option>
                 <option value="dall-e-2">DALL·E 2</option>
@@ -427,7 +466,7 @@ export function AgentConfigPanel({
               <select
                 value={node.data.inputConfig?.size as string || "1024x1024"}
                 onChange={(e) => handleChange("inputConfig", { ...node.data.inputConfig, size: e.target.value })}
-                className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-violet-500/50"
+                className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-800 border border-zinc-400 dark:border-zinc-700 rounded-lg text-sm text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-violet-500/50"
               >
                 <option value="1024x1024">1024x1024</option>
                 <option value="512x512">512x512</option>
@@ -442,7 +481,7 @@ export function AgentConfigPanel({
               <select
                 value={node.data.inputConfig?.quality as string || "standard"}
                 onChange={(e) => handleChange("inputConfig", { ...node.data.inputConfig, quality: e.target.value })}
-                className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-violet-500/50"
+                className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-800 border border-zinc-400 dark:border-zinc-700 rounded-lg text-sm text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-violet-500/50"
               >
                 <option value="standard">Standard</option>
                 <option value="hd">HD</option>
@@ -460,7 +499,7 @@ export function AgentConfigPanel({
             <select
               value={node.data.embeddingModel || "text-embedding-3-small"}
               onChange={(e) => handleChange("embeddingModel", e.target.value)}
-              className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-violet-500/50"
+              className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-800 border border-zinc-400 dark:border-zinc-700 rounded-lg text-sm text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-violet-500/50"
             >
               <option value="text-embedding-3-small">text-embedding-3-small</option>
               <option value="text-embedding-3-large">text-embedding-3-large</option>
@@ -480,7 +519,7 @@ export function AgentConfigPanel({
               value={node.data.url || ""}
               onChange={(e) => handleChange("url", e.target.value)}
               placeholder="https://api.example.com/v1/..."
-              className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-violet-500/50"
+              className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-800 border border-zinc-400 dark:border-zinc-700 rounded-lg text-sm text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-violet-500/50"
             />
           </div>
         )
@@ -500,10 +539,10 @@ export function AgentConfigPanel({
         initial={{ x: 300, opacity: 0 }}
         animate={{ x: 0, opacity: 1 }}
         exit={{ x: 300, opacity: 0 }}
-        className="w-80 bg-white dark:bg-zinc-900 border-l border-zinc-200 dark:border-zinc-800 flex flex-col overflow-hidden transition-colors duration-200"
+        className="w-80 bg-white dark:bg-zinc-900 border-l border-zinc-400 dark:border-zinc-500 flex flex-col overflow-hidden transition-colors duration-200"
       >
         {/* Header */}
-        <div className="p-4 border-b border-zinc-200 dark:border-zinc-800 flex items-center justify-between transition-colors">
+        <div className="p-4 border-b border-zinc-400 dark:border-zinc-500 flex items-center justify-between transition-colors">
           <div className="flex items-center gap-2">
             <Settings className="w-4 h-4 text-zinc-500 dark:text-zinc-400" />
             <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">노드 설정</h3>
@@ -525,7 +564,7 @@ export function AgentConfigPanel({
               type="text"
               value={node.data.label || ""}
               onChange={(e) => handleChange("label", e.target.value)}
-              className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-violet-500/50"
+              className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-800 border border-zinc-400 dark:border-zinc-700 rounded-lg text-sm text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-violet-500/50"
             />
           </div>
 
@@ -535,12 +574,12 @@ export function AgentConfigPanel({
               value={node.data.description || ""}
               onChange={(e) => handleChange("description", e.target.value)}
               rows={2}
-              className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-violet-500/50 resize-none"
+              className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-800 border border-zinc-400 dark:border-zinc-700 rounded-lg text-sm text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-violet-500/50 resize-none"
               placeholder="노드 설명을 입력하세요..."
             />
           </div>
 
-          <div className="border-t border-zinc-200 dark:border-zinc-800 pt-4 transition-colors">
+          <div className="border-t border-zinc-400 dark:border-zinc-500 pt-4 transition-colors">
             <div className="flex items-center gap-2 mb-3">
               <Sparkles className="w-4 h-4 text-violet-500 dark:text-violet-400" />
               <span className="text-xs font-medium text-zinc-500 dark:text-zinc-300">
