@@ -15,7 +15,7 @@ import { TeamCreateModal, TeamFormData } from '@/components/team/TeamCreateModal
 import { useTeamStore } from '@/stores/teamStore'
 import { CgMenuGridO } from 'react-icons/cg'
 import { BsPersonWorkspace } from 'react-icons/bs'
-import { IoCalendarOutline } from 'react-icons/io5'
+import { IoCalendarOutline, IoRocketOutline } from 'react-icons/io5'
 import { GoPerson, GoPeople } from 'react-icons/go'
 import {
   LayoutDashboard,
@@ -511,7 +511,7 @@ const categories: Category[] = [
   {
     id: 'projects',
     name: '프로젝트',
-    icon: FolderKanban,
+    icon: IoRocketOutline,
     items: [
       { name: '전체 프로젝트', href: '/dashboard-group/projects', icon: FolderKanban },
       { name: '진행 중', href: '/dashboard-group/projects?status=active', icon: Play },
