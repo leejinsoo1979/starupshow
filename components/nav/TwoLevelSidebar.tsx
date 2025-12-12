@@ -71,7 +71,7 @@ interface Category {
 // 회사 메뉴 구조
 const companyMenuItems: NestedMenuItem[] = [
   {
-    name: '1. 기업 현황',
+    name: '기업 현황',
     icon: Building2,
     children: [
       {
@@ -94,11 +94,11 @@ const companyMenuItems: NestedMenuItem[] = [
     ]
   },
   {
-    name: '2. 인사관리',
+    name: '인사관리',
     icon: UserCog,
     children: [
       {
-        name: '2-1 인사',
+        name: '인사',
         children: [
           {
             name: '인사관리',
@@ -126,7 +126,7 @@ const companyMenuItems: NestedMenuItem[] = [
         ]
       },
       {
-        name: '2-2 근태',
+        name: '근태',
         icon: Clock,
         children: [
           {
@@ -147,7 +147,7 @@ const companyMenuItems: NestedMenuItem[] = [
         ]
       },
       {
-        name: '2-3 휴가',
+        name: '휴가',
         icon: Palmtree,
         children: [
           {
@@ -167,7 +167,7 @@ const companyMenuItems: NestedMenuItem[] = [
         ]
       },
       {
-        name: '2-4 고용전자계약',
+        name: '고용전자계약',
         icon: FileSignature,
         children: [
           {
@@ -180,7 +180,7 @@ const companyMenuItems: NestedMenuItem[] = [
         ]
       },
       {
-        name: '2-5 직원교육',
+        name: '직원교육',
         icon: GraduationCap,
         children: [
           {
@@ -195,11 +195,11 @@ const companyMenuItems: NestedMenuItem[] = [
     ]
   },
   {
-    name: '3. 매출입관리',
+    name: '매출입관리',
     icon: Receipt,
     children: [
       {
-        name: '3-1 매출입',
+        name: '매출입',
         children: [
           {
             name: '기초정보관리',
@@ -251,7 +251,7 @@ const companyMenuItems: NestedMenuItem[] = [
         ]
       },
       {
-        name: '3-2 금융',
+        name: '금융',
         icon: Landmark,
         children: [
           {
@@ -299,7 +299,7 @@ const companyMenuItems: NestedMenuItem[] = [
         ]
       },
       {
-        name: '3-3 세무',
+        name: '세무',
         icon: Calculator,
         children: [
           {
@@ -328,11 +328,11 @@ const companyMenuItems: NestedMenuItem[] = [
     ]
   },
   {
-    name: '4. 급여관리',
+    name: '급여관리',
     icon: Wallet,
     children: [
       {
-        name: '4-1 급여',
+        name: '급여',
         children: [
           {
             name: '급여관리',
@@ -366,7 +366,7 @@ const companyMenuItems: NestedMenuItem[] = [
         ]
       },
       {
-        name: '4-2 일용직',
+        name: '일용직',
         children: [
           {
             name: '일용직관리',
@@ -381,11 +381,11 @@ const companyMenuItems: NestedMenuItem[] = [
     ]
   },
   {
-    name: '5. 경비관리',
+    name: '경비관리',
     icon: CreditCard,
     children: [
       {
-        name: '5-1 경비',
+        name: '경비',
         children: [
           {
             name: '경비관리',
@@ -417,7 +417,7 @@ const companyMenuItems: NestedMenuItem[] = [
         ]
       },
       {
-        name: '5-2 차량운행일지',
+        name: '차량운행일지',
         icon: Car,
         children: [
           {
@@ -437,11 +437,11 @@ const companyMenuItems: NestedMenuItem[] = [
     ]
   },
   {
-    name: '6. 리포트',
+    name: '리포트',
     icon: ClipboardList,
     children: [
       {
-        name: '6-1 리포트',
+        name: '리포트',
         children: [
           {
             name: '주간리포트 관리',
