@@ -41,19 +41,153 @@ export function MemberAddModal({ isOpen, onClose, onSubmit }: MemberAddModalProp
 
   const getAccentClasses = () => {
     switch (accentColor) {
-      case 'purple': return { bg: 'bg-purple-500', hover: 'hover:bg-purple-600', light: 'bg-purple-100 dark:bg-purple-500/20', text: 'text-purple-600 dark:text-purple-400', gradient: 'from-purple-500 to-violet-600' }
-      case 'blue': return { bg: 'bg-blue-500', hover: 'hover:bg-blue-600', light: 'bg-blue-100 dark:bg-blue-500/20', text: 'text-blue-600 dark:text-blue-400', gradient: 'from-blue-500 to-cyan-500' }
-      case 'green': return { bg: 'bg-green-500', hover: 'hover:bg-green-600', light: 'bg-green-100 dark:bg-green-500/20', text: 'text-green-600 dark:text-green-400', gradient: 'from-green-500 to-emerald-500' }
-      case 'orange': return { bg: 'bg-orange-500', hover: 'hover:bg-orange-600', light: 'bg-orange-100 dark:bg-orange-500/20', text: 'text-orange-600 dark:text-orange-400', gradient: 'from-orange-500 to-amber-500' }
-      case 'pink': return { bg: 'bg-pink-500', hover: 'hover:bg-pink-600', light: 'bg-pink-100 dark:bg-pink-500/20', text: 'text-pink-600 dark:text-pink-400', gradient: 'from-pink-500 to-rose-500' }
-      case 'red': return { bg: 'bg-red-500', hover: 'hover:bg-red-600', light: 'bg-red-100 dark:bg-red-500/20', text: 'text-red-600 dark:text-red-400', gradient: 'from-red-500 to-rose-500' }
-      case 'yellow': return { bg: 'bg-yellow-500', hover: 'hover:bg-yellow-600', light: 'bg-yellow-100 dark:bg-yellow-500/20', text: 'text-yellow-600 dark:text-yellow-400', gradient: 'from-yellow-500 to-amber-500' }
-      case 'cyan': return { bg: 'bg-cyan-500', hover: 'hover:bg-cyan-600', light: 'bg-cyan-100 dark:bg-cyan-500/20', text: 'text-cyan-600 dark:text-cyan-400', gradient: 'from-cyan-500 to-teal-500' }
-      default: return { bg: 'bg-blue-500', hover: 'hover:bg-blue-600', light: 'bg-blue-100 dark:bg-blue-500/20', text: 'text-blue-600 dark:text-blue-400', gradient: 'from-blue-500 to-cyan-500' }
+      case 'purple': return {
+        bg: 'bg-purple-500', hover: 'hover:bg-purple-600', light: 'bg-purple-100 dark:bg-purple-500/20',
+        text: 'text-purple-600 dark:text-purple-400', gradient: 'from-purple-500 to-violet-600',
+        border: 'border-purple-500', ring: 'ring-purple-500/30', shadow: 'shadow-purple-500/20',
+        hoverBorder: 'hover:border-purple-500 dark:hover:border-purple-500',
+        hoverShadow: 'hover:shadow-lg hover:shadow-purple-500/10',
+        groupHoverBorder: 'group-hover:border-purple-500',
+        groupHoverBg: 'group-hover:bg-purple-500',
+      }
+      case 'blue': return {
+        bg: 'bg-blue-500', hover: 'hover:bg-blue-600', light: 'bg-blue-100 dark:bg-blue-500/20',
+        text: 'text-blue-600 dark:text-blue-400', gradient: 'from-blue-500 to-cyan-500',
+        border: 'border-blue-500', ring: 'ring-blue-500/30', shadow: 'shadow-blue-500/20',
+        hoverBorder: 'hover:border-blue-500 dark:hover:border-blue-500',
+        hoverShadow: 'hover:shadow-lg hover:shadow-blue-500/10',
+        groupHoverBorder: 'group-hover:border-blue-500',
+        groupHoverBg: 'group-hover:bg-blue-500',
+      }
+      case 'green': return {
+        bg: 'bg-green-500', hover: 'hover:bg-green-600', light: 'bg-green-100 dark:bg-green-500/20',
+        text: 'text-green-600 dark:text-green-400', gradient: 'from-green-500 to-emerald-500',
+        border: 'border-green-500', ring: 'ring-green-500/30', shadow: 'shadow-green-500/20',
+        hoverBorder: 'hover:border-green-500 dark:hover:border-green-500',
+        hoverShadow: 'hover:shadow-lg hover:shadow-green-500/10',
+        groupHoverBorder: 'group-hover:border-green-500',
+        groupHoverBg: 'group-hover:bg-green-500',
+      }
+      case 'orange': return {
+        bg: 'bg-orange-500', hover: 'hover:bg-orange-600', light: 'bg-orange-100 dark:bg-orange-500/20',
+        text: 'text-orange-600 dark:text-orange-400', gradient: 'from-orange-500 to-amber-500',
+        border: 'border-orange-500', ring: 'ring-orange-500/30', shadow: 'shadow-orange-500/20',
+        hoverBorder: 'hover:border-orange-500 dark:hover:border-orange-500',
+        hoverShadow: 'hover:shadow-lg hover:shadow-orange-500/10',
+        groupHoverBorder: 'group-hover:border-orange-500',
+        groupHoverBg: 'group-hover:bg-orange-500',
+      }
+      case 'pink': return {
+        bg: 'bg-pink-500', hover: 'hover:bg-pink-600', light: 'bg-pink-100 dark:bg-pink-500/20',
+        text: 'text-pink-600 dark:text-pink-400', gradient: 'from-pink-500 to-rose-500',
+        border: 'border-pink-500', ring: 'ring-pink-500/30', shadow: 'shadow-pink-500/20',
+        hoverBorder: 'hover:border-pink-500 dark:hover:border-pink-500',
+        hoverShadow: 'hover:shadow-lg hover:shadow-pink-500/10',
+        groupHoverBorder: 'group-hover:border-pink-500',
+        groupHoverBg: 'group-hover:bg-pink-500',
+      }
+      case 'red': return {
+        bg: 'bg-red-500', hover: 'hover:bg-red-600', light: 'bg-red-100 dark:bg-red-500/20',
+        text: 'text-red-600 dark:text-red-400', gradient: 'from-red-500 to-rose-500',
+        border: 'border-red-500', ring: 'ring-red-500/30', shadow: 'shadow-red-500/20',
+        hoverBorder: 'hover:border-red-500 dark:hover:border-red-500',
+        hoverShadow: 'hover:shadow-lg hover:shadow-red-500/10',
+        groupHoverBorder: 'group-hover:border-red-500',
+        groupHoverBg: 'group-hover:bg-red-500',
+      }
+      case 'yellow': return {
+        bg: 'bg-yellow-500', hover: 'hover:bg-yellow-600', light: 'bg-yellow-100 dark:bg-yellow-500/20',
+        text: 'text-yellow-600 dark:text-yellow-400', gradient: 'from-yellow-500 to-amber-500',
+        border: 'border-yellow-500', ring: 'ring-yellow-500/30', shadow: 'shadow-yellow-500/20',
+        hoverBorder: 'hover:border-yellow-500 dark:hover:border-yellow-500',
+        hoverShadow: 'hover:shadow-lg hover:shadow-yellow-500/10',
+        groupHoverBorder: 'group-hover:border-yellow-500',
+        groupHoverBg: 'group-hover:bg-yellow-500',
+      }
+      case 'cyan': return {
+        bg: 'bg-cyan-500', hover: 'hover:bg-cyan-600', light: 'bg-cyan-100 dark:bg-cyan-500/20',
+        text: 'text-cyan-600 dark:text-cyan-400', gradient: 'from-cyan-500 to-teal-500',
+        border: 'border-cyan-500', ring: 'ring-cyan-500/30', shadow: 'shadow-cyan-500/20',
+        hoverBorder: 'hover:border-cyan-500 dark:hover:border-cyan-500',
+        hoverShadow: 'hover:shadow-lg hover:shadow-cyan-500/10',
+        groupHoverBorder: 'group-hover:border-cyan-500',
+        groupHoverBg: 'group-hover:bg-cyan-500',
+      }
+      default: return {
+        bg: 'bg-blue-500', hover: 'hover:bg-blue-600', light: 'bg-blue-100 dark:bg-blue-500/20',
+        text: 'text-blue-600 dark:text-blue-400', gradient: 'from-blue-500 to-cyan-500',
+        border: 'border-blue-500', ring: 'ring-blue-500/30', shadow: 'shadow-blue-500/20',
+        hoverBorder: 'hover:border-blue-500 dark:hover:border-blue-500',
+        hoverShadow: 'hover:shadow-lg hover:shadow-blue-500/10',
+        groupHoverBorder: 'group-hover:border-blue-500',
+        groupHoverBg: 'group-hover:bg-blue-500',
+      }
     }
   }
 
   const accent = getAccentClasses()
+
+  // AI 에이전트용 보조 색상 클래스
+  const getSecondaryAccentClasses = () => {
+    switch (accentColor) {
+      case 'purple': return {
+        gradient: 'from-violet-500 to-purple-600', border: 'border-violet-500', shadow: 'shadow-violet-500/20',
+        bg: 'bg-violet-500', hover: 'hover:bg-violet-600',
+        hoverBorder: 'hover:border-violet-500 dark:hover:border-violet-500',
+        hoverShadow: 'hover:shadow-lg hover:shadow-violet-500/10',
+      }
+      case 'blue': return {
+        gradient: 'from-indigo-500 to-blue-600', border: 'border-indigo-500', shadow: 'shadow-indigo-500/20',
+        bg: 'bg-indigo-500', hover: 'hover:bg-indigo-600',
+        hoverBorder: 'hover:border-indigo-500 dark:hover:border-indigo-500',
+        hoverShadow: 'hover:shadow-lg hover:shadow-indigo-500/10',
+      }
+      case 'green': return {
+        gradient: 'from-teal-500 to-green-600', border: 'border-teal-500', shadow: 'shadow-teal-500/20',
+        bg: 'bg-teal-500', hover: 'hover:bg-teal-600',
+        hoverBorder: 'hover:border-teal-500 dark:hover:border-teal-500',
+        hoverShadow: 'hover:shadow-lg hover:shadow-teal-500/10',
+      }
+      case 'orange': return {
+        gradient: 'from-red-500 to-orange-600', border: 'border-red-500', shadow: 'shadow-red-500/20',
+        bg: 'bg-red-500', hover: 'hover:bg-red-600',
+        hoverBorder: 'hover:border-red-500 dark:hover:border-red-500',
+        hoverShadow: 'hover:shadow-lg hover:shadow-red-500/10',
+      }
+      case 'pink': return {
+        gradient: 'from-purple-500 to-pink-600', border: 'border-purple-500', shadow: 'shadow-purple-500/20',
+        bg: 'bg-purple-500', hover: 'hover:bg-purple-600',
+        hoverBorder: 'hover:border-purple-500 dark:hover:border-purple-500',
+        hoverShadow: 'hover:shadow-lg hover:shadow-purple-500/10',
+      }
+      case 'red': return {
+        gradient: 'from-pink-500 to-red-600', border: 'border-pink-500', shadow: 'shadow-pink-500/20',
+        bg: 'bg-pink-500', hover: 'hover:bg-pink-600',
+        hoverBorder: 'hover:border-pink-500 dark:hover:border-pink-500',
+        hoverShadow: 'hover:shadow-lg hover:shadow-pink-500/10',
+      }
+      case 'yellow': return {
+        gradient: 'from-orange-500 to-yellow-600', border: 'border-orange-500', shadow: 'shadow-orange-500/20',
+        bg: 'bg-orange-500', hover: 'hover:bg-orange-600',
+        hoverBorder: 'hover:border-orange-500 dark:hover:border-orange-500',
+        hoverShadow: 'hover:shadow-lg hover:shadow-orange-500/10',
+      }
+      case 'cyan': return {
+        gradient: 'from-blue-500 to-cyan-600', border: 'border-blue-500', shadow: 'shadow-blue-500/20',
+        bg: 'bg-blue-500', hover: 'hover:bg-blue-600',
+        hoverBorder: 'hover:border-blue-500 dark:hover:border-blue-500',
+        hoverShadow: 'hover:shadow-lg hover:shadow-blue-500/10',
+      }
+      default: return {
+        gradient: 'from-indigo-500 to-blue-600', border: 'border-indigo-500', shadow: 'shadow-indigo-500/20',
+        bg: 'bg-indigo-500', hover: 'hover:bg-indigo-600',
+        hoverBorder: 'hover:border-indigo-500 dark:hover:border-indigo-500',
+        hoverShadow: 'hover:shadow-lg hover:shadow-indigo-500/10',
+      }
+    }
+  }
+
+  const secondaryAccent = getSecondaryAccentClasses()
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -149,11 +283,15 @@ export function MemberAddModal({ isOpen, onClose, onSubmit }: MemberAddModalProp
                       className={cn(
                         "group relative p-6 rounded-2xl border-2 text-left transition-all",
                         "border-zinc-200 dark:border-zinc-700",
-                        "hover:border-blue-500 dark:hover:border-blue-500",
-                        "hover:shadow-lg hover:shadow-blue-500/10"
+                        accent.hoverBorder,
+                        accent.hoverShadow
                       )}
                     >
-                      <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-blue-500 to-cyan-500 flex items-center justify-center mb-4 shadow-lg shadow-blue-500/20">
+                      <div className={cn(
+                        "w-14 h-14 rounded-xl bg-gradient-to-br flex items-center justify-center mb-4 shadow-lg",
+                        accent.gradient,
+                        accent.shadow
+                      )}>
                         <User className="w-7 h-7 text-white" />
                       </div>
                       <h3 className="text-lg font-bold text-zinc-900 dark:text-white mb-1">
@@ -162,7 +300,12 @@ export function MemberAddModal({ isOpen, onClose, onSubmit }: MemberAddModalProp
                       <p className="text-sm text-zinc-500 dark:text-zinc-400">
                         실제 팀원을 초대합니다
                       </p>
-                      <div className="absolute top-4 right-4 w-6 h-6 rounded-full border-2 border-zinc-300 dark:border-zinc-600 group-hover:border-blue-500 group-hover:bg-blue-500 transition-all flex items-center justify-center">
+                      <div className={cn(
+                        "absolute top-4 right-4 w-6 h-6 rounded-full border-2 transition-all flex items-center justify-center",
+                        "border-zinc-300 dark:border-zinc-600",
+                        accent.groupHoverBorder,
+                        accent.groupHoverBg
+                      )}>
                         <motion.div
                           initial={{ scale: 0 }}
                           whileHover={{ scale: 1 }}
@@ -179,11 +322,15 @@ export function MemberAddModal({ isOpen, onClose, onSubmit }: MemberAddModalProp
                       className={cn(
                         "group relative p-6 rounded-2xl border-2 text-left transition-all",
                         "border-zinc-200 dark:border-zinc-700",
-                        "hover:border-violet-500 dark:hover:border-violet-500",
-                        "hover:shadow-lg hover:shadow-violet-500/10"
+                        secondaryAccent.hoverBorder,
+                        secondaryAccent.hoverShadow
                       )}
                     >
-                      <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center mb-4 shadow-lg shadow-violet-500/20">
+                      <div className={cn(
+                        "w-14 h-14 rounded-xl bg-gradient-to-br flex items-center justify-center mb-4 shadow-lg",
+                        secondaryAccent.gradient,
+                        secondaryAccent.shadow
+                      )}>
                         <Bot className="w-7 h-7 text-white" />
                       </div>
                       <h3 className="text-lg font-bold text-zinc-900 dark:text-white mb-1">
@@ -193,7 +340,10 @@ export function MemberAddModal({ isOpen, onClose, onSubmit }: MemberAddModalProp
                         AI 어시스턴트를 추가합니다
                       </p>
                       <div className="absolute top-3 right-3">
-                        <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-gradient-to-r from-violet-500 to-purple-500 text-white flex items-center gap-1">
+                        <span className={cn(
+                          "px-2 py-0.5 rounded-full text-[10px] font-semibold bg-gradient-to-r text-white flex items-center gap-1",
+                          secondaryAccent.gradient
+                        )}>
                           <Sparkles className="w-3 h-3" />
                           NEW
                         </span>
@@ -470,7 +620,9 @@ export function MemberAddModal({ isOpen, onClose, onSubmit }: MemberAddModalProp
                           className={cn(
                             "px-6 py-2.5 rounded-xl font-medium text-white transition-all",
                             "flex items-center justify-center gap-2 min-w-[100px]",
-                            "bg-gradient-to-r from-violet-500 to-purple-600 hover:from-violet-600 hover:to-purple-700",
+                            "bg-gradient-to-r",
+                            secondaryAccent.gradient,
+                            secondaryAccent.hover,
                             "disabled:opacity-50 disabled:cursor-not-allowed"
                           )}
                         >
