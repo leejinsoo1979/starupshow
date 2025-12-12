@@ -112,7 +112,7 @@ export function TiltCard({ children, className, glowColor = "rgba(255,255,255,0.
             className={cn(
                 "relative rounded-3xl transition-all duration-200 ease-out group",
                 "bg-white dark:bg-white/5 backdrop-blur-xl", // Adaptive Glass
-                "border border-zinc-300 dark:border-white/10", // Adaptive Border
+                "border border-zinc-500 dark:border-white/10", // Adaptive Border
                 "shadow-[0_4px_20px_rgba(0,0,0,0.15)] dark:shadow-none", // Light mode shadow (강한 그림자)
                 "hover:shadow-[0_8px_30px_rgba(0,0,0,0.2)] dark:hover:shadow-[0_0_40px_-10px_rgba(255,255,255,0.1)]",
                 "hover:border-zinc-400 dark:hover:border-white/20",
