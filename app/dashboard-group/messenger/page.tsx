@@ -11,6 +11,7 @@ import {
 import { Button } from '@/components/ui'
 import { useChatRooms, useChatRoom, usePresence } from '@/hooks/useChat'
 import { ChatRoom, ChatMessage, ChatParticipant } from '@/types/chat'
+import { DEV_USER, isDevMode } from '@/lib/dev-user'
 
 export default function MessengerPage() {
   const { resolvedTheme } = useTheme()
@@ -324,7 +325,9 @@ export default function MessengerPage() {
             </div>
           ) : (
             messages.map((msg) => {
-              const isMe = msg.sender_type === 'user' && msg.sender_user_id === activeRoom?.created_by
+              // DEV 모드에서는 DEV_USER.id와 비교, 아니면 room creator와 비교 (임시)
+              const currentUserId = isDevMode() ? DEV_USER.id : activeRoom?.created_by
+              const isMe = msg.sender_type === 'user' && msg.sender_user_id === currentUserId
               const isAgent = msg.sender_type === 'agent'
               const senderName = msg.sender_user?.name || msg.sender_agent?.name || '알 수 없음'
               const senderAvatar = senderName.slice(0, 2).toUpperCase()

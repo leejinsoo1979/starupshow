@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { CreateRoomRequest } from '@/types/chat'
+import { getDevUserIfEnabled } from '@/lib/dev-user'
 
 // GET: 내가 참여한 채팅방 목록
 export async function GET(request: NextRequest) {
@@ -10,10 +11,24 @@ export async function GET(request: NextRequest) {
     const supabase = createClient()
     const adminClient = createAdminClient()
     console.log('[CHAT API] Supabase client 생성됨')
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
-    console.log('[CHAT API] 인증 결과:', user?.id, authError?.message)
 
-    if (authError || !user) {
+    // DEV 바이패스 체크
+    const devUser = getDevUserIfEnabled()
+    let user: any = null
+
+    if (devUser) {
+      console.log('[CHAT API] DEV 바이패스 활성화:', devUser.id)
+      user = devUser
+    } else {
+      const { data: { user: authUser }, error: authError } = await supabase.auth.getUser()
+      console.log('[CHAT API] 인증 결과:', authUser?.id, authError?.message)
+      if (authError || !authUser) {
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+      }
+      user = authUser
+    }
+
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -141,9 +156,23 @@ export async function POST(request: NextRequest) {
   try {
     const supabase = createClient()
     const adminClient = createAdminClient()
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
 
-    if (authError || !user) {
+    // DEV 바이패스 체크
+    const devUser = getDevUserIfEnabled()
+    let user: any = null
+
+    if (devUser) {
+      console.log('[CHAT API POST] DEV 바이패스 활성화:', devUser.id)
+      user = devUser
+    } else {
+      const { data: { user: authUser }, error: authError } = await supabase.auth.getUser()
+      if (authError || !authUser) {
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+      }
+      user = authUser
+    }
+
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 

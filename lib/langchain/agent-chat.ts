@@ -215,7 +215,9 @@ ${baseSystemPrompt}
       userMessage,
     })
 
-    return response
+    // deepseek-r1 모델의 <think> 태그 제거
+    const cleanResponse = response.replace(/<think>[\s\S]*?<\/think>\s*/g, '').trim()
+    return cleanResponse || response
   } catch (error: any) {
     console.error('Agent response generation error:')
     console.error('Error name:', error?.name)
@@ -281,7 +283,9 @@ export async function generateAgentMeetingResponse(
       discussion: formatChatHistory(previousMessages),
     })
 
-    return response
+    // deepseek-r1 모델의 <think> 태그 제거
+    const cleanResponse = response.replace(/<think>[\s\S]*?<\/think>\s*/g, '').trim()
+    return cleanResponse || response
   } catch (error) {
     console.error('Agent meeting response error:', error)
     throw error

@@ -10,6 +10,7 @@ import {
   extractKnowledgeFromConversation,
 } from '@/lib/agents/chat-integration'
 import { getMemoryService } from '@/lib/agents/memory'
+import { getDevUserIfEnabled } from '@/lib/dev-user'
 
 // GET: 메시지 목록 조회 (페이지네이션)
 export async function GET(
@@ -19,9 +20,22 @@ export async function GET(
   try {
     const supabase = createClient()
     const adminClient = createAdminClient()
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
 
-    if (authError || !user) {
+    // DEV 바이패스 체크
+    const devUser = getDevUserIfEnabled()
+    let user: any = null
+
+    if (devUser) {
+      user = devUser
+    } else {
+      const { data: { user: authUser }, error: authError } = await supabase.auth.getUser()
+      if (authError || !authUser) {
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+      }
+      user = authUser
+    }
+
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -126,10 +140,24 @@ export async function POST(
   try {
     const supabase = createClient()
     const adminClient = createAdminClient()
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
-    console.log('[Messages API] 인증 결과:', user?.id, authError?.message)
 
-    if (authError || !user) {
+    // DEV 바이패스 체크
+    const devUser = getDevUserIfEnabled()
+    let user: any = null
+
+    if (devUser) {
+      console.log('[Messages API] DEV 바이패스 활성화:', devUser.id)
+      user = devUser
+    } else {
+      const { data: { user: authUser }, error: authError } = await supabase.auth.getUser()
+      console.log('[Messages API] 인증 결과:', authUser?.id, authError?.message)
+      if (authError || !authUser) {
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+      }
+      user = authUser
+    }
+
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
