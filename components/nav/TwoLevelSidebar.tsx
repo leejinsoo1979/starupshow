@@ -11,10 +11,12 @@ import { useAuthStore } from '@/stores/authStore'
 import { useThemeStore } from '@/stores/themeStore'
 import { createClient } from '@/lib/supabase/client'
 import { Logo } from '@/components/ui'
+import { TeamCreateModal, TeamFormData } from '@/components/team/TeamCreateModal'
+import { useTeamStore } from '@/stores/teamStore'
 import { CgMenuGridO } from 'react-icons/cg'
 import { BsPersonWorkspace } from 'react-icons/bs'
 import { IoCalendarOutline } from 'react-icons/io5'
-import { GoPerson } from 'react-icons/go'
+import { GoPerson, GoPeople } from 'react-icons/go'
 import {
   LayoutDashboard,
   ListTodo,
@@ -38,6 +40,8 @@ import {
   Zap,
   ChevronRight,
   ChevronDown,
+  PanelLeftClose,
+  PanelLeftOpen,
   Target,
   FolderOpen,
   UserCog,
@@ -52,6 +56,19 @@ import {
   Wallet,
   Car,
   ClipboardList,
+  User,
+  FolderKanban,
+  Activity,
+  Phone,
+  Play,
+  CheckCircle,
+  Archive,
+  Inbox,
+  Send,
+  ArrowRightFromLine,
+  AlertCircle,
+  Plus,
+  CalendarDays,
 } from 'lucide-react'
 
 // 중첩 메뉴 아이템 타입
@@ -458,88 +475,124 @@ const companyMenuItems: NestedMenuItem[] = [
 
 // 1단계: 카테고리 (아이콘만)
 const categories: Category[] = [
-  {
-    id: 'menu',
-    name: '메뉴',
-    icon: CgMenuGridO,
-    items: []
-  },
+  // 회사 - 클릭 시 사이드바 열림 + 회사 페이지 이동
   {
     id: 'company',
     name: '회사',
     icon: Building2,
     items: companyMenuItems
   },
-  {
-    id: 'home',
-    name: '홈',
-    icon: Home,
-    items: [
-      { name: '대시보드', href: '/dashboard-group', icon: LayoutDashboard },
-    ]
-  },
+  // 워크스페이스 (마이 대시보드) - 요약만
   {
     id: 'workspace',
     name: '워크스페이스',
     icon: BsPersonWorkspace,
-    items: []
+    items: [
+      { name: '대시보드', href: '/dashboard-group', icon: LayoutDashboard },
+      {
+        name: '빠른 액션',
+        icon: Zap,
+        children: [
+          { name: '프로젝트 생성', href: '/dashboard-group/projects/new', icon: Plus },
+          { name: '업무 생성', href: '/dashboard-group/tasks/new', icon: Plus },
+          { name: '에이전트 호출', href: '/dashboard-group/agents', icon: Bot },
+        ]
+      },
+      { name: '오늘 할 일', href: '/dashboard-group/tasks?filter=today', icon: ListTodo },
+      { name: '내가 맡은 업무', href: '/dashboard-group/tasks?filter=mine', icon: User },
+      { name: '마감 임박', href: '/dashboard-group/tasks?filter=urgent', icon: AlertCircle },
+      { name: '진행 중 프로젝트', href: '/dashboard-group/projects?status=active', icon: Play },
+      { name: '오늘 일정', href: '/dashboard-group/calendar?view=today', icon: CalendarDays },
+      { name: '개인 KPI', href: '/dashboard-group/kpis', icon: Target },
+    ]
   },
+  // 프로젝트 - 일을 묶는 단위
+  {
+    id: 'projects',
+    name: '프로젝트',
+    icon: FolderKanban,
+    items: [
+      { name: '전체 프로젝트', href: '/dashboard-group/projects', icon: FolderKanban },
+      { name: '진행 중', href: '/dashboard-group/projects?status=active', icon: Play },
+      { name: '완료', href: '/dashboard-group/projects?status=completed', icon: CheckCircle },
+      { name: '보관', href: '/dashboard-group/projects?status=archived', icon: Archive },
+    ]
+  },
+  // 파일·문서 - 내가 쓰는 모든 자료
+  {
+    id: 'files',
+    name: '파일·문서',
+    icon: FileText,
+    items: [
+      { name: '내 파일', href: '/dashboard-group/files', icon: FolderOpen },
+      { name: '프로젝트별 문서', href: '/dashboard-group/files?view=projects', icon: FolderKanban },
+      { name: '최근 사용', href: '/dashboard-group/files?view=recent', icon: Clock },
+      { name: 'AI 정리 문서', href: '/dashboard-group/files?view=ai', icon: Sparkles },
+    ]
+  },
+  // 캘린더 - 시간 관리
   {
     id: 'calendar',
     name: '캘린더',
     icon: IoCalendarOutline,
-    items: []
-  },
-  {
-    id: 'work',
-    name: '업무',
-    icon: Briefcase,
     items: [
-      { name: '태스크', href: '/dashboard-group/tasks', icon: ListTodo },
-      { name: 'KPI', href: '/dashboard-group/kpis', icon: TrendingUp },
-      { name: '커밋 기록', href: '/dashboard-group/commits', icon: GitCommit },
+      { name: '전체 일정', href: '/dashboard-group/calendar', icon: IoCalendarOutline },
+      { name: '개인 일정', href: '/dashboard-group/calendar?view=personal', icon: User },
+      { name: '프로젝트 일정', href: '/dashboard-group/calendar?view=projects', icon: FolderKanban },
+      { name: '마감일', href: '/dashboard-group/calendar?view=deadlines', icon: AlertCircle },
+      { name: '회의', href: '/dashboard-group/calendar?view=meetings', icon: Users },
+      { name: 'AI 일정 제안', href: '/dashboard-group/calendar?view=ai', icon: Sparkles },
     ]
   },
+  // 이메일 - 외부 커뮤니케이션
   {
-    id: 'communication',
-    name: '소통',
+    id: 'email',
+    name: '이메일',
+    icon: Mail,
+    items: [
+      { name: '수신함', href: '/dashboard-group/email', icon: Inbox },
+      { name: '발신함', href: '/dashboard-group/email?view=sent', icon: Send },
+      { name: '메일 → 업무', href: '/dashboard-group/email?view=to-task', icon: ArrowRightFromLine },
+      { name: 'AI 요약', href: '/dashboard-group/email?view=ai-summary', icon: Sparkles },
+    ]
+  },
+  // 메신저 - 사람 + AI 대화
+  {
+    id: 'messenger',
+    name: '메신저',
     icon: MessageCircle,
     items: [
-      { name: '메신저', href: '/dashboard-group/messenger', icon: MessageCircle },
-      { name: '이메일', href: '/dashboard-group/email', icon: Mail },
+      { name: '전체 채팅', href: '/dashboard-group/messenger', icon: MessageCircle },
+      { name: '개인 채팅', href: '/dashboard-group/messenger?view=dm', icon: User },
+      { name: '팀 채널', href: '/dashboard-group/messenger?view=team', icon: Users },
+      { name: '프로젝트 채널', href: '/dashboard-group/messenger?view=projects', icon: FolderKanban },
+      { name: '에이전트 채팅', href: '/dashboard-group/messenger?view=agents', icon: Bot },
     ]
   },
-  {
-    id: 'automation',
-    name: '자동화',
-    icon: Zap,
-    items: [
-      { name: '워크플로우', href: '/dashboard-group/workflows', icon: Workflow },
-      { name: 'AI 에이전트', href: '/dashboard-group/agents', icon: Bot },
-    ]
-  },
-  {
-    id: 'analytics',
-    name: '분석',
-    icon: PieChart,
-    items: [
-      { name: '리포트', href: '/dashboard-group/reports', icon: FileText },
-      { name: 'AI 인사이트', href: '/dashboard-group/insights', icon: Sparkles },
-    ]
-  },
+  // 팀 - 클릭 시 사이드바 열림
   {
     id: 'team',
     name: '팀',
-    icon: Users,
+    icon: GoPeople,
     items: [
+      { name: '팀 생성', href: '#create-team', icon: Plus },
       { name: '팀 관리', href: '/dashboard-group/team', icon: Users },
+      { name: '팀원', href: '/dashboard-group/team/members', icon: User },
+      { name: '역할 설정', href: '/dashboard-group/team/roles', icon: Settings },
     ]
   },
+  // 마이페이지 - 클릭 시 사이드바 열림
   {
     id: 'mypage',
     name: '마이페이지',
     icon: GoPerson,
-    items: []
+    items: [
+      { name: '소개', href: '/dashboard-group/mypage', icon: User },
+      { name: '이력', href: '/dashboard-group/mypage/resume', icon: Briefcase },
+      { name: '포트폴리오', href: '/dashboard-group/mypage/portfolio', icon: FolderKanban },
+      { name: '활동', href: '/dashboard-group/mypage/activity', icon: Activity },
+      { name: '연락처', href: '/dashboard-group/mypage/contact', icon: Phone },
+    ]
   },
 ]
 
@@ -820,47 +873,57 @@ export function TwoLevelSidebar() {
   const [mounted, setMounted] = useState(false)
   const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set())
   const [selectedCompanyMenu, setSelectedCompanyMenu] = useState<string | null>(null)
+  const [isTeamModalOpen, setIsTeamModalOpen] = useState(false)
+  const { addTeam } = useTeamStore()
 
   useEffect(() => {
     setMounted(true)
   }, [])
 
-  // pathname에 따라 activeCategory 자동 설정
-  useEffect(() => {
-    // 회사 관련 경로 체크
-    const companyPaths = ['/dashboard-group/company', '/dashboard-group/hr', '/dashboard-group/sales', '/dashboard-group/finance', '/dashboard-group/tax', '/dashboard-group/payroll', '/dashboard-group/expense', '/dashboard-group/reports']
-    const isCompanyPath = companyPaths.some(p => pathname.startsWith(p))
-    if (isCompanyPath) {
-      setActiveCategory('company')
-      return
-    }
+  // pathname에 따라 현재 카테고리 계산
+  const currentCategory = (() => {
+    if (pathname.startsWith('/dashboard-group/mypage')) return 'mypage'
+    if (pathname.startsWith('/dashboard-group/company') ||
+        pathname.startsWith('/dashboard-group/hr') ||
+        pathname.startsWith('/dashboard-group/sales') ||
+        pathname.startsWith('/dashboard-group/finance') ||
+        pathname.startsWith('/dashboard-group/tax') ||
+        pathname.startsWith('/dashboard-group/payroll') ||
+        pathname.startsWith('/dashboard-group/expense')) return 'company'
+    if (pathname.startsWith('/dashboard-group/projects')) return 'projects'
+    if (pathname.startsWith('/dashboard-group/files')) return 'files'
+    if (pathname.startsWith('/dashboard-group/calendar')) return 'calendar'
+    if (pathname.startsWith('/dashboard-group/email')) return 'email'
+    if (pathname.startsWith('/dashboard-group/messenger')) return 'messenger'
+    if (pathname.startsWith('/dashboard-group/team')) return 'team'
+    if (pathname.startsWith('/dashboard-group/tasks') ||
+        pathname.startsWith('/dashboard-group/kpis') ||
+        pathname.startsWith('/dashboard-group/agents') ||
+        pathname === '/dashboard-group') return 'workspace'
+    return activeCategory || 'workspace'
+  })()
 
-    const allCategories = user?.role === 'INVESTOR' ? investorCategories : categories
-    for (const cat of allCategories) {
-      const hasMatch = cat.items.some(item => {
-        if (item.href && (pathname === item.href || pathname.startsWith(item.href + '/'))) {
-          return true
-        }
-        // 중첩 메뉴 체크
-        const checkNested = (items: NestedMenuItem[]): boolean => {
-          for (const i of items) {
-            if (i.href && (pathname === i.href || pathname.startsWith(i.href + '/'))) {
-              return true
-            }
-            if (i.children && checkNested(i.children)) {
-              return true
-            }
-          }
-          return false
-        }
-        return item.children ? checkNested(item.children) : false
-      })
-      if (hasMatch) {
-        setActiveCategory(cat.id)
-        break
-      }
+  // activeCategory 동기화
+  useEffect(() => {
+    if (currentCategory !== activeCategory) {
+      setActiveCategory(currentCategory)
     }
-  }, [pathname, user?.role, setActiveCategory])
+  }, [currentCategory, activeCategory, setActiveCategory])
+
+  // 메뉴 경로 prefetch
+  useEffect(() => {
+    const paths = [
+      '/dashboard-group',
+      '/dashboard-group/company',
+      '/dashboard-group/mypage',
+      '/dashboard-group/tasks',
+      '/dashboard-group/workflows',
+      '/dashboard-group/reports',
+      '/dashboard-group/team',
+      '/dashboard-group/messenger',
+    ]
+    paths.forEach(path => router.prefetch(path))
+  }, [router])
 
   const toggleExpand = (name: string) => {
     setExpandedItems(prev => {
@@ -885,18 +948,26 @@ export function TwoLevelSidebar() {
     router.push('/auth-group/login')
   }
 
-  const activeItems = navCategories.find(cat => cat.id === activeCategory)?.items || []
-  const isCompanyMenu = activeCategory === 'company'
+  const handleTeamCreate = (teamData: TeamFormData) => {
+    addTeam(teamData)
+    // Navigate to team page after creation
+    router.push('/dashboard-group/team')
+  }
+
+  const activeItems = navCategories.find(cat => cat.id === currentCategory)?.items || []
+  const isCompanyMenu = currentCategory === 'company'
+
+  const isDashboardRoot = pathname === '/dashboard-group'
 
   return (
-    <div className="flex h-screen fixed left-0 top-0 z-40">
+    <div className="flex h-screen fixed left-0 top-0 z-50">
       {/* Level 1: 아이콘 사이드바 */}
       <motion.aside
         className={cn(
-          'w-16 h-full flex flex-col items-center py-4 border-r',
-          isDark
-            ? 'border-zinc-800'
-            : 'border-zinc-200'
+          'w-16 h-full flex flex-col items-center py-4 border-r transition-colors duration-300 z-20',
+          isDashboardRoot
+            ? 'bg-black/20 backdrop-blur-xl border-white/10'
+            : isDark ? 'bg-zinc-900 border-zinc-800' : 'bg-white border-zinc-200'
         )}
       >
         {/* Logo */}
@@ -907,35 +978,50 @@ export function TwoLevelSidebar() {
         {/* Category Icons */}
         <nav className="flex-1 flex flex-col items-center gap-2">
           {navCategories.map((category) => {
-            const isActive = activeCategory === category.id
+            const isActive = currentCategory === category.id
             return (
               <button
                 key={category.id}
                 onClick={() => {
                   setActiveCategory(category.id)
+                  setSelectedCompanyMenu(null)
+
+                  // 모든 카테고리는 사이드바를 열고, 첫 번째 메뉴로 이동
                   setSidebarOpen(true)
-                  setSelectedCompanyMenu(null) // 카테고리 변경 시 초기화
-                  // 회사 메뉴 클릭 시 회사 대시보드로 이동
+
+                  // 이동할 경로 결정
+                  let targetPath = ''
                   if (category.id === 'company') {
-                    router.push('/dashboard-group/company')
-                  } else if (category.id === 'home') {
-                    router.push('/dashboard-group')
+                    targetPath = '/dashboard-group/company'
+                  } else if (category.id === 'workspace') {
+                    targetPath = '/dashboard-group'
+                  } else {
+                    // 첫 번째 아이템의 href 사용
+                    const firstItem = category.items[0]
+                    targetPath = firstItem?.href || ''
+                  }
+
+                  // 현재 경로와 다를 때만 이동
+                  if (targetPath && pathname !== targetPath) {
+                    router.push(targetPath)
                   }
                 }}
                 className={cn(
                   'w-10 h-10 rounded-xl flex items-center justify-center transition-all duration-200 group relative',
                   isActive
                     ? 'bg-accent text-white shadow-lg shadow-accent/25'
-                    : isDark
-                      ? 'text-zinc-500 hover:bg-zinc-800 hover:text-zinc-300'
-                      : 'text-zinc-500 hover:bg-zinc-200 hover:text-zinc-700'
+                    : isDashboardRoot
+                      ? 'text-white/70 hover:bg-white/10 hover:text-white'
+                      : isDark
+                        ? 'text-zinc-500 hover:bg-zinc-800 hover:text-zinc-300'
+                        : 'text-zinc-500 hover:bg-zinc-200 hover:text-zinc-700'
                 )}
               >
                 <category.icon className="w-5 h-5" />
                 {/* Tooltip */}
                 <div className={cn(
                   'absolute left-full ml-2 px-2 py-1 text-xs rounded-md opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all whitespace-nowrap z-50',
-                  isDark
+                  isDark || isDashboardRoot
                     ? 'bg-zinc-800 text-zinc-100 border border-zinc-700'
                     : 'bg-white text-zinc-900 border border-zinc-200 shadow-lg'
                 )}>
@@ -948,6 +1034,31 @@ export function TwoLevelSidebar() {
 
         {/* Bottom Icons */}
         <div className="flex flex-col items-center gap-2 mt-auto">
+          {/* 사이드바 토글 버튼 */}
+          <button
+            onClick={toggleSidebar}
+            className={cn(
+              'w-10 h-10 rounded-xl flex items-center justify-center transition-all duration-200 group relative',
+              isDark
+                ? 'text-zinc-500 hover:bg-zinc-800 hover:text-zinc-300'
+                : 'text-zinc-500 hover:bg-zinc-200 hover:text-zinc-700'
+            )}
+          >
+            {sidebarOpen ? (
+              <PanelLeftClose className="w-5 h-5" />
+            ) : (
+              <PanelLeftOpen className="w-5 h-5" />
+            )}
+            <div className={cn(
+              'absolute left-full ml-2 px-2 py-1 text-xs rounded-md opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all whitespace-nowrap z-50',
+              isDark
+                ? 'bg-zinc-800 text-zinc-100 border border-zinc-700'
+                : 'bg-white text-zinc-900 border border-zinc-200 shadow-lg'
+            )}>
+              {sidebarOpen ? '메뉴 접기' : '메뉴 펼치기'}
+            </div>
+          </button>
+
           <Link
             href="/dashboard-group/settings"
             className={cn(
@@ -1004,9 +1115,9 @@ export function TwoLevelSidebar() {
             transition={{ duration: 0.2 }}
             className={cn(
               'h-full border-r overflow-hidden',
-              isDark
-                ? 'border-zinc-800'
-                : 'border-zinc-200'
+              isDashboardRoot
+                ? 'border-white/10'
+                : isDark ? 'border-zinc-800' : 'border-zinc-200'
             )}
           >
             <div className="h-full flex flex-col w-[240px]">
@@ -1019,7 +1130,7 @@ export function TwoLevelSidebar() {
                   'text-sm font-semibold',
                   isDark ? 'text-zinc-100' : 'text-zinc-900'
                 )}>
-                  {navCategories.find(c => c.id === activeCategory)?.name}
+                  {navCategories.find(c => c.id === currentCategory)?.name}
                 </h2>
               </div>
 
@@ -1155,10 +1266,106 @@ export function TwoLevelSidebar() {
                     )}
                   </AnimatePresence>
                 ) : (
-                  // 일반 메뉴 - 플랫 구조
+                  // 일반 메뉴 - 중첩 메뉴 지원
                   activeItems.map((item, index) => {
-                    const isActive = item.href && (pathname === item.href || pathname.startsWith(item.href + '/'))
+                    const hasChildren = item.children && item.children.length > 0
+                    const isActive = item.href && (pathname === item.href || pathname.startsWith(item.href + '?') || pathname.startsWith(item.href + '/'))
                     const IconComponent = item.icon
+                    const isExpanded = expandedItems.has(item.name)
+
+                    if (hasChildren) {
+                      return (
+                        <motion.div
+                          key={item.name}
+                          initial={{ opacity: 0, x: -10 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          transition={{ delay: index * 0.05 }}
+                        >
+                          <button
+                            onClick={() => toggleExpand(item.name)}
+                            className={cn(
+                              'w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200',
+                              isDark
+                                ? 'text-zinc-400 hover:bg-zinc-800 hover:text-zinc-100'
+                                : 'text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900'
+                            )}
+                          >
+                            {IconComponent && (
+                              <IconComponent className="w-4 h-4 flex-shrink-0" />
+                            )}
+                            <span className="flex-1 text-left">{item.name}</span>
+                            {isExpanded ? (
+                              <ChevronDown className="w-4 h-4" />
+                            ) : (
+                              <ChevronRight className="w-4 h-4" />
+                            )}
+                          </button>
+                          <AnimatePresence>
+                            {isExpanded && (
+                              <motion.div
+                                initial={{ height: 0, opacity: 0 }}
+                                animate={{ height: 'auto', opacity: 1 }}
+                                exit={{ height: 0, opacity: 0 }}
+                                transition={{ duration: 0.15 }}
+                                className="overflow-hidden pl-4 space-y-0.5"
+                              >
+                                {item.children!.map((child) => {
+                                  const childActive = child.href && (pathname === child.href || pathname.startsWith(child.href + '?'))
+                                  const ChildIcon = child.icon
+                                  return (
+                                    <Link
+                                      key={child.name}
+                                      href={child.href || '#'}
+                                      className={cn(
+                                        'flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-all duration-200',
+                                        childActive
+                                          ? 'bg-accent text-white'
+                                          : isDark
+                                            ? 'text-zinc-500 hover:bg-zinc-800 hover:text-zinc-300'
+                                            : 'text-zinc-500 hover:bg-zinc-100 hover:text-zinc-700'
+                                      )}
+                                    >
+                                      {ChildIcon && (
+                                        <ChildIcon className="w-3.5 h-3.5 flex-shrink-0" />
+                                      )}
+                                      <span>{child.name}</span>
+                                    </Link>
+                                  )
+                                })}
+                              </motion.div>
+                            )}
+                          </AnimatePresence>
+                        </motion.div>
+                      )
+                    }
+
+                    // Handle "팀 생성" special case
+                    if (item.href === '#create-team') {
+                      return (
+                        <motion.div
+                          key={item.name}
+                          initial={{ opacity: 0, x: -10 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          transition={{ delay: index * 0.05 }}
+                        >
+                          <button
+                            onClick={() => setIsTeamModalOpen(true)}
+                            className={cn(
+                              'w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 border-2 border-dashed',
+                              isDark
+                                ? 'border-zinc-700 text-zinc-400 hover:border-accent hover:text-accent hover:bg-accent/10'
+                                : 'border-zinc-300 text-zinc-500 hover:border-accent hover:text-accent hover:bg-accent/10'
+                            )}
+                          >
+                            {IconComponent && (
+                              <IconComponent className="w-4 h-4 flex-shrink-0" />
+                            )}
+                            <span>{item.name}</span>
+                          </button>
+                        </motion.div>
+                      )
+                    }
+
                     return (
                       <motion.div
                         key={item.name}
@@ -1194,6 +1401,13 @@ export function TwoLevelSidebar() {
           </motion.aside>
         )}
       </AnimatePresence>
+
+      {/* Team Create Modal */}
+      <TeamCreateModal
+        isOpen={isTeamModalOpen}
+        onClose={() => setIsTeamModalOpen(false)}
+        onSubmit={handleTeamCreate}
+      />
     </div>
   )
 }

@@ -6,7 +6,9 @@ import { TwoLevelSidebar } from '@/components/nav/TwoLevelSidebar'
 import { Header } from '@/components/nav/Header'
 import { CommitModal } from '@/components/commits/CommitModal'
 import { useAuthStore } from '@/stores/authStore'
+import { useUIStore } from '@/stores/uiStore'
 import { createClient } from '@/lib/supabase/client'
+import { cn } from '@/lib/utils' // Added for conditional classes
 import type { User, Startup } from '@/types'
 
 export default function DashboardLayout({
@@ -17,6 +19,7 @@ export default function DashboardLayout({
   const router = useRouter()
   const pathname = usePathname()
   const { setUser, setCurrentStartup, setIsLoading, isLoading } = useAuthStore()
+  const { sidebarOpen } = useUIStore()
   const isFullWidthPage = pathname?.includes('/messenger') || pathname?.includes('/agent-builder') || pathname?.includes('/email')
 
   useEffect(() => {
@@ -101,10 +104,14 @@ export default function DashboardLayout({
   }
 
   // 2단계 사이드바: Level1(64px) + Level2(240px)
-  const sidebarWidth = 304 // 64 + 240
+  // sidebarOpen이면 304px, 아니면 64px
+  const sidebarWidth = sidebarOpen ? 304 : 64
+
+  // Check if we are on the main dashboard page
+  const isDashboardRoot = pathname === '/dashboard-group'
 
   return (
-    <div className="min-h-screen bg-theme">
+    <div className={cn("min-h-screen", isDashboardRoot ? "bg-transparent" : "bg-theme")}>
       <TwoLevelSidebar />
       <Header />
       <CommitModal />

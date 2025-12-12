@@ -1,0 +1,6 @@
+export { ProfileSidebar } from './ProfileSidebar'
+export { AboutSection } from './AboutSection'
+export { ResumeSection } from './ResumeSection'
+export { PortfolioSection } from './PortfolioSection'
+export { ActivitySection } from './ActivitySection'
+export { ContactSection } from './ContactSection'

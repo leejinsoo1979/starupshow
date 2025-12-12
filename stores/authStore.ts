@@ -8,6 +8,7 @@ interface AuthState {
   currentTeam: Team | null
   isLoading: boolean
   setUser: (user: User | null) => void
+  updateUser: (updates: Partial<User>) => void
   setCurrentStartup: (startup: Startup | null) => void
   setCurrentTeam: (team: Team | null) => void
   setIsLoading: (loading: boolean) => void
@@ -22,6 +23,9 @@ export const useAuthStore = create<AuthState>()(
       currentTeam: null,
       isLoading: true,
       setUser: (user) => set({ user }),
+      updateUser: (updates) => set((state) => ({
+        user: state.user ? { ...state.user, ...updates } : null
+      })),
       setCurrentStartup: (startup) => set({ currentStartup: startup }),
       setCurrentTeam: (team) => set({ currentTeam: team }),
       setIsLoading: (loading) => set({ isLoading: loading }),

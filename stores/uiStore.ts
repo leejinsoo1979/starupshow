@@ -17,7 +17,7 @@ interface UIState {
 
 export const useUIStore = create<UIState>((set) => ({
   sidebarOpen: true,
-  activeCategory: 'home',
+  activeCategory: null,
   commitModalOpen: false,
   taskModalOpen: false,
   selectedTaskId: null,

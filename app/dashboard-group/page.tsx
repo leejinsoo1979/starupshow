@@ -1,413 +1,292 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import { useTheme } from 'next-themes'
-import { Card, CardHeader, CardTitle, CardContent, StatCard } from '@/components/ui'
 import { useAuthStore } from '@/stores/authStore'
-import { formatRelativeTime } from '@/lib/utils'
+import { useThemeStore } from '@/stores/themeStore'
 import {
-  TrendingUp,
-  TrendingDown,
-  CheckCircle2,
   GitCommit,
-  Target,
-  Zap,
-  ArrowRight,
   AlertTriangle,
-  Sparkles,
-  Activity,
+  ArrowUpRight,
   Clock,
-  Loader2,
+  CheckCircle2,
+  Zap,
+  Target,
+  BrainCircuit,
+  Activity,
+  Calendar,
+  Layers,
+  Search,
+  UserPlus,
+  Users
 } from 'lucide-react'
-import { ActivityHeatmap, EngagementOverview, TasksChart, ProductivityChart, ChatbotWidget } from '@/components/dashboard'
+import { useRouter } from 'next/navigation'
+import {
+  LiveMeshGradient,
+  TiltCard,
+  AICoreWidget,
+  ActivityHeatmap,
+  EngagementOverview,
+  TasksChart,
+  ProductivityChart
+} from '@/components/dashboard'
+import { cn } from '@/lib/utils'
 
-interface RecentCommit {
-  id: string
-  description: string
-  user_name: string
-  created_at: string
-  impact_level?: string
-}
-
-interface Task {
-  id: string
-  title: string
-  status: string
-  priority: string
-  assignee_name?: string
-}
-
-interface DashboardData {
-  metrics: {
-    sprintProgress: number
-    tasksCompleted: number
-    tasksTotal: number
-    commitCount: number
-    riskIndex: number
-    productivityScore: number
-  }
-  recentTasks: RecentCommit[]
-  urgentTasks: Task[]
-}
-
-const container = {
-  hidden: { opacity: 0 },
-  show: {
-    opacity: 1,
-    transition: {
-      staggerChildren: 0.1,
-    },
-  },
-}
-
-const item = {
-  hidden: { opacity: 0, y: 20 },
-  show: { opacity: 1, y: 0 },
-}
-
+// ... (imports)
 export default function DashboardPage() {
+  const router = useRouter()
   const { user } = useAuthStore()
-  const { resolvedTheme } = useTheme()
-  const [isLoading, setIsLoading] = useState(true)
+  const { accentColor } = useThemeStore()
   const [mounted, setMounted] = useState(false)
 
   useEffect(() => {
     setMounted(true)
   }, [])
 
-  const isDark = mounted ? resolvedTheme === 'dark' : true
-  const [metrics, setMetrics] = useState({
-    sprintProgress: 0,
-    tasksCompleted: 0,
-    tasksTotal: 0,
-    commitCount: 0,
-    riskIndex: 0,
-    productivityScore: 0,
-  })
-  const [recentCommits, setRecentCommits] = useState<RecentCommit[]>([])
-  const [urgentTasks, setUrgentTasks] = useState<Task[]>([])
+  if (!mounted) return null
 
-  const fetchDashboardData = useCallback(async () => {
-    try {
-      setIsLoading(true)
-      const response = await fetch('/api/dashboard')
-      const result = await response.json()
+  // --- Theme Helpers ---
+  const getAccentText = () => {
+    switch (accentColor) {
+      case 'purple': return 'text-purple-600 dark:text-purple-400'
+      case 'blue': return 'text-blue-600 dark:text-blue-400'
+      case 'green': return 'text-green-600 dark:text-green-400'
+      case 'orange': return 'text-orange-600 dark:text-orange-400'
+      case 'pink': return 'text-pink-600 dark:text-pink-400'
+      case 'red': return 'text-red-600 dark:text-red-400'
+      case 'yellow': return 'text-yellow-600 dark:text-yellow-400'
+      case 'cyan': return 'text-cyan-600 dark:text-cyan-400'
+      default: return 'text-blue-600 dark:text-blue-400'
+    }
+  }
 
-      if (result.data) {
-        setMetrics(result.data.metrics)
-        setRecentCommits(result.data.recentTasks || [])
-        setUrgentTasks(result.data.urgentTasks || [])
+  // --- Layout Animation ---
+  const container = {
+    hidden: { opacity: 0 },
+    show: {
+      opacity: 1,
+      transition: {
+        staggerChildren: 0.1
       }
-    } catch (error) {
-      console.error('Failed to fetch dashboard data:', error)
-      // 에러 시 목업 데이터 사용
-      setMetrics({
-        sprintProgress: 65,
-        tasksCompleted: 12,
-        tasksTotal: 20,
-        commitCount: 34,
-        riskIndex: 15,
-        productivityScore: 82,
-      })
-      setRecentCommits([
-        { id: '1', description: '사용자 인증 로직 개선', user_name: '김개발', created_at: new Date(Date.now() - 3600000).toISOString(), impact_level: 'high' },
-        { id: '2', description: 'API 응답 속도 최적화', user_name: '이엔지', created_at: new Date(Date.now() - 7200000).toISOString(), impact_level: 'medium' },
-      ])
-      setUrgentTasks([
-        { id: '1', title: '결제 시스템 연동', status: 'in_progress', priority: 'urgent', assignee_name: '김개발' },
-        { id: '2', title: '투자자 대시보드 UI', status: 'todo', priority: 'high', assignee_name: '박프론트' },
-      ])
-    } finally {
-      setIsLoading(false)
-    }
-  }, [])
-
-  useEffect(() => {
-    fetchDashboardData()
-  }, [fetchDashboardData])
-
-  const getImpactBadge = (impact?: string) => {
-    switch (impact) {
-      case 'high':
-        return { bg: 'bg-danger-500/20', text: 'text-danger-400', label: '높음' }
-      case 'medium':
-        return { bg: 'bg-warning-500/20', text: 'text-warning-400', label: '중간' }
-      default:
-        return { bg: isDark ? 'bg-zinc-700' : 'bg-zinc-200', text: isDark ? 'text-zinc-400' : 'text-zinc-600', label: '낮음' }
     }
   }
 
-  const getPriorityBadge = (priority: string) => {
-    switch (priority) {
-      case 'urgent':
-        return { bg: 'bg-danger-500/20', text: 'text-danger-400', label: '긴급', dot: 'bg-danger-500' }
-      case 'high':
-        return { bg: 'bg-warning-500/20', text: 'text-warning-400', label: '높음', dot: 'bg-warning-500' }
-      default:
-        return { bg: isDark ? 'bg-zinc-700' : 'bg-zinc-200', text: isDark ? 'text-zinc-400' : 'text-zinc-600', label: '보통', dot: 'bg-zinc-500' }
-    }
-  }
-
-  const getGreeting = () => {
-    const hour = new Date().getHours()
-    if (hour < 12) return '좋은 아침이에요'
-    if (hour < 18) return '좋은 오후에요'
-    return '좋은 저녁이에요'
-  }
-
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center min-h-[60vh]">
-        <div className="text-center space-y-4">
-          <Loader2 className="w-8 h-8 animate-spin text-accent mx-auto" />
-          <p className={isDark ? 'text-zinc-500' : 'text-zinc-400'}>대시보드 데이터를 불러오는 중...</p>
-        </div>
-      </div>
-    )
+  const item = {
+    hidden: { opacity: 0, y: 50, scale: 0.9 },
+    show: { opacity: 1, y: 0, scale: 1, transition: { type: "spring" as const, stiffness: 100 } }
   }
 
   return (
-    <motion.div
-      className="space-y-8"
-      variants={container}
-      initial="hidden"
-      animate="show"
-    >
-      {/* Header */}
-      <motion.div variants={item} className="flex items-end justify-between">
+    <div className="relative min-h-screen text-zinc-900 dark:text-white p-6 font-sans selection:bg-accent/20">
+      <LiveMeshGradient />
+
+      {/* --- HUD Header --- */}
+      <motion.div
+        initial={{ opacity: 0, y: -20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="flex justify-between items-end mb-10 pb-4 border-b border-zinc-200 dark:border-white/5"
+      >
         <div>
-          <h1 className={`text-3xl font-bold ${isDark ? 'text-zinc-100' : 'text-zinc-900'}`}>
-            {getGreeting()}, <span className="text-gradient">{user?.name || '사용자'}</span>님
+          <h1 className="text-6xl font-thin tracking-tighter mb-2">
+            HELLO, <span className={cn("font-bold", getAccentText())}>{user?.name || 'USER'}</span>
           </h1>
-          <p className={`mt-2 flex items-center gap-2 ${isDark ? 'text-zinc-500' : 'text-zinc-500'}`}>
-            <Activity className="w-4 h-4" />
-            오늘의 팀 현황을 확인하세요
-          </p>
+          <div className="flex items-center gap-3 text-zinc-500 dark:text-white/50 text-sm tracking-widest font-mono">
+            <span className="flex items-center gap-1"><BrainCircuit className="w-3 h-3" /> SYSTEM ONLINE</span>
+            <span>::</span>
+            <span className="flex items-center gap-1"><Clock className="w-3 h-3" /> {new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}</span>
+          </div>
         </div>
-        <div className={`flex items-center gap-2 text-sm ${isDark ? 'text-zinc-500' : 'text-zinc-500'}`}>
-          <Clock className="w-4 h-4" />
-          {new Date().toLocaleDateString('ko-KR', { month: 'long', day: 'numeric', weekday: 'long' })}
+        <div className="hidden md:flex gap-4">
+          <button className="flex items-center justify-center w-10 h-10 rounded-full bg-white/50 dark:bg-white/5 hover:bg-zinc-100 dark:hover:bg-white/10 backdrop-blur transition-all border border-zinc-200 dark:border-white/10">
+            <Search className="w-4 h-4 text-zinc-600 dark:text-white/70" />
+          </button>
+          <button className="flex items-center justify-center w-10 h-10 rounded-full bg-white/50 dark:bg-white/5 hover:bg-zinc-100 dark:hover:bg-white/10 backdrop-blur transition-all border border-zinc-200 dark:border-white/10">
+            <Layers className="w-4 h-4 text-zinc-600 dark:text-white/70" />
+          </button>
         </div>
       </motion.div>
 
-      {/* KPI Cards */}
-      <motion.div variants={item} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
-        <StatCard
-          title="스프린트 진행률"
-          value={`${metrics.sprintProgress}%`}
-          change={12}
-          changeLabel="지난주 대비"
-          icon={<Target className="w-6 h-6" />}
-          trend="up"
-        />
-        <StatCard
-          title="완료된 태스크"
-          value={`${metrics.tasksCompleted}/${metrics.tasksTotal}`}
-          change={8}
-          changeLabel="지난주 대비"
-          icon={<CheckCircle2 className="w-6 h-6" />}
-          trend="up"
-        />
-        <StatCard
-          title="이번 주 커밋"
-          value={metrics.commitCount}
-          change={-5}
-          changeLabel="지난주 대비"
-          icon={<GitCommit className="w-6 h-6" />}
-          trend="down"
-        />
-        <StatCard
-          title="생산성 점수"
-          value={metrics.productivityScore}
-          change={3}
-          changeLabel="지난주 대비"
-          icon={<Zap className="w-6 h-6" />}
-          trend="up"
-        />
-      </motion.div>
+      {/* --- Bento Grid --- */}
+      <motion.div
+        variants={container}
+        initial="hidden"
+        animate="show"
+        className="grid grid-cols-1 md:grid-cols-4 lg:grid-cols-6 auto-rows-[180px] gap-6"
+      >
 
-      {/* Main Content Grid */}
-      <div className="grid lg:grid-cols-3 gap-6">
-        {/* Recent Commits */}
-        <motion.div variants={item} className="lg:col-span-2">
-          <Card variant="default" className="h-full">
-            <CardHeader className="flex flex-row items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-accent flex items-center justify-center shadow-accent">
-                  <GitCommit className="w-5 h-5 text-white" />
-                </div>
-                <CardTitle>최근 커밋</CardTitle>
-              </div>
-              <button className="text-sm text-accent hover:text-accent/80 flex items-center gap-1 font-medium group">
-                전체 보기
-                <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
-              </button>
-            </CardHeader>
-            <CardContent className="space-y-1">
-              {recentCommits.map((commit, index) => {
-                const badge = getImpactBadge(commit.impact_level)
-                return (
-                  <motion.div
-                    key={commit.id}
-                    className={`flex items-start gap-4 p-4 rounded-xl transition-colors cursor-pointer group ${
-                      isDark ? 'hover:bg-zinc-800/50' : 'hover:bg-zinc-100'
-                    }`}
-                    initial={{ opacity: 0, x: -20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: index * 0.1 }}
-                  >
-                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 group-hover:bg-accent/20 transition-colors ${
-                      isDark ? 'bg-gradient-to-br from-zinc-700 to-zinc-800' : 'bg-zinc-100'
-                    }`}>
-                      <GitCommit className={`w-5 h-5 group-hover:text-accent transition-colors ${
-                        isDark ? 'text-zinc-400' : 'text-zinc-500'
-                      }`} />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className={`text-sm font-medium group-hover:text-accent transition-colors ${
-                        isDark ? 'text-zinc-100' : 'text-zinc-900'
-                      }`}>
-                        {commit.description}
-                      </p>
-                      <div className="flex items-center gap-2 mt-1.5">
-                        <span className={`text-xs font-medium ${isDark ? 'text-zinc-400' : 'text-zinc-600'}`}>{commit.user_name}</span>
-                        <span className={`text-xs ${isDark ? 'text-zinc-600' : 'text-zinc-400'}`}>•</span>
-                        <span className={`text-xs ${isDark ? 'text-zinc-500' : 'text-zinc-400'}`}>
-                          {formatRelativeTime(commit.created_at)}
-                        </span>
-                      </div>
-                    </div>
-                    <span className={`px-2.5 py-1 rounded-lg text-xs font-semibold ${badge.bg} ${badge.text}`}>
-                      {badge.label}
-                    </span>
-                  </motion.div>
-                )
-              })}
-            </CardContent>
-          </Card>
+        {/* 1. AI Core (Large) */}
+        <motion.div variants={item} className="md:col-span-2 lg:col-span-2 md:row-span-2">
+          <TiltCard className="h-full flex flex-col items-center justify-center bg-white/50 dark:bg-black/20">
+            <AICoreWidget />
+          </TiltCard>
         </motion.div>
 
-        {/* Urgent Tasks */}
-        <motion.div variants={item}>
-          <Card variant="default" className="h-full">
-            <CardHeader>
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-warning-400 to-warning-500 flex items-center justify-center shadow-lg shadow-warning-500/25">
-                  <AlertTriangle className="w-5 h-5 text-white" />
+        {/* 2. Urgent Tasks (Medium) */}
+        <motion.div variants={item} className="md:col-span-2 lg:col-span-2 md:row-span-2">
+          <TiltCard className="h-full p-6 flex flex-col">
+            <div className="flex justify-between items-start mb-4">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-lg bg-red-500/20 flex items-center justify-center text-red-600 dark:text-red-500">
+                  <AlertTriangle className="w-4 h-4" />
                 </div>
-                <CardTitle>긴급 태스크</CardTitle>
+                <span className="font-medium tracking-tight text-zinc-700 dark:text-white">CRITICAL TASKS</span>
               </div>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              {urgentTasks.map((task, index) => {
-                const badge = getPriorityBadge(task.priority)
-                return (
-                  <motion.div
-                    key={task.id}
-                    className={`p-4 border rounded-xl transition-all cursor-pointer group ${
-                      isDark
-                        ? 'border-zinc-800 hover:border-zinc-700 hover:bg-zinc-800/50'
-                        : 'border-zinc-200 hover:border-zinc-300 hover:bg-zinc-100'
-                    }`}
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: index * 0.1 }}
-                    whileHover={{ scale: 1.02 }}
-                  >
-                    <div className="flex items-start gap-3">
-                      <div className={`w-2 h-2 rounded-full mt-2 ${badge.dot}`} />
-                      <div className="flex-1">
-                        <p className={`text-sm font-medium group-hover:text-accent transition-colors ${
-                          isDark ? 'text-zinc-100' : 'text-zinc-900'
-                        }`}>
-                          {task.title}
-                        </p>
-                        <div className="flex items-center justify-between mt-2">
-                          <span className={`px-2 py-0.5 rounded-md text-xs font-semibold ${badge.bg} ${badge.text}`}>
-                            {badge.label}
-                          </span>
-                          <span className={`text-xs ${isDark ? 'text-zinc-500' : 'text-zinc-400'}`}>{task.assignee_name}</span>
-                        </div>
-                      </div>
-                    </div>
-                  </motion.div>
-                )
-              })}
-            </CardContent>
-          </Card>
+              <span className="text-xs font-mono text-zinc-400 dark:text-white/40">3 PENDING</span>
+            </div>
+
+            <div className="space-y-3 flex-1 overflow-y-auto pr-2 custom-scrollbar">
+              {[
+                { title: "Payment Gateway API Fail", priority: "URGENT", time: "2m ago" },
+                { title: "Investor Demo Prep", priority: "HIGH", time: "1h ago" },
+                { title: "Server Migration", priority: "HIGH", time: "3h ago" },
+              ].map((t, i) => (
+                <div key={i} className="group flex items-center justify-between p-3 rounded-xl bg-zinc-50 dark:bg-white/5 hover:bg-zinc-100 dark:hover:bg-white/10 border border-zinc-200 dark:border-white/5 transition-colors cursor-pointer">
+                  <div>
+                    <p className="text-sm font-medium text-zinc-700 dark:text-white/90 group-hover:text-zinc-900 dark:group-hover:text-white">{t.title}</p>
+                    <p className="text-[10px] text-zinc-400 dark:text-white/40 mt-1">{t.time}</p>
+                  </div>
+                  <ArrowUpRight className="w-4 h-4 text-zinc-400 dark:text-white/20 group-hover:text-zinc-600 dark:group-hover:text-white transition-colors" />
+                </div>
+              ))}
+            </div>
+          </TiltCard>
         </motion.div>
-      </div>
 
-      {/* AI Insights */}
-      <motion.div variants={item}>
-        <Card variant="gradient" className="border-2 border-accent/20 overflow-hidden relative">
-          {/* Background decoration */}
-          <div className="absolute top-0 right-0 w-64 h-64 bg-accent/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2" />
-
-          <CardContent className="py-6 relative">
-            <div className="flex items-start gap-5">
-              <motion.div
-                className="w-14 h-14 rounded-2xl bg-accent flex items-center justify-center flex-shrink-0 shadow-accent"
-                animate={{
-                  scale: [1, 1.05, 1],
-                }}
-                transition={{
-                  duration: 2,
-                  repeat: Infinity,
-                  ease: 'easeInOut',
-                }}
-              >
-                <Sparkles className="w-7 h-7 text-white" />
-              </motion.div>
-              <div className="flex-1">
-                <h3 className={`text-lg font-bold mb-2 flex items-center gap-2 ${isDark ? 'text-zinc-100' : 'text-zinc-900'}`}>
-                  AI 인사이트
-                  <span className="px-2 py-0.5 text-xs font-medium bg-accent/20 text-accent rounded-full">
-                    New
-                  </span>
-                </h3>
-                <p className={`leading-relaxed ${isDark ? 'text-zinc-400' : 'text-zinc-600'}`}>
-                  이번 스프린트에서 <span className={`font-semibold ${isDark ? 'text-zinc-100' : 'text-zinc-900'}`}>결제 시스템 연동</span> 태스크가 예상보다 지연되고 있습니다.
-                  현재 진행 속도를 감안하면 마감일까지 완료하기 어려울 수 있습니다.
-                  <span className="font-semibold text-accent"> 추가 리소스 배치를 고려해보세요.</span>
-                </p>
-                <div className="flex gap-3 mt-4">
-                  <button className="px-4 py-2 text-sm font-semibold text-accent hover:text-accent/80 hover:bg-accent/10 rounded-lg transition-colors">
-                    자세히 보기 →
-                  </button>
-                  <button className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
-                    isDark
-                      ? 'text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800'
-                      : 'text-zinc-500 hover:text-zinc-700 hover:bg-zinc-100'
-                  }`}>
-                    다음에 보기
-                  </button>
+        {/* 3. Sprint Progress (Small) */}
+        <motion.div variants={item} className="md:col-span-2 lg:col-span-2">
+          <TiltCard className="h-full p-5 relative overflow-hidden group">
+            <div className="absolute right-0 top-0 p-32 bg-accent/10 rounded-full blur-3xl group-hover:bg-accent/20 transition-all" />
+            <div className="relative z-10 flex flex-col h-full justify-between">
+              <div className="flex justify-between">
+                <span className="text-sm font-medium text-zinc-500 dark:text-white/60">SPRINT PROGRESS</span>
+                <Target className="w-4 h-4 text-zinc-400 dark:text-white/40" />
+              </div>
+              <div>
+                <div className="text-4xl font-bold tracking-tighter text-zinc-900 dark:text-white">78%</div>
+                <div className="h-1 w-full bg-zinc-200 dark:bg-white/10 rounded-full mt-3 overflow-hidden">
+                  <div className={cn("h-full rounded-full w-[78%] transition-all duration-1000", `bg-${accentColor}-500`)} />
                 </div>
               </div>
             </div>
-          </CardContent>
-        </Card>
-      </motion.div>
+          </TiltCard>
+        </motion.div>
 
-      {/* Engagement Overview */}
-      <motion.div variants={item}>
-        <EngagementOverview />
-      </motion.div>
+        {/* 4. Productivity Score (Small) */}
+        <motion.div variants={item} className="md:col-span-2 lg:col-span-2">
+          <TiltCard className="h-full p-5 flex flex-col justify-between">
+            <div className="flex justify-between">
+              <span className="text-sm font-medium text-zinc-500 dark:text-white/60">PRODUCTIVITY</span>
+              <Zap className={cn("w-4 h-4", getAccentText())} />
+            </div>
+            <div className="flex items-end gap-3">
+              <span className={cn("text-4xl font-bold tracking-tighter", getAccentText())}>94</span>
+              <span className="text-sm text-green-600 dark:text-green-400 mb-1.5 flex items-center">
+                <ArrowUpRight className="w-3 h-3 mr-0.5" /> +12%
+              </span>
+            </div>
+          </TiltCard>
+        </motion.div>
 
-      {/* Charts Section */}
-      <motion.div variants={item} className="grid lg:grid-cols-2 gap-6">
-        <TasksChart />
-        <ProductivityChart />
-      </motion.div>
+        {/* 5. Add Team Member Card */}
+        <motion.div variants={item} className="md:col-span-2 lg:col-span-2">
+          <TiltCard
+            className="h-full p-5 flex flex-col justify-between cursor-pointer group hover:border-accent/50 transition-all"
+            onClick={() => router.push('/dashboard-group/team/members/new')}
+          >
+            <div className="flex justify-between items-start">
+              <div className="flex items-center gap-2">
+                <div className={cn(
+                  "w-8 h-8 rounded-lg flex items-center justify-center transition-colors",
+                  "bg-accent/10 group-hover:bg-accent/20"
+                )}>
+                  <Users className={cn("w-4 h-4", getAccentText())} />
+                </div>
+                <span className="font-medium tracking-tight text-zinc-700 dark:text-white">팀원</span>
+              </div>
+              <span className="text-xs font-mono text-zinc-400 dark:text-white/40">5 MEMBERS</span>
+            </div>
+            <div className="flex items-center gap-3 mt-4">
+              <div className="flex -space-x-2">
+                {['JK', 'SL', 'MH', 'YJ'].map((initials, i) => (
+                  <div
+                    key={i}
+                    className="w-8 h-8 rounded-full bg-zinc-100 dark:bg-white/10 border-2 border-white dark:border-zinc-900 flex items-center justify-center text-[10px] font-bold text-zinc-600 dark:text-white/70"
+                  >
+                    {initials}
+                  </div>
+                ))}
+              </div>
+              <button
+                className={cn(
+                  "w-8 h-8 rounded-full flex items-center justify-center transition-all",
+                  "bg-accent/10 hover:bg-accent/20 group-hover:scale-110",
+                  "border-2 border-dashed border-accent/30 hover:border-accent/50"
+                )}
+              >
+                <UserPlus className={cn("w-4 h-4", getAccentText())} />
+              </button>
+            </div>
+            <div className="mt-4 pt-3 border-t border-zinc-100 dark:border-white/5">
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-zinc-500 dark:text-white/50">+ 팀원 생성</span>
+                <ArrowUpRight className="w-4 h-4 text-zinc-400 dark:text-white/30 group-hover:text-accent transition-colors" />
+              </div>
+            </div>
+          </TiltCard>
+        </motion.div>
 
-      {/* Activity Heatmap */}
-      <motion.div variants={item}>
-        <ActivityHeatmap />
-      </motion.div>
+        {/* 6. Commit Heatmap (Wide) */}
+        <motion.div variants={item} className="md:col-span-4 lg:col-span-4 md:row-span-2">
+          <TiltCard className="h-full p-6 flex flex-col">
+            <div className="flex items-center gap-2 mb-6">
+              <GitCommit className="w-5 h-5 text-zinc-500 dark:text-white/50" />
+              <span className="font-medium tracking-tight text-zinc-700 dark:text-white">COMMIT ACTIVITY</span>
+            </div>
+            <div className="flex-1 rounded-xl bg-zinc-50/50 dark:bg-black/20 border border-zinc-200 dark:border-white/5 p-4 flex items-center justify-center">
+              <ActivityHeatmap />
+            </div>
+          </TiltCard>
+        </motion.div>
 
-      {/* Chatbot Widget */}
-      <ChatbotWidget />
-    </motion.div>
+        {/* 6. Recent Commits List (Tall) */}
+        <motion.div variants={item} className="md:col-span-2 lg:col-span-2 md:row-span-2">
+          <TiltCard className="h-full p-6 flex flex-col">
+            <div className="flex items-center gap-2 mb-4">
+              <Clock className="w-5 h-5 text-zinc-500 dark:text-white/50" />
+              <span className="font-medium tracking-tight text-zinc-700 dark:text-white">RECENT PUSHES</span>
+            </div>
+            <div className="space-y-4">
+              {[1, 2, 3, 4].map((_, i) => (
+                <div key={i} className="flex gap-3 items-center">
+                  <div className="w-8 h-8 rounded-full bg-zinc-100 dark:bg-white/5 flex items-center justify-center text-xs font-bold text-zinc-600 dark:text-white/70">
+                    JK
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm text-zinc-800 dark:text-white/80 truncate">fix: authentication loop issue</p>
+                    <p className="text-xs text-zinc-400 dark:text-white/30 font-mono">main • 24m ago</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </TiltCard>
+        </motion.div>
+
+        {/* 7. Engagement Chart (Wide) */}
+        <motion.div variants={item} className="md:col-span-3 lg:col-span-3">
+          <TiltCard className="h-full p-5">
+            <EngagementOverview />
+          </TiltCard>
+        </motion.div>
+
+        {/* 8. Productivity Chart (Wide) */}
+        <motion.div variants={item} className="md:col-span-3 lg:col-span-3">
+          <TiltCard className="h-full p-5">
+            <ProductivityChart />
+          </TiltCard>
+        </motion.div>
+
+      </motion.div>
+    </div>
   )
 }
