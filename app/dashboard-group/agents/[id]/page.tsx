@@ -222,6 +222,9 @@ export default function AgentDetailPage() {
   const [currentNodeId, setCurrentNodeId] = useState<string | null>(null)
   const [nodeStatuses, setNodeStatuses] = useState<Record<string, NodeStatus>>({})
   const [mounted, setMounted] = useState(false)
+  const [inputModalOpen, setInputModalOpen] = useState(false)
+  const [inputValue, setInputValue] = useState("")
+  const [inputNodeLabel, setInputNodeLabel] = useState("")
 
   const [nodes, setNodes, onNodesChange] = useNodesState([])
   const [edges, setEdges, onEdgesChange] = useEdgesState([])
@@ -325,7 +328,19 @@ export default function AgentDetailPage() {
     )
   }, [nodeStatuses, executing, setEdges])
 
-  const handleExecute = async () => {
+  const handleExecute = async (userInput?: string) => {
+    // input 노드가 있는지 확인 (원본 데이터 사용)
+    const originalNodes = agent?.workflow_nodes || []
+    const inputNode = originalNodes.find((n: any) => n.type === "input")
+
+    // input 노드가 있고 아직 입력값이 없으면 모달 표시
+    if (inputNode && !userInput && !inputModalOpen) {
+      setInputNodeLabel(inputNode.data?.label || "입력값")
+      setInputModalOpen(true)
+      return
+    }
+
+    setInputModalOpen(false)
     setExecuting(true)
     setExecutionLog([])
 
@@ -334,42 +349,114 @@ export default function AgentDetailPage() {
     nodes.forEach((n) => (initialStatuses[n.id] = "idle"))
     setNodeStatuses(initialStatuses)
 
+    setExecutionLog((prev) => [...prev, `실행 시작: ${agent?.name}`])
+
     try {
-      // Find execution order (topological sort based on edges)
-      const nodeOrder = getExecutionOrder(nodes, edges)
+      // 원본 워크플로우 데이터 사용 (ReactFlow 내부 속성 없음)
+      const originalNodes = agent?.workflow_nodes || []
+      const originalEdges = agent?.workflow_edges || []
 
-      setExecutionLog((prev) => [...prev, `실행 시작: ${agent?.name}`])
+      // 노드에 input 노드 입력값 추가
+      const cleanNodes = originalNodes.map((n: any) => ({
+        id: n.id,
+        type: n.type,
+        position: n.position || { x: 0, y: 0 },
+        data: {
+          ...n.data,
+          ...(n.type === "input" && userInput ? { initialInput: userInput } : {}),
+        },
+      }))
 
-      for (const nodeId of nodeOrder) {
-        const node = nodes.find((n) => n.id === nodeId)
-        if (!node) continue
+      // 엣지 데이터
+      const cleanEdges = originalEdges.map((e: any) => ({
+        id: e.id,
+        source: e.source,
+        target: e.target,
+        ...(e.sourceHandle ? { sourceHandle: e.sourceHandle } : {}),
+        ...(e.targetHandle ? { targetHandle: e.targetHandle } : {}),
+      }))
 
-        setCurrentNodeId(nodeId)
-        setNodeStatuses((prev) => ({ ...prev, [nodeId]: "running" }))
-        setExecutionLog((prev) => [...prev, `노드 실행 중: ${node.data.label || node.type}`])
+      // 실제 API 호출
+      const response = await fetch("/api/agent/execute", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          nodes: cleanNodes,
+          edges: cleanEdges,
+        }),
+      })
 
-        // Simulate execution delay
-        await new Promise((resolve) => setTimeout(resolve, 1000 + Math.random() * 1000))
-
-        // For demo, randomly fail sometimes (10% chance)
-        const failed = Math.random() < 0.1 && node.type !== "start" && node.type !== "end"
-
-        if (failed) {
-          setNodeStatuses((prev) => ({ ...prev, [nodeId]: "error" }))
-          setExecutionLog((prev) => [...prev, `오류 발생: ${node.data.label || node.type}`])
-          break
-        }
-
-        setNodeStatuses((prev) => ({ ...prev, [nodeId]: "completed" }))
-        setExecutionLog((prev) => [...prev, `완료: ${node.data.label || node.type}`])
+      if (!response.ok) {
+        throw new Error(`실행 실패: ${response.status}`)
       }
 
-      setExecutionLog((prev) => [...prev, "실행 완료!"])
+      // 스트리밍 응답 처리
+      const reader = response.body?.getReader()
+      if (!reader) throw new Error("응답 스트림을 읽을 수 없습니다")
+
+      const decoder = new TextDecoder()
+      let buffer = ""
+
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+
+        buffer += decoder.decode(value, { stream: true })
+        const lines = buffer.split("\n")
+        buffer = lines.pop() || ""
+
+        for (const line of lines) {
+          if (!line.trim()) continue
+
+          try {
+            const update = JSON.parse(line)
+
+            switch (update.type) {
+              case "node_start":
+                setCurrentNodeId(update.nodeId)
+                setNodeStatuses((prev) => ({ ...prev, [update.nodeId]: "running" }))
+                const startNode = nodes.find((n) => n.id === update.nodeId)
+                setExecutionLog((prev) => [...prev, `노드 실행 중: ${startNode?.data.label || update.nodeType}`])
+                break
+
+              case "node_complete":
+                setNodeStatuses((prev) => ({ ...prev, [update.nodeId]: "completed" }))
+                const completeNode = nodes.find((n) => n.id === update.nodeId)
+                // output 노드면 결과 표시
+                if (update.nodeType === "output" || update.nodeType === "end") {
+                  const result = update.output?.finalOutput || update.output
+                  const resultStr = typeof result === "string"
+                    ? result.substring(0, 200)
+                    : JSON.stringify(result).substring(0, 200)
+                  setExecutionLog((prev) => [...prev, `결과: ${resultStr}${resultStr.length >= 200 ? "..." : ""}`])
+                }
+                setExecutionLog((prev) => [...prev, `완료: ${completeNode?.data.label || update.nodeType}`])
+                break
+
+              case "node_error":
+                setNodeStatuses((prev) => ({ ...prev, [update.nodeId]: "error" }))
+                setExecutionLog((prev) => [...prev, `오류: ${update.error}`])
+                break
+
+              case "complete":
+                setExecutionLog((prev) => [...prev, "실행 완료!"])
+                break
+
+              case "error":
+                setExecutionLog((prev) => [...prev, `실행 오류: ${update.error}`])
+                break
+            }
+          } catch (parseError) {
+            console.error("JSON 파싱 오류:", parseError, line)
+          }
+        }
+      }
     } catch (error) {
-      setExecutionLog((prev) => [...prev, `오류: ${error}`])
+      setExecutionLog((prev) => [...prev, `오류: ${error instanceof Error ? error.message : String(error)}`])
     } finally {
       setExecuting(false)
       setCurrentNodeId(null)
+      setInputValue("")
     }
   }
 
@@ -477,7 +564,7 @@ export default function AgentDetailPage() {
             편집
           </Button>
           <Button
-            onClick={handleExecute}
+            onClick={() => handleExecute()}
             disabled={executing || nodes.length === 0}
             style={{
               backgroundColor: mounted ? currentAccent.color : "#8b5cf6",
@@ -540,6 +627,59 @@ export default function AgentDetailPage() {
             </ReactFlow>
           )}
 
+          {/* Input Modal */}
+          <AnimatePresence>
+            {inputModalOpen && (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="absolute inset-0 bg-black/60 flex items-center justify-center z-50"
+              >
+                <motion.div
+                  initial={{ scale: 0.9, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  exit={{ scale: 0.9, opacity: 0 }}
+                  className="bg-zinc-900 border border-zinc-700 rounded-xl p-6 w-[480px] shadow-2xl"
+                >
+                  <h3 className="text-lg font-semibold text-white mb-2">{inputNodeLabel}</h3>
+                  <p className="text-sm text-zinc-400 mb-4">
+                    워크플로우를 실행하려면 입력값을 입력하세요
+                  </p>
+                  <textarea
+                    value={inputValue}
+                    onChange={(e) => setInputValue(e.target.value)}
+                    placeholder={`${inputNodeLabel}을(를) 입력하세요...`}
+                    className="w-full h-32 px-4 py-3 bg-zinc-800 border border-zinc-700 rounded-lg text-white placeholder-zinc-500 resize-none focus:outline-none focus:border-zinc-500"
+                    autoFocus
+                  />
+                  <div className="flex justify-end gap-2 mt-4">
+                    <Button
+                      variant="outline"
+                      onClick={() => {
+                        setInputModalOpen(false)
+                        setInputValue("")
+                      }}
+                    >
+                      취소
+                    </Button>
+                    <Button
+                      onClick={() => {
+                        if (inputValue.trim()) {
+                          handleExecute(inputValue.trim())
+                        }
+                      }}
+                      disabled={!inputValue.trim()}
+                      style={{ backgroundColor: currentAccent.color }}
+                      className="text-white"
+                    >
+                      실행
+                    </Button>
+                  </div>
+                </motion.div>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
 
         {/* Execution Log Panel */}
