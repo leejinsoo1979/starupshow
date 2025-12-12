@@ -1273,7 +1273,8 @@ export function TwoLevelSidebar() {
                   // 일반 메뉴 - 중첩 메뉴 지원
                   activeItems.map((item, index) => {
                     const hasChildren = item.children && item.children.length > 0
-                    const isActive = item.href && (pathname === item.href || pathname.startsWith(item.href + '?') || pathname.startsWith(item.href + '/'))
+                    // 정확한 매칭: 쿼리 파라미터만 허용하고 하위 경로는 제외
+                    const isActive = item.href && (pathname === item.href || pathname.startsWith(item.href + '?'))
                     const IconComponent = item.icon
                     const isExpanded = expandedItems.has(item.name)
 

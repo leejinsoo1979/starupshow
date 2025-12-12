@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { motion } from 'framer-motion'
 import { useThemeStore } from '@/stores/themeStore'
 import { useTeamStore, Team } from '@/stores/teamStore'
+import { MemberAddModal, MemberFormData } from '@/components/team/MemberAddModal'
 import {
   UserPlus,
   Search,
@@ -53,6 +54,13 @@ export default function TeamMembersPage() {
   const [searchQuery, setSearchQuery] = useState('')
   const [activeMenu, setActiveMenu] = useState<string | null>(null)
   const [viewMode, setViewMode] = useState<ViewMode>('album')
+  const [isMemberModalOpen, setIsMemberModalOpen] = useState(false)
+
+  const handleAddMember = (data: MemberFormData) => {
+    // TODO: API 연동
+    console.log('New member:', data)
+    setIsMemberModalOpen(false)
+  }
 
   const getAccentBg = () => {
     switch (accentColor) {
@@ -129,16 +137,14 @@ export default function TeamMembersPage() {
         animate={{ opacity: 1, y: 0 }}
         className="mb-8"
       >
-        {/* Back Button & Team Name */}
-        {currentTeam && (
-          <button
-            onClick={() => router.push('/dashboard-group/team')}
-            className="flex items-center gap-2 text-zinc-500 dark:text-white/50 hover:text-zinc-700 dark:hover:text-white/70 transition-colors mb-4"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            <span className="text-sm">팀 목록</span>
-          </button>
-        )}
+        {/* Back Button */}
+        <button
+          onClick={() => router.push('/dashboard-group/team')}
+          className="flex items-center gap-2 text-zinc-500 dark:text-white/50 hover:text-zinc-700 dark:hover:text-white/70 transition-colors mb-4 group"
+        >
+          <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
+          <span className="text-sm">팀 대시보드로 돌아가기</span>
+        </button>
 
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <div>

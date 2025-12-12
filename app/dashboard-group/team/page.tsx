@@ -341,15 +341,28 @@ export default function TeamPage() {
                 <Users className={cn("w-5 h-5", accent.text)} />
                 팀원
               </h3>
-              <button
-                onClick={() => router.push('/dashboard-group/team/members/new')}
-                className={cn(
-                  "w-8 h-8 rounded-lg flex items-center justify-center transition-colors",
-                  accent.bgLight, "hover:opacity-80"
-                )}
-              >
-                <UserPlus className={cn("w-4 h-4", accent.text)} />
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => router.push('/dashboard-group/team/members')}
+                  className={cn(
+                    "px-3 py-1.5 rounded-lg text-xs font-medium transition-colors",
+                    isDark
+                      ? "bg-white/10 hover:bg-white/20 text-white/80"
+                      : "bg-zinc-100 hover:bg-zinc-200 text-zinc-600"
+                  )}
+                >
+                  보기
+                </button>
+                <button
+                  onClick={() => router.push('/dashboard-group/team/members/new')}
+                  className={cn(
+                    "w-8 h-8 rounded-lg flex items-center justify-center transition-colors",
+                    accent.bgLight, "hover:opacity-80"
+                  )}
+                >
+                  <UserPlus className={cn("w-4 h-4", accent.text)} />
+                </button>
+              </div>
             </div>
 
             <div className="space-y-2 flex-1 overflow-y-auto min-h-0">

@@ -23,6 +23,7 @@ import {
   Sparkles,
   TrendingUp,
   FolderKanban,
+  ArrowLeft,
 } from 'lucide-react'
 
 type ViewMode = 'album' | 'list'
@@ -132,6 +133,15 @@ export default function TeamListPage() {
         animate={{ opacity: 1, y: 0 }}
         className="mb-8"
       >
+        {/* Back Button */}
+        <button
+          onClick={() => router.push('/dashboard-group/team')}
+          className="flex items-center gap-2 text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 transition-colors mb-4 group"
+        >
+          <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
+          <span className="text-sm">팀 대시보드로 돌아가기</span>
+        </button>
+
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <div>
             <h1 className="text-3xl font-bold tracking-tight text-zinc-900 dark:text-white">
