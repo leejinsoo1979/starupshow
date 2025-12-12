@@ -11,18 +11,30 @@ export async function GET(
   try {
     const { id } = await params
     const supabase = await createClient()
-    const { data: { user } } = await supabase.auth.getUser()
+    const adminClient = createAdminClient()
+
+    // 개발 모드: DEV_USER 사용
+    let user = isDevMode() ? DEV_USER : null
+    if (!user) {
+      const { data } = await supabase.auth.getUser()
+      user = data.user
+    }
 
     if (!user) {
       return NextResponse.json({ error: '인증이 필요합니다' }, { status: 401 })
     }
 
-    const { data, error } = await (supabase as any)
+    // DEV 모드에서는 owner_id 체크 없이 조회
+    let query = (adminClient as any)
       .from('deployed_agents')
       .select('*')
       .eq('id', id)
-      .eq('owner_id', user.id)
-      .single()
+
+    if (!isDevMode()) {
+      query = query.eq('owner_id', user.id)
+    }
+
+    const { data, error } = await query.single()
 
     if (error) {
       if (error.code === 'PGRST116') {

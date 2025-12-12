@@ -11,6 +11,17 @@ import { createClient } from '@/lib/supabase/client'
 import { cn } from '@/lib/utils' // Added for conditional classes
 import type { User, Startup } from '@/types'
 
+// DEV 모드 체크 (클라이언트용)
+const DEV_BYPASS_AUTH = process.env.NEXT_PUBLIC_DEV_BYPASS_AUTH === 'true'
+const DEV_USER = {
+  id: '00000000-0000-0000-0000-000000000001',
+  email: 'dev@startupshow.local',
+  name: 'Dev Tester',
+  role: 'FOUNDER' as const,
+  created_at: new Date().toISOString(),
+  updated_at: new Date().toISOString(),
+}
+
 export default function DashboardLayout({
   children,
 }: {
@@ -28,6 +39,14 @@ export default function DashboardLayout({
     // Get initial session
     const getUser = async () => {
       try {
+        // DEV 모드: 인증 바이패스
+        if (DEV_BYPASS_AUTH) {
+          console.log('[DEV] Client auth bypass - using DEV_USER')
+          setUser(DEV_USER as User)
+          setIsLoading(false)
+          return
+        }
+
         const { data: { user: authUser } } = await supabase.auth.getUser()
 
         if (!authUser) {

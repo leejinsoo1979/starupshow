@@ -32,9 +32,15 @@ export const DEV_TEAM = {
 
 /**
  * 개발 모드 활성화 여부 확인
+ * 클라이언트: NEXT_PUBLIC_DEV_BYPASS_AUTH 사용
+ * 서버: DEV_BYPASS_AUTH 사용
  */
 export function isDevMode(): boolean {
-  return process.env.NODE_ENV === 'development' && process.env.DEV_BYPASS_AUTH === 'true'
+  const isClient = typeof window !== 'undefined'
+  const devBypass = isClient
+    ? process.env.NEXT_PUBLIC_DEV_BYPASS_AUTH
+    : process.env.DEV_BYPASS_AUTH
+  return process.env.NODE_ENV === 'development' && devBypass === 'true'
 }
 
 /**
