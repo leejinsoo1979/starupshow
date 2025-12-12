@@ -58,14 +58,18 @@ export default function DashboardLayout({
         }
 
         // Fetch user's startup
-        const { data: startup } = await supabase
-          .from('startups')
-          .select('*')
-          .eq('founder_id', authUser.id)
-          .single()
+        try {
+          const { data: startup, error: startupError } = await supabase
+            .from('startups')
+            .select('*')
+            .eq('founder_id', authUser.id)
+            .single()
 
-        if (startup) {
-          setCurrentStartup(startup as Startup)
+          if (startup && !startupError) {
+            setCurrentStartup(startup as Startup)
+          }
+        } catch (startupErr) {
+          console.warn('Startup fetch failed:', startupErr)
         }
       } catch (error) {
         console.error('Failed to fetch user data:', error)

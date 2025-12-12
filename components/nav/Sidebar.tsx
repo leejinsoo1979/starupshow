@@ -25,10 +25,10 @@ import {
   TrendingUp,
   FileText,
   Workflow,
-  Bot,
   LogOut,
   Mail,
   MessageCircle,
+  BrainCircuit,
 } from 'lucide-react'
 
 const navigation = [
@@ -40,7 +40,7 @@ const navigation = [
   { name: '메신저', href: '/dashboard-group/messenger', icon: MessageCircle },
   { name: '이메일', href: '/dashboard-group/email', icon: Mail },
   { name: '워크플로우', href: '/dashboard-group/workflows', icon: Workflow },
-  { name: 'AI 에이전트', href: '/dashboard-group/agents', icon: Bot },
+  { name: 'AI 에이전트', href: '/dashboard-group/agents', icon: BrainCircuit },
   { name: '리포트', href: '/dashboard-group/reports', icon: FileText },
   { name: '팀 관리', href: '/dashboard-group/team', icon: Users },
   { name: 'AI 인사이트', href: '/dashboard-group/insights', icon: Sparkles },

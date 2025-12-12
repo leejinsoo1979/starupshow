@@ -43,27 +43,19 @@ import {
   Sparkles,
 } from 'lucide-react'
 
-// Mock data for demo
-const mockTeamMembers = [
-  { id: '1', name: '김진수', role: 'CEO', avatar: null, initials: 'JK', status: 'online', commits: 127 },
-  { id: '2', name: '이서연', role: 'CTO', avatar: null, initials: 'SY', status: 'online', commits: 89 },
-  { id: '3', name: '박민호', role: 'Designer', avatar: null, initials: 'MH', status: 'away', commits: 45 },
-  { id: '4', name: '최유진', role: 'Developer', avatar: null, initials: 'YJ', status: 'offline', commits: 67 },
-  { id: '5', name: '정하늘', role: 'Developer', avatar: null, initials: 'HN', status: 'online', commits: 34 },
-]
+// TODO: 실제 데이터로 교체 필요
+// 현재는 선택된 팀의 실제 멤버 데이터를 사용
 
-const mockProjects = [
-  { id: '1', name: 'StartupShow MVP', progress: 78, status: 'active', tasks: 24, completed: 19 },
-  { id: '2', name: '투자자 대시보드', progress: 45, status: 'active', tasks: 18, completed: 8 },
-  { id: '3', name: '모바일 앱 v2', progress: 92, status: 'review', tasks: 12, completed: 11 },
-]
-
-const mockActivities = [
-  { user: 'JK', action: '커밋', target: 'feat: 팀 대시보드 UI 개선', time: '2분 전', type: 'commit' },
-  { user: 'SY', action: '완료', target: 'API 엔드포인트 리팩토링', time: '15분 전', type: 'complete' },
-  { user: 'MH', action: '생성', target: '새로운 디자인 시스템 컴포넌트', time: '1시간 전', type: 'create' },
-  { user: 'YJ', action: '리뷰', target: 'PR #142 - 인증 로직 수정', time: '2시간 전', type: 'review' },
-]
+// 팀원 타입
+interface TeamMember {
+  id: string
+  name: string
+  role: string
+  avatar_url?: string
+  status?: 'online' | 'away' | 'offline'
+  commits?: number
+  type?: 'person' | 'agent'
+}
 
 export default function TeamPage() {
   const router = useRouter()
@@ -75,6 +67,8 @@ export default function TeamPage() {
   const [isMemberModalOpen, setIsMemberModalOpen] = useState(false)
   const [selectedTeam, setSelectedTeam] = useState<Team | null>(null)
   const [menuOpenId, setMenuOpenId] = useState<string | null>(null)
+  const [teamMembers, setTeamMembers] = useState<TeamMember[]>([])
+  const [membersLoading, setMembersLoading] = useState(false)
 
   useEffect(() => {
     setMounted(true)
@@ -87,6 +81,22 @@ export default function TeamPage() {
       setSelectedTeam(teams[0])
     }
   }, [teams, selectedTeam])
+
+  // 선택된 팀의 멤버 로드
+  useEffect(() => {
+    if (selectedTeam?.id) {
+      setMembersLoading(true)
+      fetch(`/api/teams/${selectedTeam.id}/members`)
+        .then(res => res.json())
+        .then(data => {
+          if (data.data) {
+            setTeamMembers(data.data)
+          }
+        })
+        .catch(console.error)
+        .finally(() => setMembersLoading(false))
+    }
+  }, [selectedTeam?.id])
 
   const isDark = mounted ? resolvedTheme === 'dark' : true
 
@@ -124,10 +134,50 @@ export default function TeamPage() {
     }
   }
 
-  const handleAddMember = (data: MemberFormData) => {
-    // TODO: API 연동
-    console.log('New member:', data)
-    setIsMemberModalOpen(false)
+  const handleAddMember = async (data: MemberFormData) => {
+    if (!selectedTeam?.id) return
+
+    try {
+      if (data.type === 'agent') {
+        // AI 에이전트 추가
+        const res = await fetch('/api/agents', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name: data.name,
+            description: data.description,
+            team_id: selectedTeam.id,
+            workflow_nodes: [],
+            workflow_edges: [],
+            capabilities: data.agentType ? [data.agentType] : [],
+          }),
+        })
+
+        if (!res.ok) {
+          const error = await res.json()
+          throw new Error(error.error || '에이전트 추가 실패')
+        }
+      } else {
+        // 사람 팀원 추가 (초대)
+        // TODO: 이메일 기반 초대 시스템 구현 필요
+        console.log('Person invite:', data)
+        alert('팀원 초대 기능은 준비 중입니다.')
+        setIsMemberModalOpen(false)
+        return
+      }
+
+      // 멤버 목록 새로고침
+      const membersRes = await fetch(`/api/teams/${selectedTeam.id}/members`)
+      const membersData = await membersRes.json()
+      if (membersData.data) {
+        setTeamMembers(membersData.data)
+      }
+
+      setIsMemberModalOpen(false)
+    } catch (error) {
+      console.error('Member add error:', error)
+      alert(error instanceof Error ? error.message : '멤버 추가에 실패했습니다.')
+    }
   }
 
   const handleDeleteTeam = async (teamId: string, e: React.MouseEvent) => {
@@ -163,16 +213,6 @@ export default function TeamPage() {
       case 'online': return 'bg-green-500'
       case 'away': return 'bg-yellow-500'
       default: return 'bg-zinc-400'
-    }
-  }
-
-  const getActivityIcon = (type: string) => {
-    switch (type) {
-      case 'commit': return <GitCommit className="w-3.5 h-3.5" />
-      case 'complete': return <CheckCircle2 className="w-3.5 h-3.5" />
-      case 'create': return <Plus className="w-3.5 h-3.5" />
-      case 'review': return <MessageSquare className="w-3.5 h-3.5" />
-      default: return <Activity className="w-3.5 h-3.5" />
     }
   }
 
@@ -272,12 +312,12 @@ export default function TeamPage() {
           <p className="text-zinc-500 dark:text-white/50 flex items-center gap-2">
             <span className="flex items-center gap-1">
               <Users className="w-4 h-4" />
-              {mockTeamMembers.length}명
+              {selectedTeam?.memberCount || teamMembers.length || 1}명
             </span>
             <span className="text-zinc-300 dark:text-white/20">•</span>
             <span className="flex items-center gap-1">
               <FolderKanban className="w-4 h-4" />
-              {mockProjects.length}개 프로젝트
+              0개 프로젝트
             </span>
           </p>
         </div>
@@ -336,25 +376,25 @@ export default function TeamPage() {
 
             <div className="grid grid-cols-2 gap-4 flex-1">
               <div className={cn("p-4 rounded-2xl", isDark ? "bg-white/5" : "bg-zinc-50")}>
-                <div className="text-3xl font-bold text-zinc-900 dark:text-white mb-1">127</div>
+                <div className="text-3xl font-bold text-zinc-900 dark:text-white mb-1">0</div>
                 <div className="text-xs text-zinc-500 dark:text-white/50 flex items-center gap-1">
                   <GitCommit className="w-3 h-3" /> 커밋
                 </div>
               </div>
               <div className={cn("p-4 rounded-2xl", isDark ? "bg-white/5" : "bg-zinc-50")}>
-                <div className="text-3xl font-bold text-green-500 mb-1">24</div>
+                <div className="text-3xl font-bold text-green-500 mb-1">0</div>
                 <div className="text-xs text-zinc-500 dark:text-white/50 flex items-center gap-1">
                   <CheckCircle2 className="w-3 h-3" /> 완료
                 </div>
               </div>
               <div className={cn("p-4 rounded-2xl", isDark ? "bg-white/5" : "bg-zinc-50")}>
-                <div className="text-3xl font-bold text-orange-500 mb-1">8</div>
+                <div className="text-3xl font-bold text-orange-500 mb-1">0</div>
                 <div className="text-xs text-zinc-500 dark:text-white/50 flex items-center gap-1">
                   <AlertTriangle className="w-3 h-3" /> 진행중
                 </div>
               </div>
               <div className={cn("p-4 rounded-2xl", isDark ? "bg-white/5" : "bg-zinc-50")}>
-                <div className={cn("text-3xl font-bold mb-1", accent.text)}>94%</div>
+                <div className={cn("text-3xl font-bold mb-1", accent.text)}>-</div>
                 <div className="text-xs text-zinc-500 dark:text-white/50 flex items-center gap-1">
                   <Zap className="w-3 h-3" /> 효율
                 </div>
@@ -373,7 +413,7 @@ export default function TeamPage() {
               </h3>
               <div className="flex items-center gap-2">
                 <button
-                  onClick={() => router.push('/dashboard-group/team/members')}
+                  onClick={() => router.push(`/dashboard-group/team/members?teamId=${selectedTeam?.id}`)}
                   className={cn(
                     "px-3 py-1.5 rounded-lg text-xs font-medium transition-colors",
                     isDark
@@ -396,47 +436,71 @@ export default function TeamPage() {
             </div>
 
             <div className="space-y-2 flex-1 overflow-y-auto min-h-0">
-              {mockTeamMembers.map((member, i) => (
-                <motion.div
-                  key={member.id}
-                  initial={{ opacity: 0, x: -20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: i * 0.1 }}
-                  className={cn(
-                    "flex items-center gap-3 p-3 rounded-xl transition-colors cursor-pointer group",
-                    isDark ? "hover:bg-white/5" : "hover:bg-zinc-50"
-                  )}
-                >
-                  <div className="relative">
-                    <div className={cn(
-                      "w-10 h-10 rounded-xl flex items-center justify-center text-sm font-bold",
-                      isDark ? "bg-zinc-700 text-white" : "bg-zinc-100 text-zinc-700"
-                    )}>
-                      {member.initials}
-                    </div>
-                    <div className={cn(
-                      "absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2",
-                      isDark ? "border-zinc-900" : "border-white",
-                      getStatusColor(member.status)
-                    )} />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <span className="font-medium text-zinc-900 dark:text-white truncate">
-                        {member.name}
-                      </span>
-                      {member.role === 'CEO' && (
-                        <Crown className="w-3.5 h-3.5 text-yellow-500" />
+              {membersLoading ? (
+                <div className="flex items-center justify-center py-8">
+                  <div className="w-5 h-5 border-2 border-zinc-300 border-t-transparent rounded-full animate-spin" />
+                </div>
+              ) : teamMembers.length === 0 ? (
+                <div className="text-center py-8 text-zinc-500 dark:text-white/50 text-sm">
+                  아직 팀원이 없습니다
+                </div>
+              ) : (
+                teamMembers.map((member, i) => (
+                  <motion.div
+                    key={member.id}
+                    initial={{ opacity: 0, x: -20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: i * 0.1 }}
+                    className={cn(
+                      "flex items-center gap-3 p-3 rounded-xl transition-colors cursor-pointer group",
+                      isDark ? "hover:bg-white/5" : "hover:bg-zinc-50"
+                    )}
+                  >
+                    <div className="relative">
+                      {member.type === 'agent' ? (
+                        <img
+                          src="/agent_image.jpg"
+                          alt={member.name}
+                          className="w-10 h-10 rounded-xl object-cover"
+                        />
+                      ) : member.avatar_url ? (
+                        <img
+                          src={member.avatar_url}
+                          alt={member.name}
+                          className="w-10 h-10 rounded-xl object-cover"
+                        />
+                      ) : (
+                        <div className={cn(
+                          "w-10 h-10 rounded-xl flex items-center justify-center text-sm font-bold",
+                          isDark ? "bg-zinc-700 text-white" : "bg-zinc-100 text-zinc-700"
+                        )}>
+                          {member.name?.slice(0, 2) || '??'}
+                        </div>
                       )}
+                      <div className={cn(
+                        "absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2",
+                        isDark ? "border-zinc-900" : "border-white",
+                        getStatusColor(member.status || 'offline')
+                      )} />
                     </div>
-                    <span className="text-xs text-zinc-500 dark:text-white/50">{member.role}</span>
-                  </div>
-                  <div className="text-right">
-                    <div className={cn("text-sm font-semibold", accent.text)}>{member.commits}</div>
-                    <div className="text-[10px] text-zinc-400 dark:text-white/30">커밋</div>
-                  </div>
-                </motion.div>
-              ))}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium text-zinc-900 dark:text-white truncate">
+                          {member.name}
+                        </span>
+                        {(member.role === 'founder' || member.role === 'CEO') && (
+                          <Crown className="w-3.5 h-3.5 text-yellow-500" />
+                        )}
+                      </div>
+                      <span className="text-xs text-zinc-500 dark:text-white/50">{member.role}</span>
+                    </div>
+                    <div className="text-right">
+                      <div className={cn("text-sm font-semibold", accent.text)}>{member.commits || 0}</div>
+                      <div className="text-[10px] text-zinc-400 dark:text-white/30">커밋</div>
+                    </div>
+                  </motion.div>
+                ))
+              )}
             </div>
           </TiltCard>
         </motion.div>
@@ -451,18 +515,18 @@ export default function TeamPage() {
                 <Target className={cn("w-4 h-4", accent.text)} />
               </div>
               <div>
-                <div className="text-4xl font-bold tracking-tight text-zinc-900 dark:text-white">78%</div>
+                <div className="text-4xl font-bold tracking-tight text-zinc-900 dark:text-white">-</div>
                 <div className={cn("h-2 w-full rounded-full mt-3 overflow-hidden", isDark ? "bg-white/10" : "bg-zinc-200")}>
                   <motion.div
                     initial={{ width: 0 }}
-                    animate={{ width: '78%' }}
+                    animate={{ width: '0%' }}
                     transition={{ duration: 1, delay: 0.5 }}
                     className={cn("h-full rounded-full", accent.bg)}
                   />
                 </div>
                 <div className="flex items-center justify-between mt-2 text-xs text-zinc-400 dark:text-white/40">
-                  <span>D-5</span>
-                  <span>19/24 완료</span>
+                  <span>스프린트 없음</span>
+                  <span>0/0 완료</span>
                 </div>
               </div>
             </div>
@@ -477,9 +541,9 @@ export default function TeamPage() {
               <Flame className="w-4 h-4 text-orange-500" />
             </div>
             <div className="flex items-end gap-3">
-              <span className={cn("text-4xl font-bold tracking-tight", accent.text)}>94</span>
-              <span className="text-sm text-green-500 mb-1.5 flex items-center">
-                <ArrowUpRight className="w-3 h-3 mr-0.5" /> +12%
+              <span className={cn("text-4xl font-bold tracking-tight", accent.text)}>-</span>
+              <span className="text-sm text-zinc-400 dark:text-white/40 mb-1.5">
+                데이터 없음
               </span>
             </div>
             <div className="flex gap-1 mt-2">
@@ -488,7 +552,7 @@ export default function TeamPage() {
                   key={i}
                   className={cn(
                     "flex-1 h-1.5 rounded-full transition-colors",
-                    i < 9 ? accent.bg : isDark ? "bg-white/10" : "bg-zinc-200"
+                    isDark ? "bg-white/10" : "bg-zinc-200"
                   )}
                 />
               ))}
@@ -509,52 +573,11 @@ export default function TeamPage() {
               </button>
             </div>
 
-            <div className="space-y-4 flex-1">
-              {mockProjects.map((project, i) => (
-                <motion.div
-                  key={project.id}
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: i * 0.1 }}
-                  className={cn(
-                    "p-4 rounded-2xl transition-colors cursor-pointer group",
-                    isDark ? "bg-white/5 hover:bg-white/10" : "bg-zinc-50 hover:bg-zinc-100"
-                  )}
-                >
-                  <div className="flex items-center justify-between mb-3">
-                    <h4 className="font-medium text-zinc-900 dark:text-white group-hover:text-accent transition-colors">
-                      {project.name}
-                    </h4>
-                    <span className={cn(
-                      "px-2 py-0.5 rounded-full text-[10px] font-medium",
-                      project.status === 'active'
-                        ? "bg-green-500/10 text-green-500"
-                        : "bg-yellow-500/10 text-yellow-500"
-                    )}>
-                      {project.status === 'active' ? '진행중' : '리뷰중'}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-4">
-                    <div className="flex-1">
-                      <div className={cn("h-1.5 rounded-full overflow-hidden", isDark ? "bg-white/10" : "bg-zinc-200")}>
-                        <motion.div
-                          initial={{ width: 0 }}
-                          animate={{ width: `${project.progress}%` }}
-                          transition={{ duration: 1, delay: 0.3 + i * 0.1 }}
-                          className={cn("h-full rounded-full", accent.bg)}
-                        />
-                      </div>
-                    </div>
-                    <span className="text-sm font-semibold text-zinc-900 dark:text-white">
-                      {project.progress}%
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between mt-2 text-xs text-zinc-400 dark:text-white/40">
-                    <span>{project.completed}/{project.tasks} 태스크</span>
-                    <ChevronRight className="w-4 h-4 opacity-0 group-hover:opacity-100 transition-opacity" />
-                  </div>
-                </motion.div>
-              ))}
+            <div className="space-y-4 flex-1 flex items-center justify-center">
+              <div className="text-center text-zinc-500 dark:text-white/50">
+                <FolderKanban className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                <p className="text-sm">아직 프로젝트가 없습니다</p>
+              </div>
             </div>
           </TiltCard>
         </motion.div>
@@ -573,38 +596,11 @@ export default function TeamPage() {
               </span>
             </div>
 
-            <div className="space-y-4 flex-1 overflow-y-auto">
-              {mockActivities.map((activity, i) => (
-                <motion.div
-                  key={i}
-                  initial={{ opacity: 0, x: 20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: i * 0.1 }}
-                  className="flex items-start gap-3"
-                >
-                  <div className={cn(
-                    "w-8 h-8 rounded-lg flex items-center justify-center text-xs font-bold flex-shrink-0",
-                    isDark ? "bg-zinc-700 text-white" : "bg-zinc-100 text-zinc-700"
-                  )}>
-                    {activity.user}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <span className={cn(
-                        "px-2 py-0.5 rounded-md text-[10px] font-medium flex items-center gap-1",
-                        accent.bgLight, accent.text
-                      )}>
-                        {getActivityIcon(activity.type)}
-                        {activity.action}
-                      </span>
-                    </div>
-                    <p className="text-sm text-zinc-700 dark:text-white/80 truncate mt-1">
-                      {activity.target}
-                    </p>
-                    <p className="text-[10px] text-zinc-400 dark:text-white/30 mt-0.5">{activity.time}</p>
-                  </div>
-                </motion.div>
-              ))}
+            <div className="space-y-4 flex-1 overflow-y-auto flex items-center justify-center">
+              <div className="text-center text-zinc-500 dark:text-white/50">
+                <Activity className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                <p className="text-sm">아직 활동 내역이 없습니다</p>
+              </div>
             </div>
           </TiltCard>
         </motion.div>

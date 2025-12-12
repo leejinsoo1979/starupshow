@@ -34,8 +34,9 @@ interface Member {
   role: string
   position: string
   avatar: string
+  avatar_url?: string
   isOnline: boolean
-  type: 'person' | 'bot'
+  type: 'person' | 'agent'
   botType?: string
   description?: string
 }
@@ -54,38 +55,43 @@ export default function TeamMembersPage() {
   const [isLoading, setIsLoading] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
 
-  // BOT 목록 불러오기
-  const loadBots = useCallback(async () => {
+  // 팀원 목록 불러오기
+  const loadMembers = useCallback(async (teamIdToLoad: string) => {
     try {
       setIsLoading(true)
-      const res = await fetch('/api/agents')
+      const res = await fetch(`/api/teams/${teamIdToLoad}/members`)
       if (res.ok) {
-        const data = await res.json()
-        // deployed_agents를 Member 형식으로 변환
-        const bots: Member[] = data.map((agent: any) => ({
-          id: agent.id,
-          name: agent.name,
-          email: '',
-          role: 'bot',
-          position: agent.capabilities?.[0] || 'BOT',
-          avatar: agent.name.substring(0, 2).toUpperCase(),
-          isOnline: agent.status === 'ACTIVE',
-          type: 'bot' as const,
-          botType: agent.capabilities?.[0],
-          description: agent.description,
+        const { data } = await res.json()
+        // API 응답을 Member 형식으로 변환
+        const teamMembers: Member[] = (data || []).map((member: any) => ({
+          id: member.id,
+          name: member.name || 'Unknown',
+          email: member.email || '',
+          role: member.role || 'member',
+          position: member.role === 'founder' ? '창립자' : member.role === 'agent' ? 'AI 에이전트' : '팀원',
+          avatar: member.name?.substring(0, 2) || '??',
+          avatar_url: member.avatar_url,
+          isOnline: member.status === 'online',
+          type: member.type === 'agent' ? 'agent' as const : 'person' as const,
+          description: '',
         }))
-        setMembers(bots)
+        setMembers(teamMembers)
       }
     } catch (error) {
-      console.error('BOT 로드 실패:', error)
+      console.error('팀원 로드 실패:', error)
     } finally {
       setIsLoading(false)
     }
   }, [])
 
   useEffect(() => {
-    loadBots()
-  }, [loadBots])
+    if (teamId) {
+      loadMembers(teamId)
+    } else if (teams.length > 0) {
+      // teamId가 없으면 첫 번째 팀 사용
+      loadMembers(teams[0].id)
+    }
+  }, [teamId, teams, loadMembers])
 
   useEffect(() => {
     if (teamId) {
@@ -108,12 +114,14 @@ export default function TeamMembersPage() {
       // BOT은 API를 통해 저장
       try {
         setIsSaving(true)
+        const targetTeamId = teamId || (teams.length > 0 ? teams[0].id : null)
         const res = await fetch('/api/agents', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             name: data.name,
             description: data.description || '',
+            team_id: targetTeamId,
             capabilities: data.agentType ? [data.agentType] : ['일반'],
             workflow_nodes: [{ id: 'start', type: 'start', data: {} }],
             workflow_edges: [],
@@ -126,11 +134,12 @@ export default function TeamMembersPage() {
             id: newAgent.id,
             name: newAgent.name,
             email: '',
-            role: 'bot',
-            position: newAgent.capabilities?.[0] || 'BOT',
+            role: 'agent',
+            position: newAgent.capabilities?.[0] || 'AI 에이전트',
             avatar: newAgent.name.substring(0, 2).toUpperCase(),
+            avatar_url: newAgent.avatar_url,
             isOnline: true,
-            type: 'bot',
+            type: 'agent',
             botType: newAgent.capabilities?.[0],
             description: newAgent.description,
           }
@@ -402,13 +411,21 @@ export default function TeamMembersPage() {
               <div className="p-5 pt-6 flex flex-col items-center min-h-[240px]">
                 {/* Avatar */}
                 <div className="relative mb-4">
-                  {member.type === 'bot' ? (
+                  {member.type === 'agent' ? (
                     <div className="w-[72px] h-[72px] rounded-full overflow-hidden">
                       <Image
                         src="/agent_image.jpg"
                         alt={member.name}
                         width={72}
                         height={72}
+                        className="w-full h-full object-cover"
+                      />
+                    </div>
+                  ) : member.avatar_url ? (
+                    <div className="w-[72px] h-[72px] rounded-full overflow-hidden">
+                      <img
+                        src={member.avatar_url}
+                        alt={member.name}
                         className="w-full h-full object-cover"
                       />
                     </div>
@@ -531,13 +548,21 @@ export default function TeamMembersPage() {
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-4">
                   {/* Avatar */}
-                  {member.type === 'bot' ? (
+                  {member.type === 'agent' ? (
                     <div className="w-12 h-12 rounded-full overflow-hidden flex-shrink-0">
                       <Image
                         src="/agent_image.jpg"
                         alt={member.name}
                         width={48}
                         height={48}
+                        className="w-full h-full object-cover"
+                      />
+                    </div>
+                  ) : member.avatar_url ? (
+                    <div className="w-12 h-12 rounded-full overflow-hidden flex-shrink-0">
+                      <img
+                        src={member.avatar_url}
+                        alt={member.name}
                         className="w-full h-full object-cover"
                       />
                     </div>

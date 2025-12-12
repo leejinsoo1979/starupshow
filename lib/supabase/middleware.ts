@@ -1,6 +1,9 @@
 import { createServerClient, type CookieOptions } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
+// 개발 모드 설정
+const DEV_MODE = process.env.NODE_ENV === 'development' && process.env.DEV_BYPASS_AUTH === 'true'
+
 // 인증이 필요한 경로
 const protectedRoutes = ['/dashboard-group']
 // 인증된 사용자가 접근하면 안되는 경로 (이미 로그인한 경우)
@@ -62,6 +65,12 @@ export async function updateSession(request: NextRequest) {
   // Refresh session if expired
   const { data: { user } } = await supabase.auth.getUser()
   const pathname = request.nextUrl.pathname
+
+  // 🔓 개발 모드: 인증 바이패스 (DEV_BYPASS_AUTH=true)
+  if (DEV_MODE) {
+    console.log('[DEV] Auth bypass enabled for:', pathname)
+    return response
+  }
 
   // 보호된 경로에 인증 없이 접근 시 로그인 페이지로 리다이렉트
   if (protectedRoutes.some(route => pathname.startsWith(route)) && !user) {

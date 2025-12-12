@@ -3,6 +3,23 @@
 import { useState, useEffect } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent,
+} from "@dnd-kit/core"
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable"
+import { CSS } from "@dnd-kit/utilities"
+import {
   X,
   Users,
   Bot,
@@ -32,6 +49,83 @@ const interactionModes: { value: InteractionMode; label: string; description: st
   { value: 'supervisor', label: '감독자', description: '감독자가 다른 에이전트 조율' },
 ]
 
+// Sortable Agent Item Component
+interface SortableAgentItemProps {
+  agent: DeployedAgent
+  index: number
+  interactionMode: InteractionMode
+  onRemove: (id: string) => void
+}
+
+function SortableAgentItem({ agent, index, interactionMode, onRemove }: SortableAgentItemProps) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: agent.id })
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    zIndex: isDragging ? 50 : undefined,
+  }
+
+  const showDragHandle = interactionMode === "sequential" || interactionMode === "supervisor"
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className={`flex items-center gap-3 p-3 rounded-lg bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 ${
+        isDragging ? "shadow-lg ring-2 ring-purple-500 opacity-90" : ""
+      }`}
+    >
+      {showDragHandle && (
+        <button
+          {...attributes}
+          {...listeners}
+          className="cursor-grab active:cursor-grabbing touch-none"
+        >
+          <GripVertical className="w-4 h-4 text-zinc-400 hover:text-zinc-600" />
+        </button>
+      )}
+
+      <div className="w-8 h-8 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center text-white text-xs font-bold">
+        {agent.name.charAt(0)}
+      </div>
+
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2">
+          <span className="text-sm font-medium text-zinc-900 dark:text-white truncate">
+            {agent.name}
+          </span>
+          {index === 0 && interactionMode === "supervisor" && (
+            <Crown className="w-4 h-4 text-yellow-500" />
+          )}
+          {(interactionMode === "sequential" || interactionMode === "supervisor") && (
+            <span className="text-xs text-zinc-400 bg-zinc-200 dark:bg-zinc-700 px-1.5 py-0.5 rounded">
+              #{index + 1}
+            </span>
+          )}
+        </div>
+        <p className="text-xs text-zinc-500 truncate">
+          {agent.llm_provider}/{agent.llm_model}
+        </p>
+      </div>
+
+      <button
+        onClick={() => onRemove(agent.id)}
+        className="p-1.5 rounded hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-400 hover:text-red-500 transition-colors"
+      >
+        <Trash2 className="w-4 h-4" />
+      </button>
+    </div>
+  )
+}
+
 export function AgentGroupModal({
   isOpen,
   onClose,
@@ -44,6 +138,17 @@ export function AgentGroupModal({
   const [interactionMode, setInteractionMode] = useState<InteractionMode>("collaborate")
   const [selectedAgents, setSelectedAgents] = useState<string[]>([])
   const [isSaving, setIsSaving] = useState(false)
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 8,
+      },
+    }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  )
 
   // Initialize form when group changes
   useEffect(() => {
@@ -74,11 +179,16 @@ export function AgentGroupModal({
     setSelectedAgents(selectedAgents.filter(id => id !== agentId))
   }
 
-  const handleMoveAgent = (fromIndex: number, toIndex: number) => {
-    const newOrder = [...selectedAgents]
-    const [removed] = newOrder.splice(fromIndex, 1)
-    newOrder.splice(toIndex, 0, removed)
-    setSelectedAgents(newOrder)
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event
+
+    if (over && active.id !== over.id) {
+      setSelectedAgents((items) => {
+        const oldIndex = items.indexOf(active.id as string)
+        const newIndex = items.indexOf(over.id as string)
+        return arrayMove(items, oldIndex, newIndex)
+      })
+    }
   }
 
   const handleSave = async () => {
@@ -104,6 +214,10 @@ export function AgentGroupModal({
   const unselectedAgents = availableAgents.filter(
     a => !selectedAgents.includes(a.id)
   )
+
+  const selectedAgentObjects = selectedAgents
+    .map(id => availableAgents.find(a => a.id === id))
+    .filter((a): a is DeployedAgent => a !== undefined)
 
   if (!isOpen) return null
 
@@ -221,13 +335,13 @@ export function AgentGroupModal({
                 </div>
               </div>
 
-              {/* Selected Agents */}
+              {/* Selected Agents with Drag & Drop */}
               <div>
                 <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">
                   그룹 멤버 ({selectedAgents.length})
-                  {interactionMode === "sequential" && (
-                    <span className="text-xs text-zinc-400 ml-2">
-                      드래그하여 발언 순서 변경
+                  {(interactionMode === "sequential" || interactionMode === "supervisor") && (
+                    <span className="text-xs text-purple-500 ml-2">
+                      ✨ 드래그하여 순서 변경 가능
                     </span>
                   )}
                 </label>
@@ -237,53 +351,28 @@ export function AgentGroupModal({
                     아래에서 에이전트를 선택하세요
                   </div>
                 ) : (
-                  <div className="space-y-2">
-                    {selectedAgents.map((agentId, index) => {
-                      const agent = availableAgents.find(a => a.id === agentId)
-                      if (!agent) return null
-
-                      return (
-                        <div
-                          key={agentId}
-                          className="flex items-center gap-3 p-3 rounded-lg bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700"
-                        >
-                          {interactionMode === "sequential" && (
-                            <GripVertical className="w-4 h-4 text-zinc-400 cursor-grab" />
-                          )}
-
-                          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center text-white text-xs font-bold">
-                            {agent.name.charAt(0)}
-                          </div>
-
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2">
-                              <span className="text-sm font-medium text-zinc-900 dark:text-white truncate">
-                                {agent.name}
-                              </span>
-                              {index === 0 && interactionMode === "supervisor" && (
-                                <Crown className="w-4 h-4 text-yellow-500" />
-                              )}
-                              {interactionMode === "sequential" && (
-                                <span className="text-xs text-zinc-400">
-                                  #{index + 1}
-                                </span>
-                              )}
-                            </div>
-                            <p className="text-xs text-zinc-500 truncate">
-                              {agent.llm_provider}/{agent.llm_model}
-                            </p>
-                          </div>
-
-                          <button
-                            onClick={() => handleRemoveAgent(agentId)}
-                            className="p-1.5 rounded hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-400 hover:text-red-500 transition-colors"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </div>
-                      )
-                    })}
-                  </div>
+                  <DndContext
+                    sensors={sensors}
+                    collisionDetection={closestCenter}
+                    onDragEnd={handleDragEnd}
+                  >
+                    <SortableContext
+                      items={selectedAgents}
+                      strategy={verticalListSortingStrategy}
+                    >
+                      <div className="space-y-2">
+                        {selectedAgentObjects.map((agent, index) => (
+                          <SortableAgentItem
+                            key={agent.id}
+                            agent={agent}
+                            index={index}
+                            interactionMode={interactionMode}
+                            onRemove={handleRemoveAgent}
+                          />
+                        ))}
+                      </div>
+                    </SortableContext>
+                  </DndContext>
                 )}
               </div>
 

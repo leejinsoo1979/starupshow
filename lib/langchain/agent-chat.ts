@@ -15,10 +15,18 @@ interface LLMConfig {
 
 // LLM 인스턴스 생성 (Provider 추상화)
 export function createLLM(config: LLMConfig) {
+  // gpt-4 계열 모델은 접근 불가하므로 gpt-4o-mini로 변경
+  let safeModel = config.model || 'gpt-4o-mini'
+  if (safeModel.startsWith('gpt-4') && !safeModel.includes('gpt-4o')) {
+    safeModel = 'gpt-4o-mini'
+  }
+
+  console.log('[createLLM] 원본 모델:', config.model, '→ 사용 모델:', safeModel)
+
   switch (config.provider) {
     case 'openai':
       return new ChatOpenAI({
-        modelName: config.model || 'gpt-4',
+        modelName: safeModel,
         temperature: config.temperature || 0.7,
         openAIApiKey: config.apiKey || process.env.OPENAI_API_KEY,
       })
@@ -58,7 +66,7 @@ export function createLLM(config: LLMConfig) {
 
     default:
       return new ChatOpenAI({
-        modelName: 'gpt-4',
+        modelName: 'gpt-4o-mini',
         temperature: 0.7,
       })
   }
@@ -161,7 +169,7 @@ export async function generateAgentChatResponse(
   // LLM 설정
   const llmConfig: LLMConfig = {
     provider: agent.config?.llm_provider || 'openai',
-    model: agent.config?.llm_model || 'gpt-4',
+    model: agent.config?.llm_model || 'gpt-4o-mini',
     temperature: agent.config?.temperature || 0.7,
   }
 
@@ -232,7 +240,7 @@ export async function generateAgentMeetingResponse(
 ): Promise<string> {
   const llmConfig: LLMConfig = {
     provider: agent.config?.llm_provider || 'openai',
-    model: agent.config?.llm_model || 'gpt-4',
+    model: agent.config?.llm_model || 'gpt-4o-mini',
     temperature: 0.8, // 더 창의적인 응답
   }
 

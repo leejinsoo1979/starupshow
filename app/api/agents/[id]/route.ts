@@ -64,6 +64,11 @@ export async function PATCH(
       'system_prompt',
       'model',
       'temperature',
+      // 상호작용 설정 필드
+      'interaction_mode',
+      'llm_provider',
+      'llm_model',
+      'speak_order',
     ]
 
     const updates: Record<string, unknown> = {}

@@ -4,10 +4,12 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { SendMessageRequest } from '@/types/chat'
 import { generateAgentChatResponse, generateAgentMeetingResponse } from '@/lib/langchain/agent-chat'
 import {
-  processAgentResponses,
+  processAgentResponsesWithMemory,
   convertToDbMessage,
   getRoomAgents,
+  extractKnowledgeFromConversation,
 } from '@/lib/agents/chat-integration'
+import { getMemoryService } from '@/lib/agents/memory'
 
 // GET: 메시지 목록 조회 (페이지네이션)
 export async function GET(
@@ -120,16 +122,19 @@ export async function POST(
   request: NextRequest,
   { params }: { params: { roomId: string } }
 ) {
+  console.log('[Messages API] POST 요청 시작')
   try {
     const supabase = createClient()
     const adminClient = createAdminClient()
     const { data: { user }, error: authError } = await supabase.auth.getUser()
+    console.log('[Messages API] 인증 결과:', user?.id, authError?.message)
 
     if (authError || !user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
     const { roomId } = params
+    console.log('[Messages API] roomId:', roomId)
     const body: SendMessageRequest = await request.json()
     const { content, message_type = 'text', metadata = {}, reply_to_id } = body
 
@@ -171,7 +176,9 @@ export async function POST(
     }
 
     // AI 에이전트가 있는 방이면 자동 응답 트리거 (adminClient로 RLS 우회)
+    console.log('[Messages API] 메시지 저장 완료, 에이전트 응답 트리거 시작')
     await triggerAgentResponse(adminClient, roomId, message)
+    console.log('[Messages API] 에이전트 응답 트리거 완료')
 
     return NextResponse.json(message, { status: 201 })
   } catch (error) {
@@ -189,7 +196,11 @@ async function triggerAgentResponse(
   try {
     // 방에 참여한 에이전트 조회
     const agents = await getRoomAgents(supabase, roomId)
-    if (!agents || agents.length === 0) return
+    console.log(`[Agent Response] Room ${roomId}: Found ${agents?.length || 0} agents`)
+    if (!agents || agents.length === 0) {
+      console.log('[Agent Response] No agents found in room')
+      return
+    }
 
     // 채팅방 정보 조회
     const { data: room } = await supabase
@@ -215,7 +226,7 @@ async function triggerAgentResponse(
   }
 }
 
-// 멀티 에이전트 응답 처리
+// 멀티 에이전트 응답 처리 (메모리 시스템 통합)
 async function triggerMultiAgentResponse(
   supabase: any,
   roomId: string,
@@ -233,8 +244,12 @@ async function triggerMultiAgentResponse(
         .eq('agent_id', agent.id)
     }
 
-    // 오케스트레이터 실행
-    const responses = await processAgentResponses(
+    // 메모리가 포함된 오케스트레이터 실행
+    // - 각 에이전트의 기억을 로드하여 컨텍스트에 추가
+    // - 응답 후 대화 내용 자동 기록
+    // - 에이전트 간 협업 기록
+    const responses = await processAgentResponsesWithMemory(
+      supabase,
       agents,
       userMessage.content,
       {
@@ -250,6 +265,14 @@ async function triggerMultiAgentResponse(
     for (const response of responses) {
       const dbMessage = convertToDbMessage(response, roomId)
       await supabase.from('chat_messages').insert(dbMessage)
+
+      // 중요한 대화에서 지식 추출 (비동기, 백그라운드)
+      extractKnowledgeFromConversation(
+        supabase,
+        response.agentId,
+        userMessage.content,
+        response.content
+      ).catch(err => console.error('Knowledge extraction error:', err))
     }
   } catch (error) {
     console.error('Multi-agent orchestration error:', error)
@@ -276,15 +299,19 @@ async function triggerMultiAgentResponse(
   }
 }
 
-// AI 에이전트 응답 생성
+// AI 에이전트 응답 생성 (메모리 시스템 통합)
 async function generateAgentResponseHandler(
   supabase: any,
   roomId: string,
   agent: any,
   userMessage: any
 ) {
+  console.log(`[generateAgentResponse] 시작 - Agent: ${agent.name} (${agent.id})`)
+  const memoryService = getMemoryService(supabase)
+
   try {
     // 타이핑 상태 업데이트
+    console.log('[generateAgentResponse] 타이핑 상태 업데이트')
     await supabase
       .from('chat_participants')
       .update({ is_typing: true })
@@ -294,9 +321,24 @@ async function generateAgentResponseHandler(
     // 채팅방 정보 조회
     const { data: room } = await supabase
       .from('chat_rooms')
-      .select('name, type, is_meeting_active, meeting_topic')
+      .select('name, type, is_meeting_active, meeting_topic, project_id')
       .eq('id', roomId)
       .single()
+
+    // 에이전트 메모리 컨텍스트 로드
+    let memoryContext = ''
+    let identityInfo: any = null
+    try {
+      const memory = await memoryService.loadFullContext(agent.id, {
+        roomId,
+        projectId: room?.project_id,
+        query: userMessage.content,
+      })
+      memoryContext = memory.contextSummary
+      identityInfo = memory.identity
+    } catch (memError) {
+      console.error(`Failed to load memory for agent ${agent.id}:`, memError)
+    }
 
     // 참여자 조회
     const { data: participants } = await supabase
@@ -334,12 +376,32 @@ async function generateAgentResponseHandler(
       .order('created_at', { ascending: false })
       .limit(15)
 
+    // 메모리가 포함된 시스템 프롬프트 생성
+    let enhancedSystemPrompt = agent.system_prompt || `당신은 ${agent.name}입니다.`
+
+    // 정체성 정보 추가
+    if (identityInfo) {
+      enhancedSystemPrompt += `\n\n## 나의 정체성
+${identityInfo.selfSummary || ''}
+
+나의 핵심 가치: ${(identityInfo.coreValues || []).join(', ')}
+나의 강점: ${(identityInfo.strengths || []).join(', ')}
+최근 집중 분야: ${identityInfo.recentFocus || '없음'}`
+    }
+
+    // 메모리 컨텍스트 추가
+    if (memoryContext) {
+      enhancedSystemPrompt += `\n\n## 내가 기억하는 것들
+${memoryContext}
+
+위 기억을 바탕으로 일관성 있게 응답하세요. 이전에 한 말이나 결정을 기억하고 참조하세요.`
+    }
+
     // LangChain을 사용한 응답 생성
     let response: string
 
     if (room?.is_meeting_active && room?.meeting_topic) {
       // 미팅 모드: 에이전트 간 토론
-      // 다른 에이전트 정보 가져오기
       const otherAgentIds = agentIds.filter((id: string) => id !== agent.id)
       let otherAgents: { name: string; role: string }[] = []
 
@@ -351,14 +413,16 @@ async function generateAgentResponseHandler(
         otherAgents = otherAgentData?.map((a: any) => ({ name: a.name, role: 'AI 에이전트' })) || []
       }
 
-      // 에이전트 설정을 LangChain 형식으로 변환
+      // 에이전트 설정을 LangChain 형식으로 변환 (메모리 포함)
+      // gpt-4는 접근 불가하므로 gpt-4o-mini로 강제 변경
+      const safeModelMeeting = (agent.model === 'gpt-4') ? 'gpt-4o-mini' : (agent.model || 'gpt-4o-mini')
       const agentWithConfig = {
         ...agent,
         config: {
-          llm_provider: 'openai' as const, // DeployedAgent는 provider가 없으므로 기본값 사용
-          llm_model: agent.model || 'gpt-4',
+          llm_provider: 'openai' as const,
+          llm_model: safeModelMeeting,
           temperature: agent.temperature || 0.7,
-          custom_prompt: agent.system_prompt,
+          custom_prompt: enhancedSystemPrompt,
         }
       }
 
@@ -369,18 +433,20 @@ async function generateAgentResponseHandler(
         otherAgents
       )
     } else {
-      // 일반 채팅 모드
-      // 에이전트 설정을 LangChain 형식으로 변환
+      // 일반 채팅 모드 (메모리 포함)
+      // gpt-4는 접근 불가하므로 gpt-4o-mini로 강제 변경
+      const safeModel = (agent.model === 'gpt-4') ? 'gpt-4o-mini' : (agent.model || 'gpt-4o-mini')
       const agentWithConfig = {
         ...agent,
         config: {
           llm_provider: 'openai' as const,
-          llm_model: agent.model || 'gpt-4',
+          llm_model: safeModel,
           temperature: agent.temperature || 0.7,
-          custom_prompt: agent.system_prompt,
+          custom_prompt: enhancedSystemPrompt,
         }
       }
 
+      console.log('[generateAgentResponse] LangChain 응답 생성 시작, 모델:', safeModel)
       response = await generateAgentChatResponse(
         agentWithConfig,
         userMessage.content,
@@ -391,6 +457,7 @@ async function generateAgentResponseHandler(
           participantNames,
         }
       )
+      console.log('[generateAgentResponse] LangChain 응답 생성 완료:', response?.slice(0, 100))
     }
 
     // 에이전트 응답 메시지 저장
@@ -402,11 +469,40 @@ async function generateAgentResponseHandler(
       content: response,
       is_ai_response: true,
       metadata: {
-        model: agent.model || 'gpt-4',
+        model: agent.model || 'gpt-4o-mini',
         provider: 'openai',
         agent_name: agent.name,
+        has_memory: !!memoryContext,
       },
     })
+
+    // 대화 로그 기록 (메모리 시스템)
+    try {
+      await memoryService.logConversation(
+        agent.id,
+        roomId,
+        userMessage.content,
+        response,
+        {
+          room_name: room?.name,
+          room_type: room?.type,
+          is_meeting: room?.is_meeting_active,
+          meeting_topic: room?.meeting_topic,
+          project_id: room?.project_id,
+        }
+      )
+    } catch (logError) {
+      console.error(`Failed to log conversation for agent ${agent.id}:`, logError)
+    }
+
+    // 중요한 대화에서 지식 추출 (비동기, 백그라운드)
+    extractKnowledgeFromConversation(
+      supabase,
+      agent.id,
+      userMessage.content,
+      response
+    ).catch(err => console.error('Knowledge extraction error:', err))
+
   } catch (error) {
     console.error(`Agent ${agent.id} response generation failed:`, error)
 

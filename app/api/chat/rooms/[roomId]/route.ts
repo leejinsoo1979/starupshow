@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 
 // GET: 채팅방 상세 정보
 export async function GET(
@@ -7,7 +8,8 @@ export async function GET(
   { params }: { params: { roomId: string } }
 ) {
   try {
-    const supabase = await createClient()
+    const supabase = createClient()
+    const adminClient = createAdminClient()
     const { data: { user }, error: authError } = await supabase.auth.getUser()
 
     if (authError || !user) {
@@ -17,15 +19,11 @@ export async function GET(
     const { roomId } = params
 
     // 채팅방 정보 조회
-    const { data: room, error } = await supabase
+    const { data: room, error } = await (adminClient as any)
       .from('chat_rooms')
       .select(`
         *,
-        participants:chat_participants(
-          *,
-          user:user_id(id, name, email, avatar_url),
-          agent:agent_id(id, name, description, capabilities, status)
-        )
+        participants:chat_participants(*)
       `)
       .eq('id', roomId)
       .single()
@@ -44,7 +42,46 @@ export async function GET(
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
-    return NextResponse.json(room)
+    // 참여자의 user/agent 정보 조회
+    const userIds = room.participants?.filter((p: any) => p.user_id).map((p: any) => p.user_id) || []
+    const agentIds = room.participants?.filter((p: any) => p.agent_id).map((p: any) => p.agent_id) || []
+
+    let usersMap: Record<string, any> = {}
+    let agentsMap: Record<string, any> = {}
+
+    if (userIds.length > 0) {
+      const { data: users } = await (adminClient as any)
+        .from('users')
+        .select('id, name, avatar_url')
+        .in('id', userIds)
+
+      for (const u of users || []) {
+        usersMap[u.id] = u
+      }
+    }
+
+    if (agentIds.length > 0) {
+      const { data: agents } = await (adminClient as any)
+        .from('deployed_agents')
+        .select('id, name, description')
+        .in('id', agentIds)
+
+      for (const a of agents || []) {
+        agentsMap[a.id] = a
+      }
+    }
+
+    // 참여자에 user/agent 정보 추가
+    const participantsWithDetails = (room.participants || []).map((p: any) => ({
+      ...p,
+      user: p.user_id ? usersMap[p.user_id] : null,
+      agent: p.agent_id ? agentsMap[p.agent_id] : null,
+    }))
+
+    return NextResponse.json({
+      ...room,
+      participants: participantsWithDetails,
+    })
   } catch (error) {
     console.error('Room detail error:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
@@ -57,7 +94,8 @@ export async function PATCH(
   { params }: { params: { roomId: string } }
 ) {
   try {
-    const supabase = await createClient()
+    const supabase = createClient()
+    const adminClient = createAdminClient()
     const { data: { user }, error: authError } = await supabase.auth.getUser()
 
     if (authError || !user) {
@@ -69,7 +107,7 @@ export async function PATCH(
     const { name, is_meeting_active, meeting_topic } = body
 
     // 채팅방 소유자인지 확인
-    const { data: room } = await supabase
+    const { data: room } = await (adminClient as any)
       .from('chat_rooms')
       .select('created_by')
       .eq('id', roomId)
@@ -79,7 +117,7 @@ export async function PATCH(
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
-    const { data: updatedRoom, error } = await supabase
+    const { data: updatedRoom, error } = await (adminClient as any)
       .from('chat_rooms')
       .update({
         name,
@@ -109,7 +147,8 @@ export async function DELETE(
   { params }: { params: { roomId: string } }
 ) {
   try {
-    const supabase = await createClient()
+    const supabase = createClient()
+    const adminClient = createAdminClient()
     const { data: { user }, error: authError } = await supabase.auth.getUser()
 
     if (authError || !user) {
@@ -119,7 +158,7 @@ export async function DELETE(
     const { roomId } = params
 
     // 채팅방 소유자인지 확인
-    const { data: room } = await supabase
+    const { data: room } = await (adminClient as any)
       .from('chat_rooms')
       .select('created_by')
       .eq('id', roomId)
@@ -129,7 +168,7 @@ export async function DELETE(
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
-    const { error } = await supabase
+    const { error } = await (adminClient as any)
       .from('chat_rooms')
       .delete()
       .eq('id', roomId)

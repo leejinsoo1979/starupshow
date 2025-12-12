@@ -435,7 +435,7 @@ export default function AgentsPage() {
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: index * 0.05 }}
                   className="p-4 rounded-xl border transition-colors bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800 hover:border-zinc-300 dark:hover:border-zinc-700 cursor-pointer"
-                  onClick={() => router.push(`/dashboard-group/agents/${agent.id}`)}
+                  onClick={() => router.push(`/dashboard-group/team/members/${agent.id}`)}
                 >
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-4">

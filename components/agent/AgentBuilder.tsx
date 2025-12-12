@@ -395,7 +395,7 @@ function AgentBuilderInner({ agentId }: AgentBuilderInnerProps) {
     alert("JSON이 클립보드에 복사되었습니다!")
   }, [nodes, edges])
 
-  // 에이전트 배포 핸들러
+  // 에이전트 배포/업데이트 핸들러
   const handleDeploy = useCallback(async () => {
     if (!deployAgentName.trim()) {
       alert("에이전트 이름을 입력해주세요")
@@ -411,16 +411,87 @@ function AgentBuilderInner({ agentId }: AgentBuilderInnerProps) {
 
     setIsDeploying(true)
     try {
-      const response = await fetch("/api/agents", {
-        method: "POST",
+      const workflowData = {
+        name: deployAgentName.trim(),
+        description: deployAgentDescription.trim() || null,
+        interaction_mode: deployInteractionMode,
+        llm_provider: deployLlmProvider,
+        llm_model: deployLlmModel,
+        speak_order: deploySpeakOrder,
+        workflow_nodes: nodes.map(n => ({
+          id: n.id,
+          type: n.type,
+          position: n.position,
+          data: n.data,
+        })),
+        workflow_edges: edges.map(e => ({
+          id: e.id,
+          source: e.source,
+          target: e.target,
+          sourceHandle: e.sourceHandle,
+          targetHandle: e.targetHandle,
+        })),
+      }
+
+      // 기존 에이전트 편집 시 PATCH, 새 에이전트 시 POST
+      const isUpdate = !!editingAgentId
+      const url = isUpdate ? `/api/agents/${editingAgentId}` : "/api/agents"
+      const method = isUpdate ? "PATCH" : "POST"
+
+      const response = await fetch(url, {
+        method,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(workflowData),
+      })
+
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.error || (isUpdate ? "업데이트 실패" : "배포 실패"))
+      }
+
+      const savedAgent = await response.json()
+
+      // 새로 생성한 경우 editingAgentId 설정
+      if (!isUpdate && savedAgent.id) {
+        setEditingAgentId(savedAgent.id)
+      }
+
+      setDeploySuccess(true)
+      setTimeout(() => {
+        setShowDeployModal(false)
+        setDeploySuccess(false)
+        // 편집 모드일 때는 입력값 유지
+        if (!isUpdate) {
+          setDeployAgentName("")
+          setDeployAgentDescription("")
+          setDeployInteractionMode('solo')
+          setDeployLlmProvider('openai')
+          setDeployLlmModel('gpt-4')
+          setDeploySpeakOrder(0)
+        }
+      }, 2000)
+    } catch (error) {
+      alert(error instanceof Error ? error.message : "배포 중 오류가 발생했습니다")
+    } finally {
+      setIsDeploying(false)
+    }
+  }, [nodes, edges, deployAgentName, deployAgentDescription, deployInteractionMode, deployLlmProvider, deployLlmModel, deploySpeakOrder, editingAgentId])
+
+  // 워크플로우 빠른 저장 (편집 모드에서만 사용)
+  const [isSaving, setIsSaving] = useState(false)
+  const handleSaveWorkflow = useCallback(async () => {
+    if (!editingAgentId) {
+      // 새 에이전트는 Deploy 모달로 이동
+      setShowDeployModal(true)
+      return
+    }
+
+    setIsSaving(true)
+    try {
+      const response = await fetch(`/api/agents/${editingAgentId}`, {
+        method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          name: deployAgentName.trim(),
-          description: deployAgentDescription.trim() || null,
-          interaction_mode: deployInteractionMode,
-          llm_provider: deployLlmProvider,
-          llm_model: deployLlmModel,
-          speak_order: deploySpeakOrder,
           workflow_nodes: nodes.map(n => ({
             id: n.id,
             type: n.type,
@@ -439,26 +510,19 @@ function AgentBuilderInner({ agentId }: AgentBuilderInnerProps) {
 
       if (!response.ok) {
         const error = await response.json()
-        throw new Error(error.error || "배포 실패")
+        throw new Error(error.error || "저장 실패")
       }
 
-      setDeploySuccess(true)
-      setTimeout(() => {
-        setShowDeployModal(false)
-        setDeploySuccess(false)
-        setDeployAgentName("")
-        setDeployAgentDescription("")
-        setDeployInteractionMode('solo')
-        setDeployLlmProvider('openai')
-        setDeployLlmModel('gpt-4')
-        setDeploySpeakOrder(0)
-      }, 2000)
+      // 저장 성공 피드백
+      if (terminalRef.current) {
+        terminalRef.current.write(`\r\n\x1b[32m[저장 완료]\x1b[0m 워크플로우가 저장되었습니다.`)
+      }
     } catch (error) {
-      alert(error instanceof Error ? error.message : "배포 중 오류가 발생했습니다")
+      alert(error instanceof Error ? error.message : "저장 중 오류가 발생했습니다")
     } finally {
-      setIsDeploying(false)
+      setIsSaving(false)
     }
-  }, [nodes, edges, deployAgentName, deployAgentDescription, deployInteractionMode, deployLlmProvider, deployLlmModel, deploySpeakOrder])
+  }, [editingAgentId, nodes, edges])
 
   const router = useRouter()
 
@@ -470,6 +534,26 @@ function AgentBuilderInner({ agentId }: AgentBuilderInnerProps) {
           <Logo size="sm" href={undefined} animated={false} />
           <span className="text-zinc-300 dark:text-zinc-600">|</span>
           <h1 className="text-sm font-bold text-zinc-900 dark:text-zinc-100">A.I Agent Builder</h1>
+          {/* 편집 중인 에이전트 이름 표시 */}
+          {editingAgentId && agentName && (
+            <>
+              <span className="text-zinc-300 dark:text-zinc-600">|</span>
+              <div className="flex items-center gap-2">
+                <Bot className="w-4 h-4 text-accent" />
+                <span className="text-sm font-medium text-accent">{agentName}</span>
+                <span className="text-xs px-2 py-0.5 bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 rounded-full">편집 중</span>
+              </div>
+            </>
+          )}
+          {isLoadingAgent && (
+            <>
+              <span className="text-zinc-300 dark:text-zinc-600">|</span>
+              <div className="flex items-center gap-2">
+                <Loader2 className="w-4 h-4 text-zinc-400 animate-spin" />
+                <span className="text-sm text-zinc-500">로딩 중...</span>
+              </div>
+            </>
+          )}
         </div>
 
         {/* Right side actions */}
@@ -532,13 +616,34 @@ function AgentBuilderInner({ agentId }: AgentBuilderInnerProps) {
             <Hammer className="w-3 h-3 mr-2" />
             Build
           </Button>
+          {/* 편집 모드일 때 저장 버튼 표시 */}
+          {editingAgentId && (
+            <Button
+              onClick={handleSaveWorkflow}
+              disabled={isSaving}
+              size="sm"
+              className="bg-blue-500 hover:bg-blue-600 text-white h-8 text-xs font-semibold px-4 min-w-[80px] !rounded-md"
+            >
+              {isSaving ? (
+                <>
+                  <Loader2 className="w-3 h-3 mr-2 animate-spin" />
+                  저장 중...
+                </>
+              ) : (
+                <>
+                  <Save className="w-3 h-3 mr-2" />
+                  저장
+                </>
+              )}
+            </Button>
+          )}
           <Button
             onClick={() => setShowDeployModal(true)}
             size="sm"
             className="bg-emerald-500 hover:bg-emerald-600 text-white h-8 text-xs font-semibold px-4 min-w-[80px] !rounded-md"
           >
             <Rocket className="w-3 h-3 mr-2" />
-            Deploy
+            {editingAgentId ? '설정' : 'Deploy'}
           </Button>
           <div className="h-6 w-px bg-zinc-200 dark:bg-zinc-700 mx-1" />
           <Button
@@ -1006,8 +1111,12 @@ function AgentBuilderInner({ agentId }: AgentBuilderInnerProps) {
                 <div className="w-16 h-16 rounded-full bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center mb-4">
                   <CheckCircle2 className="w-8 h-8 text-emerald-500" />
                 </div>
-                <h3 className="text-lg font-semibold text-zinc-900 dark:text-white mb-2">배포 완료!</h3>
-                <p className="text-sm text-zinc-500">에이전트가 팀에 추가되었습니다</p>
+                <h3 className="text-lg font-semibold text-zinc-900 dark:text-white mb-2">
+                  {editingAgentId ? '업데이트 완료!' : '배포 완료!'}
+                </h3>
+                <p className="text-sm text-zinc-500">
+                  {editingAgentId ? '에이전트 설정이 업데이트되었습니다' : '에이전트가 팀에 추가되었습니다'}
+                </p>
               </div>
             ) : (
               <>
@@ -1016,8 +1125,12 @@ function AgentBuilderInner({ agentId }: AgentBuilderInnerProps) {
                     <Rocket className="w-5 h-5 text-emerald-500" />
                   </div>
                   <div>
-                    <h3 className="text-lg font-semibold text-zinc-900 dark:text-white">에이전트 배포</h3>
-                    <p className="text-sm text-zinc-500">팀에 AI 에이전트를 추가합니다</p>
+                    <h3 className="text-lg font-semibold text-zinc-900 dark:text-white">
+                      {editingAgentId ? '에이전트 설정' : '에이전트 배포'}
+                    </h3>
+                    <p className="text-sm text-zinc-500">
+                      {editingAgentId ? '에이전트 설정을 수정합니다' : '팀에 AI 에이전트를 추가합니다'}
+                    </p>
                   </div>
                 </div>
 
@@ -1175,12 +1288,12 @@ function AgentBuilderInner({ agentId }: AgentBuilderInnerProps) {
                     {isDeploying ? (
                       <>
                         <Loader2 className="w-4 h-4 animate-spin" />
-                        배포 중...
+                        {editingAgentId ? '업데이트 중...' : '배포 중...'}
                       </>
                     ) : (
                       <>
                         <Rocket className="w-4 h-4" />
-                        배포하기
+                        {editingAgentId ? '업데이트' : '배포하기'}
                       </>
                     )}
                   </button>

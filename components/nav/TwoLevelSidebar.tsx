@@ -583,6 +583,17 @@ const categories: Category[] = [
       { name: '역할 설정', href: '/dashboard-group/team/roles', icon: Settings },
     ]
   },
+  // AI 에이전트
+  {
+    id: 'agents',
+    name: 'AI 에이전트',
+    icon: Bot,
+    items: [
+      { name: '에이전트 목록', href: '/dashboard-group/agents', icon: Bot },
+      { name: '새 에이전트', href: '/agent-builder/new', icon: Plus },
+      { name: '워크플로우', href: '/dashboard-group/workflows', icon: Workflow },
+    ]
+  },
   // 마이페이지 - 클릭 시 사이드바 열림
   {
     id: 'mypage',
@@ -899,9 +910,11 @@ export function TwoLevelSidebar() {
     if (pathname.startsWith('/dashboard-group/email')) return 'email'
     if (pathname.startsWith('/dashboard-group/messenger')) return 'messenger'
     if (pathname.startsWith('/dashboard-group/team')) return 'team'
+    if (pathname.startsWith('/dashboard-group/agents') ||
+        pathname.startsWith('/dashboard-group/workflows') ||
+        pathname.startsWith('/agent-builder')) return 'agents'
     if (pathname.startsWith('/dashboard-group/tasks') ||
         pathname.startsWith('/dashboard-group/kpis') ||
-        pathname.startsWith('/dashboard-group/agents') ||
         pathname === '/dashboard-group') return 'workspace'
     return activeCategory || 'workspace'
   })()
@@ -924,6 +937,8 @@ export function TwoLevelSidebar() {
       '/dashboard-group/reports',
       '/dashboard-group/team',
       '/dashboard-group/messenger',
+      '/dashboard-group/agents',
+      '/agent-builder/new',
     ]
     paths.forEach(path => router.prefetch(path))
   }, [router])

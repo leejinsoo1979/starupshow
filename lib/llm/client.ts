@@ -24,8 +24,8 @@ export const qwenClient = new OpenAI({
 // 사용 가능한 모델 목록
 export const AVAILABLE_MODELS = {
   openai: [
-    { id: 'gpt-4', name: 'GPT-4', description: '가장 강력한 모델', costTier: 'high' },
-    { id: 'gpt-4-turbo', name: 'GPT-4 Turbo', description: '빠른 GPT-4', costTier: 'high' },
+    { id: 'gpt-4o', name: 'GPT-4o', description: '가장 강력한 모델', costTier: 'high' },
+    { id: 'gpt-4o-mini', name: 'GPT-4o Mini', description: '빠르고 저렴한 GPT-4', costTier: 'medium' },
     { id: 'gpt-3.5-turbo', name: 'GPT-3.5 Turbo', description: '빠르고 저렴', costTier: 'low' },
   ],
   qwen: [
@@ -98,7 +98,7 @@ export function selectOptimalLLM(options: SmartChatOptions): LLMConfig {
 
   // 품질 우선
   if (priority === 'quality') {
-    return { provider: 'openai', model: 'gpt-4' }
+    return { provider: 'openai', model: 'gpt-4o-mini' }
   }
 
   // 비용 우선 (Qwen 무료)
@@ -108,7 +108,7 @@ export function selectOptimalLLM(options: SmartChatOptions): LLMConfig {
 
   // 균형: 상황에 따라 선택
   if (isFirstResponse || isFinalSummary) {
-    return { provider: 'openai', model: 'gpt-4' }
+    return { provider: 'openai', model: 'gpt-4o-mini' }
   }
 
   // 긴 컨텍스트는 Qwen (256K 지원)

@@ -21,6 +21,7 @@ import {
   UserPlus,
   Users
 } from 'lucide-react'
+import { BsRobot } from 'react-icons/bs'
 import { useRouter } from 'next/navigation'
 import {
   LiveMeshGradient,
@@ -100,6 +101,13 @@ export default function DashboardPage() {
         <div className="hidden md:flex gap-4">
           <button className="flex items-center justify-center w-10 h-10 rounded-full bg-white/50 dark:bg-white/5 hover:bg-zinc-100 dark:hover:bg-white/10 backdrop-blur transition-all border border-zinc-200 dark:border-white/10">
             <Search className="w-4 h-4 text-zinc-600 dark:text-white/70" />
+          </button>
+          <button
+            onClick={() => router.push('/agent-builder/new')}
+            className="flex items-center justify-center w-10 h-10 rounded-full bg-accent/10 hover:bg-accent/20 backdrop-blur transition-all border border-accent/20 hover:border-accent/40"
+            title="AI 에이전트"
+          >
+            <BsRobot className="w-4 h-4 text-accent" />
           </button>
           <button className="flex items-center justify-center w-10 h-10 rounded-full bg-white/50 dark:bg-white/5 hover:bg-zinc-100 dark:hover:bg-white/10 backdrop-blur transition-all border border-zinc-200 dark:border-white/10">
             <Layers className="w-4 h-4 text-zinc-600 dark:text-white/70" />

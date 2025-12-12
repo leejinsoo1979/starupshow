@@ -1,28 +1,45 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { CreateRoomRequest } from '@/types/chat'
 
 // GET: 내가 참여한 채팅방 목록
 export async function GET(request: NextRequest) {
+  console.log('[CHAT API] GET /api/chat/rooms 시작')
   try {
-    const supabase = await createClient()
+    const supabase = createClient()
+    const adminClient = createAdminClient()
+    console.log('[CHAT API] Supabase client 생성됨')
     const { data: { user }, error: authError } = await supabase.auth.getUser()
+    console.log('[CHAT API] 인증 결과:', user?.id, authError?.message)
 
     if (authError || !user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
+    // 내가 참여한 채팅방 ID 먼저 조회 (adminClient로 RLS 우회)
+    console.log('[CHAT API] chat_participants 조회 시작')
+    const { data: myParticipations, error: partError } = await (adminClient as any)
+      .from('chat_participants')
+      .select('room_id')
+      .eq('user_id', user.id)
+    console.log('[CHAT API] chat_participants 결과:', myParticipations?.length, partError?.message)
+
+    if (!myParticipations || myParticipations.length === 0) {
+      console.log('[CHAT API] 참여 채팅방 없음, 빈 배열 반환')
+      return NextResponse.json([])
+    }
+
+    const myRoomIds = myParticipations.map((p: any) => p.room_id)
+
     // 내가 참여한 채팅방 조회
-    const { data: rooms, error } = await supabase
+    const { data: rooms, error } = await (adminClient as any)
       .from('chat_rooms')
       .select(`
         *,
-        participants:chat_participants(
-          *,
-          user:user_id(id, name, email, avatar_url),
-          agent:agent_id(id, name, description, capabilities, status)
-        )
+        participants:chat_participants(*)
       `)
+      .in('id', myRoomIds)
       .order('last_message_at', { ascending: false })
 
     if (error) {
@@ -30,17 +47,50 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: 500 })
     }
 
+    // 모든 참여자의 user_id와 agent_id 수집
+    const allUserIds = new Set<string>()
+    const allAgentIds = new Set<string>()
+
+    for (const room of rooms || []) {
+      for (const p of room.participants || []) {
+        if (p.user_id) allUserIds.add(p.user_id)
+        if (p.agent_id) allAgentIds.add(p.agent_id)
+      }
+    }
+
+    // 사용자 정보 조회
+    let usersMap: Record<string, any> = {}
+    if (allUserIds.size > 0) {
+      const { data: users } = await (adminClient as any)
+        .from('users')
+        .select('id, name, avatar_url')
+        .in('id', Array.from(allUserIds))
+
+      for (const u of users || []) {
+        usersMap[u.id] = u
+      }
+    }
+
+    // 에이전트 정보 조회
+    let agentsMap: Record<string, any> = {}
+    if (allAgentIds.size > 0) {
+      const { data: agents } = await (adminClient as any)
+        .from('deployed_agents')
+        .select('id, name, description')
+        .in('id', Array.from(allAgentIds))
+
+      for (const a of agents || []) {
+        agentsMap[a.id] = a
+      }
+    }
+
     // 각 방의 마지막 메시지와 안읽은 메시지 수 조회
     const roomsWithDetails = await Promise.all(
-      (rooms || []).map(async (room) => {
+      (rooms || []).map(async (room: any) => {
         // 마지막 메시지
-        const { data: lastMessage } = await supabase
+        const { data: lastMessage } = await (adminClient as any)
           .from('chat_messages')
-          .select(`
-            *,
-            sender_user:sender_user_id(id, name, avatar_url),
-            sender_agent:sender_agent_id(id, name)
-          `)
+          .select('*')
           .eq('room_id', room.id)
           .order('created_at', { ascending: false })
           .limit(1)
@@ -53,18 +103,26 @@ export async function GET(request: NextRequest) {
 
         let unreadCount = 0
         if (participant) {
-          const { count } = await supabase
+          const { count } = await (adminClient as any)
             .from('chat_messages')
             .select('*', { count: 'exact', head: true })
             .eq('room_id', room.id)
-            .gt('created_at', participant.last_read_at)
+            .gt('created_at', participant.last_read_at || '1970-01-01')
             .neq('sender_user_id', user.id)
 
           unreadCount = count || 0
         }
 
+        // 참여자에 user/agent 정보 추가
+        const participantsWithDetails = (room.participants || []).map((p: any) => ({
+          ...p,
+          user: p.user_id ? usersMap[p.user_id] : null,
+          agent: p.agent_id ? agentsMap[p.agent_id] : null,
+        }))
+
         return {
           ...room,
+          participants: participantsWithDetails,
           last_message: lastMessage,
           unread_count: unreadCount,
         }
@@ -81,7 +139,8 @@ export async function GET(request: NextRequest) {
 // POST: 새 채팅방 생성
 export async function POST(request: NextRequest) {
   try {
-    const supabase = await createClient()
+    const supabase = createClient()
+    const adminClient = createAdminClient()
     const { data: { user }, error: authError } = await supabase.auth.getUser()
 
     if (authError || !user) {
@@ -95,8 +154,8 @@ export async function POST(request: NextRequest) {
     if (type === 'direct' && participant_ids.length === 1) {
       const otherParticipant = participant_ids[0]
 
-      // 기존 1:1 채팅방 찾기
-      const { data: existingRooms } = await supabase
+      // 기존 1:1 채팅방 찾기 (adminClient로 RLS 우회)
+      const { data: existingRooms } = await (adminClient as any)
         .from('chat_rooms')
         .select(`
           *,
@@ -104,7 +163,7 @@ export async function POST(request: NextRequest) {
         `)
         .eq('type', 'direct')
 
-      const existingRoom = existingRooms?.find((room) => {
+      const existingRoom = existingRooms?.find((room: any) => {
         const participants = room.participants || []
         if (participants.length !== 2) return false
 
@@ -123,8 +182,8 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // 새 채팅방 생성
-    const { data: room, error: roomError } = await supabase
+    // 새 채팅방 생성 (adminClient로 RLS 우회)
+    const { data: room, error: roomError } = await (adminClient as any)
       .from('chat_rooms')
       .insert({
         name: name || null,
@@ -156,19 +215,19 @@ export async function POST(request: NextRequest) {
       })),
     ]
 
-    const { error: participantError } = await supabase
+    const { error: participantError } = await (adminClient as any)
       .from('chat_participants')
       .insert(participantsToInsert)
 
     if (participantError) {
       console.error('Failed to add participants:', participantError)
       // 방 삭제 (롤백)
-      await supabase.from('chat_rooms').delete().eq('id', room.id)
+      await (adminClient as any).from('chat_rooms').delete().eq('id', room.id)
       return NextResponse.json({ error: participantError.message }, { status: 500 })
     }
 
     // 시스템 메시지 추가
-    await supabase.from('chat_messages').insert({
+    await (adminClient as any).from('chat_messages').insert({
       room_id: room.id,
       sender_type: 'user',
       sender_user_id: user.id,
@@ -179,15 +238,11 @@ export async function POST(request: NextRequest) {
     })
 
     // 생성된 방 정보 반환
-    const { data: createdRoom } = await supabase
+    const { data: createdRoom } = await (adminClient as any)
       .from('chat_rooms')
       .select(`
         *,
-        participants:chat_participants(
-          *,
-          user:user_id(id, name, email, avatar_url),
-          agent:agent_id(id, name, description, capabilities, status)
-        )
+        participants:chat_participants(*)
       `)
       .eq('id', room.id)
       .single()

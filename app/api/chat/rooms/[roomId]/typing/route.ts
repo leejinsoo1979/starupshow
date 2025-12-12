@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 
 // POST: 타이핑 상태 업데이트
 export async function POST(
@@ -7,7 +8,8 @@ export async function POST(
   { params }: { params: { roomId: string } }
 ) {
   try {
-    const supabase = await createClient()
+    const supabase = createClient()
+    const adminClient = createAdminClient()
     const { data: { user }, error: authError } = await supabase.auth.getUser()
 
     if (authError || !user) {
@@ -17,8 +19,8 @@ export async function POST(
     const { roomId } = params
     const { is_typing } = await request.json()
 
-    // 참여자 타이핑 상태 업데이트
-    const { error } = await supabase
+    // 참여자 타이핑 상태 업데이트 (adminClient로 RLS 우회)
+    const { error } = await (adminClient as any)
       .from('chat_participants')
       .update({ is_typing: !!is_typing })
       .eq('room_id', roomId)

@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { initializeAgentIdentity } from '@/lib/agents/chat-integration'
+import { isDevMode, DEV_USER } from '@/lib/dev-user'
 import type { DeployedAgent } from '@/types/database'
 
 // GET: List all deployed agents for the current user
@@ -8,7 +10,13 @@ export async function GET(request: NextRequest) {
   try {
     const supabase = createClient()
     const adminClient = createAdminClient()
-    const { data: { user } } = await supabase.auth.getUser()
+
+    // 개발 모드: DEV_USER 사용
+    let user = isDevMode() ? DEV_USER : null
+    if (!user) {
+      const { data } = await supabase.auth.getUser()
+      user = data.user
+    }
 
     if (!user) {
       return NextResponse.json({ error: '인증이 필요합니다' }, { status: 401 })
@@ -58,7 +66,13 @@ export async function POST(request: NextRequest) {
   try {
     const supabase = createClient()
     const adminClient = createAdminClient()
-    const { data: { user } } = await supabase.auth.getUser()
+
+    // 개발 모드: DEV_USER 사용
+    let user = isDevMode() ? DEV_USER : null
+    if (!user) {
+      const { data } = await supabase.auth.getUser()
+      user = data.user
+    }
 
     if (!user) {
       return NextResponse.json({ error: '인증이 필요합니다' }, { status: 401 })
@@ -111,7 +125,7 @@ export async function POST(request: NextRequest) {
       // 상호작용 설정
       interaction_mode,
       llm_provider,
-      llm_model: llm_model || (llm_provider === 'openai' ? 'gpt-4' : 'qwen-max'),
+      llm_model: llm_model || (llm_provider === 'openai' ? 'gpt-4o-mini' : 'qwen-max'),
       speak_order,
     }
 
@@ -124,6 +138,20 @@ export async function POST(request: NextRequest) {
     if (error) {
       console.error('에이전트 배포 오류:', error)
       return NextResponse.json({ error: error.message }, { status: 500 })
+    }
+
+    // 에이전트 정체성 초기화 (메모리 시스템)
+    try {
+      await initializeAgentIdentity(
+        adminClient,
+        data.id,
+        data.name,
+        data.description || '',
+        data.system_prompt || ''
+      )
+    } catch (identityError) {
+      console.error('에이전트 정체성 초기화 실패:', identityError)
+      // 정체성 초기화 실패해도 에이전트 생성은 성공
     }
 
     return NextResponse.json(data, { status: 201 })
@@ -170,12 +198,13 @@ function extractCapabilitiesFromNodes(nodes: Record<string, unknown>[]): string[
   return capabilities
 }
 
-// Helper: Generate avatar URL
+// Helper: Generate avatar URL (DiceBear robot avatars)
 function generateAvatarUrl(name: string): string {
-  const colors = ['3B82F6', '10B981', 'F59E0B', 'EF4444', '8B5CF6', 'EC4899']
-  const color = colors[Math.floor(Math.random() * colors.length)]
-  const initials = name.slice(0, 2).toUpperCase()
-  return `https://ui-avatars.com/api/?name=${encodeURIComponent(initials)}&background=${color}&color=fff&size=128`
+  // DiceBear bottts style - generates unique robot avatars
+  const seed = encodeURIComponent(name)
+  const backgroundColor = ['3B82F6', '10B981', 'F59E0B', 'EF4444', '8B5CF6', 'EC4899']
+  const randomBg = backgroundColor[Math.floor(Math.random() * backgroundColor.length)]
+  return `https://api.dicebear.com/7.x/bottts/svg?seed=${seed}&backgroundColor=${randomBg}`
 }
 
 // Helper: Generate system prompt
