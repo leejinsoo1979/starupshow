@@ -27,18 +27,45 @@ export async function GET(request: NextRequest) {
     const teamId = searchParams.get('team_id')
     const status = searchParams.get('status')
 
+    // 사용자가 속한 팀 목록 조회
+    const { data: userTeams } = await (adminClient as any)
+      .from('team_members')
+      .select('team_id')
+      .eq('user_id', user.id)
+
+    // 사용자가 소유한 팀 조회
+    const { data: ownedTeams } = await (adminClient as any)
+      .from('teams')
+      .select('id')
+      .eq('founder_id', user.id)
+
+    // 팀 ID 목록 생성
+    const teamIds = [
+      ...(userTeams?.map((t: any) => t.team_id) || []),
+      ...(ownedTeams?.map((t: any) => t.id) || []),
+    ]
+
+    // 조건 1: 사용자가 소유한 에이전트
     let query = (adminClient as any)
       .from('deployed_agents')
       .select('*')
-      .eq('owner_id', user.id)
       .order('created_at', { ascending: false })
+
+    // 개발 모드에서는 모든 에이전트 조회
+    if (isDevMode()) {
+      // DEV 모드: 필터 없이 모든 에이전트 조회
+    } else {
+      // 프로덕션: owner_id로 필터
+      query = query.eq('owner_id', user.id)
+    }
 
     if (startupId) {
       query = query.eq('startup_id', startupId)
     }
 
     if (teamId) {
-      query = query.eq('team_id', teamId)
+      // 특정 팀 필터
+      query = query.contains('capabilities', [`team:${teamId}`])
     }
 
     if (status) {
