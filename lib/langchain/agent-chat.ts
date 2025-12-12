@@ -1,8 +1,9 @@
 import { ChatOpenAI } from '@langchain/openai'
+import { ChatOllama } from '@langchain/ollama'
 import { PromptTemplate, ChatPromptTemplate, SystemMessagePromptTemplate, HumanMessagePromptTemplate } from '@langchain/core/prompts'
 import { StringOutputParser } from '@langchain/core/output_parsers'
 
-// LLM Provider 추상화 (향후 오픈소스 LLM 전환 대비)
+// LLM Provider 추상화
 export type LLMProvider = 'openai' | 'deepseek' | 'qwen' | 'llama'
 
 interface LLMConfig {
@@ -13,9 +14,8 @@ interface LLMConfig {
   temperature?: number
 }
 
-// LLM 인스턴스 생성 (Provider 추상화)
+// LLM 인스턴스 생성
 export function createLLM(config: LLMConfig) {
-  // 기본값: Ollama (로컬, 무료)
   const provider = config.provider || 'llama'
   const model = config.model || (provider === 'llama' ? 'deepseek-r1:7b' : 'gpt-4o-mini')
 
@@ -23,7 +23,6 @@ export function createLLM(config: LLMConfig) {
 
   switch (provider) {
     case 'openai':
-      // gpt-4 계열은 gpt-4o-mini로 변경
       let safeModel = model
       if (safeModel.startsWith('gpt-4') && !safeModel.includes('gpt-4o')) {
         safeModel = 'gpt-4o-mini'
@@ -35,7 +34,6 @@ export function createLLM(config: LLMConfig) {
       })
 
     case 'deepseek':
-      // DeepSeek는 OpenAI 호환 API 사용
       return new ChatOpenAI({
         modelName: config.model || 'deepseek-chat',
         temperature: config.temperature || 0.7,
@@ -46,7 +44,6 @@ export function createLLM(config: LLMConfig) {
       })
 
     case 'qwen':
-      // Qwen도 OpenAI 호환 API 사용
       return new ChatOpenAI({
         modelName: config.model || 'qwen-turbo',
         temperature: config.temperature || 0.7,
@@ -57,19 +54,16 @@ export function createLLM(config: LLMConfig) {
       })
 
     case 'llama':
-      // Ollama 또는 vLLM 등 로컬 서버
-      return new ChatOpenAI({
-        modelName: config.model || 'llama3.2',
+      // Ollama 로컬 LLM
+      return new ChatOllama({
+        model: model,
         temperature: config.temperature || 0.7,
-        openAIApiKey: 'not-required',
-        configuration: {
-          baseURL: config.baseUrl || 'http://localhost:11434/v1',
-        },
+        baseUrl: config.baseUrl || 'http://localhost:11434',
       })
 
     default:
-      return new ChatOpenAI({
-        modelName: 'gpt-4o-mini',
+      return new ChatOllama({
+        model: 'deepseek-r1:7b',
         temperature: 0.7,
       })
   }
