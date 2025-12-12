@@ -965,11 +965,11 @@ function MiniPlayPreview({ isDark }: { isDark: boolean }) {
   )
 }
 
-// 위젯 미리보기 - 세금계산서 (문서 + 도장)
+// 위젯 미리보기 - 세금계산서 (High-Fidelity Receipt)
 function MiniTaxInvoicePreview({ isDark }: { isDark: boolean }) {
   const { accentColor } = useThemeStore()
 
-  const getFillColor = () => {
+  const getStampColor = () => {
     switch (accentColor) {
       case 'purple': return '#a855f7'
       case 'blue': return '#3b82f6'
@@ -984,20 +984,171 @@ function MiniTaxInvoicePreview({ isDark }: { isDark: boolean }) {
   }
 
   return (
-    <div className="h-full flex items-center justify-center p-3">
-      {/* Document Shape */}
+    <div className="h-full flex items-center justify-center p-3 relative overflow-hidden group">
+      {/* Receipt Shape */}
       <div className={cn(
-        "relative w-10 h-14 rounded-sm border flex flex-col items-center pt-2 gap-1",
-        isDark ? "bg-zinc-800 border-zinc-600" : "bg-white border-zinc-300 shadow-sm"
+        "relative w-12 h-16 bg-white shadow-sm flex flex-col items-center pt-2 px-1.5 gap-1",
+        isDark ? "bg-zinc-800" : "bg-white border border-zinc-200"
       )}>
-        <div className={cn("w-6 h-0.5 rounded-full", isDark ? "bg-zinc-600" : "bg-zinc-200")} />
-        <div className={cn("w-6 h-0.5 rounded-full", isDark ? "bg-zinc-600" : "bg-zinc-200")} />
-        <div className={cn("w-4 h-0.5 rounded-full", isDark ? "bg-zinc-600" : "bg-zinc-200")} />
+        {/* Perforated Top */}
+        <div className="absolute -top-1 left-0 w-full h-2 flex justify-between">
+          {[...Array(6)].map((_, i) => (
+            <div key={i} className={cn("w-2 h-2 rounded-full -mt-1", isDark ? "bg-zinc-900" : "bg-zinc-50")} />
+          ))}
+        </div>
 
-        {/* Stamp/Badge */}
-        <div className="absolute bottom-2 right-[-4px] rounded-full p-0.5 bg-white dark:bg-zinc-900 border border-transparent shadow-sm">
-          <div className="w-5 h-5 rounded-full flex items-center justify-center" style={{ backgroundColor: getFillColor() }}>
-            <Check className="w-3 h-3 text-white" />
+        {/* Header */}
+        <div className={cn("w-8 h-1 rounded-sm mb-1", isDark ? "bg-zinc-600" : "bg-zinc-300")} />
+
+        {/* Rows */}
+        <div className="w-full space-y-1">
+          <div className="flex justify-between items-center">
+            <div className={cn("w-4 h-0.5 rounded-full", isDark ? "bg-zinc-700" : "bg-zinc-200")} />
+            <div className={cn("w-2 h-0.5 rounded-full", isDark ? "bg-zinc-700" : "bg-zinc-200")} />
+          </div>
+          <div className="flex justify-between items-center">
+            <div className={cn("w-5 h-0.5 rounded-full", isDark ? "bg-zinc-700" : "bg-zinc-200")} />
+            <div className={cn("w-2 h-0.5 rounded-full", isDark ? "bg-zinc-700" : "bg-zinc-200")} />
+          </div>
+          <div className="flex justify-between items-center">
+            <div className={cn("w-3 h-0.5 rounded-full", isDark ? "bg-zinc-700" : "bg-zinc-200")} />
+            <div className={cn("w-2 h-0.5 rounded-full", isDark ? "bg-zinc-700" : "bg-zinc-200")} />
+          </div>
+        </div>
+
+        {/* Total Line */}
+        <div className={cn("w-full h-px mt-1", isDark ? "bg-zinc-700" : "bg-zinc-200")} />
+        <div className="flex justify-between items-center w-full mt-0.5">
+          <div className={cn("w-2 h-1 rounded-sm", isDark ? "bg-zinc-600" : "bg-zinc-400")} />
+          <div className={cn("w-3 h-1 rounded-sm", isDark ? "bg-zinc-600" : "bg-zinc-400")} />
+        </div>
+
+        {/* Stamp */}
+        <div
+          className="absolute bottom-2 right-[-6px] transform -rotate-12 border-[1.5px] rounded px-1 py-0.5 flex flex-col items-center justify-center bg-white/10 backdrop-blur-[1px]"
+          style={{ borderColor: getStampColor() }}
+        >
+          <span className="text-[5px] font-bold leading-none tracking-tighter" style={{ color: getStampColor() }}>PAID</span>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// 위젯 미리보기 - 계좌 (High-Fidelity Premium Card)
+function MiniAccountPreview({ isDark }: { isDark: boolean }) {
+  const { accentColor } = useThemeStore()
+
+  const getGradientClass = () => {
+    switch (accentColor) {
+      case 'purple': return 'from-purple-500 via-purple-600 to-purple-800'
+      case 'blue': return 'from-blue-500 via-blue-600 to-blue-800'
+      case 'green': return 'from-green-500 via-green-600 to-green-800'
+      case 'orange': return 'from-orange-500 via-orange-600 to-orange-800'
+      case 'pink': return 'from-pink-500 via-pink-600 to-pink-800'
+      case 'red': return 'from-red-500 via-red-600 to-red-800'
+      case 'yellow': return 'from-yellow-400 via-yellow-500 to-yellow-700'
+      case 'cyan': return 'from-cyan-400 via-cyan-500 to-cyan-700'
+      default: return 'from-zinc-700 via-zinc-800 to-black'
+    }
+  }
+
+  return (
+    <div className="h-full flex items-center justify-center p-3 perspective-[500px] group">
+      <div className={cn(
+        "relative w-14 h-9 rounded-md bg-gradient-to-br shadow-lg flex flex-col justify-between p-1.5 transition-transform duration-300 group-hover:rotate-y-6 group-hover:scale-110",
+        getGradientClass()
+      )}>
+        {/* Glossy Overlay */}
+        <div className="absolute inset-0 rounded-md bg-gradient-to-tr from-white/10 to-transparent pointer-events-none" />
+
+        <div className="flex justify-between items-start">
+          {/* Chip */}
+          <div className="w-2.5 h-2 rounded-[2px] bg-gradient-to-br from-yellow-200 to-yellow-500 border border-yellow-600/30 flex items-center justify-center overflow-hidden">
+            <div className="w-full h-px bg-black/20" />
+            <div className="absolute h-full w-px bg-black/20" />
+          </div>
+          {/* Contactless Icon */}
+          <svg className="w-2.5 h-2.5 text-white/70" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
+            <path d="M8.5 10a7.5 7.5 0 0 1 7.5 7.5" />
+            <path d="M12 10a4 4 0 0 1 4 4" />
+            <path d="M14.5 13a1.5 1.5 0 0 1 1.5 1.5" />
+          </svg>
+        </div>
+
+        <div className="space-y-0.5">
+          {/* Number Dots */}
+          <div className="flex gap-0.5 items-center">
+            <div className="w-0.5 h-0.5 rounded-full bg-white/50" />
+            <div className="w-0.5 h-0.5 rounded-full bg-white/50" />
+            <div className="w-0.5 h-0.5 rounded-full bg-white/50" />
+            <div className="w-0.5 h-0.5 rounded-full bg-white/50" />
+            <div className="w-1" />
+            <span className="text-[4px] text-white/90 font-mono tracking-widest">8824</span>
+          </div>
+          {/* Name Line */}
+          <div className="w-6 h-0.5 rounded-full bg-white/30" />
+        </div>
+
+        {/* Shine Effect */}
+        <div className="absolute -inset-full top-0 block h-full w-1/2 -skew-x-12 bg-gradient-to-r from-transparent to-white opacity-20 group-hover:animate-shine" />
+      </div>
+    </div>
+  )
+}
+
+// 위젯 미리보기 - 전자계약 (High-Fidelity Legal Doc)
+function MiniContractPreview({ isDark }: { isDark: boolean }) {
+  const { accentColor } = useThemeStore()
+
+  const getPenColor = () => {
+    switch (accentColor) {
+      case 'purple': return 'text-purple-600'
+      case 'green': return 'text-green-600'
+      default: return 'text-blue-600'
+    }
+  }
+
+  return (
+    <div className="h-full flex items-center justify-center p-3">
+      <div className={cn(
+        "relative w-10 h-14 bg-white border shadow-sm flex flex-col p-1.5",
+        isDark ? "bg-zinc-800 border-zinc-700" : "bg-white border-zinc-200"
+      )}>
+        {/* Header */}
+        <div className="flex justify-center mb-1.5">
+          <div className={cn("w-4 h-0.5 rounded-full", isDark ? "bg-zinc-500" : "bg-zinc-400")} />
+        </div>
+
+        {/* Text Lines */}
+        <div className="space-y-0.5 mb-auto">
+          <div className={cn("w-full h-[1px]", isDark ? "bg-zinc-700" : "bg-zinc-100")} />
+          <div className={cn("w-[90%] h-[1px]", isDark ? "bg-zinc-700" : "bg-zinc-100")} />
+          <div className={cn("w-[95%] h-[1px]", isDark ? "bg-zinc-700" : "bg-zinc-100")} />
+          <div className={cn("w-[80%] h-[1px]", isDark ? "bg-zinc-700" : "bg-zinc-100")} />
+        </div>
+
+        {/* Signature Box */}
+        <div className="relative mt-1">
+          <div className={cn("text-[3px] mb-0.5", isDark ? "text-zinc-500" : "text-zinc-400")}>Sign here:</div>
+          <div className={cn("w-full h-3 border border-dashed rounded-[2px] relative", isDark ? "border-zinc-600 bg-zinc-700/50" : "border-zinc-300 bg-zinc-50")}>
+            {/* Floating Pen Icon */}
+            <div className={cn("absolute -right-2 -bottom-2 transform -rotate-12 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5", getPenColor())}>
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" className="drop-shadow-sm">
+                <path d="M19.07 4.93L17.07 2.93C16.68 2.54 16.05 2.54 15.66 2.93L3.21 15.38C3.06 15.53 2.98 15.74 3 15.96L3.5 19.8C3.55 20.23 3.91 20.55 4.34 20.55H4.51C4.54 20.55 4.56 20.55 4.58 20.55L8.46 20.1C8.68 20.08 8.89 20 9.04 19.85L21.49 7.4C21.88 7.01 21.88 6.38 21.49 5.99L19.49 3.99L19.07 4.93ZM16.36 3.64L18.36 5.64L17.5 6.5L15.5 4.5L16.36 3.64Z" />
+              </svg>
+            </div>
+            {/* SVG Signature */}
+            <svg className="absolute inset-0 w-full h-full p-0.5 pointer-events-none" viewBox="0 0 30 15">
+              <path
+                d="M2,10 C5,5 8,12 12,5 C15,2 18,10 25,8"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1"
+                className={cn(isDark ? "text-zinc-300" : "text-zinc-800")}
+                strokeLinecap="round"
+              />
+            </svg>
           </div>
         </div>
       </div>
@@ -1005,125 +1156,58 @@ function MiniTaxInvoicePreview({ isDark }: { isDark: boolean }) {
   )
 }
 
-// 위젯 미리보기 - 계좌 (카드)
-function MiniAccountPreview({ isDark }: { isDark: boolean }) {
-  const { accentColor } = useThemeStore()
-
-  const getGradientClass = () => {
-    switch (accentColor) {
-      case 'purple': return 'from-purple-500 to-purple-600'
-      case 'blue': return 'from-blue-500 to-blue-600'
-      case 'green': return 'from-green-500 to-green-600'
-      case 'orange': return 'from-orange-500 to-orange-600'
-      case 'pink': return 'from-pink-500 to-pink-600'
-      case 'red': return 'from-red-500 to-red-600'
-      case 'yellow': return 'from-yellow-500 to-yellow-600'
-      case 'cyan': return 'from-cyan-500 to-cyan-600'
-      default: return 'from-blue-500 to-blue-600'
-    }
-  }
-
-  return (
-    <div className="h-full flex items-center justify-center p-3">
-      {/* Card Shape */}
-      <div className={cn(
-        "w-12 h-8 rounded-md bg-gradient-to-br shadow-sm flex flex-col justify-between p-1.5",
-        getGradientClass()
-      )}>
-        <div className="w-2 h-1.5 rounded-[1px] bg-white/30" />
-        <div className="flex gap-1 justify-end">
-          <div className="w-1 h-1 rounded-full bg-white/50" />
-          <div className="w-1 h-1 rounded-full bg-white/50" />
-        </div>
-      </div>
-    </div>
-  )
-}
-
-// 위젯 미리보기 - 전자계약 (서명)
-function MiniContractPreview({ isDark }: { isDark: boolean }) {
-  const { accentColor } = useThemeStore()
-
-  const getStrokeColor = () => {
-    switch (accentColor) {
-      case 'purple': return '#a855f7'
-      case 'blue': return '#3b82f6'
-      case 'green': return '#22c55e'
-      case 'orange': return '#f97316'
-      case 'pink': return '#ec4899'
-      case 'red': return '#ef4444'
-      case 'yellow': return '#eab308'
-      case 'cyan': return '#06b6d4'
-      default: return '#3b82f6'
-    }
-  }
-
-  return (
-    <div className="h-full flex items-center justify-center p-3">
-      <div className={cn(
-        "w-10 h-12 rounded-sm border flex flex-col justify-end p-2 gap-1.5",
-        isDark ? "bg-zinc-800 border-zinc-600" : "bg-white border-zinc-300"
-      )}>
-        <div className={cn("w-full h-0.5 rounded-full mb-auto mt-1", isDark ? "bg-zinc-600" : "bg-zinc-100")} />
-
-        {/* Signature Line */}
-        <div className="relative">
-          <div className={cn("w-full h-px", isDark ? "bg-zinc-600" : "bg-zinc-200")} />
-          {/* Signature Scribble */}
-          <svg className="absolute bottom-0.5 left-0 w-full h-4 overflow-visible">
-            <path
-              d="M2,10 Q5,4 8,8 T15,6 T22,8"
-              fill="none"
-              stroke={getStrokeColor()}
-              strokeWidth="1.5"
-              strokeLinecap="round"
-            />
-          </svg>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-// 위젯 미리보기 - 자료수집 (클라우드/서버)
+// 위젯 미리보기 - 자료수집 (High-Fidelity Server Rack)
 function MiniDataCollectionPreview({ isDark }: { isDark: boolean }) {
   const { accentColor } = useThemeStore()
 
-  const getFillColor = () => {
+  const getGlowColor = () => {
     switch (accentColor) {
-      case 'purple': return 'text-purple-500'
-      case 'blue': return 'text-blue-500'
-      case 'green': return 'text-green-500'
-      case 'orange': return 'text-orange-500'
-      case 'pink': return 'text-pink-500'
-      case 'red': return 'text-red-500'
-      case 'yellow': return 'text-yellow-500'
-      case 'cyan': return 'text-cyan-500'
-      default: return 'text-blue-500'
+      case 'purple': return 'text-purple-500 shadow-purple-500/50'
+      case 'blue': return 'text-blue-500 shadow-blue-500/50'
+      default: return 'text-blue-500 shadow-blue-500/50'
     }
   }
 
   return (
-    <div className="h-full flex items-center justify-center">
-      <div className={cn(
-        "relative w-10 h-10 rounded-full flex items-center justify-center border",
-        isDark ? "bg-zinc-800 border-zinc-700" : "bg-zinc-50 border-zinc-200"
-      )}>
-        {/* Arrows */}
-        <svg
-          viewBox="0 0 24 24"
-          className={cn("w-5 h-5 animate-pulse", getFillColor())}
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2.5"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        >
-          <path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
-          <path d="M3 3v5h5" />
-          <path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16" />
-          <path d="M16 21h5v-5" />
-        </svg>
+    <div className="h-full flex items-center justify-center p-3">
+      <div className="flex gap-1 items-end">
+        {/* Server Unit 1 */}
+        <div className={cn(
+          "w-3 h-10 rounded-[1px] border-x border-t border-b-2 flex flex-col justify-between py-1 px-[1px]",
+          isDark ? "bg-zinc-800 border-zinc-700 border-b-zinc-900" : "bg-zinc-100 border-zinc-300 border-b-zinc-400"
+        )}>
+          {[...Array(5)].map((_, i) => (
+            <div key={i} className="flex gap-[1px]">
+              <div className={cn("w-full h-[2px] rounded-[0.5px]", isDark ? "bg-zinc-700" : "bg-zinc-200")} />
+              {i === 2 && <div className={cn("w-1 h-[2px] rounded-[0.5px] animate-pulse bg-current", getGlowColor().split(' ')[0])} />}
+            </div>
+          ))}
+        </div>
+
+        {/* Server Unit 2 (Taller) */}
+        <div className={cn(
+          "w-4 h-12 rounded-[1px] border-x border-t border-b-2 flex flex-col justify-evenly py-1 px-[2px] relative overflow-hidden",
+          isDark ? "bg-zinc-800 border-zinc-700 border-b-zinc-900" : "bg-zinc-100 border-zinc-300 border-b-zinc-400"
+        )}>
+          {[...Array(6)].map((_, i) => (
+            <div key={i} className={cn("w-full h-1 rounded-[0.5px]", isDark ? "bg-zinc-700" : "bg-zinc-200")} />
+          ))}
+
+          {/* Data Flow Particles */}
+          <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+            <div className={cn("w-1 h-1 rounded-full animate-ping bg-current opacity-75", getGlowColor().split(' ')[0])} />
+          </div>
+        </div>
+
+        {/* Server Unit 3 */}
+        <div className={cn(
+          "w-3 h-8 rounded-[1px] border-x border-t border-b-2 flex flex-col justify-between py-1 px-[1px]",
+          isDark ? "bg-zinc-800 border-zinc-700 border-b-zinc-900" : "bg-zinc-100 border-zinc-300 border-b-zinc-400"
+        )}>
+          {[...Array(4)].map((_, i) => (
+            <div key={i} className={cn("w-full h-[2px] rounded-[0.5px]", isDark ? "bg-zinc-700" : "bg-zinc-200")} />
+          ))}
+        </div>
       </div>
     </div>
   )

@@ -815,10 +815,9 @@ export function TwoLevelSidebar() {
   const pathname = usePathname()
   const router = useRouter()
   const { user, currentTeam, logout: clearAuth } = useAuthStore()
-  const { activeCategory, setActiveCategory } = useUIStore()
+  const { activeCategory, setActiveCategory, sidebarOpen, setSidebarOpen, toggleSidebar } = useUIStore()
   const { resolvedTheme } = useTheme()
   const [mounted, setMounted] = useState(false)
-  const [isSubMenuOpen, setIsSubMenuOpen] = useState(true)
   const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set())
   const [selectedCompanyMenu, setSelectedCompanyMenu] = useState<string | null>(null)
 
@@ -914,7 +913,7 @@ export function TwoLevelSidebar() {
                 key={category.id}
                 onClick={() => {
                   setActiveCategory(category.id)
-                  setIsSubMenuOpen(true)
+                  setSidebarOpen(true)
                   setSelectedCompanyMenu(null) // 카테고리 변경 시 초기화
                   // 회사 메뉴 클릭 시 회사 대시보드로 이동
                   if (category.id === 'company') {
@@ -997,7 +996,7 @@ export function TwoLevelSidebar() {
 
       {/* Level 2: 서브메뉴 사이드바 */}
       <AnimatePresence>
-        {isSubMenuOpen && activeItems.length > 0 && (
+        {sidebarOpen && activeItems.length > 0 && (
           <motion.aside
             initial={{ width: 0, opacity: 0 }}
             animate={{ width: 240, opacity: 1 }}

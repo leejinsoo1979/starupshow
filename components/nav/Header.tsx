@@ -50,7 +50,7 @@ export function Header() {
     >
       <div className="h-full px-8 flex items-center justify-between gap-4">
         {/* Search */}
-        <div className="flex-1">
+        <div className="w-full max-w-md">
           <motion.div
             className={`relative transition-all duration-300 ${searchFocused ? 'scale-[1.02]' : ''}`}
           >
