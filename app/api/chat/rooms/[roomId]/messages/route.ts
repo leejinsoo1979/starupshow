@@ -444,7 +444,7 @@ ${memoryContext}
         }
       }
 
-      console.log('[generateAgentResponse] LangChain 응답 생성 시작, 모델:', safeModel)
+      console.log('[generateAgentResponse] LangChain 응답 생성 시작, 모델: deepseek-r1:7b')
       response = await generateAgentChatResponse(
         agentWithConfig,
         userMessage.content,

@@ -445,7 +445,7 @@ export default function AgentsPage() {
                         className="w-12 h-12 rounded-xl object-cover bg-zinc-100 dark:bg-zinc-800"
                       />
 
-                      <div>
+                      <div className="flex-1">
                         <div className="flex items-center gap-2">
                           <h3 className="text-base font-semibold text-zinc-900 dark:text-zinc-100">
                             {agent.name}
@@ -466,6 +466,31 @@ export default function AgentsPage() {
                         <p className="text-sm mt-0.5 text-zinc-500">
                           {agent.description || "설명 없음"}
                         </p>
+                        {/* 기능 태그 */}
+                        {agent.capabilities && agent.capabilities.length > 0 && (
+                          <div className="flex flex-wrap gap-1.5 mt-2">
+                            {agent.capabilities
+                              .filter((cap: string) => !cap.startsWith('team:'))
+                              .slice(0, 6)
+                              .map((capability: string, idx: number) => (
+                                <span
+                                  key={idx}
+                                  className="px-2 py-0.5 rounded-md text-xs font-medium"
+                                  style={{
+                                    backgroundColor: mounted ? `${currentAccent.color}15` : "#8b5cf615",
+                                    color: mounted ? currentAccent.color : "#8b5cf6",
+                                  }}
+                                >
+                                  {capability}
+                                </span>
+                              ))}
+                            {agent.capabilities.filter((cap: string) => !cap.startsWith('team:')).length > 6 && (
+                              <span className="px-2 py-0.5 rounded-md text-xs font-medium bg-zinc-100 dark:bg-zinc-800 text-zinc-500">
+                                +{agent.capabilities.filter((cap: string) => !cap.startsWith('team:')).length - 6}
+                              </span>
+                            )}
+                          </div>
+                        )}
                       </div>
                     </div>
 
