@@ -102,8 +102,15 @@ export default function DashboardLayout({
     )
   }
 
-  // 2단계 사이드바: Level1(64px) + Level2(220px) = 284px
-  const sidebarWidth = 284
+  // 2단계 사이드바: Level1(64px) + Level2(220px or 280px for company)
+  const isCompanyPage = pathname?.startsWith('/dashboard-group/company') ||
+                        pathname?.startsWith('/dashboard-group/hr') ||
+                        pathname?.startsWith('/dashboard-group/sales') ||
+                        pathname?.startsWith('/dashboard-group/finance') ||
+                        pathname?.startsWith('/dashboard-group/tax') ||
+                        pathname?.startsWith('/dashboard-group/payroll') ||
+                        pathname?.startsWith('/dashboard-group/expense')
+  const sidebarWidth = isCompanyPage ? 344 : 284 // 64 + 280 or 64 + 220
 
   return (
     <div className="min-h-screen bg-theme">
