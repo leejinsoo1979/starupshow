@@ -414,12 +414,12 @@ ${memoryContext}
       }
 
       // 에이전트 설정을 LangChain 형식으로 변환 (메모리 포함)
-      // 기본: Ollama (로컬, 무료)
+      // 강제: Ollama 로컬 LLM 사용 (OpenAI 비용 문제)
       const agentWithConfig = {
         ...agent,
         config: {
-          llm_provider: (agent.llm_provider || 'llama') as 'openai' | 'llama',
-          llm_model: agent.llm_model || 'deepseek-r1:7b',
+          llm_provider: 'llama' as const,
+          llm_model: 'deepseek-r1:7b',
           temperature: agent.temperature || 0.7,
           custom_prompt: enhancedSystemPrompt,
         }
@@ -433,12 +433,12 @@ ${memoryContext}
       )
     } else {
       // 일반 채팅 모드 (메모리 포함)
-      // 기본: Ollama (로컬, 무료)
+      // 강제: Ollama 로컬 LLM 사용 (OpenAI 비용 문제)
       const agentWithConfig = {
         ...agent,
         config: {
-          llm_provider: (agent.llm_provider || 'llama') as 'openai' | 'llama',
-          llm_model: agent.llm_model || 'deepseek-r1:7b',
+          llm_provider: 'llama' as const,
+          llm_model: 'deepseek-r1:7b',
           temperature: agent.temperature || 0.7,
           custom_prompt: enhancedSystemPrompt,
         }
