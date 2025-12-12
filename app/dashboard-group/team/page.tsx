@@ -335,8 +335,8 @@ export default function TeamPage() {
 
         {/* 2. Team Members */}
         <motion.div variants={item} className="md:col-span-2 lg:col-span-2 row-span-2">
-          <TiltCard className="h-full p-6 flex flex-col">
-            <div className="flex items-center justify-between mb-4">
+          <TiltCard className="h-full p-6 flex flex-col overflow-hidden">
+            <div className="flex items-center justify-between mb-4 flex-shrink-0">
               <h3 className="font-semibold text-zinc-700 dark:text-white flex items-center gap-2">
                 <Users className={cn("w-5 h-5", accent.text)} />
                 팀원
@@ -352,7 +352,7 @@ export default function TeamPage() {
               </button>
             </div>
 
-            <div className="space-y-3 flex-1 overflow-y-auto">
+            <div className="space-y-2 flex-1 overflow-y-auto min-h-0">
               {mockTeamMembers.map((member, i) => (
                 <motion.div
                   key={member.id}

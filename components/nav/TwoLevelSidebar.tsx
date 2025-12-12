@@ -22,6 +22,7 @@ import {
   ListTodo,
   GitCommit,
   Users,
+  List,
   Settings,
   Sparkles,
   BarChart3,
@@ -576,6 +577,7 @@ const categories: Category[] = [
     icon: GoPeople,
     items: [
       { name: '팀 생성', href: '#create-team', icon: Plus },
+      { name: '팀목록', href: '/dashboard-group/team/list', icon: List },
       { name: '팀 관리', href: '/dashboard-group/team', icon: Users },
       { name: '팀원', href: '/dashboard-group/team/members', icon: User },
       { name: '역할 설정', href: '/dashboard-group/team/roles', icon: Settings },
