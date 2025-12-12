@@ -5,7 +5,8 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { useTheme } from 'next-themes'
 import {
   Search, Send, Paperclip, MoreVertical, Phone, Video, Info,
-  Image as ImageIcon, Smile, Plus, Users, Bot, ChevronLeft, Loader2
+  Image as ImageIcon, Smile, Plus, Users, Bot, ChevronLeft, Loader2,
+  FileText, Download, X
 } from 'lucide-react'
 import { Button } from '@/components/ui'
 import { useChatRooms, useChatRoom, usePresence } from '@/hooks/useChat'
@@ -18,7 +19,10 @@ export default function MessengerPage() {
   const [inputText, setInputText] = useState('')
   const [searchQuery, setSearchQuery] = useState('')
   const [showNewChat, setShowNewChat] = useState(false)
+  const [uploading, setUploading] = useState(false)
   const scrollRef = useRef<HTMLDivElement>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const imageInputRef = useRef<HTMLInputElement>(null)
 
   // 채팅 훅 사용
   const { rooms, loading: roomsLoading, createRoom } = useChatRooms()
@@ -58,16 +62,62 @@ export default function MessengerPage() {
     }
   }
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
       e.preventDefault()
       handleSendMessage()
     }
   }
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    setInputText(e.target.value)
-    handleTyping()
+  // 파일 업로드 핸들러
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>, type: 'file' | 'image') => {
+    const file = e.target.files?.[0]
+    if (!file || !activeRoomId) return
+
+    try {
+      setUploading(true)
+      const formData = new FormData()
+      formData.append('file', file)
+      formData.append('roomId', activeRoomId)
+
+      const res = await fetch('/api/chat/upload', {
+        method: 'POST',
+        body: formData,
+      })
+
+      if (!res.ok) {
+        const error = await res.json()
+        throw new Error(error.error || 'Upload failed')
+      }
+
+      const { url, fileName, fileSize, fileType, isImage } = await res.json()
+
+      // 메시지로 전송
+      await sendMessage(isImage ? '이미지를 공유했습니다' : `파일을 공유했습니다: ${fileName}`, {
+        message_type: isImage ? 'image' : 'file',
+        metadata: {
+          url,
+          fileName,
+          fileSize,
+          fileType,
+        },
+      })
+    } catch (err) {
+      console.error('File upload failed:', err)
+      alert(err instanceof Error ? err.message : '파일 업로드에 실패했습니다')
+    } finally {
+      setUploading(false)
+      // input 초기화
+      if (fileInputRef.current) fileInputRef.current.value = ''
+      if (imageInputRef.current) imageInputRef.current.value = ''
+    }
+  }
+
+  // 파일 크기 포맷
+  function formatFileSize(bytes: number): string {
+    if (bytes < 1024) return bytes + ' B'
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB'
+    return (bytes / (1024 * 1024)).toFixed(1) + ' MB'
   }
 
   // 채팅방 표시 이름 가져오기
@@ -125,7 +175,7 @@ export default function MessengerPage() {
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search conversations..."
-              className={`w-full py-2.5 pl-10 pr-4 bg-transparent outline-none text-sm placeholder:text-zinc-500`}
+              className="w-full py-2.5 pl-10 pr-4 bg-transparent text-sm placeholder:text-zinc-500 no-focus-ring"
             />
           </div>
         </div>
@@ -304,11 +354,47 @@ export default function MessengerPage() {
                       </span>
                     )}
 
-                    {msg.message_type === 'image' ? (
+                    {msg.message_type === 'image' && msg.metadata?.url ? (
                       <div className={`p-2 rounded-2xl ${isMe ? 'bg-accent/10 border border-accent/20' : 'bg-zinc-100 dark:bg-zinc-800'}`}>
-                        <div className="w-48 h-32 bg-zinc-200 dark:bg-zinc-700 rounded-lg flex items-center justify-center text-zinc-400">
-                          <ImageIcon className="w-8 h-8" />
-                        </div>
+                        <a href={msg.metadata.url} target="_blank" rel="noopener noreferrer">
+                          <img
+                            src={msg.metadata.url}
+                            alt={msg.metadata.fileName || '이미지'}
+                            className="max-w-[300px] max-h-[200px] rounded-lg object-cover cursor-pointer hover:opacity-90 transition-opacity"
+                            onError={(e) => {
+                              (e.target as HTMLImageElement).style.display = 'none'
+                              const parent = (e.target as HTMLImageElement).parentElement
+                              if (parent) {
+                                parent.innerHTML = '<div class="w-48 h-32 bg-zinc-200 dark:bg-zinc-700 rounded-lg flex items-center justify-center text-zinc-400"><span>이미지 로드 실패</span></div>'
+                              }
+                            }}
+                          />
+                        </a>
+                        {msg.metadata.fileName && (
+                          <p className="text-xs text-zinc-500 mt-1 truncate">{msg.metadata.fileName}</p>
+                        )}
+                      </div>
+                    ) : msg.message_type === 'file' && msg.metadata?.url ? (
+                      <div className={`p-3 rounded-2xl ${isMe ? 'bg-accent/10 border border-accent/20' : isDark ? 'bg-zinc-800 border border-zinc-700' : 'bg-zinc-100 border border-zinc-200'}`}>
+                        <a
+                          href={msg.metadata.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex items-center gap-3 hover:opacity-80 transition-opacity"
+                        >
+                          <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${isDark ? 'bg-zinc-700' : 'bg-zinc-200'}`}>
+                            <FileText className="w-5 h-5 text-zinc-500" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className={`text-sm font-medium truncate ${isDark ? 'text-zinc-100' : 'text-zinc-900'}`}>
+                              {msg.metadata.fileName || '파일'}
+                            </p>
+                            <p className="text-xs text-zinc-500">
+                              {msg.metadata.fileSize ? formatFileSize(msg.metadata.fileSize) : ''}
+                            </p>
+                          </div>
+                          <Download className="w-4 h-4 text-zinc-400" />
+                        </a>
                       </div>
                     ) : msg.message_type === 'system' ? (
                       <div className="w-full text-center">
@@ -368,24 +454,60 @@ export default function MessengerPage() {
                 ? 'bg-zinc-950 border-zinc-800 focus-within:border-zinc-700'
                 : 'bg-zinc-50 border-zinc-200 focus-within:border-zinc-300 shadow-sm'
             }`}>
+              {/* 숨겨진 파일 입력 */}
+              <input
+                type="file"
+                ref={fileInputRef}
+                onChange={(e) => handleFileUpload(e, 'file')}
+                accept=".pdf,.doc,.docx,.xls,.xlsx,.txt,.csv"
+                className="hidden"
+              />
+              <input
+                type="file"
+                ref={imageInputRef}
+                onChange={(e) => handleFileUpload(e, 'image')}
+                accept="image/jpeg,image/png,image/gif,image/webp"
+                className="hidden"
+              />
+
               <div className="flex pb-1">
-                <Button size="icon" variant="ghost" className="rounded-full text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300">
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  className="rounded-full text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={uploading}
+                >
                   <Paperclip className="w-5 h-5" />
                 </Button>
-                <Button size="icon" variant="ghost" className="rounded-full text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300">
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  className="rounded-full text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300"
+                  onClick={() => imageInputRef.current?.click()}
+                  disabled={uploading}
+                >
                   <ImageIcon className="w-5 h-5" />
                 </Button>
               </div>
 
-              <textarea
-                value={inputText}
-                onChange={handleInputChange}
-                onKeyDown={handleKeyDown}
-                placeholder="메시지를 입력하세요..."
-                className={`flex-1 max-h-32 py-2.5 bg-transparent resize-none outline-none text-sm placeholder:text-zinc-400 scrollbar-hide`}
-                rows={1}
-                style={{ minHeight: '44px' }}
-              />
+              {uploading ? (
+                <div className="flex-1 flex items-center gap-2 py-2.5 px-2">
+                  <Loader2 className="w-4 h-4 animate-spin text-accent" />
+                  <span className="text-sm text-zinc-500">파일 업로드 중...</span>
+                </div>
+              ) : (
+                <input
+                  type="text"
+                  id="chat-message-input"
+                  value={inputText}
+                  onChange={(e) => setInputText(e.target.value)}
+                  onKeyDown={handleKeyDown}
+                  placeholder="메시지를 입력하세요..."
+                  autoComplete="off"
+                  className={`flex-1 py-2.5 px-2 bg-transparent text-sm placeholder:text-zinc-400 no-focus-ring ${isDark ? 'text-zinc-100' : 'text-zinc-900'}`}
+                />
+              )}
 
               <div className="flex pb-1 gap-1">
                 <Button size="icon" variant="ghost" className="rounded-full text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300">
@@ -556,9 +678,9 @@ function NewChatModal({
             value={roomName}
             onChange={(e) => setRoomName(e.target.value)}
             placeholder="채팅방 이름"
-            className={`w-full mb-4 px-4 py-2.5 rounded-xl ${
+            className={`w-full mb-4 px-4 py-2.5 rounded-xl no-focus-ring ${
               isDark ? 'bg-zinc-800 text-white' : 'bg-zinc-100 text-zinc-900'
-            } outline-none`}
+            }`}
           />
         )}
 

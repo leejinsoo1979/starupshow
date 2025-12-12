@@ -7,20 +7,37 @@ import { RealtimeChannel } from '@supabase/supabase-js'
 
 // 채팅방 목록 훅
 export function useChatRooms() {
+  console.log('[useChat] useChatRooms 훅 실행')
   const [rooms, setRooms] = useState<ChatRoom[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const supabase = createClient()
 
   const fetchRooms = useCallback(async () => {
+    console.log('[useChat] fetchRooms 시작')
     try {
       setLoading(true)
+      console.log('[useChat] API 호출 시작: /api/chat/rooms')
       const res = await fetch('/api/chat/rooms')
-      if (!res.ok) throw new Error('Failed to fetch rooms')
+      console.log('[useChat] API 응답:', res.status)
       const data = await res.json()
-      setRooms(data)
+
+      if (!res.ok) {
+        // 인증 안됨 - 빈 배열로 처리
+        if (res.status === 401) {
+          setRooms([])
+          setError(null)
+          return
+        }
+        throw new Error(data.error || 'Failed to fetch rooms')
+      }
+
+      // data가 배열인지 확인
+      setRooms(Array.isArray(data) ? data : [])
       setError(null)
     } catch (err) {
+      console.error('Chat rooms fetch error:', err)
+      setRooms([])
       setError(err instanceof Error ? err.message : 'Unknown error')
     } finally {
       setLoading(false)
@@ -33,34 +50,46 @@ export function useChatRooms() {
 
   // 실시간 업데이트 구독
   useEffect(() => {
-    const channel = supabase
-      .channel('chat_rooms_updates')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'chat_rooms',
-        },
-        () => {
-          fetchRooms()
-        }
-      )
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'chat_messages',
-        },
-        () => {
-          fetchRooms() // 새 메시지 시 목록 갱신
-        }
-      )
-      .subscribe()
+    let channel: RealtimeChannel | null = null
+
+    try {
+      channel = supabase
+        .channel('chat_rooms_updates')
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'chat_rooms',
+          },
+          () => {
+            fetchRooms()
+          }
+        )
+        .on(
+          'postgres_changes',
+          {
+            event: 'INSERT',
+            schema: 'public',
+            table: 'chat_messages',
+          },
+          () => {
+            fetchRooms() // 새 메시지 시 목록 갱신
+          }
+        )
+        .subscribe((status) => {
+          if (status === 'CHANNEL_ERROR') {
+            console.warn('Chat realtime subscription error')
+          }
+        })
+    } catch (err) {
+      console.warn('Chat realtime setup failed:', err)
+    }
 
     return () => {
-      supabase.removeChannel(channel)
+      if (channel) {
+        supabase.removeChannel(channel)
+      }
     }
   }, [supabase, fetchRooms])
 
@@ -140,6 +169,7 @@ export function useChatRoom(roomId: string | null) {
       fetchRoom()
       fetchMessages()
     } else {
+      setLoading(false)
       setRoom(null)
       setMessages([])
     }
@@ -214,6 +244,14 @@ export function useChatRoom(roomId: string | null) {
         }),
       })
       if (!res.ok) throw new Error('Failed to send message')
+
+      // 응답에서 메시지 가져와서 바로 추가 (optimistic update)
+      const newMessage = await res.json()
+      setMessages((prev) => {
+        const exists = prev.some((m) => m.id === newMessage.id)
+        if (exists) return prev
+        return [...prev, newMessage]
+      })
 
       // 타이핑 상태 해제
       await setTyping(false)
@@ -294,7 +332,7 @@ export function usePresence(roomId: string | null) {
         const userIds = Object.values(state)
           .flat()
           .map((p: any) => p.user_id)
-        setOnlineUsers([...new Set(userIds)])
+        setOnlineUsers(Array.from(new Set(userIds)))
       })
       .on('presence', { event: 'join' }, ({ key, newPresences }) => {
         console.log('User joined:', key, newPresences)

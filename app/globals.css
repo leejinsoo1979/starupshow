@@ -111,6 +111,14 @@
   .light *:focus-visible {
     @apply ring-offset-white;
   }
+
+  /* No focus ring for inputs/textareas with this class */
+  .no-focus-ring:focus,
+  .no-focus-ring:focus-visible {
+    @apply ring-0 ring-offset-0 outline-none !important;
+    --tw-ring-color: transparent !important;
+    box-shadow: none !important;
+  }
 }
 
 @layer components {
