@@ -1,7 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { SendMessageRequest } from '@/types/chat'
 import { generateAgentChatResponse, generateAgentMeetingResponse } from '@/lib/langchain/agent-chat'
+import {
+  processAgentResponses,
+  convertToDbMessage,
+  getRoomAgents,
+} from '@/lib/agents/chat-integration'
 
 // GET: 메시지 목록 조회 (페이지네이션)
 export async function GET(
@@ -9,7 +15,8 @@ export async function GET(
   { params }: { params: { roomId: string } }
 ) {
   try {
-    const supabase = await createClient()
+    const supabase = createClient()
+    const adminClient = createAdminClient()
     const { data: { user }, error: authError } = await supabase.auth.getUser()
 
     if (authError || !user) {
@@ -22,7 +29,7 @@ export async function GET(
     const before = searchParams.get('before') // cursor for pagination
 
     // 참여자인지 확인
-    const { data: participant } = await supabase
+    const { data: participant } = await (adminClient as any)
       .from('chat_participants')
       .select('id')
       .eq('room_id', roomId)
@@ -34,19 +41,9 @@ export async function GET(
     }
 
     // 메시지 조회
-    let query = supabase
+    let query = (adminClient as any)
       .from('chat_messages')
-      .select(`
-        *,
-        sender_user:sender_user_id(id, name, avatar_url),
-        sender_agent:sender_agent_id(id, name),
-        reply_to:reply_to_id(
-          id,
-          content,
-          sender_user:sender_user_id(id, name),
-          sender_agent:sender_agent_id(id, name)
-        )
-      `)
+      .select('*')
       .eq('room_id', roomId)
       .order('created_at', { ascending: false })
       .limit(limit)
@@ -62,15 +59,56 @@ export async function GET(
       return NextResponse.json({ error: error.message }, { status: 500 })
     }
 
+    // sender 정보 수집 및 조회
+    const userIds = new Set<string>()
+    const agentIds = new Set<string>()
+
+    for (const msg of (messages as any[]) || []) {
+      if (msg.sender_user_id) userIds.add(msg.sender_user_id)
+      if (msg.sender_agent_id) agentIds.add(msg.sender_agent_id)
+    }
+
+    let usersMap: Record<string, any> = {}
+    let agentsMap: Record<string, any> = {}
+
+    if (userIds.size > 0) {
+      const { data: users } = await (adminClient as any)
+        .from('users')
+        .select('id, name, avatar_url')
+        .in('id', Array.from(userIds))
+
+      for (const u of users || []) {
+        usersMap[u.id] = u
+      }
+    }
+
+    if (agentIds.size > 0) {
+      const { data: agents } = await (adminClient as any)
+        .from('deployed_agents')
+        .select('id, name')
+        .in('id', Array.from(agentIds))
+
+      for (const a of agents || []) {
+        agentsMap[a.id] = a
+      }
+    }
+
+    // 메시지에 sender 정보 추가
+    const messagesWithSenders = ((messages as any[]) || []).map((msg: any) => ({
+      ...msg,
+      sender_user: msg.sender_user_id ? usersMap[msg.sender_user_id] : null,
+      sender_agent: msg.sender_agent_id ? agentsMap[msg.sender_agent_id] : null,
+    }))
+
     // 읽음 처리 - last_read_at 업데이트
-    await supabase
+    await (adminClient as any)
       .from('chat_participants')
       .update({ last_read_at: new Date().toISOString() })
       .eq('room_id', roomId)
       .eq('user_id', user.id)
 
     // 역순으로 정렬하여 반환 (오래된 순)
-    return NextResponse.json(messages?.reverse() || [])
+    return NextResponse.json(messagesWithSenders?.reverse() || [])
   } catch (error) {
     console.error('Messages fetch error:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
@@ -83,7 +121,8 @@ export async function POST(
   { params }: { params: { roomId: string } }
 ) {
   try {
-    const supabase = await createClient()
+    const supabase = createClient()
+    const adminClient = createAdminClient()
     const { data: { user }, error: authError } = await supabase.auth.getUser()
 
     if (authError || !user) {
@@ -99,7 +138,7 @@ export async function POST(
     }
 
     // 참여자인지 확인
-    const { data: participant } = await supabase
+    const { data: participant } = await (adminClient as any)
       .from('chat_participants')
       .select('id, participant_type')
       .eq('room_id', roomId)
@@ -111,7 +150,7 @@ export async function POST(
     }
 
     // 메시지 생성
-    const { data: message, error } = await supabase
+    const { data: message, error } = await (adminClient as any)
       .from('chat_messages')
       .insert({
         room_id: roomId,
@@ -123,17 +162,7 @@ export async function POST(
         reply_to_id,
         is_ai_response: false,
       })
-      .select(`
-        *,
-        sender_user:sender_user_id(id, name, avatar_url),
-        sender_agent:sender_agent_id(id, name),
-        reply_to:reply_to_id(
-          id,
-          content,
-          sender_user:sender_user_id(id, name),
-          sender_agent:sender_agent_id(id, name)
-        )
-      `)
+      .select('*')
       .single()
 
     if (error) {
@@ -141,8 +170,8 @@ export async function POST(
       return NextResponse.json({ error: error.message }, { status: 500 })
     }
 
-    // AI 에이전트가 있는 방이면 자동 응답 트리거
-    await triggerAgentResponse(supabase, roomId, message)
+    // AI 에이전트가 있는 방이면 자동 응답 트리거 (adminClient로 RLS 우회)
+    await triggerAgentResponse(adminClient, roomId, message)
 
     return NextResponse.json(message, { status: 201 })
   } catch (error) {
@@ -151,7 +180,7 @@ export async function POST(
   }
 }
 
-// AI 에이전트 자동 응답 트리거
+// AI 에이전트 자동 응답 트리거 (오케스트레이터 사용)
 async function triggerAgentResponse(
   supabase: any,
   roomId: string,
@@ -159,34 +188,91 @@ async function triggerAgentResponse(
 ) {
   try {
     // 방에 참여한 에이전트 조회
-    const { data: agents } = await supabase
-      .from('chat_participants')
-      .select(`
-        agent:agent_id(
-          id,
-          name,
-          description,
-          capabilities,
-          config
-        )
-      `)
-      .eq('room_id', roomId)
-      .eq('participant_type', 'agent')
-      .not('agent_id', 'is', null)
-
+    const agents = await getRoomAgents(supabase, roomId)
     if (!agents || agents.length === 0) return
 
-    // 각 에이전트에 대해 응답 생성 (비동기)
-    for (const { agent } of agents) {
-      if (!agent) continue
+    // 채팅방 정보 조회
+    const { data: room } = await supabase
+      .from('chat_rooms')
+      .select('name, type, is_meeting_active, meeting_topic')
+      .eq('id', roomId)
+      .single()
 
-      // 백그라운드에서 AI 응답 생성 (non-blocking)
-      generateAgentResponseHandler(supabase, roomId, agent, userMessage).catch((err) =>
-        console.error(`Agent ${agent.id} response error:`, err)
+    // 에이전트가 1개면 기존 방식 (빠른 응답), 여러 개면 오케스트레이터
+    if (agents.length === 1) {
+      // 기존 단일 에이전트 방식
+      generateAgentResponseHandler(supabase, roomId, agents[0], userMessage).catch((err) =>
+        console.error(`Agent ${agents[0].id} response error:`, err)
+      )
+    } else {
+      // 멀티 에이전트 오케스트레이터
+      triggerMultiAgentResponse(supabase, roomId, agents, userMessage, room).catch((err) =>
+        console.error('Multi-agent response error:', err)
       )
     }
   } catch (error) {
     console.error('Trigger agent response error:', error)
+  }
+}
+
+// 멀티 에이전트 응답 처리
+async function triggerMultiAgentResponse(
+  supabase: any,
+  roomId: string,
+  agents: any[],
+  userMessage: any,
+  room: any
+) {
+  try {
+    // 모든 에이전트 타이핑 상태 활성화
+    for (const agent of agents) {
+      await supabase
+        .from('chat_participants')
+        .update({ is_typing: true })
+        .eq('room_id', roomId)
+        .eq('agent_id', agent.id)
+    }
+
+    // 오케스트레이터 실행
+    const responses = await processAgentResponses(
+      agents,
+      userMessage.content,
+      {
+        roomId,
+        roomName: room?.name,
+        roomType: room?.type,
+        isMeeting: room?.is_meeting_active,
+        meetingTopic: room?.meeting_topic,
+      }
+    )
+
+    // 각 응답을 메시지로 저장
+    for (const response of responses) {
+      const dbMessage = convertToDbMessage(response, roomId)
+      await supabase.from('chat_messages').insert(dbMessage)
+    }
+  } catch (error) {
+    console.error('Multi-agent orchestration error:', error)
+
+    // 에러 메시지 저장
+    await supabase.from('chat_messages').insert({
+      room_id: roomId,
+      sender_type: 'agent',
+      sender_agent_id: agents[0]?.id,
+      message_type: 'text',
+      content: '죄송합니다. 멀티 에이전트 처리 중 오류가 발생했습니다.',
+      is_ai_response: true,
+      metadata: { error: true },
+    })
+  } finally {
+    // 모든 에이전트 타이핑 상태 해제
+    for (const agent of agents) {
+      await supabase
+        .from('chat_participants')
+        .update({ is_typing: false })
+        .eq('room_id', roomId)
+        .eq('agent_id', agent.id)
+    }
   }
 }
 
@@ -208,56 +294,95 @@ async function generateAgentResponseHandler(
     // 채팅방 정보 조회
     const { data: room } = await supabase
       .from('chat_rooms')
-      .select(`
-        name,
-        type,
-        is_meeting_active,
-        meeting_topic,
-        participants:chat_participants(
-          user:user_id(name),
-          agent:agent_id(name)
-        )
-      `)
+      .select('name, type, is_meeting_active, meeting_topic')
       .eq('id', roomId)
       .single()
+
+    // 참여자 조회
+    const { data: participants } = await supabase
+      .from('chat_participants')
+      .select('user_id, agent_id')
+      .eq('room_id', roomId)
+
+    // 참여자 이름 가져오기
+    const userIds = participants?.filter((p: any) => p.user_id).map((p: any) => p.user_id) || []
+    const agentIds = participants?.filter((p: any) => p.agent_id).map((p: any) => p.agent_id) || []
+
+    let participantNames: string[] = []
+
+    if (userIds.length > 0) {
+      const { data: users } = await supabase
+        .from('users')
+        .select('name')
+        .in('id', userIds)
+      participantNames = participantNames.concat(users?.map((u: any) => u.name) || [])
+    }
+
+    if (agentIds.length > 0) {
+      const { data: agentList } = await supabase
+        .from('deployed_agents')
+        .select('name')
+        .in('id', agentIds)
+      participantNames = participantNames.concat(agentList?.map((a: any) => a.name) || [])
+    }
 
     // 최근 메시지 기록 조회
     const { data: recentMessages } = await supabase
       .from('chat_messages')
-      .select(`
-        content,
-        sender_type,
-        sender_user:sender_user_id(name),
-        sender_agent:sender_agent_id(name)
-      `)
+      .select('content, sender_type, sender_user_id, sender_agent_id')
       .eq('room_id', roomId)
       .order('created_at', { ascending: false })
       .limit(15)
-
-    // 참여자 이름 추출
-    const participantNames = room?.participants
-      ?.map((p: any) => p.user?.name || p.agent?.name)
-      .filter(Boolean) || []
 
     // LangChain을 사용한 응답 생성
     let response: string
 
     if (room?.is_meeting_active && room?.meeting_topic) {
       // 미팅 모드: 에이전트 간 토론
-      const otherAgents = room.participants
-        ?.filter((p: any) => p.agent && p.agent.id !== agent.id)
-        .map((p: any) => ({ name: p.agent.name, role: 'AI 에이전트' })) || []
+      // 다른 에이전트 정보 가져오기
+      const otherAgentIds = agentIds.filter((id: string) => id !== agent.id)
+      let otherAgents: { name: string; role: string }[] = []
+
+      if (otherAgentIds.length > 0) {
+        const { data: otherAgentData } = await supabase
+          .from('deployed_agents')
+          .select('name')
+          .in('id', otherAgentIds)
+        otherAgents = otherAgentData?.map((a: any) => ({ name: a.name, role: 'AI 에이전트' })) || []
+      }
+
+      // 에이전트 설정을 LangChain 형식으로 변환
+      const agentWithConfig = {
+        ...agent,
+        config: {
+          llm_provider: 'openai' as const, // DeployedAgent는 provider가 없으므로 기본값 사용
+          llm_model: agent.model || 'gpt-4',
+          temperature: agent.temperature || 0.7,
+          custom_prompt: agent.system_prompt,
+        }
+      }
 
       response = await generateAgentMeetingResponse(
-        agent,
+        agentWithConfig,
         room.meeting_topic,
         recentMessages?.reverse() || [],
         otherAgents
       )
     } else {
       // 일반 채팅 모드
+      // 에이전트 설정을 LangChain 형식으로 변환
+      const agentWithConfig = {
+        ...agent,
+        config: {
+          llm_provider: 'openai' as const,
+          llm_model: agent.model || 'gpt-4',
+          temperature: agent.temperature || 0.7,
+          custom_prompt: agent.system_prompt,
+        }
+      }
+
       response = await generateAgentChatResponse(
-        agent,
+        agentWithConfig,
         userMessage.content,
         recentMessages?.reverse() || [],
         {
@@ -277,8 +402,8 @@ async function generateAgentResponseHandler(
       content: response,
       is_ai_response: true,
       metadata: {
-        model: agent.config?.llm_model || 'gpt-4',
-        provider: agent.config?.llm_provider || 'openai',
+        model: agent.model || 'gpt-4',
+        provider: 'openai',
         agent_name: agent.name,
       },
     })
