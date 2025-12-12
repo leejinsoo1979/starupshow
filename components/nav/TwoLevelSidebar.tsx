@@ -10,6 +10,7 @@ import { useUIStore } from '@/stores/uiStore'
 import { useAuthStore } from '@/stores/authStore'
 import { createClient } from '@/lib/supabase/client'
 import { Logo } from '@/components/ui'
+import { CgMenuGridO } from 'react-icons/cg'
 import {
   LayoutDashboard,
   ListTodo,
@@ -35,6 +36,12 @@ import {
 
 // 1단계: 카테고리 (아이콘만)
 const categories = [
+  {
+    id: 'menu',
+    name: '메뉴',
+    icon: CgMenuGridO,
+    items: []
+  },
   {
     id: 'home',
     name: '홈',
