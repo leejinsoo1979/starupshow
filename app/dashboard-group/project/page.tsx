@@ -79,11 +79,21 @@ export default function ProjectsPage() {
     try {
       setLoading(true)
       const res = await fetch("/api/projects")
-      if (!res.ok) throw new Error("프로젝트 로드 실패")
+      if (!res.ok) {
+        console.error("프로젝트 로드 실패")
+        setProjects([])
+        return
+      }
       const data = await res.json()
-      setProjects(data)
+      // 배열인지 확인 후 설정
+      if (Array.isArray(data)) {
+        setProjects(data)
+      } else {
+        setProjects([])
+      }
     } catch (error) {
       console.error("Projects fetch error:", error)
+      setProjects([])
     } finally {
       setLoading(false)
     }
@@ -94,9 +104,12 @@ export default function ProjectsPage() {
       const res = await fetch("/api/teams")
       if (!res.ok) return
       const data = await res.json()
-      setTeams(data)
-      if (data.length > 0 && !newProject.team_id) {
-        setNewProject((prev) => ({ ...prev, team_id: data[0].id }))
+      // 배열인지 확인 후 설정
+      if (Array.isArray(data)) {
+        setTeams(data)
+        if (data.length > 0 && !newProject.team_id) {
+          setNewProject((prev) => ({ ...prev, team_id: data[0].id }))
+        }
       }
     } catch (error) {
       console.error("Teams fetch error:", error)
@@ -108,7 +121,10 @@ export default function ProjectsPage() {
       const res = await fetch(`/api/team-members?team_id=${teamId}`)
       if (!res.ok) return
       const data = await res.json()
-      setTeamMembers(data.map((m: any) => m.user).filter(Boolean))
+      // 배열인지 확인 후 설정
+      if (Array.isArray(data)) {
+        setTeamMembers(data.map((m: any) => m.user).filter(Boolean))
+      }
     } catch (error) {
       console.error("Team members fetch error:", error)
     }
@@ -119,7 +135,10 @@ export default function ProjectsPage() {
       const res = await fetch("/api/agents")
       if (!res.ok) return
       const data = await res.json()
-      setAgents(data)
+      // 배열인지 확인 후 설정
+      if (Array.isArray(data)) {
+        setAgents(data)
+      }
     } catch (error) {
       console.error("Agents fetch error:", error)
     }

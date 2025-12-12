@@ -33,6 +33,7 @@ export default function MessengerPage() {
     loading: messagesLoading,
     sending,
     typingUsers,
+    agentTyping,
     sendMessage,
     handleTyping
   } = useChatRoom(activeRoomId)
@@ -425,9 +426,41 @@ export default function MessengerPage() {
             })
           )}
 
-          {/* Typing Indicator */}
+          {/* Agent Typing Indicator */}
           <AnimatePresence>
-            {typingUsers.length > 0 && (
+            {agentTyping && (
+              <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                className="flex gap-3"
+              >
+                <div className="w-8 h-8 rounded-full flex-shrink-0 flex items-center justify-center text-xs font-bold bg-gradient-to-br from-purple-500 to-indigo-600 text-white mt-1">
+                  <Bot className="w-4 h-4" />
+                </div>
+                <div className="flex flex-col items-start gap-1">
+                  <span className="text-xs text-zinc-500 px-1 flex items-center gap-1">
+                    <Bot className="w-3 h-3" />
+                    {activeRoom?.participants?.find(p => p.agent)?.agent?.name || 'AI 에이전트'}
+                  </span>
+                  <div className={`px-4 py-3 rounded-2xl rounded-tl-sm ${isDark ? 'bg-zinc-800 border border-zinc-700' : 'bg-white border border-zinc-200'}`}>
+                    <div className="flex items-center gap-2">
+                      <div className="flex gap-1">
+                        <span className="w-2 h-2 bg-purple-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                        <span className="w-2 h-2 bg-purple-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                        <span className="w-2 h-2 bg-purple-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                      </div>
+                      <span className="text-sm text-zinc-500">답변 생성 중...</span>
+                    </div>
+                  </div>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          {/* User Typing Indicator */}
+          <AnimatePresence>
+            {typingUsers.length > 0 && !agentTyping && (
               <motion.div
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}

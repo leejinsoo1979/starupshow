@@ -120,6 +120,7 @@ export function useChatRoom(roomId: string | null) {
   const [sending, setSending] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [typingUsers, setTypingUsers] = useState<ChatParticipant[]>([])
+  const [agentTyping, setAgentTyping] = useState(false) // 에이전트 응답 생성 중
 
   const supabase = createClient()
   const channelRef = useRef<RealtimeChannel | null>(null)
@@ -129,11 +130,14 @@ export function useChatRoom(roomId: string | null) {
   const fetchRoom = useCallback(async () => {
     if (!roomId) return
     try {
+      console.log('[useChat] fetchRoom 호출:', roomId)
       const res = await fetch(`/api/chat/rooms/${roomId}`)
       if (!res.ok) throw new Error('Failed to fetch room')
       const data = await res.json()
+      console.log('[useChat] fetchRoom 성공:', data?.id, 'participants:', data?.participants?.length)
       setRoom(data)
     } catch (err) {
+      console.error('[useChat] fetchRoom 에러:', err)
       setError(err instanceof Error ? err.message : 'Unknown error')
     }
   }, [roomId])
@@ -179,8 +183,11 @@ export function useChatRoom(roomId: string | null) {
   useEffect(() => {
     if (!roomId) return
 
+    let isSubscribed = true
+    let pollingInterval: NodeJS.Timeout | null = null
+
     const channel = supabase
-      .channel(`room:${roomId}`)
+      .channel(`room:${roomId}:${Date.now()}`) // 고유한 채널 이름
       .on(
         'postgres_changes',
         {
@@ -190,12 +197,13 @@ export function useChatRoom(roomId: string | null) {
           filter: `room_id=eq.${roomId}`,
         },
         (payload) => {
-          // 새 메시지 추가 (중복 방지)
-          setMessages((prev) => {
-            const exists = prev.some((m) => m.id === payload.new.id)
-            if (exists) return prev
-            return [...prev, payload.new as ChatMessage]
-          })
+          console.log('[Realtime] 새 메시지 감지:', payload)
+          if (isSubscribed) {
+            // 새 메시지 - 전체 다시 가져오기 (sender 정보 포함)
+            fetchMessages()
+            // 에이전트 타이핑 상태 해제
+            setAgentTyping(false)
+          }
         }
       )
       .on(
@@ -207,6 +215,7 @@ export function useChatRoom(roomId: string | null) {
           filter: `room_id=eq.${roomId}`,
         },
         async () => {
+          if (!isSubscribed) return
           // 타이핑 상태 변경 시 참여자 정보 갱신
           await fetchRoom()
           // 타이핑 중인 사용자 필터링
@@ -216,14 +225,45 @@ export function useChatRoom(roomId: string | null) {
           }
         }
       )
-      .subscribe()
+      .subscribe((status) => {
+        console.log('[Realtime] 구독 상태:', status)
+        if (status === 'SUBSCRIBED') {
+          console.log('[Realtime] 실시간 연결 성공!')
+          // 실시간 연결 성공하면 폴링 중지
+          if (pollingInterval) {
+            clearInterval(pollingInterval)
+            pollingInterval = null
+          }
+        } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+          console.warn('[Realtime] 연결 실패, 폴링으로 전환')
+          // 실시간 실패 시 폴링 시작 (3초마다)
+          if (!pollingInterval) {
+            pollingInterval = setInterval(() => {
+              if (isSubscribed) {
+                fetchMessages()
+              }
+            }, 3000)
+          }
+        }
+      })
 
     channelRef.current = channel
 
+    // 초기 폴링 시작 (realtime이 연결될 때까지)
+    pollingInterval = setInterval(() => {
+      if (isSubscribed) {
+        fetchMessages()
+      }
+    }, 5000)
+
     return () => {
+      isSubscribed = false
+      if (pollingInterval) {
+        clearInterval(pollingInterval)
+      }
       supabase.removeChannel(channel)
     }
-  }, [roomId, supabase, room?.participants, fetchRoom])
+  }, [roomId, supabase, fetchMessages, fetchRoom, room?.participants])
 
   // 메시지 전송
   const sendMessage = async (content: string, options?: {
@@ -233,8 +273,22 @@ export function useChatRoom(roomId: string | null) {
   }) => {
     if (!roomId || !content.trim()) return
 
+    // 채팅방에 에이전트가 있는지 확인
+    const hasAgent = room?.participants?.some(p => p.participant_type === 'agent' || p.agent)
+    console.log('[useChat] sendMessage - room:', room?.id, 'participants:', room?.participants?.length, 'hasAgent:', hasAgent)
+    if (room?.participants) {
+      console.log('[useChat] participants:', room.participants.map(p => ({ type: p.participant_type, agent: !!p.agent, user: !!p.user })))
+    }
+
     try {
       setSending(true)
+
+      // 에이전트가 있으면 타이핑 상태 설정
+      if (hasAgent) {
+        console.log('[useChat] 에이전트 타이핑 상태 설정!')
+        setAgentTyping(true)
+      }
+
       const res = await fetch(`/api/chat/rooms/${roomId}/messages`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -253,10 +307,34 @@ export function useChatRoom(roomId: string | null) {
         return [...prev, newMessage]
       })
 
+      // 에이전트 응답 대기 후 메시지 갱신 (Realtime 안될 경우 대비)
+      const checkForAgentResponse = async () => {
+        await fetchMessages()
+        // 새 메시지가 에이전트로부터 왔는지 확인
+        const latestMessages = await fetch(`/api/chat/rooms/${roomId}/messages`).then(r => r.json())
+        const hasNewAgentMessage = latestMessages.some((m: any) =>
+          m.sender_type === 'agent' && new Date(m.created_at) > new Date(newMessage.created_at)
+        )
+        if (hasNewAgentMessage) {
+          setAgentTyping(false)
+        }
+        return hasNewAgentMessage
+      }
+
+      // 점진적으로 체크 (더 자주, 더 오래)
+      const intervals = [500, 1000, 1500, 2000, 3000, 4000, 6000, 8000, 10000, 15000]
+      for (const delay of intervals) {
+        setTimeout(async () => {
+          const found = await checkForAgentResponse()
+          if (found) return
+        }, delay)
+      }
+
       // 타이핑 상태 해제
       await setTyping(false)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unknown error')
+      setAgentTyping(false) // 에러 시 타이핑 해제
       throw err
     } finally {
       setSending(false)
@@ -309,6 +387,7 @@ export function useChatRoom(roomId: string | null) {
     sending,
     error,
     typingUsers,
+    agentTyping,
     sendMessage,
     handleTyping,
     fetchMessages,

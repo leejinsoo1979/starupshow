@@ -17,7 +17,7 @@ interface LLMConfig {
 // LLM 인스턴스 생성
 export function createLLM(config: LLMConfig) {
   const provider = config.provider || 'llama'
-  const model = config.model || (provider === 'llama' ? 'deepseek-r1:7b' : 'gpt-4o-mini')
+  const model = config.model || (provider === 'llama' ? 'deepseek-r1:1.5b' : 'gpt-4o-mini')
 
   console.log('[createLLM] Provider:', provider, '모델:', model)
 
@@ -63,7 +63,7 @@ export function createLLM(config: LLMConfig) {
 
     default:
       return new ChatOllama({
-        model: 'deepseek-r1:7b',
+        model: 'deepseek-r1:1.5b',
         temperature: 0.7,
       })
   }
@@ -166,7 +166,7 @@ export async function generateAgentChatResponse(
   // LLM 설정 (기본: Ollama 로컬)
   const llmConfig: LLMConfig = {
     provider: agent.config?.llm_provider || 'llama',
-    model: agent.config?.llm_model || 'deepseek-r1:7b',
+    model: agent.config?.llm_model || 'deepseek-r1:1.5b',
     temperature: agent.config?.temperature || 0.7,
   }
 
@@ -242,7 +242,7 @@ export async function generateAgentMeetingResponse(
 ): Promise<string> {
   const llmConfig: LLMConfig = {
     provider: agent.config?.llm_provider || 'llama',
-    model: agent.config?.llm_model || 'deepseek-r1:7b',
+    model: agent.config?.llm_model || 'deepseek-r1:1.5b',
     temperature: 0.8, // 더 창의적인 응답
   }
 

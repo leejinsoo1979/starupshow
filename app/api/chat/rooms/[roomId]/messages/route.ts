@@ -447,7 +447,7 @@ ${memoryContext}
         ...agent,
         config: {
           llm_provider: 'llama' as const,
-          llm_model: 'deepseek-r1:7b',
+          llm_model: 'deepseek-r1:1.5b',
           temperature: agent.temperature || 0.7,
           custom_prompt: enhancedSystemPrompt,
         }
@@ -466,13 +466,13 @@ ${memoryContext}
         ...agent,
         config: {
           llm_provider: 'llama' as const,
-          llm_model: 'deepseek-r1:7b',
+          llm_model: 'deepseek-r1:1.5b',
           temperature: agent.temperature || 0.7,
           custom_prompt: enhancedSystemPrompt,
         }
       }
 
-      console.log('[generateAgentResponse] LangChain 응답 생성 시작, 모델: deepseek-r1:7b')
+      console.log('[generateAgentResponse] LangChain 응답 생성 시작, 모델: deepseek-r1:1.5b')
       response = await generateAgentChatResponse(
         agentWithConfig,
         userMessage.content,
