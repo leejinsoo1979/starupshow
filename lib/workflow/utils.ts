@@ -186,7 +186,7 @@ export const createNode = ({
         ...baseNode,
         data: {
           ...baseNode.data,
-          aiModel: "gpt-4",
+          aiModel: "gpt-4o-mini",
           aiPrompt: "다음 데이터를 분석해주세요:\n{{input}}",
           aiTemperature: 0.7,
         },

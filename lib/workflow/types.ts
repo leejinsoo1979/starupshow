@@ -27,7 +27,7 @@ export interface NodeData {
   code?: string
 
   // AI node properties
-  aiModel?: "gpt-4" | "gpt-3.5" | "claude"
+  aiModel?: "gpt-4" | "gpt-4o" | "gpt-4o-mini" | "gpt-3.5" | "claude"
   aiPrompt?: string
   aiTemperature?: number
 

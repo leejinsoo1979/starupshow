@@ -15,16 +15,19 @@ interface LLMConfig {
 
 // LLM 인스턴스 생성 (Provider 추상화)
 export function createLLM(config: LLMConfig) {
-  // gpt-4 계열 모델은 접근 불가하므로 gpt-4o-mini로 변경
-  let safeModel = config.model || 'gpt-4o-mini'
-  if (safeModel.startsWith('gpt-4') && !safeModel.includes('gpt-4o')) {
-    safeModel = 'gpt-4o-mini'
-  }
+  // 기본값: Ollama (로컬, 무료)
+  const provider = config.provider || 'llama'
+  const model = config.model || (provider === 'llama' ? 'deepseek-r1:7b' : 'gpt-4o-mini')
 
-  console.log('[createLLM] 원본 모델:', config.model, '→ 사용 모델:', safeModel)
+  console.log('[createLLM] Provider:', provider, '모델:', model)
 
-  switch (config.provider) {
+  switch (provider) {
     case 'openai':
+      // gpt-4 계열은 gpt-4o-mini로 변경
+      let safeModel = model
+      if (safeModel.startsWith('gpt-4') && !safeModel.includes('gpt-4o')) {
+        safeModel = 'gpt-4o-mini'
+      }
       return new ChatOpenAI({
         modelName: safeModel,
         temperature: config.temperature || 0.7,
@@ -219,8 +222,11 @@ ${baseSystemPrompt}
     })
 
     return response
-  } catch (error) {
-    console.error('Agent response generation error:', error)
+  } catch (error: any) {
+    console.error('Agent response generation error:')
+    console.error('Error name:', error?.name)
+    console.error('Error message:', error?.message)
+    console.error('Error cause:', error?.cause)
     throw error
   }
 }

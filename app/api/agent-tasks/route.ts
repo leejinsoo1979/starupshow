@@ -230,9 +230,14 @@ ${assignerAgent ? `- 할당자: ${assignerAgent.name} (AI 에이전트)` : '- �
 
 업무를 완료하고 결과를 보고해주세요.`
 
+  // gpt-4 계열 모델은 접근 불가하므로 gpt-4o-mini로 변경
+  let safeModel = agent.model || 'gpt-4o-mini'
+  if (safeModel.startsWith('gpt-4') && !safeModel.includes('gpt-4o')) {
+    safeModel = 'gpt-4o-mini'
+  }
   try {
     const completion = await openai.chat.completions.create({
-      model: agent.model || 'gpt-4',
+      model: safeModel,
       messages: [
         { role: 'system', content: systemPrompt },
         { role: 'user', content: task.instructions },

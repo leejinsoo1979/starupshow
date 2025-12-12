@@ -240,8 +240,13 @@ async function generateAgentResponse(
   }
 
   try {
+    // gpt-4 계열 모델은 접근 불가하므로 gpt-4o-mini로 변경
+    let safeModel = agent.model || 'gpt-4o-mini'
+    if (safeModel.startsWith('gpt-4') && !safeModel.includes('gpt-4o')) {
+      safeModel = 'gpt-4o-mini'
+    }
     const completion = await openai.chat.completions.create({
-      model: agent.model || 'gpt-4',
+      model: safeModel,
       messages,
       temperature: agent.temperature || 0.7,
       max_tokens: 1000,

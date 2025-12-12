@@ -56,7 +56,7 @@ JSON 형식으로만 응답하세요:
   "nodes": [
     { "type": "start", "label": "시작" },
     { "type": "prompt", "label": "시스템 프롬프트", "config": { "systemPrompt": "고객 서비스 AI입니다. 친절하게 응답하세요." } },
-    { "type": "llm", "label": "응답 생성", "config": { "model": "gpt-4", "temperature": 0.7 } },
+    { "type": "llm", "label": "응답 생성", "config": { "model": "gpt-4o-mini", "temperature": 0.7 } },
     { "type": "end", "label": "종료" }
   ],
   "connections": [
@@ -78,7 +78,7 @@ export async function POST(request: NextRequest) {
     }
 
     const completion = await openai.chat.completions.create({
-      model: 'gpt-4',
+      model: 'gpt-4o-mini',
       messages: [
         { role: 'system', content: SYSTEM_PROMPT },
         { role: 'user', content: `에이전트 이름: ${name}\n설명: ${description}` }

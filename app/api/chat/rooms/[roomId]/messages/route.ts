@@ -414,13 +414,12 @@ ${memoryContext}
       }
 
       // 에이전트 설정을 LangChain 형식으로 변환 (메모리 포함)
-      // gpt-4는 접근 불가하므로 gpt-4o-mini로 강제 변경
-      const safeModelMeeting = (agent.model === 'gpt-4') ? 'gpt-4o-mini' : (agent.model || 'gpt-4o-mini')
+      // 기본: Ollama (로컬, 무료)
       const agentWithConfig = {
         ...agent,
         config: {
-          llm_provider: 'openai' as const,
-          llm_model: safeModelMeeting,
+          llm_provider: (agent.llm_provider || 'llama') as 'openai' | 'llama',
+          llm_model: agent.llm_model || 'deepseek-r1:7b',
           temperature: agent.temperature || 0.7,
           custom_prompt: enhancedSystemPrompt,
         }
@@ -434,13 +433,12 @@ ${memoryContext}
       )
     } else {
       // 일반 채팅 모드 (메모리 포함)
-      // gpt-4는 접근 불가하므로 gpt-4o-mini로 강제 변경
-      const safeModel = (agent.model === 'gpt-4') ? 'gpt-4o-mini' : (agent.model || 'gpt-4o-mini')
+      // 기본: Ollama (로컬, 무료)
       const agentWithConfig = {
         ...agent,
         config: {
-          llm_provider: 'openai' as const,
-          llm_model: safeModel,
+          llm_provider: (agent.llm_provider || 'llama') as 'openai' | 'llama',
+          llm_model: agent.llm_model || 'deepseek-r1:7b',
           temperature: agent.temperature || 0.7,
           custom_prompt: enhancedSystemPrompt,
         }
@@ -503,8 +501,12 @@ ${memoryContext}
       response
     ).catch(err => console.error('Knowledge extraction error:', err))
 
-  } catch (error) {
-    console.error(`Agent ${agent.id} response generation failed:`, error)
+  } catch (error: any) {
+    console.error(`Agent ${agent.id} response generation failed:`)
+    console.error('Error name:', error?.name)
+    console.error('Error message:', error?.message)
+    console.error('Error stack:', error?.stack)
+    console.error('Full error:', JSON.stringify(error, null, 2))
 
     // 에러 시 폴백 메시지
     await supabase.from('chat_messages').insert({

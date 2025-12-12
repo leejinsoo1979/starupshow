@@ -89,7 +89,7 @@ export async function POST(request: NextRequest) {
       capabilities,
       avatar_url,
       system_prompt,
-      model = 'gpt-4',
+      model = 'gpt-4o-mini',
       temperature = 0.7,
       // 상호작용 설정
       interaction_mode = 'solo',
