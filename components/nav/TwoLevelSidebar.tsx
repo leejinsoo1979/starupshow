@@ -44,12 +44,19 @@ const categories = [
     items: []
   },
   {
+    id: 'company',
+    name: '회사',
+    icon: Building2,
+    items: [
+      { name: '회사 정보', href: '/dashboard-group/startup', icon: Building2 },
+    ]
+  },
+  {
     id: 'home',
     name: '홈',
     icon: Home,
     items: [
       { name: '대시보드', href: '/dashboard-group', icon: LayoutDashboard },
-      { name: '스타트업', href: '/dashboard-group/startup', icon: Building2 },
     ]
   },
   {
