@@ -8,6 +8,7 @@ import { useTheme } from 'next-themes'
 import { cn } from '@/lib/utils'
 import { useUIStore } from '@/stores/uiStore'
 import { useAuthStore } from '@/stores/authStore'
+import { useThemeStore } from '@/stores/themeStore'
 import { createClient } from '@/lib/supabase/client'
 import { Logo } from '@/components/ui'
 import { CgMenuGridO } from 'react-icons/cg'
@@ -554,7 +555,7 @@ const investorCategories: Category[] = [
   },
 ]
 
-// 상위 메뉴 카드 컴포넌트 (2열 그리드용 세로 직사각형)
+// 상위 메뉴 카드 컴포넌트 (2열 그리드용 - Premium Redesign)
 function TopLevelCardMenu({
   item,
   isDark,
@@ -567,43 +568,111 @@ function TopLevelCardMenu({
   onToggle: () => void
 }) {
   const IconComponent = item.icon
+  const { accentColor } = useThemeStore()
+
+  // 테마 색상에 따른 Glow 효과 클래스 생성
+  const getGlowColor = () => {
+    switch (accentColor) {
+      case 'purple': return 'group-hover:shadow-purple-500/20 group-hover:border-purple-500/30'
+      case 'blue': return 'group-hover:shadow-blue-500/20 group-hover:border-blue-500/30'
+      case 'green': return 'group-hover:shadow-green-500/20 group-hover:border-green-500/30'
+      case 'orange': return 'group-hover:shadow-orange-500/20 group-hover:border-orange-500/30'
+      case 'pink': return 'group-hover:shadow-pink-500/20 group-hover:border-pink-500/30'
+      case 'red': return 'group-hover:shadow-red-500/20 group-hover:border-red-500/30'
+      case 'yellow': return 'group-hover:shadow-yellow-500/20 group-hover:border-yellow-500/30'
+      case 'cyan': return 'group-hover:shadow-cyan-500/20 group-hover:border-cyan-500/30'
+      default: return 'group-hover:shadow-blue-500/20 group-hover:border-blue-500/30'
+    }
+  }
+
+  // 아이콘 bg color
+  const getIconBgColor = () => {
+    switch (accentColor) {
+      case 'purple': return isDark ? 'bg-purple-500/20' : 'bg-purple-100'
+      case 'blue': return isDark ? 'bg-blue-500/20' : 'bg-blue-100'
+      case 'green': return isDark ? 'bg-green-500/20' : 'bg-green-100'
+      case 'orange': return isDark ? 'bg-orange-500/20' : 'bg-orange-100'
+      case 'pink': return isDark ? 'bg-pink-500/20' : 'bg-pink-100'
+      case 'red': return isDark ? 'bg-red-500/20' : 'bg-red-100'
+      case 'yellow': return isDark ? 'bg-yellow-500/20' : 'bg-yellow-100'
+      case 'cyan': return isDark ? 'bg-cyan-500/20' : 'bg-cyan-100'
+      default: return isDark ? 'bg-blue-500/20' : 'bg-blue-100'
+    }
+  }
+
+  // 아이콘 text color
+  const getIconColor = () => {
+    switch (accentColor) {
+      case 'purple': return 'text-purple-500'
+      case 'blue': return 'text-blue-500'
+      case 'green': return 'text-green-500'
+      case 'orange': return 'text-orange-500'
+      case 'pink': return 'text-pink-500'
+      case 'red': return 'text-red-500'
+      case 'yellow': return 'text-yellow-500'
+      case 'cyan': return 'text-cyan-500'
+      default: return 'text-blue-500'
+    }
+  }
 
   return (
     <motion.button
       onClick={onToggle}
       className={cn(
-        'w-full aspect-[3/4] rounded-xl border transition-all duration-200',
-        'flex flex-col items-center justify-center gap-2',
+        'group relative w-full aspect-[1/1] rounded-2xl border transition-all duration-300 ease-out flex flex-col items-center justify-center gap-3 overflow-hidden',
         isDark
-          ? 'bg-zinc-800/50 border-zinc-700/50 hover:bg-zinc-700/50'
-          : 'bg-zinc-100 border-zinc-200 hover:bg-zinc-200/80',
-        isExpanded && 'ring-2 ring-accent/60 border-accent/40'
+          ? 'bg-zinc-900/40 border-zinc-800/60 backdrop-blur-sm'
+          : 'bg-white/80 border-zinc-200/60 shadow-sm',
+        getGlowColor(),
+        isExpanded && 'ring-1 ring-accent border-accent'
       )}
-      whileHover={{ scale: 1.02 }}
-      whileTap={{ scale: 0.97 }}
+      whileHover={{ scale: 1.03, y: -2 }}
+      whileTap={{ scale: 0.98 }}
     >
+      {/* Background Gradient Effect on Hover */}
+      <div
+        className={cn(
+          "absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none",
+          "bg-gradient-to-br from-transparent via-transparent to-black/5"
+        )}
+      />
+
+      {/* Icon Container with Glassmorphism */}
       <div className={cn(
-        'w-10 h-10 rounded-xl flex items-center justify-center',
-        isDark ? 'bg-zinc-700/80' : 'bg-white',
-        'shadow-sm'
+        'relative w-12 h-12 rounded-2xl flex items-center justify-center transition-all duration-300',
+        'group-hover:scale-110 group-hover:rotate-3',
+        isExpanded ? getIconBgColor() : (isDark ? 'bg-zinc-800' : 'bg-zinc-100'),
+        isDark ? 'shadow-inner border border-white/5' : 'shadow-sm border border-black/5'
       )}>
         {IconComponent && (
           <IconComponent className={cn(
-            'w-5 h-5',
+            'w-6 h-6 transition-colors duration-300',
             isExpanded
-              ? 'text-accent'
-              : isDark ? 'text-zinc-400' : 'text-zinc-500'
+              ? getIconColor()
+              : (isDark ? 'text-zinc-400 group-hover:text-zinc-100' : 'text-zinc-500 group-hover:text-zinc-800'),
+            // Active state color override when expanded
+            isExpanded && getIconColor()
           )} />
         )}
       </div>
-      <p className={cn(
-        'text-[11px] font-medium leading-tight px-1 text-center',
-        isExpanded
-          ? 'text-accent'
-          : isDark ? 'text-zinc-300' : 'text-zinc-700'
-      )}>
-        {item.name}
-      </p>
+
+      {/* Text Label */}
+      <div className="flex flex-col items-center gap-0.5 z-10">
+        <p className={cn(
+          'text-sm font-semibold tracking-tight transition-colors duration-300',
+          isExpanded
+            ? getIconColor()
+            : (isDark ? 'text-zinc-400 group-hover:text-zinc-200' : 'text-zinc-600 group-hover:text-zinc-900')
+        )}>
+          {item.name}
+        </p>
+        <p className={cn(
+          "text-[10px] uppercase tracking-wider font-medium opacity-0 transform translate-y-2 transition-all duration-300 group-hover:opacity-100 group-hover:translate-y-0",
+          isDark ? "text-zinc-600" : "text-zinc-400"
+        )}>
+          Open Menu
+        </p>
+      </div>
     </motion.button>
   )
 }
@@ -715,6 +784,14 @@ export function TwoLevelSidebar() {
 
   // pathname에 따라 activeCategory 자동 설정
   useEffect(() => {
+    // 회사 관련 경로 체크
+    const companyPaths = ['/dashboard-group/company', '/dashboard-group/hr', '/dashboard-group/sales', '/dashboard-group/finance', '/dashboard-group/tax', '/dashboard-group/payroll', '/dashboard-group/expense', '/dashboard-group/reports']
+    const isCompanyPath = companyPaths.some(p => pathname.startsWith(p))
+    if (isCompanyPath) {
+      setActiveCategory('company')
+      return
+    }
+
     const allCategories = user?.role === 'INVESTOR' ? investorCategories : categories
     for (const cat of allCategories) {
       const hasMatch = cat.items.some(item => {
@@ -740,7 +817,7 @@ export function TwoLevelSidebar() {
         break
       }
     }
-  }, [pathname, user?.role])
+  }, [pathname, user?.role, setActiveCategory])
 
   const toggleExpand = (name: string) => {
     setExpandedItems(prev => {
@@ -795,6 +872,12 @@ export function TwoLevelSidebar() {
                   setActiveCategory(category.id)
                   setIsSubMenuOpen(true)
                   setSelectedCompanyMenu(null) // 카테고리 변경 시 초기화
+                  // 회사 메뉴 클릭 시 회사 대시보드로 이동
+                  if (category.id === 'company') {
+                    router.push('/dashboard-group/company')
+                  } else if (category.id === 'home') {
+                    router.push('/dashboard-group')
+                  }
                 }}
                 className={cn(
                   'w-10 h-10 rounded-xl flex items-center justify-center transition-all duration-200 group relative',
