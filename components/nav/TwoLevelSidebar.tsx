@@ -12,6 +12,7 @@ import { createClient } from '@/lib/supabase/client'
 import { Logo } from '@/components/ui'
 import { CgMenuGridO } from 'react-icons/cg'
 import { BsPersonWorkspace } from 'react-icons/bs'
+import { IoCalendarOutline } from 'react-icons/io5'
 import {
   LayoutDashboard,
   ListTodo,
@@ -63,6 +64,12 @@ const categories = [
     id: 'workspace',
     name: '워크스페이스',
     icon: BsPersonWorkspace,
+    items: []
+  },
+  {
+    id: 'calendar',
+    name: '캘린더',
+    icon: IoCalendarOutline,
     items: []
   },
   {
