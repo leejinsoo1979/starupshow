@@ -23,7 +23,7 @@ import {
 } from "lucide-react"
 import { Button } from "@/components/ui/Button"
 import { useThemeStore, accentColors } from "@/stores/themeStore"
-import { TaskKanbanBoard } from "@/components/project-workflow"
+import { TaskKanbanBoard, ProjectDocuments } from "@/components/project-workflow"
 import type { ProjectWithRelations, User, DeployedAgent } from "@/types/database"
 
 const statusLabels: Record<string, { label: string; color: string }> = {
@@ -463,6 +463,11 @@ export default function ProjectDetailPage() {
       {/* Task Kanban Board */}
       <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6">
         <TaskKanbanBoard projectId={projectId} />
+      </div>
+
+      {/* Project Documents */}
+      <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6">
+        <ProjectDocuments projectId={projectId} />
       </div>
 
       {/* Add Member Modal */}

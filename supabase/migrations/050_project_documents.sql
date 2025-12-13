@@ -63,8 +63,8 @@ CREATE INDEX idx_project_documents_created_by_agent ON project_documents(created
 CREATE INDEX idx_project_documents_status ON project_documents(status);
 CREATE INDEX idx_project_documents_created_at ON project_documents(created_at DESC);
 
--- Full text search on content
-CREATE INDEX idx_project_documents_content_search ON project_documents USING gin(to_tsvector('korean', coalesce(title, '') || ' ' || coalesce(content, '')));
+-- Full text search on content (using simple config for multilingual support)
+CREATE INDEX idx_project_documents_content_search ON project_documents USING gin(to_tsvector('simple', coalesce(title, '') || ' ' || coalesce(content, '')));
 
 -- ============================================
 -- RLS Policies

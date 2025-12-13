@@ -28,7 +28,7 @@ export async function POST(
     }
 
     const body = await request.json()
-    const { project_task_id } = body
+    const { project_task_id, project_id: directProjectId } = body
 
     // Get the agent task
     const { data: agentTask, error: taskError } = await (adminClient as any)
@@ -122,10 +122,10 @@ export async function POST(
     // 📄 결과물을 프로젝트 문서로 저장
     let documentSaveResult = null
     if (result.success) {
-      // Get project_id - from project_task or from task metadata
-      let projectIdForDoc = null
+      // Get project_id - from direct param, project_task, or task metadata
+      let projectIdForDoc = directProjectId || null
 
-      if (project_task_id) {
+      if (!projectIdForDoc && project_task_id) {
         const { data: projectTask } = await (adminClient as any)
           .from('project_tasks')
           .select('project_id')

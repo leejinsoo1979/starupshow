@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
+import { isDevMode, DEV_USER } from '@/lib/dev-user'
 import OpenAI from 'openai'
 import type { DeployedAgent, AgentTask } from '@/types/database'
 
@@ -11,7 +13,13 @@ const openai = new OpenAI({
 export async function GET(request: NextRequest) {
   try {
     const supabase = await createClient()
-    const { data: { user } } = await supabase.auth.getUser()
+    const adminClient = createAdminClient()
+
+    let user: any = isDevMode() ? DEV_USER : null
+    if (!user) {
+      const { data } = await supabase.auth.getUser()
+      user = data.user
+    }
 
     if (!user) {
       return NextResponse.json({ error: '인증이 필요합니다' }, { status: 401 })
@@ -72,7 +80,13 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const supabase = await createClient()
-    const { data: { user } } = await supabase.auth.getUser()
+    const adminClient = createAdminClient()
+
+    let user: any = isDevMode() ? DEV_USER : null
+    if (!user) {
+      const { data } = await supabase.auth.getUser()
+      user = data.user
+    }
 
     if (!user) {
       return NextResponse.json({ error: '인증이 필요합니다' }, { status: 401 })
@@ -97,13 +111,18 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Verify assignee agent exists and belongs to user
-    const { data: assigneeAgent } = await (supabase as any)
+    // Verify assignee agent exists
+    const dbClient = isDevMode() ? adminClient : supabase
+    let agentQuery = (dbClient as any)
       .from('deployed_agents')
       .select('*')
       .eq('id', assignee_agent_id)
-      .eq('owner_id', user.id)
-      .single()
+
+    if (!isDevMode()) {
+      agentQuery = agentQuery.eq('owner_id', user.id)
+    }
+
+    const { data: assigneeAgent } = await agentQuery.single()
 
     if (!assigneeAgent) {
       return NextResponse.json(
@@ -115,12 +134,16 @@ export async function POST(request: NextRequest) {
     // If assigner is an agent, verify it exists
     let assignerAgent: DeployedAgent | null = null
     if (assigner_agent_id) {
-      const { data } = await (supabase as any)
+      let assignerQuery = (dbClient as any)
         .from('deployed_agents')
         .select('*')
         .eq('id', assigner_agent_id)
-        .eq('owner_id', user.id)
-        .single()
+
+      if (!isDevMode()) {
+        assignerQuery = assignerQuery.eq('owner_id', user.id)
+      }
+
+      const { data } = await assignerQuery.single()
       assignerAgent = data
     }
 
@@ -138,7 +161,7 @@ export async function POST(request: NextRequest) {
       startup_id: startup_id || null,
     }
 
-    const { data: task, error: taskError } = await (supabase as any)
+    const { data: task, error: taskError } = await (dbClient as any)
       .from('agent_tasks')
       .insert(taskData)
       .select()
@@ -152,7 +175,7 @@ export async function POST(request: NextRequest) {
     // Auto-execute if requested
     if (auto_execute) {
       // Update status to IN_PROGRESS
-      await (supabase as any)
+      await (dbClient as any)
         .from('agent_tasks')
         .update({ status: 'IN_PROGRESS', started_at: new Date().toISOString() })
         .eq('id', task.id)
@@ -165,7 +188,7 @@ export async function POST(request: NextRequest) {
       )
 
       // Update task with result
-      await (supabase as any)
+      await (dbClient as any)
         .from('agent_tasks')
         .update({
           status: result.success ? 'COMPLETED' : 'FAILED',
@@ -191,11 +214,11 @@ export async function POST(request: NextRequest) {
           task_id: task.id,
         }
 
-        await (supabase as any).from('agent_messages').insert(taskMessage)
+        await (dbClient as any).from('agent_messages').insert(taskMessage)
       }
 
       // Return updated task
-      const { data: updatedTask } = await (supabase as any)
+      const { data: updatedTask } = await (dbClient as any)
         .from('agent_tasks')
         .select('*')
         .eq('id', task.id)
