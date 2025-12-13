@@ -92,9 +92,9 @@ function generateSummary(output: string): string {
 }
 
 /**
- * Save agent execution result to project_documents
+ * Save agent execution result to project_documents and create project_task
  */
-export async function saveResultToDocument(options: SaveDocumentOptions): Promise<{ success: boolean; documentId?: string; error?: string }> {
+export async function saveResultToDocument(options: SaveDocumentOptions): Promise<{ success: boolean; documentId?: string; projectTaskId?: string; error?: string }> {
   const { agent, task, result, projectId } = options
 
   try {
@@ -158,11 +158,40 @@ export async function saveResultToDocument(options: SaveDocumentOptions): Promis
     // Generate summary
     const summary = generateSummary(result.output)
 
+    // Create project_task in DONE status (for kanban board)
+    const { data: projectTask, error: taskError } = await supabaseAdmin
+      .from('project_tasks')
+      .insert({
+        project_id: finalProjectId,
+        title: task.title,
+        description: task.description || task.instructions,
+        status: 'DONE',
+        priority: 'MEDIUM',
+        assignee_type: 'agent',
+        assignee_agent_id: agent.id,
+        agent_result: {
+          output: result.output,
+          executed_at: new Date().toISOString(),
+          success: result.success,
+          sources: result.sources || [],
+          toolsUsed: result.toolsUsed || [],
+        },
+        agent_executed_at: new Date().toISOString(),
+      })
+      .select('id')
+      .single()
+
+    if (taskError) {
+      console.error('Failed to create project_task:', taskError)
+      // Continue anyway - document is more important
+    }
+
     // Create document
     const { data: document, error } = await supabaseAdmin
       .from('project_documents')
       .insert({
         project_id: finalProjectId,
+        task_id: projectTask?.id || null,
         agent_task_id: task.id,
         title: task.title,
         content: result.output,
@@ -190,7 +219,10 @@ export async function saveResultToDocument(options: SaveDocumentOptions): Promis
     }
 
     console.log(`📄 Document saved: ${document.id} (${docType}) for project ${finalProjectId}`)
-    return { success: true, documentId: document.id }
+    if (projectTask) {
+      console.log(`✅ Project task created: ${projectTask.id} (DONE)`)
+    }
+    return { success: true, documentId: document.id, projectTaskId: projectTask?.id }
   } catch (error) {
     console.error('Document save error:', error)
     return { success: false, error: String(error) }
