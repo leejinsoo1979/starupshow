@@ -2,12 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { isDevMode, DEV_USER } from '@/lib/dev-user'
-import OpenAI from 'openai'
+import { executeAgentWithTools } from '@/lib/agent/executor'
 import type { DeployedAgent, AgentTask } from '@/types/database'
-
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-})
 
 // GET: List agent tasks
 export async function GET(request: NextRequest) {
@@ -180,15 +176,14 @@ export async function POST(request: NextRequest) {
         .update({ status: 'IN_PROGRESS', started_at: new Date().toISOString() })
         .eq('id', task.id)
 
-      // Execute the task
-      const result = await executeAgentTask(
+      // Execute the task with RAG, tools, and API connections
+      const result = await executeAgentWithTools(
         assigneeAgent as DeployedAgent,
-        task as AgentTask,
-        assignerAgent as DeployedAgent | null
+        task as AgentTask
       )
 
-      // Update task with result
-      await (dbClient as any)
+      // Update task with result and return updated data in one query
+      const { data: updatedTask, error: updateError } = await (dbClient as any)
         .from('agent_tasks')
         .update({
           status: result.success ? 'COMPLETED' : 'FAILED',
@@ -197,6 +192,12 @@ export async function POST(request: NextRequest) {
           completed_at: new Date().toISOString(),
         })
         .eq('id', task.id)
+        .select('*')
+        .single()
+
+      if (updateError) {
+        console.error('Task update error:', updateError)
+      }
 
       // If there's a conversation, add the result as a message
       if (conversation_id) {
@@ -217,13 +218,6 @@ export async function POST(request: NextRequest) {
         await (dbClient as any).from('agent_messages').insert(taskMessage)
       }
 
-      // Return updated task
-      const { data: updatedTask } = await (dbClient as any)
-        .from('agent_tasks')
-        .select('*')
-        .eq('id', task.id)
-        .single()
-
       return NextResponse.json(updatedTask, { status: 201 })
     }
 
@@ -237,50 +231,5 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// Helper: Execute an agent task
-async function executeAgentTask(
-  agent: DeployedAgent,
-  task: AgentTask,
-  assignerAgent: DeployedAgent | null
-): Promise<{ success: boolean; output: string; error?: string }> {
-  const systemPrompt = `${agent.system_prompt || `당신은 ${agent.name}입니다.`}
-
-현재 업무를 수행 중입니다:
-- 제목: ${task.title}
-- 설명: ${task.description || '없음'}
-- 지시사항: ${task.instructions}
-${assignerAgent ? `- 할당자: ${assignerAgent.name} (AI 에이전트)` : '- 할당자: 사용자'}
-
-업무를 완료하고 결과를 보고해주세요.`
-
-  // gpt-4 계열 모델은 접근 불가하므로 gpt-4o-mini로 변경
-  let safeModel = agent.model || 'gpt-4o-mini'
-  if (safeModel.startsWith('gpt-4') && !safeModel.includes('gpt-4o')) {
-    safeModel = 'gpt-4o-mini'
-  }
-  try {
-    const completion = await openai.chat.completions.create({
-      model: safeModel,
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: task.instructions },
-      ],
-      temperature: agent.temperature || 0.7,
-      max_tokens: 2000,
-    })
-
-    const output = completion.choices[0]?.message?.content || '작업을 완료했습니다.'
-
-    return {
-      success: true,
-      output,
-    }
-  } catch (error) {
-    console.error('업무 실행 오류:', error)
-    return {
-      success: false,
-      output: '',
-      error: error instanceof Error ? error.message : '알 수 없는 오류',
-    }
-  }
-}
+// Note: executeAgentTask was replaced with executeAgentWithTools from @/lib/agent/executor
+// which supports RAG knowledge base, MCP tools, and API connections
