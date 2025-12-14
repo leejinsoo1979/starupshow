@@ -50,6 +50,9 @@ import {
   Smile,
   Upload,
   ChevronRight,
+  ClipboardList,
+  CheckCircle,
+  XCircle,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/Button'
@@ -1909,6 +1912,24 @@ export default function AgentProfilePage() {
   const [uploadingChatMainGif, setUploadingChatMainGif] = useState(false)
   const chatMainGifInputRef = useRef<HTMLInputElement>(null)
   const [uploadingEmotion, setUploadingEmotion] = useState<string | null>(null)
+
+  // 업무 지시 모드 상태
+  const [isTaskMode, setIsTaskMode] = useState(false)
+  const [isAnalyzingTask, setIsAnalyzingTask] = useState(false)
+  const [pendingTask, setPendingTask] = useState<{
+    analysis: {
+      title: string
+      summary: string
+      steps: string[]
+      expected_output: string
+      estimated_time: string
+      clarifications: string[]
+      confidence: number
+    }
+    confirmation_message: string
+    original_instruction: string
+  } | null>(null)
+  const [isExecutingTask, setIsExecutingTask] = useState(false)
   const [currentEmotion, setCurrentEmotion] = useState<EmotionType>('neutral')
   const emotionFileInputRefs = useRef<Record<string, HTMLInputElement | null>>({})
 
@@ -2550,6 +2571,123 @@ export default function AgentProfilePage() {
         } : msg
       ))
     }
+  }
+
+  // 업무 지시 분석 요청
+  const handleTaskInstruction = async () => {
+    if (!chatInput.trim() || !agent) return
+
+    const instruction = chatInput.trim()
+    setChatInput('')
+    setIsAnalyzingTask(true)
+
+    // 사용자 메시지를 먼저 추가
+    const userMessage = {
+      id: `user-${Date.now()}`,
+      role: 'user' as const,
+      content: `📋 [업무 지시] ${instruction}`,
+      timestamp: new Date(),
+    }
+    setChatMessages(prev => [...prev, userMessage])
+
+    try {
+      const response = await fetch('/api/agent-tasks/analyze', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          instruction,
+          agent_id: agent.id,
+        }),
+      })
+
+      if (!response.ok) {
+        throw new Error('업무 분석 실패')
+      }
+
+      const data = await response.json()
+      setPendingTask({
+        analysis: data.analysis,
+        confirmation_message: data.confirmation_message,
+        original_instruction: instruction,
+      })
+    } catch (error) {
+      console.error('업무 분석 오류:', error)
+      // 에러 메시지 추가
+      const errorMessage = {
+        id: `error-${Date.now()}`,
+        role: 'agent' as const,
+        content: '죄송합니다. 업무 분석 중 오류가 발생했습니다. 다시 시도해주세요.',
+        timestamp: new Date(),
+      }
+      setChatMessages(prev => [...prev, errorMessage])
+    } finally {
+      setIsAnalyzingTask(false)
+    }
+  }
+
+  // 업무 실행 승인
+  const handleConfirmTask = async () => {
+    if (!pendingTask || !agent) return
+
+    setIsExecutingTask(true)
+
+    try {
+      const response = await fetch('/api/agent-tasks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: pendingTask.analysis.title,
+          description: pendingTask.analysis.summary,
+          instructions: pendingTask.original_instruction,
+          assignee_agent_id: agent.id,
+          auto_execute: true,
+        }),
+      })
+
+      if (!response.ok) {
+        throw new Error('업무 생성 실패')
+      }
+
+      const task = await response.json()
+
+      // 결과 메시지 추가
+      const resultMessage = {
+        id: `task-result-${Date.now()}`,
+        role: 'agent' as const,
+        content: `✅ **업무 완료: ${pendingTask.analysis.title}**\n\n${task.result || '처리가 완료되었습니다.'}`,
+        timestamp: new Date(),
+      }
+      setChatMessages(prev => [...prev, resultMessage])
+      saveMessageToHistory('agent', resultMessage.content)
+
+      setPendingTask(null)
+      setIsTaskMode(false)
+    } catch (error) {
+      console.error('업무 실행 오류:', error)
+      const errorMessage = {
+        id: `error-${Date.now()}`,
+        role: 'agent' as const,
+        content: '업무 실행 중 오류가 발생했습니다.',
+        timestamp: new Date(),
+      }
+      setChatMessages(prev => [...prev, errorMessage])
+    } finally {
+      setIsExecutingTask(false)
+    }
+  }
+
+  // 업무 취소
+  const handleCancelTask = () => {
+    setPendingTask(null)
+    setIsTaskMode(false)
+    // 취소 메시지 추가
+    const cancelMessage = {
+      id: `cancel-${Date.now()}`,
+      role: 'agent' as const,
+      content: '업무 지시를 취소했습니다. 다른 것을 도와드릴까요?',
+      timestamp: new Date(),
+    }
+    setChatMessages(prev => [...prev, cancelMessage])
   }
 
   // 채팅 메시지 전송
@@ -4345,6 +4483,128 @@ export default function AgentProfilePage() {
                     </button>
                   </div>
                 )}
+
+                {/* Task mode indicator */}
+                {isTaskMode && !pendingTask && (
+                  <div className={cn(
+                    'mb-2 p-3 rounded-xl border flex items-center gap-2',
+                    isDark
+                      ? 'bg-amber-900/20 border-amber-800/50'
+                      : 'bg-amber-50 border-amber-200'
+                  )}>
+                    <ClipboardList className="w-4 h-4 text-amber-500 flex-shrink-0" />
+                    <span className={cn(
+                      'text-sm',
+                      isDark ? 'text-amber-300' : 'text-amber-700'
+                    )}>
+                      <strong>업무 지시 모드</strong> - 원하는 업무를 자유롭게 말씀하세요!
+                    </span>
+                    <button
+                      onClick={() => setIsTaskMode(false)}
+                      className={cn(
+                        'ml-auto text-sm px-2 py-1 rounded-lg transition-colors',
+                        isDark
+                          ? 'text-amber-400 hover:bg-amber-900/30'
+                          : 'text-amber-600 hover:bg-amber-100'
+                      )}
+                    >
+                      취소
+                    </button>
+                  </div>
+                )}
+
+                {/* Analyzing indicator */}
+                {isAnalyzingTask && (
+                  <div className={cn(
+                    'mb-2 p-3 rounded-xl border flex items-center gap-2',
+                    isDark
+                      ? 'bg-blue-900/20 border-blue-800/50'
+                      : 'bg-blue-50 border-blue-200'
+                  )}>
+                    <Loader2 className="w-4 h-4 text-blue-500 animate-spin flex-shrink-0" />
+                    <span className={cn(
+                      'text-sm',
+                      isDark ? 'text-blue-300' : 'text-blue-700'
+                    )}>
+                      업무 내용을 분석하고 있습니다...
+                    </span>
+                  </div>
+                )}
+
+                {/* Pending task confirmation */}
+                {pendingTask && (
+                  <div className={cn(
+                    'mb-2 p-4 rounded-xl border',
+                    isDark
+                      ? 'bg-emerald-900/20 border-emerald-800/50'
+                      : 'bg-gradient-to-br from-emerald-50 to-teal-50 border-emerald-200'
+                  )}>
+                    <div className="flex items-start gap-3">
+                      <div className="w-8 h-8 rounded-full bg-emerald-500 flex items-center justify-center flex-shrink-0">
+                        <Bot className="w-4 h-4 text-white" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className={cn(
+                          'text-sm whitespace-pre-wrap',
+                          isDark ? 'text-zinc-200' : 'text-zinc-800'
+                        )}>
+                          {pendingTask.confirmation_message}
+                        </div>
+
+                        {/* Confidence indicator */}
+                        <div className="mt-3 flex items-center gap-2">
+                          <span className="text-xs text-zinc-500">이해도:</span>
+                          <div className={cn(
+                            'flex-1 h-1.5 rounded-full overflow-hidden max-w-[100px]',
+                            isDark ? 'bg-zinc-700' : 'bg-zinc-200'
+                          )}>
+                            <div
+                              className={cn(
+                                'h-full rounded-full',
+                                pendingTask.analysis.confidence > 0.8 ? 'bg-emerald-500' :
+                                pendingTask.analysis.confidence > 0.5 ? 'bg-amber-500' : 'bg-red-500'
+                              )}
+                              style={{ width: `${pendingTask.analysis.confidence * 100}%` }}
+                            />
+                          </div>
+                          <span className="text-xs text-zinc-500">
+                            {Math.round(pendingTask.analysis.confidence * 100)}%
+                          </span>
+                        </div>
+
+                        {/* Action buttons */}
+                        <div className="mt-4 flex gap-2">
+                          <button
+                            onClick={handleConfirmTask}
+                            disabled={isExecutingTask}
+                            className="flex items-center gap-2 px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
+                          >
+                            {isExecutingTask ? (
+                              <Loader2 className="w-4 h-4 animate-spin" />
+                            ) : (
+                              <CheckCircle className="w-4 h-4" />
+                            )}
+                            {isExecutingTask ? '실행 중...' : '네, 진행해주세요'}
+                          </button>
+                          <button
+                            onClick={handleCancelTask}
+                            disabled={isExecutingTask}
+                            className={cn(
+                              'flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors disabled:opacity-50',
+                              isDark
+                                ? 'bg-zinc-700 hover:bg-zinc-600 text-zinc-300'
+                                : 'bg-zinc-200 hover:bg-zinc-300 text-zinc-700'
+                            )}
+                          >
+                            <XCircle className="w-4 h-4" />
+                            취소
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 <div
                   className={cn(
                     'flex items-center gap-2 px-3 py-2 rounded-xl border',
@@ -4376,16 +4636,39 @@ export default function AgentProfilePage() {
                   {/* Emoticon button */}
                   <button
                     onClick={() => setShowEmoticonModal(true)}
-                    disabled={chatLoading}
+                    disabled={chatLoading || isTaskMode}
                     className={cn(
                       'w-8 h-8 rounded-lg flex items-center justify-center transition-colors flex-shrink-0',
                       isDark
                         ? 'hover:bg-zinc-800 text-zinc-400 hover:text-zinc-300'
-                        : 'hover:bg-zinc-100 text-zinc-500 hover:text-zinc-600'
+                        : 'hover:bg-zinc-100 text-zinc-500 hover:text-zinc-600',
+                      isTaskMode && 'opacity-50 cursor-not-allowed'
                     )}
                     title="이모티콘"
                   >
                     <Smile className="w-4 h-4" />
+                  </button>
+                  {/* Task mode button */}
+                  <button
+                    onClick={() => {
+                      setIsTaskMode(!isTaskMode)
+                      if (pendingTask) {
+                        setPendingTask(null)
+                      }
+                    }}
+                    disabled={chatLoading || isAnalyzingTask || !!pendingTask}
+                    className={cn(
+                      'w-8 h-8 rounded-lg flex items-center justify-center transition-all flex-shrink-0',
+                      isTaskMode
+                        ? 'bg-amber-500 text-white hover:bg-amber-600'
+                        : isDark
+                        ? 'hover:bg-amber-900/30 text-zinc-400 hover:text-amber-400'
+                        : 'hover:bg-amber-100 text-zinc-500 hover:text-amber-600',
+                      (chatLoading || isAnalyzingTask || !!pendingTask) && 'opacity-50 cursor-not-allowed'
+                    )}
+                    title={isTaskMode ? '업무 지시 모드 해제' : '업무 지시'}
+                  >
+                    <ClipboardList className="w-4 h-4" />
                   </button>
                   <input
                     ref={chatInputRef}
@@ -4397,30 +4680,44 @@ export default function AgentProfilePage() {
                       if (e.nativeEvent.isComposing) return
                       if (e.key === 'Enter' && !e.shiftKey) {
                         e.preventDefault()
-                        handleSendChat()
+                        if (isTaskMode) {
+                          handleTaskInstruction()
+                        } else {
+                          handleSendChat()
+                        }
                       }
                     }}
-                    placeholder={`${agent?.name}에게 메시지 보내기...`}
+                    placeholder={isTaskMode
+                      ? '업무를 자유롭게 말씀하세요... (예: "경쟁사 분석해줘")'
+                      : `${agent?.name}에게 메시지 보내기...`
+                    }
                     className={cn(
                       'flex-1 bg-transparent border-none outline-none text-sm py-1 focus:outline-none focus:ring-0 focus:border-none',
-                      isDark ? 'text-white placeholder:text-zinc-500' : 'text-zinc-900 placeholder:text-zinc-400'
+                      isDark ? 'text-white placeholder:text-zinc-500' : 'text-zinc-900 placeholder:text-zinc-400',
+                      isTaskMode && 'placeholder:text-amber-500/70'
                     )}
-                    disabled={chatLoading}
+                    disabled={chatLoading || isAnalyzingTask || !!pendingTask}
                     autoFocus
                   />
                   <button
-                    onClick={handleSendChat}
-                    disabled={(!chatInput.trim() && !chatImage) || chatLoading}
+                    onClick={isTaskMode ? handleTaskInstruction : handleSendChat}
+                    disabled={(!chatInput.trim() && !chatImage) || chatLoading || isAnalyzingTask || !!pendingTask}
                     className={cn(
                       'w-8 h-8 rounded-lg flex items-center justify-center transition-all flex-shrink-0',
-                      (chatInput.trim() || chatImage) && !chatLoading
-                        ? 'bg-accent text-white hover:bg-accent/90'
+                      (chatInput.trim() || chatImage) && !chatLoading && !isAnalyzingTask && !pendingTask
+                        ? isTaskMode
+                          ? 'bg-amber-500 text-white hover:bg-amber-600'
+                          : 'bg-accent text-white hover:bg-accent/90'
                         : isDark
                         ? 'bg-zinc-800 text-zinc-500'
                         : 'bg-zinc-100 text-zinc-400'
                     )}
                   >
-                    <Send className="w-4 h-4" />
+                    {isAnalyzingTask ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <Send className="w-4 h-4" />
+                    )}
                   </button>
                 </div>
               </div>
