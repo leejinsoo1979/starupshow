@@ -14,10 +14,13 @@ import {
   Milestone,
   TrendingUp,
   AlertCircle,
+  GitBranch,
+  List,
 } from "lucide-react"
 import { Button } from "@/components/ui/Button"
+import { RoadmapCanvasWithProvider } from "@/components/roadmap"
 
-interface Milestone {
+interface MilestoneData {
   id: string
   title: string
   description?: string
@@ -27,6 +30,8 @@ interface Milestone {
   tasks_count?: number
   completed_tasks?: number
 }
+
+type ViewMode = "dag" | "timeline"
 
 interface RoadmapSectionProps {
   projectId: string
@@ -52,9 +57,10 @@ const statusConfig = {
 }
 
 export function RoadmapSection({ projectId, project }: RoadmapSectionProps) {
-  const [milestones, setMilestones] = useState<Milestone[]>([])
+  const [milestones, setMilestones] = useState<MilestoneData[]>([])
   const [loading, setLoading] = useState(true)
   const [selectedQuarter, setSelectedQuarter] = useState<string | null>(null)
+  const [viewMode, setViewMode] = useState<ViewMode>("dag")
 
   useEffect(() => {
     fetchMilestones()
@@ -64,7 +70,7 @@ export function RoadmapSection({ projectId, project }: RoadmapSectionProps) {
     try {
       // TODO: Replace with actual API call
       // For now, generate sample milestones based on project data
-      const sampleMilestones: Milestone[] = [
+      const sampleMilestones: MilestoneData[] = [
         {
           id: "1",
           title: "MVP 개발 완료",
@@ -127,7 +133,7 @@ export function RoadmapSection({ projectId, project }: RoadmapSectionProps) {
     if (!acc[quarter]) acc[quarter] = []
     acc[quarter].push(milestone)
     return acc
-  }, {} as Record<string, Milestone[]>)
+  }, {} as Record<string, MilestoneData[]>)
 
   const currentQuarter = `Q${Math.ceil((new Date().getMonth() + 1) / 3)}`
 
@@ -137,15 +143,54 @@ export function RoadmapSection({ projectId, project }: RoadmapSectionProps) {
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-xl font-bold text-white">프로젝트 로드맵</h2>
-          <p className="text-sm text-zinc-500 mt-1">분기별 목표 및 마일스톤 현황</p>
+          <p className="text-sm text-zinc-500 mt-1">
+            {viewMode === "dag" ? "노드 기반 AI 에이전트 로드맵" : "분기별 목표 및 마일스톤 현황"}
+          </p>
         </div>
-        <Button variant="default" size="sm">
-          <Plus className="w-4 h-4 mr-2" />
-          마일스톤 추가
-        </Button>
+        <div className="flex items-center gap-2">
+          {/* View Mode Toggle */}
+          <div className="flex items-center bg-zinc-800 rounded-lg p-1">
+            <button
+              onClick={() => setViewMode("dag")}
+              className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-sm transition-all ${
+                viewMode === "dag"
+                  ? "bg-cyan-600 text-white"
+                  : "text-zinc-400 hover:text-zinc-200"
+              }`}
+            >
+              <GitBranch className="w-4 h-4" />
+              DAG
+            </button>
+            <button
+              onClick={() => setViewMode("timeline")}
+              className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-sm transition-all ${
+                viewMode === "timeline"
+                  ? "bg-cyan-600 text-white"
+                  : "text-zinc-400 hover:text-zinc-200"
+              }`}
+            >
+              <List className="w-4 h-4" />
+              타임라인
+            </button>
+          </div>
+          {viewMode === "timeline" && (
+            <Button variant="default" size="sm">
+              <Plus className="w-4 h-4 mr-2" />
+              마일스톤 추가
+            </Button>
+          )}
+        </div>
       </div>
 
-      {/* Quarter Tabs */}
+      {/* DAG View */}
+      {viewMode === "dag" && (
+        <RoadmapCanvasWithProvider projectId={projectId} />
+      )}
+
+      {/* Timeline View */}
+      {viewMode === "timeline" && (
+        <>
+        {/* Quarter Tabs */}
       <div className="flex gap-2">
         {Object.entries(quarterConfig).map(([key, config]) => {
           const isActive = selectedQuarter === key || (!selectedQuarter && key === currentQuarter)
@@ -352,6 +397,8 @@ export function RoadmapSection({ projectId, project }: RoadmapSectionProps) {
           </motion.div>
         ))}
       </div>
+        </>
+      )}
     </div>
   )
 }

@@ -852,6 +852,167 @@ export interface CreateProjectDocumentInput {
 }
 
 // ============================================
+// Roadmap Node System Types (Factory OS)
+// ============================================
+
+export type RoadmapNodeStatus =
+  | 'pending'      // 대기 (의존성 미충족)
+  | 'ready'        // 준비 완료 (실행 가능)
+  | 'running'      // 실행 중
+  | 'completed'    // 완료
+  | 'failed'       // 실패
+  | 'paused'       // 일시 중지
+
+export type AutomationLevel =
+  | 'full'         // 완전 자동 (단순 작업)
+  | 'assisted'     // AI 보조 + 인간 승인
+  | 'manual'       // 수동 (AI 추천만)
+
+export type NodeAgentType =
+  | 'planner'      // 기획
+  | 'designer'     // 디자인
+  | 'developer'    // 개발
+  | 'qa'           // 테스트/QA
+  | 'content'      // 콘텐츠 작성
+  | 'research'     // 리서치
+  | 'data'         // 데이터 분석
+  | 'general'      // 범용
+
+export interface RoadmapNode {
+  id: string
+  project_id: string
+
+  // 기본 정보
+  title: string
+  description: string | null
+  goal: string | null
+
+  // 위치 (React Flow용)
+  position_x: number
+  position_y: number
+
+  // 에이전트 설정
+  agent_type: NodeAgentType
+  assigned_agent_id: string | null
+
+  // 상태 및 자동화
+  status: RoadmapNodeStatus
+  automation_level: AutomationLevel
+
+  // 입출력 정의
+  input_schema: Record<string, any>
+  output_schema: Record<string, any>
+  input_data: Record<string, any> | null
+  output_data: Record<string, any> | null
+
+  // AI 보조 결과
+  ai_suggestion: string | null
+  ai_analysis: Record<string, any> | null
+
+  // 실행 정보
+  started_at: string | null
+  completed_at: string | null
+  retry_count: number
+  error_message: string | null
+
+  // 메타데이터
+  priority: number
+  estimated_hours: number | null
+  actual_hours: number | null
+
+  // 담당자
+  assignee_id: string | null
+
+  created_at: string
+  updated_at: string
+  created_by: string | null
+}
+
+export interface NodeDependency {
+  id: string
+  source_node_id: string
+  target_node_id: string
+  dependency_type: string
+  condition: Record<string, any> | null
+  created_at: string
+}
+
+export interface NodeExecutionLog {
+  id: string
+  node_id: string
+  log_type: 'info' | 'warning' | 'error' | 'ai_response' | 'user_action'
+  message: string
+  details: Record<string, any> | null
+  ai_model: string | null
+  tokens_used: number | null
+  created_at: string
+  created_by: string | null
+}
+
+// With Relations
+export interface RoadmapNodeWithRelations extends RoadmapNode {
+  dependencies?: NodeDependency[]
+  dependents?: NodeDependency[]
+  assignee?: User | null
+  assigned_agent?: DeployedAgent | null
+  logs?: NodeExecutionLog[]
+}
+
+// Input Types
+export interface CreateRoadmapNodeInput {
+  project_id: string
+  title: string
+  description?: string
+  goal?: string
+  position_x?: number
+  position_y?: number
+  agent_type?: NodeAgentType
+  assigned_agent_id?: string
+  automation_level?: AutomationLevel
+  input_schema?: Record<string, any>
+  output_schema?: Record<string, any>
+  priority?: number
+  estimated_hours?: number
+  assignee_id?: string
+}
+
+export interface UpdateRoadmapNodeInput {
+  title?: string
+  description?: string
+  goal?: string
+  position_x?: number
+  position_y?: number
+  agent_type?: NodeAgentType
+  assigned_agent_id?: string
+  status?: RoadmapNodeStatus
+  automation_level?: AutomationLevel
+  input_schema?: Record<string, any>
+  output_schema?: Record<string, any>
+  input_data?: Record<string, any>
+  output_data?: Record<string, any>
+  ai_suggestion?: string
+  ai_analysis?: Record<string, any>
+  priority?: number
+  estimated_hours?: number
+  actual_hours?: number
+  assignee_id?: string
+  error_message?: string
+}
+
+export interface CreateNodeDependencyInput {
+  source_node_id: string
+  target_node_id: string
+  dependency_type?: string
+  condition?: Record<string, any>
+}
+
+export interface ExecuteNodeInput {
+  node_id: string
+  input_data?: Record<string, any>
+  force?: boolean  // 의존성 무시하고 강제 실행
+}
+
+// ============================================
 // Supabase Database Type
 // ============================================
 
