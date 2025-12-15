@@ -144,7 +144,7 @@ export function RoadmapSection({ projectId, project }: RoadmapSectionProps) {
         <div>
           <h2 className="text-xl font-bold text-white">프로젝트 로드맵</h2>
           <p className="text-sm text-zinc-500 mt-1">
-            {viewMode === "dag" ? "노드 기반 AI 에이전트 로드맵" : "분기별 목표 및 마일스톤 현황"}
+            {viewMode === "dag" ? "전체 설계도 - 프로젝트 구조 및 의존성 관계" : "분기별 마일스톤 계획"}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -159,7 +159,7 @@ export function RoadmapSection({ projectId, project }: RoadmapSectionProps) {
               }`}
             >
               <GitBranch className="w-4 h-4" />
-              DAG
+              설계도
             </button>
             <button
               onClick={() => setViewMode("timeline")}
@@ -170,7 +170,7 @@ export function RoadmapSection({ projectId, project }: RoadmapSectionProps) {
               }`}
             >
               <List className="w-4 h-4" />
-              타임라인
+              마일스톤
             </button>
           </div>
           {viewMode === "timeline" && (

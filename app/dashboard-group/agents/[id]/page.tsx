@@ -4487,119 +4487,205 @@ export default function AgentProfilePage() {
                 {/* Task mode indicator */}
                 {isTaskMode && !pendingTask && (
                   <div className={cn(
-                    'mb-2 p-3 rounded-xl border flex items-center gap-2',
+                    'mb-3 p-4 rounded-2xl border backdrop-blur-sm',
+                    'bg-gradient-to-r shadow-lg',
+                    'animate-in slide-in-from-top-2 duration-300',
                     isDark
-                      ? 'bg-amber-900/20 border-amber-800/50'
-                      : 'bg-amber-50 border-amber-200'
+                      ? 'from-amber-950/40 to-orange-950/40 border-amber-700/30 shadow-amber-900/20'
+                      : 'from-amber-50 to-orange-50 border-amber-200/60 shadow-amber-200/50'
                   )}>
-                    <ClipboardList className="w-4 h-4 text-amber-500 flex-shrink-0" />
-                    <span className={cn(
-                      'text-sm',
-                      isDark ? 'text-amber-300' : 'text-amber-700'
-                    )}>
-                      <strong>업무 지시 모드</strong> - 원하는 업무를 자유롭게 말씀하세요!
-                    </span>
-                    <button
-                      onClick={() => setIsTaskMode(false)}
-                      className={cn(
-                        'ml-auto text-sm px-2 py-1 rounded-lg transition-colors',
-                        isDark
-                          ? 'text-amber-400 hover:bg-amber-900/30'
-                          : 'text-amber-600 hover:bg-amber-100'
-                      )}
-                    >
-                      취소
-                    </button>
+                    <div className="flex items-center gap-3">
+                      <div className={cn(
+                        'w-10 h-10 rounded-xl flex items-center justify-center',
+                        'bg-gradient-to-br from-amber-400 to-orange-500 shadow-lg shadow-amber-500/30'
+                      )}>
+                        <ClipboardList className="w-5 h-5 text-white" />
+                      </div>
+                      <div className="flex-1">
+                        <span className={cn(
+                          'text-sm font-semibold block',
+                          isDark ? 'text-amber-200' : 'text-amber-800'
+                        )}>
+                          업무 지시 모드
+                        </span>
+                        <span className={cn(
+                          'text-xs',
+                          isDark ? 'text-amber-400/70' : 'text-amber-600/80'
+                        )}>
+                          원하는 업무를 자유롭게 말씀하세요
+                        </span>
+                      </div>
+                      <button
+                        onClick={() => setIsTaskMode(false)}
+                        className={cn(
+                          'px-3 py-1.5 rounded-lg text-xs font-medium transition-all',
+                          'hover:scale-105 active:scale-95',
+                          isDark
+                            ? 'text-amber-300 bg-amber-900/40 hover:bg-amber-900/60 border border-amber-700/30'
+                            : 'text-amber-700 bg-amber-100 hover:bg-amber-200 border border-amber-200'
+                        )}
+                      >
+                        취소
+                      </button>
+                    </div>
                   </div>
                 )}
 
                 {/* Analyzing indicator */}
                 {isAnalyzingTask && (
                   <div className={cn(
-                    'mb-2 p-3 rounded-xl border flex items-center gap-2',
+                    'mb-3 p-4 rounded-2xl border backdrop-blur-sm overflow-hidden relative',
+                    'bg-gradient-to-r shadow-lg',
+                    'animate-in fade-in duration-300',
                     isDark
-                      ? 'bg-blue-900/20 border-blue-800/50'
-                      : 'bg-blue-50 border-blue-200'
+                      ? 'from-blue-950/40 to-indigo-950/40 border-blue-700/30 shadow-blue-900/20'
+                      : 'from-blue-50 to-indigo-50 border-blue-200/60 shadow-blue-200/50'
                   )}>
-                    <Loader2 className="w-4 h-4 text-blue-500 animate-spin flex-shrink-0" />
-                    <span className={cn(
-                      'text-sm',
-                      isDark ? 'text-blue-300' : 'text-blue-700'
-                    )}>
-                      업무 내용을 분석하고 있습니다...
-                    </span>
+                    {/* Shimmer effect */}
+                    <div className="absolute inset-0 -translate-x-full animate-[shimmer_2s_infinite] bg-gradient-to-r from-transparent via-white/10 to-transparent" />
+
+                    <div className="flex items-center gap-3 relative">
+                      <div className={cn(
+                        'w-10 h-10 rounded-xl flex items-center justify-center',
+                        'bg-gradient-to-br from-blue-400 to-indigo-500 shadow-lg shadow-blue-500/30',
+                        'animate-pulse'
+                      )}>
+                        <Loader2 className="w-5 h-5 text-white animate-spin" />
+                      </div>
+                      <div className="flex-1">
+                        <span className={cn(
+                          'text-sm font-semibold block',
+                          isDark ? 'text-blue-200' : 'text-blue-800'
+                        )}>
+                          업무 내용 분석 중
+                        </span>
+                        <span className={cn(
+                          'text-xs',
+                          isDark ? 'text-blue-400/70' : 'text-blue-600/80'
+                        )}>
+                          AI가 업무를 이해하고 정리하고 있습니다...
+                        </span>
+                      </div>
+                      <div className="flex gap-1">
+                        <div className="w-2 h-2 rounded-full bg-blue-400 animate-bounce [animation-delay:-0.3s]" />
+                        <div className="w-2 h-2 rounded-full bg-blue-400 animate-bounce [animation-delay:-0.15s]" />
+                        <div className="w-2 h-2 rounded-full bg-blue-400 animate-bounce" />
+                      </div>
+                    </div>
                   </div>
                 )}
 
                 {/* Pending task confirmation */}
                 {pendingTask && (
                   <div className={cn(
-                    'mb-2 p-4 rounded-xl border',
+                    'mb-3 rounded-2xl border backdrop-blur-sm overflow-hidden',
+                    'shadow-xl animate-in slide-in-from-bottom-4 duration-500',
                     isDark
-                      ? 'bg-emerald-900/20 border-emerald-800/50'
-                      : 'bg-gradient-to-br from-emerald-50 to-teal-50 border-emerald-200'
+                      ? 'bg-gradient-to-br from-emerald-950/50 to-teal-950/50 border-emerald-700/30 shadow-emerald-900/30'
+                      : 'bg-gradient-to-br from-emerald-50/90 to-teal-50/90 border-emerald-200/60 shadow-emerald-200/60'
                   )}>
-                    <div className="flex items-start gap-3">
-                      <div className="w-8 h-8 rounded-full bg-emerald-500 flex items-center justify-center flex-shrink-0">
-                        <Bot className="w-4 h-4 text-white" />
+                    {/* Header */}
+                    <div className={cn(
+                      'px-4 py-3 border-b flex items-center gap-3',
+                      isDark ? 'border-emerald-800/30 bg-emerald-900/20' : 'border-emerald-100 bg-emerald-100/50'
+                    )}>
+                      <div className={cn(
+                        'w-9 h-9 rounded-xl flex items-center justify-center',
+                        'bg-gradient-to-br from-emerald-400 to-teal-500 shadow-lg shadow-emerald-500/30'
+                      )}>
+                        <Bot className="w-5 h-5 text-white" />
                       </div>
-                      <div className="flex-1 min-w-0">
-                        <div className={cn(
-                          'text-sm whitespace-pre-wrap',
-                          isDark ? 'text-zinc-200' : 'text-zinc-800'
+                      <div className="flex-1">
+                        <span className={cn(
+                          'text-sm font-semibold',
+                          isDark ? 'text-emerald-200' : 'text-emerald-800'
                         )}>
-                          {pendingTask.confirmation_message}
-                        </div>
-
-                        {/* Confidence indicator */}
-                        <div className="mt-3 flex items-center gap-2">
-                          <span className="text-xs text-zinc-500">이해도:</span>
+                          업무 분석 완료
+                        </span>
+                        <div className="flex items-center gap-2 mt-0.5">
+                          <span className={cn('text-xs', isDark ? 'text-zinc-400' : 'text-zinc-500')}>
+                            이해도
+                          </span>
                           <div className={cn(
-                            'flex-1 h-1.5 rounded-full overflow-hidden max-w-[100px]',
+                            'w-16 h-1.5 rounded-full overflow-hidden',
                             isDark ? 'bg-zinc-700' : 'bg-zinc-200'
                           )}>
                             <div
                               className={cn(
-                                'h-full rounded-full',
-                                pendingTask.analysis.confidence > 0.8 ? 'bg-emerald-500' :
-                                pendingTask.analysis.confidence > 0.5 ? 'bg-amber-500' : 'bg-red-500'
+                                'h-full rounded-full transition-all duration-1000',
+                                pendingTask.analysis.confidence > 0.8
+                                  ? 'bg-gradient-to-r from-emerald-400 to-emerald-500'
+                                  : pendingTask.analysis.confidence > 0.5
+                                  ? 'bg-gradient-to-r from-amber-400 to-amber-500'
+                                  : 'bg-gradient-to-r from-red-400 to-red-500'
                               )}
                               style={{ width: `${pendingTask.analysis.confidence * 100}%` }}
                             />
                           </div>
-                          <span className="text-xs text-zinc-500">
+                          <span className={cn(
+                            'text-xs font-medium',
+                            pendingTask.analysis.confidence > 0.8
+                              ? isDark ? 'text-emerald-400' : 'text-emerald-600'
+                              : pendingTask.analysis.confidence > 0.5
+                              ? isDark ? 'text-amber-400' : 'text-amber-600'
+                              : isDark ? 'text-red-400' : 'text-red-600'
+                          )}>
                             {Math.round(pendingTask.analysis.confidence * 100)}%
                           </span>
                         </div>
+                      </div>
+                    </div>
 
-                        {/* Action buttons */}
-                        <div className="mt-4 flex gap-2">
-                          <button
-                            onClick={handleConfirmTask}
-                            disabled={isExecutingTask}
-                            className="flex items-center gap-2 px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
-                          >
-                            {isExecutingTask ? (
+                    {/* Content */}
+                    <div className="p-4">
+                      <div className={cn(
+                        'text-sm whitespace-pre-wrap leading-relaxed',
+                        isDark ? 'text-zinc-200' : 'text-zinc-700'
+                      )}>
+                        {pendingTask.confirmation_message}
+                      </div>
+
+                      {/* Action buttons */}
+                      <div className="mt-5 flex gap-3">
+                        <button
+                          onClick={handleConfirmTask}
+                          disabled={isExecutingTask}
+                          className={cn(
+                            'flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl',
+                            'text-sm font-semibold transition-all duration-200',
+                            'bg-gradient-to-r from-emerald-500 to-teal-500 text-white',
+                            'hover:from-emerald-600 hover:to-teal-600',
+                            'hover:shadow-lg hover:shadow-emerald-500/25 hover:scale-[1.02]',
+                            'active:scale-[0.98]',
+                            'disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100'
+                          )}
+                        >
+                          {isExecutingTask ? (
+                            <>
                               <Loader2 className="w-4 h-4 animate-spin" />
-                            ) : (
+                              <span>실행 중...</span>
+                            </>
+                          ) : (
+                            <>
                               <CheckCircle className="w-4 h-4" />
-                            )}
-                            {isExecutingTask ? '실행 중...' : '네, 진행해주세요'}
-                          </button>
-                          <button
-                            onClick={handleCancelTask}
-                            disabled={isExecutingTask}
-                            className={cn(
-                              'flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors disabled:opacity-50',
-                              isDark
-                                ? 'bg-zinc-700 hover:bg-zinc-600 text-zinc-300'
-                                : 'bg-zinc-200 hover:bg-zinc-300 text-zinc-700'
-                            )}
-                          >
-                            <XCircle className="w-4 h-4" />
-                            취소
-                          </button>
-                        </div>
+                              <span>네, 진행해주세요</span>
+                            </>
+                          )}
+                        </button>
+                        <button
+                          onClick={handleCancelTask}
+                          disabled={isExecutingTask}
+                          className={cn(
+                            'px-4 py-2.5 rounded-xl text-sm font-medium transition-all duration-200',
+                            'hover:scale-[1.02] active:scale-[0.98]',
+                            'disabled:opacity-50 disabled:cursor-not-allowed',
+                            isDark
+                              ? 'bg-zinc-800 hover:bg-zinc-700 text-zinc-300 border border-zinc-700'
+                              : 'bg-white hover:bg-zinc-50 text-zinc-700 border border-zinc-200 shadow-sm'
+                          )}
+                        >
+                          <XCircle className="w-4 h-4" />
+                        </button>
                       </div>
                     </div>
                   </div>

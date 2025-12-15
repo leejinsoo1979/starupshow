@@ -25,6 +25,7 @@ import {
   ProjectSidebar,
   OverviewSection,
   RoadmapSection,
+  WorkflowSection,
   CalendarSection,
   UpdatesSection,
   type ProjectSection,
@@ -248,6 +249,17 @@ export default function ProjectDetailPage() {
               name: project.name,
               deadline: project.deadline,
               stage: project.status === "planning" ? "planning" : project.status === "active" ? "development" : "production",
+            }}
+          />
+        )
+
+      case "workflow":
+        return (
+          <WorkflowSection
+            projectId={projectId}
+            project={{
+              name: project.name,
+              status: project.status,
             }}
           />
         )

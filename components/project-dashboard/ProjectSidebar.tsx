@@ -15,11 +15,14 @@ import {
   ChevronRight,
   Target,
   Rocket,
+  Play,
+  GitBranch,
 } from "lucide-react"
 
 export type ProjectSection =
   | "overview"
   | "roadmap"
+  | "workflow"
   | "team"
   | "tasks"
   | "calendar"
@@ -35,6 +38,7 @@ interface MenuItem {
   icon: typeof LayoutDashboard
   badge?: number
   color?: string
+  description?: string
 }
 
 const menuGroups = [
@@ -42,13 +46,18 @@ const menuGroups = [
     title: "프로젝트",
     items: [
       { id: "overview" as ProjectSection, label: "개요", icon: LayoutDashboard, color: "#3B82F6" },
-      { id: "roadmap" as ProjectSection, label: "로드맵", icon: Map, color: "#8B5CF6" },
-      { id: "team" as ProjectSection, label: "조직 구성", icon: Users, color: "#10B981" },
+    ],
+  },
+  {
+    title: "계획",
+    items: [
+      { id: "roadmap" as ProjectSection, label: "로드맵", icon: Map, color: "#8B5CF6", description: "전체 설계도" },
     ],
   },
   {
     title: "실행",
     items: [
+      { id: "workflow" as ProjectSection, label: "워크플로우", icon: Play, color: "#10B981", description: "실행 현황" },
       { id: "tasks" as ProjectSection, label: "작업 관리", icon: CheckSquare, color: "#F59E0B" },
       { id: "calendar" as ProjectSection, label: "일정", icon: Calendar, color: "#EC4899" },
     ],
@@ -56,7 +65,7 @@ const menuGroups = [
   {
     title: "현황",
     items: [
-      { id: "progress" as ProjectSection, label: "진행 현황", icon: BarChart3, color: "#06B6D4" },
+      { id: "progress" as ProjectSection, label: "진행 현황", icon: BarChart3, color: "#06B6D4", description: "요약 대시보드" },
       { id: "updates" as ProjectSection, label: "업데이트", icon: Bell, color: "#EF4444" },
     ],
   },
@@ -64,7 +73,7 @@ const menuGroups = [
     title: "자료",
     items: [
       { id: "documents" as ProjectSection, label: "문서", icon: FileText, color: "#6366F1" },
-      { id: "budget" as ProjectSection, label: "예산", icon: DollarSign, color: "#22C55E" },
+      { id: "team" as ProjectSection, label: "조직 구성", icon: Users, color: "#22C55E" },
     ],
   },
   {

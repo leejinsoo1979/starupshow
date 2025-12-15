@@ -1,6 +1,7 @@
 export { ProjectSidebar, type ProjectSection } from './ProjectSidebar'
 export { OverviewSection } from './OverviewSection'
 export { RoadmapSection } from './RoadmapSection'
+export { WorkflowSection } from './WorkflowSection'
 export { CalendarSection } from './CalendarSection'
 export { UpdatesSection } from './UpdatesSection'
 
