@@ -4356,29 +4356,26 @@ export default function AgentProfilePage() {
                               <>
                                 {/* 다중 감정 GIF 표시 (텍스트 순서대로) */}
                                 {(() => {
-                                  // emotions 배열이 있으면 다중 GIF 표시, 없으면 단일 emotion 사용
-                                  const emotionsToShow = msg.emotions && msg.emotions.length > 0
+                                  // 감정 중 GIF가 있는 첫 번째 감정만 표시 (1개만)
+                                  const emotionsWithGif = msg.emotions && msg.emotions.length > 0
                                     ? msg.emotions.filter(e => emotionAvatars[e])
                                     : (msg.emotion && emotionAvatars[msg.emotion] ? [msg.emotion] : [])
 
-                                  if (emotionsToShow.length > 0) {
-                                    return (
-                                      <div className={cn('mb-3', emotionsToShow.length > 1 ? 'flex flex-wrap gap-2' : '')}>
-                                        {emotionsToShow.map((emotion, idx) => (
+                                  if (emotionsWithGif.length > 0) {
+                                    // 첫 번째 감정의 GIF만 랜덤으로 1개 표시
+                                    const selectedEmotion = emotionsWithGif[0]
+                                    const gifUrl = getRandomEmotionGif(selectedEmotion)
+                                    if (gifUrl) {
+                                      return (
+                                        <div className="mb-3">
                                           <img
-                                            key={`${emotion}-${idx}`}
-                                            src={getRandomEmotionGif(emotion)}
-                                            alt={allEmotions.find((e: CustomEmotion) => e.id === emotion)?.label || '감정'}
-                                            className={cn(
-                                              'rounded-xl',
-                                              emotionsToShow.length > 1
-                                                ? 'max-w-[48%] sm:max-w-[45%]' // 여러 GIF면 나란히
-                                                : 'max-w-full' // 하나면 꽉 차게
-                                            )}
+                                            src={gifUrl}
+                                            alt={allEmotions.find((e: CustomEmotion) => e.id === selectedEmotion)?.label || '감정'}
+                                            className="rounded-xl max-w-full"
                                           />
-                                        ))}
-                                      </div>
-                                    )
+                                        </div>
+                                      )
+                                    }
                                   }
                                   return null
                                 })()}

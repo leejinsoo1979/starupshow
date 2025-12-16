@@ -634,30 +634,14 @@ export default function ExcelRibbon({ onAction }: ExcelRibbonProps) {
                     <div className="flex items-stretch h-[115px]">
                         {/* 페이지 설정 */}
                         <RibbonGroup title="페이지 설정">
-                            <div className="flex flex-col gap-1">
-                                <div className="flex gap-1">
-                                    <ToolButton
-                                        icon={<RectangleVertical className="w-4 h-4" />}
-                                        label="세로"
-                                        onClick={() => onAction('orientation', 'portrait')}
-                                    />
-                                    <ToolButton
-                                        icon={<RectangleHorizontal className="w-4 h-4" />}
-                                        label="가로"
-                                        onClick={() => onAction('orientation', 'landscape')}
-                                    />
+                            <div className="flex flex-col gap-1.5 pt-1">
+                                <div className="flex gap-0.5">
+                                    <SmallIconButton icon={RectangleVertical} title="세로 방향" onClick={() => onAction('orientation', 'portrait')} />
+                                    <SmallIconButton icon={RectangleHorizontal} title="가로 방향" onClick={() => onAction('orientation', 'landscape')} />
                                 </div>
-                                <div className="flex gap-1">
-                                    <ToolButton
-                                        icon={<Maximize2 className="w-4 h-4" />}
-                                        label="여백"
-                                        onClick={() => onAction('margins')}
-                                    />
-                                    <ToolButton
-                                        icon={<FileSpreadsheet className="w-4 h-4" />}
-                                        label="용지"
-                                        onClick={() => onAction('paper-size')}
-                                    />
+                                <div className="flex gap-0.5">
+                                    <SmallIconButton icon={Maximize2} title="여백 설정" onClick={() => onAction('margins')} />
+                                    <SmallIconButton icon={FileSpreadsheet} title="용지 크기" onClick={() => onAction('paper-size')} />
                                 </div>
                             </div>
                         </RibbonGroup>
@@ -675,17 +659,9 @@ export default function ExcelRibbon({ onAction }: ExcelRibbonProps) {
                                         <span className="text-[10px] text-gray-600 mt-1">인쇄</span>
                                     </button>
                                 </div>
-                                <div className="flex flex-col gap-1">
-                                    <ToolButton
-                                        icon={<Settings className="w-4 h-4" />}
-                                        label="설정"
-                                        onClick={() => onAction('print-settings')}
-                                    />
-                                    <ToolButton
-                                        icon={<Grid3X3 className="w-4 h-4" />}
-                                        label="인쇄영역"
-                                        onClick={() => onAction('print-area')}
-                                    />
+                                <div className="flex flex-col gap-1.5 pt-1">
+                                    <SmallIconButton icon={Settings} title="인쇄 설정" onClick={() => onAction('print-settings')} />
+                                    <SmallIconButton icon={Grid3X3} title="인쇄 영역" onClick={() => onAction('print-area')} />
                                 </div>
                             </div>
                         </RibbonGroup>
@@ -693,7 +669,7 @@ export default function ExcelRibbon({ onAction }: ExcelRibbonProps) {
 
                         {/* 크기 조정 */}
                         <RibbonGroup title="크기 조정">
-                            <div className="flex flex-col gap-1">
+                            <div className="flex flex-col gap-1 pt-1">
                                 <div className="flex items-center gap-1">
                                     <span className="text-[11px] text-gray-600 w-12">너비:</span>
                                     <select

@@ -43,8 +43,8 @@ import { ConditionalFormatDialog } from "./components/ConditionalFormatDialog"
 import { ChartDialog } from "./components/ChartDialog"
 import { ChartRenderer } from "./components/ChartRenderer"
 import { PrintDialog } from "./components/PrintDialog"
+import { openPrintPreview, DEFAULT_PRINT_SETTINGS } from "./lib/print"
 import type { PrintSettings } from "./lib/print"
-import { openPrintPreview, printSheet, DEFAULT_PRINT_SETTINGS } from "./lib/print"
 
 // Dynamic import for Fortune-sheet (client-side only)
 const SpreadsheetEditor = dynamic(() => import("./spreadsheet-editor"), {
@@ -90,6 +90,8 @@ export default function AISheetPage() {
     const [showFilterDialog, setShowFilterDialog] = useState(false)
     const [showConditionalFormatDialog, setShowConditionalFormatDialog] = useState(false)
     const [showChartDialog, setShowChartDialog] = useState(false)
+    const [showPrintDialog, setShowPrintDialog] = useState(false)
+    const [printSettings, setPrintSettings] = useState<PrintSettings>(DEFAULT_PRINT_SETTINGS)
     const [filterColumnIndex, setFilterColumnIndex] = useState(0)
     const [conditionalRules, setConditionalRules] = useState<ConditionalRule[]>([])
     const [charts, setCharts] = useState<ChartConfig[]>([])
@@ -332,6 +334,12 @@ export default function AISheetPage() {
             content: `📊 ${config.title || '차트'}를 생성했습니다. (${config.type} 차트, ${config.data.length}개 데이터 포인트)`
         }])
     }, [])
+
+    // Print handler for ribbon action
+    const handlePrintPreview = useCallback(() => {
+        const data = spreadsheetRef.current?.getData() || spreadsheetData
+        openPrintPreview(data, printSettings, fileName)
+    }, [spreadsheetData, fileName, printSettings])
 
     // Execute spreadsheet action using Fortune-sheet API directly
     const executeAction = useCallback((action: SpreadsheetAction) => {
@@ -652,6 +660,42 @@ export default function AISheetPage() {
             case 'export-csv':
             case 'save-as-csv':
                 handleExportCSV()
+                break
+
+            // Print
+            case 'print-preview':
+                handlePrintPreview()
+                break
+            case 'print-settings':
+                setShowPrintDialog(true)
+                break
+            case 'print-area':
+                // TODO: 인쇄 영역 설정
+                console.log('Print area setting')
+                break
+            case 'orientation':
+                setPrintSettings(prev => ({ ...prev, orientation: data as 'portrait' | 'landscape' }))
+                break
+            case 'margins':
+                setShowPrintDialog(true)
+                break
+            case 'paper-size':
+                setShowPrintDialog(true)
+                break
+            case 'fit-width':
+                setPrintSettings(prev => ({
+                    ...prev,
+                    fitToWidth: data === 'auto' ? undefined : parseInt(data)
+                }))
+                break
+            case 'fit-height':
+                setPrintSettings(prev => ({
+                    ...prev,
+                    fitToHeight: data === 'auto' ? undefined : parseInt(data)
+                }))
+                break
+            case 'scaling':
+                setPrintSettings(prev => ({ ...prev, scaling: parseInt(data) }))
                 break
 
             // Clipboard
@@ -1349,6 +1393,14 @@ export default function AISheetPage() {
                 onApply={handleChartCreate}
                 range={getCurrentRange()}
                 data={spreadsheetRef.current?.getData() || spreadsheetData}
+            />
+
+            {/* Print Dialog */}
+            <PrintDialog
+                isOpen={showPrintDialog}
+                onClose={() => setShowPrintDialog(false)}
+                data={spreadsheetRef.current?.getData() || spreadsheetData}
+                sheetName={fileName}
             />
 
             {/* Charts Display Overlay */}
