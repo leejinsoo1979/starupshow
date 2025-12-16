@@ -42,6 +42,9 @@ import { FilterDialog } from "./components/FilterDialog"
 import { ConditionalFormatDialog } from "./components/ConditionalFormatDialog"
 import { ChartDialog } from "./components/ChartDialog"
 import { ChartRenderer } from "./components/ChartRenderer"
+import { PrintDialog } from "./components/PrintDialog"
+import type { PrintSettings } from "./lib/print"
+import { openPrintPreview, printSheet, DEFAULT_PRINT_SETTINGS } from "./lib/print"
 
 // Dynamic import for Fortune-sheet (client-side only)
 const SpreadsheetEditor = dynamic(() => import("./spreadsheet-editor"), {

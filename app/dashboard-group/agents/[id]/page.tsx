@@ -1908,6 +1908,16 @@ export default function AgentProfilePage() {
   // 감정 아바타 상태
   const [emotionAvatars, setEmotionAvatars] = useState<EmotionAvatars>({})
 
+  // 감정 GIF에서 랜덤으로 1개 선택하는 헬퍼 함수
+  const getRandomEmotionGif = (emotionId: string): string | undefined => {
+    const avatarData = emotionAvatars[emotionId]
+    if (!avatarData) return undefined
+    if (Array.isArray(avatarData)) {
+      return avatarData[Math.floor(Math.random() * avatarData.length)]
+    }
+    return avatarData as string
+  }
+
   // 채팅 메인 GIF 상태
   const [chatMainGif, setChatMainGif] = useState<string | null>(null)
   const [uploadingChatMainGif, setUploadingChatMainGif] = useState(false)
@@ -4200,9 +4210,9 @@ export default function AgentProfilePage() {
                   <div className="flex flex-col items-center justify-center h-full text-center py-8">
                     {/* 프로필 GIF/이미지 - 크게 중앙에 */}
                     <div className="mb-6">
-                      {chatMainGif || emotionAvatars['neutral'] || emotionAvatars[currentEmotion] || agent?.avatar_url ? (
+                      {chatMainGif || getRandomEmotionGif('neutral') || getRandomEmotionGif(currentEmotion) || agent?.avatar_url ? (
                         <img
-                          src={chatMainGif || emotionAvatars['neutral'] || emotionAvatars[currentEmotion] || agent?.avatar_url || undefined}
+                          src={chatMainGif || getRandomEmotionGif('neutral') || getRandomEmotionGif(currentEmotion) || agent?.avatar_url || undefined}
                           alt={agent?.name || '에이전트'}
                           className="w-48 h-48 md:w-64 md:h-64 object-cover rounded-full shadow-xl"
                         />
@@ -4357,7 +4367,7 @@ export default function AgentProfilePage() {
                                         {emotionsToShow.map((emotion, idx) => (
                                           <img
                                             key={`${emotion}-${idx}`}
-                                            src={emotionAvatars[emotion]}
+                                            src={getRandomEmotionGif(emotion)}
                                             alt={allEmotions.find((e: CustomEmotion) => e.id === emotion)?.label || '감정'}
                                             className={cn(
                                               'rounded-xl',
@@ -4489,9 +4499,9 @@ export default function AgentProfilePage() {
                         ) : (
                           // "입력중" 상태
                           <>
-                            {emotionAvatars['thinking'] ? (
+                            {getRandomEmotionGif('thinking') ? (
                               <img
-                                src={emotionAvatars['thinking']}
+                                src={getRandomEmotionGif('thinking')}
                                 alt="입력중"
                                 className="w-8 h-8 rounded-full object-cover"
                               />
@@ -6438,9 +6448,9 @@ export default function AgentProfilePage() {
             {/* 헤더 */}
             <div className="flex items-center gap-4 mb-6">
               <div className="w-14 h-14 rounded-full overflow-hidden flex-shrink-0">
-                {chatMainGif || emotionAvatars['neutral'] || agent?.avatar_url ? (
+                {chatMainGif || getRandomEmotionGif('neutral') || agent?.avatar_url ? (
                   <img
-                    src={chatMainGif || emotionAvatars['neutral'] || agent?.avatar_url || undefined}
+                    src={chatMainGif || getRandomEmotionGif('neutral') || agent?.avatar_url || undefined}
                     alt={agent?.name || '에이전트'}
                     className="w-full h-full object-cover"
                   />

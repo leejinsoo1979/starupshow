@@ -44,7 +44,13 @@ import {
     MoreHorizontal,
     BarChart3,
     LineChart,
-    PieChart
+    PieChart,
+    Printer,
+    FileDown,
+    Maximize2,
+    Minimize2,
+    RectangleHorizontal,
+    RectangleVertical
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 
@@ -624,7 +630,110 @@ export default function ExcelRibbon({ onAction }: ExcelRibbonProps) {
                         </RibbonGroup>
                     </div>
                 )}
-                {(activeTab === "페이지 레이아웃" || activeTab === "보기" || activeTab === "설정") && (
+                {activeTab === "페이지 레이아웃" && (
+                    <div className="flex items-stretch h-[115px]">
+                        {/* 페이지 설정 */}
+                        <RibbonGroup title="페이지 설정">
+                            <div className="flex flex-col gap-1">
+                                <div className="flex gap-1">
+                                    <ToolButton
+                                        icon={<RectangleVertical className="w-4 h-4" />}
+                                        label="세로"
+                                        onClick={() => onAction('orientation', 'portrait')}
+                                    />
+                                    <ToolButton
+                                        icon={<RectangleHorizontal className="w-4 h-4" />}
+                                        label="가로"
+                                        onClick={() => onAction('orientation', 'landscape')}
+                                    />
+                                </div>
+                                <div className="flex gap-1">
+                                    <ToolButton
+                                        icon={<Maximize2 className="w-4 h-4" />}
+                                        label="여백"
+                                        onClick={() => onAction('margins')}
+                                    />
+                                    <ToolButton
+                                        icon={<FileSpreadsheet className="w-4 h-4" />}
+                                        label="용지"
+                                        onClick={() => onAction('paper-size')}
+                                    />
+                                </div>
+                            </div>
+                        </RibbonGroup>
+                        <GroupDivider />
+
+                        {/* 인쇄 */}
+                        <RibbonGroup title="인쇄">
+                            <div className="flex gap-2">
+                                <div className="flex flex-col items-center">
+                                    <button
+                                        onClick={() => onAction('print-preview')}
+                                        className="flex flex-col items-center justify-center w-[60px] h-[60px] hover:bg-blue-50 rounded border border-transparent hover:border-blue-200 transition-colors"
+                                    >
+                                        <Printer className="w-7 h-7 text-gray-600" />
+                                        <span className="text-[10px] text-gray-600 mt-1">인쇄</span>
+                                    </button>
+                                </div>
+                                <div className="flex flex-col gap-1">
+                                    <ToolButton
+                                        icon={<Settings className="w-4 h-4" />}
+                                        label="설정"
+                                        onClick={() => onAction('print-settings')}
+                                    />
+                                    <ToolButton
+                                        icon={<Grid3X3 className="w-4 h-4" />}
+                                        label="인쇄영역"
+                                        onClick={() => onAction('print-area')}
+                                    />
+                                </div>
+                            </div>
+                        </RibbonGroup>
+                        <GroupDivider />
+
+                        {/* 크기 조정 */}
+                        <RibbonGroup title="크기 조정">
+                            <div className="flex flex-col gap-1">
+                                <div className="flex items-center gap-1">
+                                    <span className="text-[11px] text-gray-600 w-12">너비:</span>
+                                    <select
+                                        className="text-[11px] border rounded px-1 py-0.5 w-16"
+                                        onChange={(e) => onAction('fit-width', e.target.value)}
+                                    >
+                                        <option value="auto">자동</option>
+                                        <option value="1">1페이지</option>
+                                        <option value="2">2페이지</option>
+                                    </select>
+                                </div>
+                                <div className="flex items-center gap-1">
+                                    <span className="text-[11px] text-gray-600 w-12">높이:</span>
+                                    <select
+                                        className="text-[11px] border rounded px-1 py-0.5 w-16"
+                                        onChange={(e) => onAction('fit-height', e.target.value)}
+                                    >
+                                        <option value="auto">자동</option>
+                                        <option value="1">1페이지</option>
+                                        <option value="2">2페이지</option>
+                                    </select>
+                                </div>
+                                <div className="flex items-center gap-1">
+                                    <span className="text-[11px] text-gray-600 w-12">배율:</span>
+                                    <select
+                                        className="text-[11px] border rounded px-1 py-0.5 w-16"
+                                        onChange={(e) => onAction('scaling', e.target.value)}
+                                    >
+                                        <option value="100">100%</option>
+                                        <option value="90">90%</option>
+                                        <option value="75">75%</option>
+                                        <option value="50">50%</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </RibbonGroup>
+                    </div>
+                )}
+
+                {(activeTab === "보기" || activeTab === "설정") && (
                     <div className="flex items-center justify-center h-[115px] text-gray-500 text-sm">
                         {activeTab} 도구
                     </div>
