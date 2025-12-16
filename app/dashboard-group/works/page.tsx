@@ -36,6 +36,7 @@ import {
 } from "lucide-react"
 import { BsFiletypePpt, BsFiletypeDoc, BsFileEarmarkSpreadsheet, BsFileEarmarkImage } from "react-icons/bs"
 import { AiOutlineAppstoreAdd } from "react-icons/ai"
+import { RiSparkling2Fill } from "react-icons/ri"
 import { useThemeStore } from "@/stores/themeStore"
 import { cn } from "@/lib/utils"
 import { ToolsView } from "./tools-view"
@@ -301,7 +302,7 @@ function WorksHome({ onOpenCreate, onStartChat }: { onOpenCreate: () => void, on
         href?: string
         badge?: string
     }> = [
-        { icon: Briefcase, label: "범용", bg: "bg-blue-600", color: "text-white", active: true },
+        { icon: RiSparkling2Fill, label: "범용", bg: "bg-blue-600", color: "text-white", active: true },
         { icon: BsFiletypeDoc, label: "문서", bg: "bg-emerald-500", color: "text-white" },
         { icon: BsFiletypePpt, label: "슬라이드", bg: "bg-orange-500", color: "text-white" },
         { icon: BsFileEarmarkSpreadsheet, label: "시트", bg: "bg-green-600", color: "text-white", href: "/dashboard-group/works/ai-sheet" },
