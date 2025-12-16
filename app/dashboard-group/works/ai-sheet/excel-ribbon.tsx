@@ -86,11 +86,11 @@ export default function ExcelRibbon({ onAction }: ExcelRibbonProps) {
 
     // 그룹 컨테이너
     const RibbonGroup = ({ title, children }: { title: string; children: React.ReactNode }) => (
-        <div className="flex flex-col h-[90px]">
+        <div className="flex flex-col h-[115px]">
             <div className="flex items-start gap-1 px-3 pt-2 flex-1">
                 {children}
             </div>
-            <div className="text-[11px] text-gray-600 text-center py-1.5 border-t border-gray-200">
+            <div className="text-[11px] text-gray-600 text-center py-2 border-t border-gray-200">
                 {title}
             </div>
         </div>
@@ -262,7 +262,7 @@ export default function ExcelRibbon({ onAction }: ExcelRibbonProps) {
     }
 
     const renderHomeTab = () => (
-        <div className="flex items-stretch h-full" ref={dropdownRef}>
+        <div className="flex items-stretch h-[115px]" ref={dropdownRef}>
             {/* 실행 취소/다시 실행 */}
             <div className="flex items-center gap-1 px-2">
                 <button className="p-1.5 hover:bg-gray-200 rounded" title="실행 취소 (Ctrl+Z)" onClick={() => onAction('undo')}>
@@ -560,10 +560,10 @@ export default function ExcelRibbon({ onAction }: ExcelRibbonProps) {
             </div>
 
             {/* 리본 콘텐츠 */}
-            <div className="bg-[#f8f9fa] overflow-x-auto overflow-y-hidden h-[94px]">
+            <div className="bg-[#f8f9fa] overflow-x-auto overflow-y-hidden">
                 {activeTab === "홈" && renderHomeTab()}
                 {activeTab === "삽입" && (
-                    <div className="flex items-stretch h-[90px] px-4">
+                    <div className="flex items-stretch h-[115px] px-4">
                         <RibbonGroup title="표">
                             <div className="flex gap-1">
                                 <LargeDropdownButton id="pivot" icon={Table} label="피벗 테이블" iconColor="text-green-600">
@@ -590,7 +590,7 @@ export default function ExcelRibbon({ onAction }: ExcelRibbonProps) {
                     </div>
                 )}
                 {activeTab === "데이터" && (
-                    <div className="flex items-stretch h-[90px] px-4">
+                    <div className="flex items-stretch h-[115px] px-4">
                         <RibbonGroup title="정렬 및 필터">
                             <div className="flex gap-1">
                                 <LargeDropdownButton id="sort-asc" icon={ArrowUpAZ} label="오름차순" iconColor="text-blue-600">
@@ -608,7 +608,7 @@ export default function ExcelRibbon({ onAction }: ExcelRibbonProps) {
                     </div>
                 )}
                 {activeTab === "수식" && (
-                    <div className="flex items-stretch h-[90px] px-4">
+                    <div className="flex items-stretch h-[115px] px-4">
                         <RibbonGroup title="함수 라이브러리">
                             <div className="flex gap-1">
                                 <LargeDropdownButton id="insert-func" icon={Sigma} label="함수 삽입" iconColor="text-blue-600">
@@ -625,7 +625,7 @@ export default function ExcelRibbon({ onAction }: ExcelRibbonProps) {
                     </div>
                 )}
                 {(activeTab === "페이지 레이아웃" || activeTab === "보기" || activeTab === "설정") && (
-                    <div className="flex items-center justify-center h-[90px] text-gray-500 text-sm">
+                    <div className="flex items-center justify-center h-[115px] text-gray-500 text-sm">
                         {activeTab} 도구
                     </div>
                 )}

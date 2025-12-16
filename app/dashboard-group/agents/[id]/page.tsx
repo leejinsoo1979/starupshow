@@ -6347,23 +6347,39 @@ export default function AgentProfilePage() {
                 </div>
               ) : (
                 <div className="grid grid-cols-4 gap-2">
-                  {emoticons.map((emoticon) => (
-                    <button
-                      key={emoticon.id}
-                      onClick={() => handleSelectEmoticon(emoticon)}
-                      className={cn(
-                        'aspect-square rounded-xl overflow-hidden transition-transform hover:scale-105 active:scale-95',
-                        isDark ? 'bg-zinc-800 hover:bg-zinc-700' : 'bg-zinc-100 hover:bg-zinc-200'
-                      )}
-                      title={emoticon.name}
-                    >
-                      <img
-                        src={emoticon.image_url}
-                        alt={emoticon.name}
-                        className="w-full h-full object-cover"
-                      />
-                    </button>
-                  ))}
+                  {emoticons.map((emoticon) => {
+                    const imageUrls = emoticon.image_urls?.length > 0 ? emoticon.image_urls : [emoticon.image_url]
+                    return (
+                      <button
+                        key={emoticon.id}
+                        onClick={() => handleSelectEmoticon(emoticon)}
+                        className={cn(
+                          'aspect-square rounded-xl overflow-hidden transition-transform hover:scale-105 active:scale-95 p-0.5',
+                          isDark ? 'bg-zinc-800 hover:bg-zinc-700' : 'bg-zinc-100 hover:bg-zinc-200'
+                        )}
+                        title={emoticon.name}
+                      >
+                        {imageUrls.length === 1 ? (
+                          <img
+                            src={imageUrls[0]}
+                            alt={emoticon.name}
+                            className="w-full h-full object-cover rounded-lg"
+                          />
+                        ) : (
+                          <div className="grid grid-cols-2 grid-rows-2 gap-0.5 w-full h-full">
+                            {imageUrls.slice(0, 4).map((url, idx) => (
+                              <div key={idx} className="rounded-sm overflow-hidden">
+                                <img src={url} alt={`${emoticon.name}-${idx + 1}`} className="w-full h-full object-cover" />
+                              </div>
+                            ))}
+                            {imageUrls.length < 4 && Array.from({ length: 4 - imageUrls.length }).map((_, idx) => (
+                              <div key={`empty-${idx}`} className={cn('rounded-sm', isDark ? 'bg-zinc-700/50' : 'bg-zinc-200/50')} />
+                            ))}
+                          </div>
+                        )}
+                      </button>
+                    )
+                  })}
                 </div>
               )}
             </div>
