@@ -26,12 +26,19 @@ import {
     ArrowLeft,
     Loader2,
     Mail,
-    Sheet
+    Sheet,
+    Sparkles,
+    Globe,
+    Presentation,
+    Table2,
+    Image,
+    AppWindow
 } from "lucide-react"
+import { BsFiletypePpt } from "react-icons/bs"
 import { useThemeStore } from "@/stores/themeStore"
 import { cn } from "@/lib/utils"
 import { ToolsView } from "./tools-view"
-import { useSearchParams } from "next/navigation"
+import { useSearchParams, useRouter } from "next/navigation"
 import { CreateWorkModal } from "./create-modal"
 
 interface Message {
@@ -73,7 +80,7 @@ function ChatView({ onBack, initialQuery }: { onBack: () => void, initialQuery?:
     const [messages, setMessages] = useState<Message[]>([])
     const [input, setInput] = useState('')
     const [isLoading, setIsLoading] = useState(false)
-    const [hasSentInitial, setHasSentInitial] = useState(false)
+    const hasSentInitialRef = useRef(false)
     const messagesEndRef = useRef<HTMLDivElement>(null)
 
     const scrollToBottom = () => {
@@ -84,7 +91,7 @@ function ChatView({ onBack, initialQuery }: { onBack: () => void, initialQuery?:
         scrollToBottom()
     }, [messages])
 
-    const sendMessageWithContent = async (content: string) => {
+    const sendMessageWithContent = async (content: string, currentMessages: Message[] = []) => {
         if (!content.trim() || isLoading) return
 
         const userMessage: Message = { role: 'user', content: content.trim() }
@@ -96,17 +103,22 @@ function ChatView({ onBack, initialQuery }: { onBack: () => void, initialQuery?:
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    messages: [...messages, userMessage].map(m => ({
+                    messages: [...currentMessages, userMessage].map(m => ({
                         role: m.role,
                         content: m.content
                     })),
-                    model: 'grok-beta'
+                    model: 'grok-3-mini'
                 })
             })
 
             const data = await response.json()
-            if (data.content) {
+            if (data.error) {
+                console.error('API Error:', data.error)
+                setMessages(prev => [...prev, { role: 'assistant', content: `오류: ${data.error}` }])
+            } else if (data.content) {
                 setMessages(prev => [...prev, { role: 'assistant', content: data.content }])
+            } else {
+                setMessages(prev => [...prev, { role: 'assistant', content: '응답을 받지 못했습니다.' }])
             }
         } catch (error) {
             console.error('Chat error:', error)
@@ -116,19 +128,19 @@ function ChatView({ onBack, initialQuery }: { onBack: () => void, initialQuery?:
         }
     }
 
-    // Send initial query if provided
+    // Send initial query if provided (use ref to prevent double-send in Strict Mode)
     useEffect(() => {
-        if (initialQuery && !hasSentInitial) {
-            setHasSentInitial(true)
-            sendMessageWithContent(initialQuery)
+        if (initialQuery && !hasSentInitialRef.current) {
+            hasSentInitialRef.current = true
+            sendMessageWithContent(initialQuery, [])
         }
-    }, [initialQuery, hasSentInitial])
+    }, [initialQuery])
 
     const sendMessage = async () => {
         if (!input.trim() || isLoading) return
         const content = input.trim()
         setInput('')
-        await sendMessageWithContent(content)
+        await sendMessageWithContent(content, messages)
     }
 
     return (
@@ -191,25 +203,66 @@ function ChatView({ onBack, initialQuery }: { onBack: () => void, initialQuery?:
                 </div>
             </div>
 
-            {/* Fixed Bottom Input Area */}
+            {/* Fixed Bottom Input Area - Enhanced */}
             <div className="border-t border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900/50 p-4">
                 <div className="max-w-3xl mx-auto">
-                    <div className="flex gap-3 items-center bg-white dark:bg-zinc-800 rounded-2xl border-2 border-zinc-300 dark:border-zinc-600 px-4 py-3">
-                        <input
-                            type="text"
-                            value={input}
-                            onChange={(e) => setInput(e.target.value)}
-                            onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && sendMessage()}
-                            placeholder="메시지를 입력하세요..."
-                            className="flex-1 bg-transparent text-zinc-800 dark:text-zinc-200 placeholder-zinc-400 text-base focus:outline-none"
-                        />
-                        <button
-                            onClick={sendMessage}
-                            disabled={isLoading || !input.trim()}
-                            className="p-3 bg-blue-500 hover:bg-blue-600 disabled:bg-zinc-300 dark:disabled:bg-zinc-700 rounded-xl transition-colors"
-                        >
-                            <Send className="w-5 h-5 text-white" />
-                        </button>
+                    <div className="bg-white dark:bg-zinc-800 rounded-2xl border border-zinc-200 dark:border-zinc-700 overflow-hidden">
+                        {/* Tabs */}
+                        <div className="flex border-b border-zinc-200 dark:border-zinc-700">
+                            <button className="flex items-center gap-2 px-4 py-2.5 text-sm font-medium bg-zinc-100 dark:bg-zinc-700 text-zinc-900 dark:text-white border-r border-zinc-200 dark:border-zinc-600">
+                                <Sparkles className="w-4 h-4" />
+                                슈퍼 에이전트
+                            </button>
+                            <button className="flex items-center gap-2 px-4 py-2.5 text-sm font-medium text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300">
+                                <Users className="w-4 h-4" />
+                                팀 채팅
+                            </button>
+                        </div>
+
+                        {/* Input Field */}
+                        <div className="p-4">
+                            <input
+                                type="text"
+                                value={input}
+                                onChange={(e) => setInput(e.target.value)}
+                                onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && sendMessage()}
+                                placeholder="무엇이든 물어보고 만들어보세요"
+                                className="w-full bg-transparent text-zinc-800 dark:text-zinc-200 placeholder-zinc-400 text-base focus:outline-none"
+                            />
+                        </div>
+
+                        {/* Bottom Actions */}
+                        <div className="flex items-center justify-between px-4 py-3 border-t border-zinc-100 dark:border-zinc-700">
+                            <div className="flex items-center gap-2">
+                                <button className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-700 rounded-lg transition-colors">
+                                    <Search className="w-4 h-4" />
+                                    저에 대해 연구
+                                </button>
+                                <button className="p-2 hover:bg-zinc-100 dark:hover:bg-zinc-700 rounded-lg transition-colors">
+                                    <FileText className="w-5 h-5 text-zinc-500" />
+                                </button>
+                                <button className="p-2 hover:bg-zinc-100 dark:hover:bg-zinc-700 rounded-lg transition-colors">
+                                    <Wrench className="w-5 h-5 text-zinc-500" />
+                                </button>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <button className="p-2 hover:bg-zinc-100 dark:hover:bg-zinc-700 rounded-lg transition-colors">
+                                    <Upload className="w-5 h-5 text-zinc-500" />
+                                </button>
+                                <button className="p-2 hover:bg-zinc-100 dark:hover:bg-zinc-700 rounded-lg transition-colors">
+                                    <svg className="w-5 h-5 text-zinc-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
+                                    </svg>
+                                </button>
+                                <button
+                                    onClick={sendMessage}
+                                    disabled={isLoading || !input.trim()}
+                                    className="p-2 hover:bg-zinc-100 dark:hover:bg-zinc-700 rounded-lg transition-colors disabled:opacity-50"
+                                >
+                                    <Send className="w-5 h-5 text-zinc-500" />
+                                </button>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -219,13 +272,14 @@ function ChatView({ onBack, initialQuery }: { onBack: () => void, initialQuery?:
 
 // --- Genspark Style Home with Chat ---
 function WorksHome({ onOpenCreate, onStartChat }: { onOpenCreate: () => void, onStartChat: (query: string) => void }) {
+    const router = useRouter()
     const [inputValue, setInputValue] = useState('')
     const [activeTab, setActiveTab] = useState<'agent' | 'general'>('agent')
 
     const agentTools = [
         { icon: LayoutGrid, label: "커스텀 슈퍼 에이전트", bg: "bg-zinc-700", color: "text-white" },
         { icon: FileText, label: "AI 슬라이드", bg: "bg-yellow-500", color: "text-white" },
-        { icon: Sheet, label: "AI 시트", bg: "bg-zinc-600", color: "text-white" },
+        { icon: Sheet, label: "AI 시트", bg: "bg-emerald-500", color: "text-white", href: "/dashboard-group/works/ai-sheet" },
         { icon: FileText, label: "AI 문서", bg: "bg-zinc-700", color: "text-white" },
         { icon: Wrench, label: "AI 개발자", bg: "bg-zinc-700", color: "text-white" },
         { icon: Briefcase, label: "AI 디자이너", bg: "bg-zinc-700", color: "text-white" },
@@ -237,15 +291,31 @@ function WorksHome({ onOpenCreate, onStartChat }: { onOpenCreate: () => void, on
         { icon: Briefcase, label: "모든 에이전트", bg: "bg-zinc-700", color: "text-white" },
     ]
 
-    const generalTools = [
-        { icon: Briefcase, label: "범용", bg: "bg-blue-500", color: "text-white", active: true },
+    const generalTools: Array<{
+        icon: any
+        label: string
+        bg: string
+        color: string
+        active?: boolean
+        href?: string
+        badge?: string
+    }> = [
+        { icon: Briefcase, label: "범용", bg: "bg-blue-600", color: "text-white", active: true },
         { icon: FileText, label: "문서", bg: "bg-emerald-500", color: "text-white" },
-        { icon: FileText, label: "파워포인트", bg: "bg-red-500", color: "text-white", badge: "Free" },
-        { icon: Sheet, label: "표", bg: "bg-cyan-500", color: "text-white" },
-        { icon: LayoutGrid, label: "포스터", bg: "bg-pink-500", color: "text-white", badge: "New" },
-        { icon: Home, label: "웹사이트", bg: "bg-orange-500", color: "text-white" },
-        { icon: Wrench, label: "도구형 에이전트", bg: "bg-gradient-to-br from-pink-500 via-purple-500 to-blue-500", color: "text-white" },
+        { icon: BsFiletypePpt, label: "슬라이드", bg: "bg-orange-500", color: "text-white" },
+        { icon: Table2, label: "시트", bg: "bg-green-600", color: "text-white", href: "/dashboard-group/works/ai-sheet" },
+        { icon: Image, label: "포스터", bg: "bg-pink-500", color: "text-white" },
+        { icon: Globe, label: "웹사이트", bg: "bg-amber-500", color: "text-white" },
+        { icon: AppWindow, label: "Apps +", bg: "bg-purple-500", color: "text-white" },
     ]
+
+    const handleToolClick = (tool: typeof generalTools[number]) => {
+        if (tool.href) {
+            router.push(tool.href)
+        } else {
+            onStartChat(tool.label)
+        }
+    }
 
     const handleSubmit = () => {
         if (inputValue.trim()) {
@@ -299,7 +369,7 @@ function WorksHome({ onOpenCreate, onStartChat }: { onOpenCreate: () => void, on
                     <motion.button
                         key={idx}
                         whileHover={{ scale: 1.05 }}
-                        onClick={() => onStartChat(tool.label)}
+                        onClick={() => handleToolClick(tool)}
                         className="flex flex-col items-center gap-2"
                     >
                         <div className={cn(
