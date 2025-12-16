@@ -1909,10 +1909,21 @@ export default function AgentProfilePage() {
   const [emotionAvatars, setEmotionAvatars] = useState<EmotionAvatars>({})
 
   // 감정 GIF에서 랜덤으로 1개 선택하는 헬퍼 함수
-  const getRandomEmotionGif = (emotionId: string): string | undefined => {
+  // seed를 전달하면 동일한 seed에 대해 동일한 결과 반환 (메시지별 고정용)
+  const getRandomEmotionGif = (emotionId: string, seed?: string): string | undefined => {
     const avatarData = emotionAvatars[emotionId]
     if (!avatarData) return undefined
     if (Array.isArray(avatarData)) {
+      if (seed) {
+        // seed 기반 결정적 선택 (메시지 ID 등으로 고정)
+        let hash = 0
+        for (let i = 0; i < seed.length; i++) {
+          hash = ((hash << 5) - hash) + seed.charCodeAt(i)
+          hash = hash & hash
+        }
+        const index = Math.abs(hash) % avatarData.length
+        return avatarData[index]
+      }
       return avatarData[Math.floor(Math.random() * avatarData.length)]
     }
     return avatarData as string
@@ -4362,9 +4373,10 @@ export default function AgentProfilePage() {
                                     : (msg.emotion && emotionAvatars[msg.emotion] ? [msg.emotion] : [])
 
                                   if (emotionsWithGif.length > 0) {
-                                    // 첫 번째 감정의 GIF만 랜덤으로 1개 표시
+                                    // 첫 번째 감정의 GIF만 표시 (메시지 ID로 고정)
                                     const selectedEmotion = emotionsWithGif[0]
-                                    const gifUrl = getRandomEmotionGif(selectedEmotion)
+                                    const msgSeed = msg.id || `${msg.timestamp}-${selectedEmotion}`
+                                    const gifUrl = getRandomEmotionGif(selectedEmotion, msgSeed)
                                     if (gifUrl) {
                                       return (
                                         <div className="mb-3">
