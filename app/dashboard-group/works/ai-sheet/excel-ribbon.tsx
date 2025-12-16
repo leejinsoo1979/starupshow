@@ -560,7 +560,7 @@ export default function ExcelRibbon({ onAction }: ExcelRibbonProps) {
             </div>
 
             {/* 리본 콘텐츠 */}
-            <div className="bg-[#f8f9fa] overflow-x-auto overflow-y-hidden h-[90px]">
+            <div className="bg-[#f8f9fa] overflow-x-auto overflow-y-hidden h-[94px]">
                 {activeTab === "홈" && renderHomeTab()}
                 {activeTab === "삽입" && (
                     <div className="flex items-stretch h-[90px] px-4">

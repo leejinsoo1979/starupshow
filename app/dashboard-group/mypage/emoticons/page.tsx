@@ -464,27 +464,41 @@ export default function EmoticonsPage() {
                 )}
               >
                 {/* 이미지 그리드 (1~4개, 2x2) */}
-                <div className={cn(
-                  'aspect-square grid gap-0.5 p-1',
-                  emoticon.image_urls.length === 1 && 'grid-cols-1',
-                  emoticon.image_urls.length >= 2 && 'grid-cols-2 grid-rows-2'
-                )}>
-                  {emoticon.image_urls.slice(0, 4).map((url, idx) => (
-                    <div
-                      key={idx}
-                      className={cn(
-                        'rounded-lg overflow-hidden',
-                        emoticon.image_urls.length === 2 && 'row-span-1',
-                        emoticon.image_urls.length === 3 && idx === 2 && 'col-span-2'
-                      )}
-                    >
+                <div className="aspect-square p-1">
+                  {emoticon.image_urls.length === 1 ? (
+                    <div className="w-full h-full rounded-lg overflow-hidden">
                       <img
-                        src={url}
-                        alt={`${emoticon.name}-${idx + 1}`}
+                        src={emoticon.image_urls[0]}
+                        alt={emoticon.name}
                         className="w-full h-full object-cover"
                       />
                     </div>
-                  ))}
+                  ) : (
+                    <div className="grid grid-cols-2 grid-rows-2 gap-0.5 w-full h-full">
+                      {emoticon.image_urls.slice(0, 4).map((url, idx) => (
+                        <div
+                          key={idx}
+                          className="rounded-lg overflow-hidden"
+                        >
+                          <img
+                            src={url}
+                            alt={`${emoticon.name}-${idx + 1}`}
+                            className="w-full h-full object-cover"
+                          />
+                        </div>
+                      ))}
+                      {/* 빈 슬롯 채우기 (2~3개일 때) */}
+                      {emoticon.image_urls.length < 4 && Array.from({ length: 4 - emoticon.image_urls.length }).map((_, idx) => (
+                        <div
+                          key={`empty-${idx}`}
+                          className={cn(
+                            'rounded-lg',
+                            isDark ? 'bg-zinc-700/50' : 'bg-zinc-200/50'
+                          )}
+                        />
+                      ))}
+                    </div>
+                  )}
                 </div>
 
                 {isSelectionMode && (
