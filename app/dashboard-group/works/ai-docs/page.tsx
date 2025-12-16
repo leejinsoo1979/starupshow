@@ -1,7 +1,6 @@
 "use client"
 
 import { useState, useRef, useEffect, useCallback } from "react"
-import { motion, AnimatePresence } from "framer-motion"
 import {
     Send,
     Bot,
@@ -14,6 +13,7 @@ import {
     FileText,
     Upload,
     Mic,
+    MicOff,
     MoreHorizontal,
     GripVertical,
     ExternalLink,
@@ -34,21 +34,20 @@ import {
     Undo,
     Redo,
     Type,
-    Heading1,
-    Heading2,
-    Heading3,
     Code,
     Quote,
     Minus,
     Users,
     UserPlus,
-    Share2
+    Check,
+    X
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 interface Message {
     role: 'user' | 'assistant' | 'system'
     content: string
+    feedback?: 'like' | 'dislike'
 }
 
 type EditorMode = 'richtext' | 'markdown'
@@ -66,9 +65,20 @@ export default function AIDocsPage() {
     const [leftPanelWidth, setLeftPanelWidth] = useState(480)
     const [isResizing, setIsResizing] = useState(false)
 
+    // Voice recording
+    const [isRecording, setIsRecording] = useState(false)
+    const recognitionRef = useRef<any>(null)
+
+    // Copy notification
+    const [showCopyNotification, setShowCopyNotification] = useState(false)
+
+    // File upload
+    const fileInputRef = useRef<HTMLInputElement>(null)
+
     const messagesEndRef = useRef<HTMLDivElement>(null)
     const containerRef = useRef<HTMLDivElement>(null)
     const editorRef = useRef<HTMLDivElement>(null)
+    const textareaRef = useRef<HTMLTextAreaElement>(null)
 
     const scrollToBottom = () => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -213,6 +223,8 @@ export default function AIDocsPage() {
     // Copy document content
     const copyContent = () => {
         navigator.clipboard.writeText(documentContent)
+        setShowCopyNotification(true)
+        setTimeout(() => setShowCopyNotification(false), 2000)
     }
 
     // Export document
@@ -226,18 +238,20 @@ export default function AIDocsPage() {
             a.click()
             URL.revokeObjectURL(url)
         } else if (format === 'html') {
-            // Convert markdown to HTML (simple conversion)
             const htmlContent = `<!DOCTYPE html>
 <html>
 <head>
+    <meta charset="UTF-8">
     <title>${documentTitle}</title>
     <style>
-        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 800px; margin: 0 auto; padding: 40px; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 800px; margin: 0 auto; padding: 40px; line-height: 1.6; }
         h1, h2, h3 { margin-top: 24px; }
-        p { line-height: 1.6; }
         code { background: #f4f4f4; padding: 2px 6px; border-radius: 4px; }
         pre { background: #f4f4f4; padding: 16px; border-radius: 8px; overflow-x: auto; }
         blockquote { border-left: 4px solid #ddd; margin: 0; padding-left: 16px; color: #666; }
+        table { border-collapse: collapse; width: 100%; margin: 16px 0; }
+        th, td { border: 1px solid #ddd; padding: 8px 12px; text-align: left; }
+        th { background: #f4f4f4; }
     </style>
 </head>
 <body>
@@ -254,9 +268,9 @@ ${documentContent}
         }
     }
 
-    // Editor toolbar actions
+    // ========== Markdown Toolbar Actions ==========
     const insertMarkdown = (syntax: string, wrap?: boolean) => {
-        const textarea = document.querySelector('textarea[data-editor]') as HTMLTextAreaElement
+        const textarea = textareaRef.current
         if (!textarea) return
 
         const start = textarea.selectionStart
@@ -264,17 +278,186 @@ ${documentContent}
         const selected = documentContent.substring(start, end)
 
         let newContent: string
+        let newCursorPos: number
+
         if (wrap && selected) {
             newContent = documentContent.substring(0, start) + syntax + selected + syntax + documentContent.substring(end)
+            newCursorPos = end + syntax.length * 2
+        } else if (wrap) {
+            newContent = documentContent.substring(0, start) + syntax + syntax + documentContent.substring(end)
+            newCursorPos = start + syntax.length
         } else {
             newContent = documentContent.substring(0, start) + syntax + documentContent.substring(end)
+            newCursorPos = start + syntax.length
         }
 
         setDocumentContent(newContent)
+
+        // Restore focus and cursor position
+        setTimeout(() => {
+            textarea.focus()
+            textarea.setSelectionRange(newCursorPos, newCursorPos)
+        }, 0)
+    }
+
+    // Insert table
+    const insertTable = () => {
+        const tableMarkdown = `\n| 헤더 1 | 헤더 2 | 헤더 3 |\n|--------|--------|--------|\n| 셀 1   | 셀 2   | 셀 3   |\n| 셀 4   | 셀 5   | 셀 6   |\n`
+        insertMarkdown(tableMarkdown)
+    }
+
+    // ========== Rich Text Toolbar Actions ==========
+    const execCommand = (command: string, value?: string) => {
+        if (editorMode !== 'richtext' || !editorRef.current) return
+
+        editorRef.current.focus()
+        document.execCommand(command, false, value)
+
+        // Update content state
+        setTimeout(() => {
+            if (editorRef.current) {
+                setDocumentContent(editorRef.current.innerHTML)
+            }
+        }, 0)
+    }
+
+    const handleUndo = () => execCommand('undo')
+    const handleRedo = () => execCommand('redo')
+    const handleBold = () => execCommand('bold')
+    const handleItalic = () => execCommand('italic')
+    const handleUnderline = () => execCommand('underline')
+    const handleStrikethrough = () => execCommand('strikeThrough')
+    const handleAlignLeft = () => execCommand('justifyLeft')
+    const handleAlignCenter = () => execCommand('justifyCenter')
+    const handleAlignRight = () => execCommand('justifyRight')
+    const handleAlignJustify = () => execCommand('justifyFull')
+    const handleInsertUnorderedList = () => execCommand('insertUnorderedList')
+    const handleInsertOrderedList = () => execCommand('insertOrderedList')
+
+    const handleFontSize = (size: string) => {
+        execCommand('fontSize', size)
+    }
+
+    const handleHeading = (level: string) => {
+        if (level === 'Normal Text') {
+            execCommand('formatBlock', 'p')
+        } else {
+            execCommand('formatBlock', level.toLowerCase().replace(' ', ''))
+        }
+    }
+
+    // ========== Voice Input ==========
+    const toggleVoiceInput = () => {
+        if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
+            alert('음성 인식이 지원되지 않는 브라우저입니다.')
+            return
+        }
+
+        if (isRecording) {
+            recognitionRef.current?.stop()
+            setIsRecording(false)
+        } else {
+            const SpeechRecognition = (window as any).webkitSpeechRecognition || (window as any).SpeechRecognition
+            const recognition = new SpeechRecognition()
+
+            recognition.lang = 'ko-KR'
+            recognition.continuous = true
+            recognition.interimResults = true
+
+            recognition.onresult = (event: any) => {
+                let finalTranscript = ''
+                for (let i = event.resultIndex; i < event.results.length; i++) {
+                    if (event.results[i].isFinal) {
+                        finalTranscript += event.results[i][0].transcript
+                    }
+                }
+                if (finalTranscript) {
+                    setInput(prev => prev + finalTranscript)
+                }
+            }
+
+            recognition.onerror = (event: any) => {
+                console.error('Speech recognition error:', event.error)
+                setIsRecording(false)
+            }
+
+            recognition.onend = () => {
+                setIsRecording(false)
+            }
+
+            recognitionRef.current = recognition
+            recognition.start()
+            setIsRecording(true)
+        }
+    }
+
+    // ========== File Upload ==========
+    const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0]
+        if (!file) return
+
+        // For images, convert to base64 and insert
+        if (file.type.startsWith('image/')) {
+            const reader = new FileReader()
+            reader.onload = () => {
+                const base64 = reader.result as string
+                if (editorMode === 'markdown') {
+                    insertMarkdown(`![${file.name}](${base64})`)
+                } else {
+                    execCommand('insertImage', base64)
+                }
+            }
+            reader.readAsDataURL(file)
+        } else if (file.type === 'text/plain' || file.type === 'text/markdown') {
+            // For text files, read and append content
+            const reader = new FileReader()
+            reader.onload = () => {
+                const content = reader.result as string
+                setDocumentContent(prev => prev + '\n' + content)
+            }
+            reader.readAsText(file)
+        }
+
+        // Reset input
+        if (fileInputRef.current) {
+            fileInputRef.current.value = ''
+        }
+    }
+
+    // ========== Feedback ==========
+    const handleFeedback = (messageIndex: number, feedback: 'like' | 'dislike') => {
+        setMessages(prev => prev.map((msg, i) =>
+            i === messageIndex ? { ...msg, feedback } : msg
+        ))
+    }
+
+    // ========== Insert Link (Rich Text) ==========
+    const handleInsertLink = () => {
+        const url = prompt('링크 URL을 입력하세요:')
+        if (url) {
+            execCommand('createLink', url)
+        }
+    }
+
+    // ========== Insert Image (Rich Text) ==========
+    const handleInsertImage = () => {
+        const url = prompt('이미지 URL을 입력하세요:')
+        if (url) {
+            execCommand('insertImage', url)
+        }
     }
 
     return (
         <div ref={containerRef} className="h-full flex bg-zinc-950 overflow-hidden">
+            {/* Hidden file input */}
+            <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*,.txt,.md"
+                onChange={handleFileUpload}
+                className="hidden"
+            />
+
             {/* Left Panel - Chat */}
             <div
                 className="flex flex-col border-r border-zinc-800 h-full overflow-hidden"
@@ -313,20 +496,19 @@ ${documentContent}
                                 <div className="flex items-center gap-2 pb-4 border-b border-zinc-800">
                                     <button
                                         onClick={copyContent}
-                                        className="flex items-center gap-2 px-3 py-1.5 text-sm bg-zinc-800 hover:bg-zinc-700 text-white rounded-lg transition-colors"
+                                        className="flex items-center gap-2 px-3 py-1.5 text-sm bg-zinc-800 hover:bg-zinc-700 text-white rounded-lg transition-colors relative"
                                     >
-                                        <Copy className="w-4 h-4" />
-                                        복사
-                                    </button>
-                                    <button className="p-2 hover:bg-zinc-800 rounded-lg transition-colors">
-                                        <ThumbsUp className="w-4 h-4 text-zinc-500" />
-                                    </button>
-                                    <button className="p-2 hover:bg-zinc-800 rounded-lg transition-colors">
-                                        <ThumbsDown className="w-4 h-4 text-zinc-500" />
-                                    </button>
-                                    <button className="flex items-center gap-2 px-3 py-1.5 text-sm bg-zinc-800 hover:bg-zinc-700 text-white rounded-lg transition-colors">
-                                        <span className="font-bold">N</span>
-                                        Notion에 저장
+                                        {showCopyNotification ? (
+                                            <>
+                                                <Check className="w-4 h-4 text-green-400" />
+                                                복사됨
+                                            </>
+                                        ) : (
+                                            <>
+                                                <Copy className="w-4 h-4" />
+                                                복사
+                                            </>
+                                        )}
                                     </button>
                                 </div>
                             )}
@@ -351,13 +533,42 @@ ${documentContent}
                                                 <Bot className="w-4 h-4 text-white" />
                                             )}
                                         </div>
-                                        <div className={cn(
-                                            "max-w-[85%] rounded-2xl px-4 py-3 text-sm",
-                                            msg.role === 'user'
-                                                ? "bg-accent text-white"
-                                                : "bg-zinc-800 text-zinc-200"
-                                        )}>
-                                            <div className="whitespace-pre-wrap">{msg.content}</div>
+                                        <div className="flex flex-col gap-1 max-w-[85%]">
+                                            <div className={cn(
+                                                "rounded-2xl px-4 py-3 text-sm",
+                                                msg.role === 'user'
+                                                    ? "bg-accent text-white"
+                                                    : "bg-zinc-800 text-zinc-200"
+                                            )}>
+                                                <div className="whitespace-pre-wrap">{msg.content}</div>
+                                            </div>
+                                            {/* Feedback buttons for assistant messages */}
+                                            {msg.role === 'assistant' && (
+                                                <div className="flex items-center gap-1 ml-1">
+                                                    <button
+                                                        onClick={() => handleFeedback(i, 'like')}
+                                                        className={cn(
+                                                            "p-1.5 rounded transition-colors",
+                                                            msg.feedback === 'like'
+                                                                ? "bg-green-500/20 text-green-400"
+                                                                : "hover:bg-zinc-800 text-zinc-500"
+                                                        )}
+                                                    >
+                                                        <ThumbsUp className="w-3.5 h-3.5" />
+                                                    </button>
+                                                    <button
+                                                        onClick={() => handleFeedback(i, 'dislike')}
+                                                        className={cn(
+                                                            "p-1.5 rounded transition-colors",
+                                                            msg.feedback === 'dislike'
+                                                                ? "bg-red-500/20 text-red-400"
+                                                                : "hover:bg-zinc-800 text-zinc-500"
+                                                        )}
+                                                    >
+                                                        <ThumbsDown className="w-3.5 h-3.5" />
+                                                    </button>
+                                                </div>
+                                            )}
                                         </div>
                                     </div>
                                 ))
@@ -403,7 +614,7 @@ ${documentContent}
                                 value={input}
                                 onChange={(e) => setInput(e.target.value)}
                                 onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && sendMessage()}
-                                placeholder={chatTab === 'ai' ? "여기에 문서 요청을 입력하세요..." : "Chat with your team members here"}
+                                placeholder={chatTab === 'ai' ? "여기에 문서 요청을 입력하세요..." : "팀 메시지를 입력하세요..."}
                                 className="w-full bg-transparent text-white placeholder-zinc-500 text-sm outline-none"
                             />
                         </div>
@@ -439,11 +650,28 @@ ${documentContent}
                                 </div>
                             </div>
                             <div className="flex items-center gap-1">
-                                <button className="p-2 hover:bg-zinc-700 rounded-lg transition-colors">
+                                <button
+                                    onClick={() => fileInputRef.current?.click()}
+                                    className="p-2 hover:bg-zinc-700 rounded-lg transition-colors"
+                                    title="파일 업로드"
+                                >
                                     <Upload className="w-5 h-5 text-zinc-500" />
                                 </button>
-                                <button className="p-2 hover:bg-zinc-700 rounded-lg transition-colors">
-                                    <Mic className="w-5 h-5 text-zinc-500" />
+                                <button
+                                    onClick={toggleVoiceInput}
+                                    className={cn(
+                                        "p-2 rounded-lg transition-colors",
+                                        isRecording
+                                            ? "bg-red-500/20 text-red-400"
+                                            : "hover:bg-zinc-700 text-zinc-500"
+                                    )}
+                                    title={isRecording ? "녹음 중지" : "음성 입력"}
+                                >
+                                    {isRecording ? (
+                                        <MicOff className="w-5 h-5" />
+                                    ) : (
+                                        <Mic className="w-5 h-5" />
+                                    )}
                                 </button>
                                 <button
                                     onClick={sendMessage}
@@ -475,9 +703,9 @@ ${documentContent}
 
             {/* Right Panel - Document Editor */}
             <div className="flex-1 flex flex-col h-full overflow-hidden">
-                {/* Editor Toolbar - Fixed at top */}
+                {/* Editor Toolbar */}
                 <div className="flex items-center justify-between px-4 py-2 bg-zinc-800 border-b border-zinc-700 flex-shrink-0">
-                    <div className="flex items-center gap-1">
+                    <div className="flex items-center gap-1 flex-wrap">
                         {editorMode === 'markdown' ? (
                             /* Markdown Toolbar */
                             <>
@@ -511,53 +739,90 @@ ${documentContent}
                                     <CheckSquare className="w-4 h-4" />
                                 </button>
                                 <div className="w-px h-6 bg-zinc-600 mx-1" />
-                                <button onClick={() => insertMarkdown('![]()')} className="p-2 hover:bg-zinc-700 rounded text-zinc-400 hover:text-white" title="이미지">
+                                <button onClick={() => insertMarkdown('![이미지](url)')} className="p-2 hover:bg-zinc-700 rounded text-zinc-400 hover:text-white" title="이미지">
                                     <Image className="w-4 h-4" />
                                 </button>
-                                <button onClick={() => insertMarkdown('```\n\n```')} className="p-2 hover:bg-zinc-700 rounded text-zinc-400 hover:text-white" title="코드 블록">
+                                <button onClick={() => insertMarkdown('```\n코드\n```\n')} className="p-2 hover:bg-zinc-700 rounded text-zinc-400 hover:text-white" title="코드 블록">
                                     <Code className="w-4 h-4" />
                                 </button>
-                                <button onClick={() => insertMarkdown('[]()')} className="p-2 hover:bg-zinc-700 rounded text-zinc-400 hover:text-white" title="링크">
+                                <button onClick={() => insertMarkdown('[링크텍스트](url)')} className="p-2 hover:bg-zinc-700 rounded text-zinc-400 hover:text-white" title="링크">
                                     <Link className="w-4 h-4" />
                                 </button>
-                                <button className="p-2 hover:bg-zinc-700 rounded text-zinc-400 hover:text-white" title="테이블">
+                                <button onClick={insertTable} className="p-2 hover:bg-zinc-700 rounded text-zinc-400 hover:text-white" title="테이블">
                                     <Table className="w-4 h-4" />
                                 </button>
                             </>
                         ) : (
                             /* Rich Text Toolbar */
                             <>
-                                <button className="p-2 hover:bg-zinc-700 rounded text-zinc-400 hover:text-white" title="실행 취소">
+                                <button onClick={handleUndo} className="p-2 hover:bg-zinc-700 rounded text-zinc-400 hover:text-white" title="실행 취소">
                                     <Undo className="w-4 h-4" />
                                 </button>
-                                <button className="p-2 hover:bg-zinc-700 rounded text-zinc-400 hover:text-white" title="다시 실행">
+                                <button onClick={handleRedo} className="p-2 hover:bg-zinc-700 rounded text-zinc-400 hover:text-white" title="다시 실행">
                                     <Redo className="w-4 h-4" />
                                 </button>
                                 <div className="w-px h-6 bg-zinc-600 mx-1" />
-                                <select className="bg-zinc-700 text-zinc-300 text-sm px-2 py-1 rounded">
-                                    <option>Normal Text</option>
-                                    <option>Heading 1</option>
-                                    <option>Heading 2</option>
-                                    <option>Heading 3</option>
+                                <select
+                                    onChange={(e) => handleHeading(e.target.value)}
+                                    className="bg-zinc-700 text-zinc-300 text-sm px-2 py-1 rounded cursor-pointer"
+                                >
+                                    <option value="Normal Text">본문</option>
+                                    <option value="h1">제목 1</option>
+                                    <option value="h2">제목 2</option>
+                                    <option value="h3">제목 3</option>
                                 </select>
-                                <select className="bg-zinc-700 text-zinc-300 text-sm px-2 py-1 rounded ml-1">
-                                    <option>Apple SD Gothic</option>
+                                <select
+                                    onChange={(e) => handleFontSize(e.target.value)}
+                                    className="bg-zinc-700 text-zinc-300 text-sm px-2 py-1 rounded ml-1 cursor-pointer"
+                                >
+                                    <option value="3">16px</option>
+                                    <option value="1">12px</option>
+                                    <option value="2">14px</option>
+                                    <option value="4">18px</option>
+                                    <option value="5">24px</option>
+                                    <option value="6">32px</option>
+                                    <option value="7">48px</option>
                                 </select>
-                                <input type="number" defaultValue={16} className="bg-zinc-700 text-zinc-300 text-sm w-12 px-2 py-1 rounded ml-1" />
                                 <div className="w-px h-6 bg-zinc-600 mx-1" />
-                                <button className="p-2 hover:bg-zinc-700 rounded text-zinc-400 hover:text-white"><Bold className="w-4 h-4" /></button>
-                                <button className="p-2 hover:bg-zinc-700 rounded text-zinc-400 hover:text-white"><Italic className="w-4 h-4" /></button>
-                                <button className="p-2 hover:bg-zinc-700 rounded text-zinc-400 hover:text-white"><Underline className="w-4 h-4" /></button>
-                                <button className="p-2 hover:bg-zinc-700 rounded text-zinc-400 hover:text-white"><Strikethrough className="w-4 h-4" /></button>
+                                <button onClick={handleBold} className="p-2 hover:bg-zinc-700 rounded text-zinc-400 hover:text-white" title="굵게">
+                                    <Bold className="w-4 h-4" />
+                                </button>
+                                <button onClick={handleItalic} className="p-2 hover:bg-zinc-700 rounded text-zinc-400 hover:text-white" title="기울임">
+                                    <Italic className="w-4 h-4" />
+                                </button>
+                                <button onClick={handleUnderline} className="p-2 hover:bg-zinc-700 rounded text-zinc-400 hover:text-white" title="밑줄">
+                                    <Underline className="w-4 h-4" />
+                                </button>
+                                <button onClick={handleStrikethrough} className="p-2 hover:bg-zinc-700 rounded text-zinc-400 hover:text-white" title="취소선">
+                                    <Strikethrough className="w-4 h-4" />
+                                </button>
                                 <div className="w-px h-6 bg-zinc-600 mx-1" />
-                                <button className="p-2 hover:bg-zinc-700 rounded text-zinc-400 hover:text-white"><AlignLeft className="w-4 h-4" /></button>
-                                <button className="p-2 hover:bg-zinc-700 rounded text-zinc-400 hover:text-white"><AlignCenter className="w-4 h-4" /></button>
-                                <button className="p-2 hover:bg-zinc-700 rounded text-zinc-400 hover:text-white"><AlignRight className="w-4 h-4" /></button>
-                                <button className="p-2 hover:bg-zinc-700 rounded text-zinc-400 hover:text-white"><AlignJustify className="w-4 h-4" /></button>
+                                <button onClick={handleAlignLeft} className="p-2 hover:bg-zinc-700 rounded text-zinc-400 hover:text-white" title="왼쪽 정렬">
+                                    <AlignLeft className="w-4 h-4" />
+                                </button>
+                                <button onClick={handleAlignCenter} className="p-2 hover:bg-zinc-700 rounded text-zinc-400 hover:text-white" title="가운데 정렬">
+                                    <AlignCenter className="w-4 h-4" />
+                                </button>
+                                <button onClick={handleAlignRight} className="p-2 hover:bg-zinc-700 rounded text-zinc-400 hover:text-white" title="오른쪽 정렬">
+                                    <AlignRight className="w-4 h-4" />
+                                </button>
+                                <button onClick={handleAlignJustify} className="p-2 hover:bg-zinc-700 rounded text-zinc-400 hover:text-white" title="양쪽 정렬">
+                                    <AlignJustify className="w-4 h-4" />
+                                </button>
                                 <div className="w-px h-6 bg-zinc-600 mx-1" />
-                                <button className="p-2 hover:bg-zinc-700 rounded text-zinc-400 hover:text-white"><List className="w-4 h-4" /></button>
-                                <button className="p-2 hover:bg-zinc-700 rounded text-zinc-400 hover:text-white"><ListOrdered className="w-4 h-4" /></button>
-                                <button className="p-2 hover:bg-zinc-700 rounded text-zinc-400 hover:text-white"><CheckSquare className="w-4 h-4" /></button>
+                                <button onClick={handleInsertUnorderedList} className="p-2 hover:bg-zinc-700 rounded text-zinc-400 hover:text-white" title="글머리 기호">
+                                    <List className="w-4 h-4" />
+                                </button>
+                                <button onClick={handleInsertOrderedList} className="p-2 hover:bg-zinc-700 rounded text-zinc-400 hover:text-white" title="번호 매기기">
+                                    <ListOrdered className="w-4 h-4" />
+                                </button>
+                                <div className="w-px h-6 bg-zinc-600 mx-1" />
+                                <button onClick={handleInsertLink} className="p-2 hover:bg-zinc-700 rounded text-zinc-400 hover:text-white" title="링크 삽입">
+                                    <Link className="w-4 h-4" />
+                                </button>
+                                <button onClick={handleInsertImage} className="p-2 hover:bg-zinc-700 rounded text-zinc-400 hover:text-white" title="이미지 삽입">
+                                    <Image className="w-4 h-4" />
+                                </button>
                             </>
                         )}
                     </div>
@@ -565,28 +830,51 @@ ${documentContent}
                         <button
                             onClick={() => exportDocument('html')}
                             className="p-2 hover:bg-zinc-700 rounded-lg transition-colors"
-                            title="새 창에서 열기"
+                            title="HTML로 내보내기"
                         >
                             <ExternalLink className="w-4 h-4 text-zinc-400" />
                         </button>
                         <button
                             onClick={() => exportDocument('md')}
                             className="p-2 hover:bg-zinc-700 rounded-lg transition-colors"
-                            title="다운로드"
+                            title="Markdown으로 다운로드"
                         >
                             <Download className="w-4 h-4 text-zinc-400" />
                         </button>
                     </div>
                 </div>
 
-                {/* Editor Content - Full height white background */}
+                {/* Editor Content */}
                 <div className="flex-1 overflow-hidden" style={{ backgroundColor: '#ffffff', colorScheme: 'light' }}>
                     {editorMode === 'markdown' ? (
                         <textarea
+                            ref={textareaRef}
                             data-editor
                             value={documentContent}
                             onChange={(e) => setDocumentContent(e.target.value)}
-                            placeholder="마크다운 내용을 입력하세요..."
+                            placeholder="마크다운 내용을 입력하세요...
+
+# 제목
+## 소제목
+
+**굵게** *기울임* ~~취소선~~
+
+- 목록 항목
+- 다른 항목
+
+1. 번호 목록
+2. 다른 항목
+
+> 인용문
+
+`인라인 코드`
+
+```
+코드 블록
+```
+
+[링크](url)
+![이미지](url)"
                             className="w-full h-full p-8 text-gray-900 placeholder-gray-400 resize-none outline-none font-mono text-sm leading-relaxed"
                             style={{ backgroundColor: '#ffffff', color: '#111827', colorScheme: 'light' }}
                         />
@@ -595,10 +883,12 @@ ${documentContent}
                             ref={editorRef}
                             contentEditable
                             suppressContentEditableWarning
-                            className="w-full h-full p-8 text-gray-900 outline-none overflow-y-auto"
+                            className="w-full h-full p-8 text-gray-900 outline-none overflow-y-auto prose prose-sm max-w-none"
                             style={{ backgroundColor: '#ffffff', color: '#111827', colorScheme: 'light' }}
                             onInput={(e) => setDocumentContent(e.currentTarget.innerHTML)}
-                            dangerouslySetInnerHTML={{ __html: documentContent || '<h1>문서 제목</h1><p>여기에 내용을 입력하세요...</p>' }}
+                            dangerouslySetInnerHTML={{
+                                __html: documentContent || '<h1>문서 제목</h1><p>여기에 내용을 입력하세요...</p>'
+                            }}
                         />
                     )}
                 </div>
