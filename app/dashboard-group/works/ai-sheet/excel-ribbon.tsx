@@ -41,7 +41,6 @@ import {
     Check,
     X,
     TableProperties,
-    PaintBucket,
     MoreHorizontal
 } from "lucide-react"
 import { cn } from "@/lib/utils"

@@ -34,7 +34,7 @@ import {
     Image,
     AppWindow
 } from "lucide-react"
-import { BsFiletypePpt, BsFiletypeDoc, BsFileEarmarkSpreadsheet } from "react-icons/bs"
+import { BsFiletypePpt, BsFiletypeDoc, BsFileEarmarkSpreadsheet, BsFileEarmarkImage } from "react-icons/bs"
 import { useThemeStore } from "@/stores/themeStore"
 import { cn } from "@/lib/utils"
 import { ToolsView } from "./tools-view"
@@ -304,7 +304,7 @@ function WorksHome({ onOpenCreate, onStartChat }: { onOpenCreate: () => void, on
         { icon: BsFiletypeDoc, label: "문서", bg: "bg-emerald-500", color: "text-white" },
         { icon: BsFiletypePpt, label: "슬라이드", bg: "bg-orange-500", color: "text-white" },
         { icon: BsFileEarmarkSpreadsheet, label: "시트", bg: "bg-green-600", color: "text-white", href: "/dashboard-group/works/ai-sheet" },
-        { icon: Image, label: "포스터", bg: "bg-pink-500", color: "text-white" },
+        { icon: BsFileEarmarkImage, label: "포스터", bg: "bg-pink-500", color: "text-white" },
         { icon: Globe, label: "웹사이트", bg: "bg-amber-500", color: "text-white" },
         { icon: AppWindow, label: "Apps +", bg: "bg-purple-500", color: "text-white" },
     ]
