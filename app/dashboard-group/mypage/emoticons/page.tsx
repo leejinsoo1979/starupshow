@@ -283,7 +283,7 @@ export default function EmoticonsPage() {
       <input
         ref={fileInputRef}
         type="file"
-        accept="image/*,.gif"
+        accept="image/png,image/jpeg,image/gif,image/webp,.gif,.png,.jpg,.jpeg,.webp"
         multiple
         onChange={handleUpload}
         className="hidden"

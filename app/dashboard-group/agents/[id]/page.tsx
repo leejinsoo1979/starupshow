@@ -3151,7 +3151,7 @@ export default function AgentProfilePage() {
               <input
                 ref={fileInputRef}
                 type="file"
-                accept="image/*"
+                accept="image/png,image/jpeg,image/gif,image/webp,.gif,.png,.jpg,.jpeg,.webp"
                 onChange={handleFileSelect}
                 className="hidden"
               />
@@ -4675,7 +4675,7 @@ export default function AgentProfilePage() {
                   <input
                     ref={chatFileInputRef}
                     type="file"
-                    accept="image/*"
+                    accept="image/png,image/jpeg,image/gif,image/webp,.gif,.png,.jpg,.jpeg,.webp"
                     onChange={handleChatImageSelect}
                     className="hidden"
                   />
@@ -5886,7 +5886,7 @@ export default function AgentProfilePage() {
                       {/* 숨겨진 파일 입력 */}
                       <input
                         type="file"
-                        accept="image/*"
+                        accept="image/png,image/jpeg,image/gif,image/webp,.gif,.png,.jpg,.jpeg,.webp"
                         ref={(el) => { emotionFileInputRefs.current[emotion.id] = el }}
                         onChange={(e) => {
                           const file = e.target.files?.[0]
