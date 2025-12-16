@@ -380,12 +380,12 @@ export default function AISheetPage() {
 
                 {/* Input Area */}
                 <div className="p-4 border-t border-zinc-200 dark:border-zinc-800 relative">
-                    <div className="bg-white dark:bg-zinc-800 rounded-xl border border-zinc-200 dark:border-zinc-700 overflow-hidden">
+                    <div className="bg-white dark:bg-zinc-800 rounded-xl border border-zinc-200 dark:border-zinc-700">
                         {/* Mode Button with Dropdown Container */}
                         <div ref={modeModalRef} className="relative">
                             <button
                                 onClick={() => setShowModeModal(!showModeModal)}
-                                className="w-full flex items-center justify-between px-4 py-2 bg-accent hover:bg-accent/90 transition-colors"
+                                className="w-full flex items-center justify-between px-4 py-2 bg-accent hover:bg-accent/90 transition-colors rounded-t-xl"
                             >
                                 <span className="text-sm font-medium text-white">AI 시트 모드</span>
                                 <ChevronDown className={cn("w-4 h-4 text-white transition-transform", showModeModal && "rotate-180")} />
