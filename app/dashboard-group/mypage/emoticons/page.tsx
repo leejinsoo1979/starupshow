@@ -75,20 +75,24 @@ export default function EmoticonsPage() {
     fetchEmoticons()
   }, [])
 
-  // 새 이모티콘 카드 생성 (최초 업로드)
+  // 새 이모티콘 카드 생성 (최대 3개 파일 선택 가능)
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files
     if (!files || files.length === 0) return
 
+    // 최대 3개까지만
+    const selectedFiles = Array.from(files).slice(0, 3)
+    if (files.length > 3) {
+      alert('카드당 최대 3개의 GIF만 등록 가능합니다. 처음 3개만 업로드됩니다.')
+    }
+
     setUploading(true)
-    let successCount = 0
-    let failCount = 0
+    const uploadedUrls: string[] = []
 
     try {
-      for (const file of Array.from(files)) {
+      for (const file of selectedFiles) {
         if (file.size > 5 * 1024 * 1024) {
           alert(`${file.name}: 파일 크기는 5MB 이하여야 합니다.`)
-          failCount++
           continue
         }
 
@@ -102,7 +106,6 @@ export default function EmoticonsPage() {
 
         if (uploadError) {
           console.error('Storage upload error:', uploadError)
-          failCount++
           continue
         }
 
@@ -110,28 +113,34 @@ export default function EmoticonsPage() {
           .from('profile-images')
           .getPublicUrl(`emoticons/${fileName}`)
 
-        const res = await fetch('/api/emoticons', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            name: file.name.split('.')[0],
-            image_urls: [urlData.publicUrl],
-            category: 'default',
-          }),
-        })
-
-        if (!res.ok) {
-          failCount++
-          continue
-        }
-
-        successCount++
+        uploadedUrls.push(urlData.publicUrl)
       }
 
-      await fetchEmoticons()
+      if (uploadedUrls.length === 0) {
+        alert('업로드된 파일이 없습니다.')
+        return
+      }
 
-      if (successCount > 0) {
-        alert(`${successCount}개의 이모티콘이 생성되었습니다!`)
+      // 첫 번째 파일 이름을 카드 이름으로 사용
+      const cardName = selectedFiles[0].name.split('.')[0]
+
+      const res = await fetch('/api/emoticons', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: cardName,
+          image_url: uploadedUrls[0],
+          image_urls: uploadedUrls,
+          category: 'default',
+        }),
+      })
+
+      if (res.ok) {
+        await fetchEmoticons()
+        alert(`${uploadedUrls.length}개의 GIF가 포함된 카드가 생성되었습니다!`)
+      } else {
+        const err = await res.json()
+        alert(`저장 실패: ${err.error || '알 수 없는 오류'}`)
       }
     } catch (err) {
       console.error('Upload error:', err)
