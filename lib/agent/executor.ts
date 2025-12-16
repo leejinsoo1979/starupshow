@@ -47,6 +47,9 @@ export async function executeAgentWithTools(
     if (hasCapability('web_fetch', 'web_browse', '웹', '크롤링', '스크래핑')) {
       enabledTools.push('web_fetch')
     }
+    if (hasCapability('image_search', 'image', '이미지', '사진', 'gif', '그림')) {
+      enabledTools.push('image_search')
+    }
 
     // If no specific tools enabled, enable all by default
     const mcpTools = enabledTools.length > 0
@@ -153,10 +156,11 @@ ${apiToolsDescription}
 2. 필요한 정보를 얻기 위해 적절한 도구를 사용하세요.
 3. YouTube URL이 있으면 youtube_transcript 도구를 사용해 자막을 가져오세요.
 4. 웹 검색이 필요하면 web_search 도구를 사용하세요.
-5. 외부 API가 연결되어 있으면 해당 API 도구를 적극 활용하세요.
-6. 모든 답변은 지식베이스 또는 도구에서 얻은 실제 데이터를 기반으로 하세요.
-7. 출처를 반드시 명시하세요 (지식베이스 출처 포함).
-8. 절대로 정보를 지어내지 마세요.`
+5. **이미지/GIF 요청 시 image_search 도구를 사용**하세요. 매번 다른 검색어로 새로운 이미지를 찾으세요.
+6. 외부 API가 연결되어 있으면 해당 API 도구를 적극 활용하세요.
+7. 모든 답변은 지식베이스 또는 도구에서 얻은 실제 데이터를 기반으로 하세요.
+8. 출처를 반드시 명시하세요 (지식베이스 출처 포함).
+9. 절대로 정보를 지어내지 마세요.`
 
     const messages: BaseMessage[] = [
       new SystemMessage(systemPrompt),

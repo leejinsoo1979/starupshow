@@ -11,7 +11,7 @@ const tavilyClient = tavily({ apiKey: process.env.TAVILY_API_KEY || '' })
 // MCP Tool Definitions for Agents
 // ============================================
 
-export type MCPToolName = 'web_search' | 'youtube_transcript' | 'web_fetch'
+export type MCPToolName = 'web_search' | 'youtube_transcript' | 'web_fetch' | 'image_search'
 
 // Web Search Tool (Tavily)
 export const webSearchTool = new DynamicStructuredTool({
@@ -140,11 +140,56 @@ export const webFetchTool = new DynamicStructuredTool({
   },
 })
 
+// Image Search Tool (Tavily with images)
+export const imageSearchTool = new DynamicStructuredTool({
+  name: 'image_search',
+  description: '이미지나 GIF를 검색합니다. 사진, 그림, 밈, GIF 등을 찾을 때 사용하세요. 검색 결과로 이미지 URL들을 반환합니다.',
+  schema: z.object({
+    query: z.string().describe('검색할 이미지 키워드 (예: "귀여운 고양이", "happy gif", "축하 이미지")'),
+    maxResults: z.number().optional().default(5).describe('가져올 이미지 수 (기본 5개)'),
+  }),
+  func: async ({ query, maxResults = 5 }) => {
+    try {
+      if (!process.env.TAVILY_API_KEY) {
+        return JSON.stringify({ error: 'TAVILY_API_KEY가 설정되지 않았습니다.' })
+      }
+
+      // Tavily 이미지 검색
+      const response = await tavilyClient.search(query, {
+        maxResults,
+        includeImages: true,
+        searchDepth: 'basic',
+      })
+
+      const images = response.images || []
+
+      if (images.length === 0) {
+        return JSON.stringify({
+          error: '이미지를 찾지 못했습니다.',
+          suggestion: '다른 검색어로 시도해보세요.'
+        })
+      }
+
+      // 랜덤하게 섞어서 다양한 결과 제공
+      const shuffled = images.sort(() => Math.random() - 0.5)
+
+      return JSON.stringify({
+        images: shuffled.slice(0, maxResults),
+        count: Math.min(shuffled.length, maxResults),
+        query,
+      })
+    } catch (error) {
+      return JSON.stringify({ error: `이미지 검색 실패: ${error}` })
+    }
+  },
+})
+
 // Get all available tools
 export const ALL_TOOLS = {
   web_search: webSearchTool,
   youtube_transcript: youtubeTranscriptTool,
   web_fetch: webFetchTool,
+  image_search: imageSearchTool,
 }
 
 // Get tools by names

@@ -1915,15 +1915,21 @@ export default function AgentProfilePage() {
     if (!avatarData) return undefined
     if (Array.isArray(avatarData)) {
       if (avatarData.length === 0) return undefined
+      if (avatarData.length === 1) return avatarData[0]
       if (seed) {
-        // seed 기반 결정적 선택 - 개선된 해시 함수 (djb2 알고리즘)
-        let hash = 5381
+        // 더 분산된 해시를 위해 FNV-1a 해시 사용
+        let hash = 2166136261
         for (let i = 0; i < seed.length; i++) {
-          hash = ((hash << 5) + hash) ^ seed.charCodeAt(i)
+          hash ^= seed.charCodeAt(i)
+          hash = Math.imul(hash, 16777619)
         }
-        // 32비트 정수로 변환 후 양수로
-        hash = Math.abs(hash >>> 0)
-        const index = hash % avatarData.length
+        // 추가 믹싱
+        hash ^= hash >>> 16
+        hash = Math.imul(hash, 0x85ebca6b)
+        hash ^= hash >>> 13
+        hash = Math.imul(hash, 0xc2b2ae35)
+        hash ^= hash >>> 16
+        const index = Math.abs(hash) % avatarData.length
         return avatarData[index]
       }
       return avatarData[Math.floor(Math.random() * avatarData.length)]
@@ -4375,9 +4381,10 @@ export default function AgentProfilePage() {
                                     : (msg.emotion && emotionAvatars[msg.emotion] ? [msg.emotion] : [])
 
                                   if (emotionsWithGif.length > 0) {
-                                    // 첫 번째 감정의 GIF만 표시 (메시지 ID로 고정)
+                                    // 첫 번째 감정의 GIF만 표시 (메시지 내용 포함해서 더 다양하게)
                                     const selectedEmotion = emotionsWithGif[0]
-                                    const msgSeed = `${msg.id || msg.timestamp}-${selectedEmotion}-${msgIndex}`
+                                    const contentHash = msg.content ? msg.content.slice(0, 50) : ''
+                                    const msgSeed = `${msg.id || msg.timestamp}-${selectedEmotion}-${msgIndex}-${contentHash}`
                                     const gifUrl = getRandomEmotionGif(selectedEmotion, msgSeed)
                                     if (gifUrl) {
                                       return (

@@ -4,9 +4,14 @@ import { ChatOpenAI } from '@langchain/openai'
 import { PromptTemplate } from '@langchain/core/prompts'
 import type { EmailMessage } from '@/types/email'
 
+// Grok (xAI) 모델 사용
 const model = new ChatOpenAI({
-  modelName: 'gpt-4o',
+  modelName: 'grok-4-1-fast',
   temperature: 0.3,
+  configuration: {
+    baseURL: 'https://api.x.ai/v1',
+    apiKey: process.env.XAI_API_KEY,
+  },
 })
 
 const emailChatPrompt = PromptTemplate.fromTemplate(`
