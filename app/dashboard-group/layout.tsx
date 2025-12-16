@@ -30,7 +30,7 @@ export default function DashboardLayout({
   const router = useRouter()
   const pathname = usePathname()
   const { setUser, setCurrentStartup, setIsLoading, isLoading } = useAuthStore()
-  const { sidebarOpen } = useUIStore()
+  const { sidebarOpen, emailSidebarWidth, isResizingEmail } = useUIStore()
   const isFullWidthPage = pathname?.includes('/messenger') || pathname?.includes('/agent-builder') || pathname?.includes('/email') || pathname?.match(/\/project\/[^/]+$/) || pathname?.includes('/works/new') || pathname?.includes('/works/ai-slides') || pathname?.includes('/works/ai-sheet') || pathname?.includes('/works/ai-docs') || pathname?.includes('/tools/ai-summary')
 
   useEffect(() => {
@@ -126,9 +126,9 @@ export default function DashboardLayout({
     )
   }
 
-  // 2단계 사이드바: Level1(64px) + Level2(240px)
-  // sidebarOpen이면 304px, 아니면 64px
-  const sidebarWidth = sidebarOpen ? 304 : 64
+  // 2단계 사이드바: Level1(64px) + Level2(240px or dynamic for email)
+  const isEmailPage = pathname?.includes('/email')
+  const sidebarWidth = sidebarOpen ? (isEmailPage ? 64 + emailSidebarWidth : 304) : 64
 
   // Check if we are on the main dashboard page
   const isDashboardRoot = pathname === '/dashboard-group'
@@ -140,7 +140,8 @@ export default function DashboardLayout({
       <CommitModal />
       <main
         className={cn(
-          "pt-16 transition-all duration-300",
+          "pt-16",
+          isResizingEmail ? "" : "transition-all duration-300",
           isFullWidthPage ? "h-screen overflow-hidden" : "min-h-screen"
         )}
         style={{ paddingLeft: `${sidebarWidth}px` }}

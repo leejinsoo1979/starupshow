@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, usePathname } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useTheme } from 'next-themes'
 import { Button } from '@/components/ui'
@@ -25,7 +25,8 @@ import {
 
 export function Header() {
   const router = useRouter()
-  const { openCommitModal, sidebarOpen } = useUIStore()
+  const pathname = usePathname()
+  const { openCommitModal, sidebarOpen, emailSidebarWidth, isResizingEmail } = useUIStore()
   const { user, logout: clearAuth } = useAuthStore()
   const { resolvedTheme } = useTheme()
   const [showUserMenu, setShowUserMenu] = useState(false)
@@ -33,6 +34,10 @@ export function Header() {
 
   // resolvedTheme이 undefined일 때(SSR) dark로 기본값
   const isDark = resolvedTheme === 'dark' || resolvedTheme === undefined
+
+  // Calculate header left position based on sidebar state and email page
+  const isEmailPage = pathname?.includes('/email')
+  const headerLeft = sidebarOpen ? (isEmailPage ? 64 + emailSidebarWidth : 304) : 64
 
   const handleLogout = async () => {
     const supabase = createClient()
@@ -43,8 +48,8 @@ export function Header() {
 
   return (
     <header
-      className={`fixed top-0 right-0 z-30 h-16 transition-all duration-300 backdrop-blur-xl ${sidebarOpen ? 'left-[304px]' : 'left-16'
-        } ${isDark
+      style={{ left: headerLeft }}
+      className={`fixed top-0 right-0 z-30 h-16 backdrop-blur-xl ${isResizingEmail ? '' : 'transition-all duration-300'} ${isDark
           ? 'bg-zinc-900/80 border-b border-zinc-800'
           : 'bg-white/80 border-b border-zinc-200'
         }`}

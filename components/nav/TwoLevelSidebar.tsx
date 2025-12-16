@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
 import { useRouter, usePathname, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { motion, AnimatePresence } from 'framer-motion'
@@ -13,6 +13,8 @@ import { createClient } from '@/lib/supabase/client'
 import { Logo } from '@/components/ui'
 import { TeamCreateModal, TeamFormData } from '@/components/team/TeamCreateModal'
 import { CreateWorkModal } from '@/app/dashboard-group/works/create-modal'
+import { EmailSidebarChat } from '@/components/email/EmailSidebarChat'
+import type { EmailAccount, EmailMessage } from '@/types/email'
 import { useTeamStore } from '@/stores/teamStore'
 import { CgMenuGridO } from 'react-icons/cg'
 import { BsPersonWorkspace } from 'react-icons/bs'
@@ -953,8 +955,122 @@ export function TwoLevelSidebar() {
   const { createTeam } = useTeamStore()
   const [isCreatingTeam, setIsCreatingTeam] = useState(false)
 
+  // Email sidebar state
+  const [emailAccounts, setEmailAccounts] = useState<EmailAccount[]>([])
+  const [selectedEmailAccount, setSelectedEmailAccount] = useState<EmailAccount | null>(null)
+  const [allEmails, setAllEmails] = useState<EmailMessage[]>([])
+  const [currentEmailFolder, setCurrentEmailFolder] = useState<'inbox' | 'starred' | 'sent' | 'trash' | 'spam' | 'drafts' | 'all' | 'scheduled' | 'attachments'>('inbox')
+  const [isSyncingEmail, setIsSyncingEmail] = useState(false)
+  const { emailSidebarWidth, setEmailSidebarWidth, isResizingEmail, setIsResizingEmail } = useUIStore()
+
   useEffect(() => {
     setMounted(true)
+  }, [])
+
+  // Email sidebar resize effect (like ai-slides)
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!isResizingEmail) return
+      const newWidth = e.clientX - 64 // 64px is Level 1 sidebar width
+      const clampedWidth = Math.min(Math.max(newWidth, 320), 600)
+      setEmailSidebarWidth(clampedWidth)
+    }
+
+    const handleMouseUp = () => {
+      setIsResizingEmail(false)
+    }
+
+    if (isResizingEmail) {
+      document.addEventListener('mousemove', handleMouseMove)
+      document.addEventListener('mouseup', handleMouseUp)
+      document.body.style.cursor = 'col-resize'
+      document.body.style.userSelect = 'none'
+    }
+
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove)
+      document.removeEventListener('mouseup', handleMouseUp)
+      document.body.style.cursor = ''
+      document.body.style.userSelect = ''
+    }
+  }, [isResizingEmail, setEmailSidebarWidth])
+
+  // Fetch email accounts when on email page
+  useEffect(() => {
+    if (pathname?.startsWith('/dashboard-group/email')) {
+      const fetchEmailAccounts = async () => {
+        try {
+          const res = await fetch('/api/email/accounts')
+          if (res.ok) {
+            const data = await res.json()
+            setEmailAccounts(data)
+            if (data.length > 0 && !selectedEmailAccount) {
+              setSelectedEmailAccount(data[0])
+            }
+          }
+        } catch (error) {
+          console.error('Failed to fetch email accounts:', error)
+        }
+      }
+      fetchEmailAccounts()
+    }
+  }, [pathname, selectedEmailAccount])
+
+  // Fetch emails when account is selected
+  useEffect(() => {
+    if (selectedEmailAccount && pathname?.startsWith('/dashboard-group/email')) {
+      const fetchEmails = async () => {
+        try {
+          const res = await fetch(`/api/email/messages?account_id=${selectedEmailAccount.id}`)
+          if (res.ok) {
+            const data = await res.json()
+            setAllEmails(data)
+          }
+        } catch (error) {
+          console.error('Failed to fetch emails:', error)
+        }
+      }
+      fetchEmails()
+    }
+  }, [selectedEmailAccount, pathname])
+
+  // Sync emails
+  const handleSyncEmails = async () => {
+    if (!selectedEmailAccount) return
+    setIsSyncingEmail(true)
+    try {
+      await fetch('/api/email/sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ account_id: selectedEmailAccount.id }),
+      })
+      const res = await fetch(`/api/email/messages?account_id=${selectedEmailAccount.id}`)
+      if (res.ok) {
+        setAllEmails(await res.json())
+      }
+    } catch (error) {
+      console.error('Failed to sync emails:', error)
+    } finally {
+      setIsSyncingEmail(false)
+    }
+  }
+
+  // Handle folder change
+  const handleEmailFolderChange = (folder: typeof currentEmailFolder) => {
+    setCurrentEmailFolder(folder)
+    const url = new URL(window.location.href)
+    if (folder === 'inbox') {
+      url.searchParams.delete('folder')
+    } else {
+      url.searchParams.set('folder', folder)
+    }
+    router.push(url.pathname + url.search)
+  }
+
+  // Email sidebar resize handler
+  const handleEmailResizeMouseDown = useCallback((e: React.MouseEvent) => {
+    e.preventDefault()
+    setIsResizingEmail(true)
   }, [])
 
   // pathname에 따라 현재 카테고리 계산
@@ -1050,7 +1166,7 @@ export function TwoLevelSidebar() {
     }
   }
 
-  const worksItems = [
+  const worksItems: NestedMenuItem[] = [
     { name: 'Works홈', href: '/dashboard-group/works?tab=home', icon: Home },
     { name: '즐겨찾는 앱', href: '/dashboard-group/works?tab=favorites', icon: Star },
     { name: '운영중인 앱', href: '/dashboard-group/works?tab=operating', icon: Wrench },
@@ -1220,17 +1336,49 @@ export function TwoLevelSidebar() {
           {sidebarOpen && activeItems.length > 0 && (
             <motion.aside
               initial={{ width: 0, opacity: 0 }}
-              animate={{ width: 240, opacity: 1 }}
+              animate={{ width: currentCategory === 'email' ? emailSidebarWidth : 240, opacity: 1 }}
               exit={{ width: 0, opacity: 0 }}
-              transition={{ duration: 0.2 }}
+              transition={isResizingEmail ? { duration: 0 } : { duration: 0.2 }}
               className={cn(
-                'fixed left-16 top-0 bottom-0 z-40 h-full border-r overflow-hidden bg-white dark:bg-zinc-950',
+                'fixed left-16 top-16 bottom-0 z-30 border-r overflow-hidden bg-white dark:bg-zinc-950',
                 isDashboardRoot
                   ? 'border-white/10'
                   : isDark ? 'border-zinc-800' : 'border-zinc-200'
               )}
             >
-              <div className="h-full flex flex-col w-[240px]">
+              <div className="h-full flex flex-col" style={{ width: currentCategory === 'email' ? emailSidebarWidth : 240 }}>
+                {/* Email - Special Chat Interface */}
+                {currentCategory === 'email' ? (
+                  <>
+                    <EmailSidebarChat
+                      accounts={emailAccounts}
+                      selectedAccount={selectedEmailAccount}
+                      onAccountChange={setSelectedEmailAccount}
+                      onAddAccount={() => router.push('/dashboard-group/email?action=add-account')}
+                      allEmails={allEmails}
+                      currentFolder={currentEmailFolder}
+                      onFolderChange={handleEmailFolderChange}
+                      onCompose={() => router.push('/dashboard-group/email?action=compose')}
+                      onSync={handleSyncEmails}
+                      isSyncing={isSyncingEmail}
+                    />
+                    {/* Resize Handle */}
+                    <div
+                      onMouseDown={handleEmailResizeMouseDown}
+                      className={cn(
+                        "absolute top-0 right-0 w-2 hover:w-3 h-full cursor-col-resize transition-all flex items-center justify-center group",
+                        isResizingEmail ? "w-3 bg-accent/30" : "hover:bg-accent/20"
+                      )}
+                    >
+                      <div className="absolute inset-y-0 -left-1 -right-1" />
+                      <div className={cn(
+                        "w-0.5 h-8 rounded-full transition-colors",
+                        isResizingEmail ? "bg-accent" : "bg-zinc-400 group-hover:bg-accent"
+                      )} />
+                    </div>
+                  </>
+                ) : (
+                  <>
                 {/* Category Header */}
                 <div className={cn(
                   'h-16 flex items-center px-4 border-b flex-shrink-0',
@@ -1550,6 +1698,8 @@ export function TwoLevelSidebar() {
                     })
                   )}
                 </nav>
+                  </>
+                )}
               </div>
             </motion.aside>
           )}

@@ -6,6 +6,8 @@ interface UIState {
   commitModalOpen: boolean
   taskModalOpen: boolean
   selectedTaskId: string | null
+  emailSidebarWidth: number
+  isResizingEmail: boolean
   toggleSidebar: () => void
   setSidebarOpen: (open: boolean) => void
   setActiveCategory: (category: string | null) => void
@@ -13,6 +15,8 @@ interface UIState {
   closeCommitModal: () => void
   openTaskModal: (taskId?: string) => void
   closeTaskModal: () => void
+  setEmailSidebarWidth: (width: number) => void
+  setIsResizingEmail: (resizing: boolean) => void
 }
 
 export const useUIStore = create<UIState>((set) => ({
@@ -21,6 +25,7 @@ export const useUIStore = create<UIState>((set) => ({
   commitModalOpen: false,
   taskModalOpen: false,
   selectedTaskId: null,
+  emailSidebarWidth: 400,
   toggleSidebar: () => set((state) => ({ sidebarOpen: !state.sidebarOpen })),
   setSidebarOpen: (open) => set({ sidebarOpen: open }),
   setActiveCategory: (category) => set({ activeCategory: category }),
@@ -28,4 +33,7 @@ export const useUIStore = create<UIState>((set) => ({
   closeCommitModal: () => set({ commitModalOpen: false }),
   openTaskModal: (taskId) => set({ taskModalOpen: true, selectedTaskId: taskId || null }),
   closeTaskModal: () => set({ taskModalOpen: false, selectedTaskId: null }),
+  setEmailSidebarWidth: (width) => set({ emailSidebarWidth: width }),
+  isResizingEmail: false,
+  setIsResizingEmail: (resizing) => set({ isResizingEmail: resizing }),
 }))
