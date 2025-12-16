@@ -37,6 +37,7 @@ import {
 import { BsFiletypePpt, BsFiletypeDoc, BsFileEarmarkSpreadsheet, BsFileEarmarkImage } from "react-icons/bs"
 import { AiOutlineAppstoreAdd } from "react-icons/ai"
 import { RiSparkling2Fill } from "react-icons/ri"
+import { FaRegFileCode } from "react-icons/fa6"
 import { useThemeStore } from "@/stores/themeStore"
 import { cn } from "@/lib/utils"
 import { ToolsView } from "./tools-view"
@@ -308,6 +309,7 @@ function WorksHome({ onOpenCreate, onStartChat }: { onOpenCreate: () => void, on
         { icon: BsFileEarmarkSpreadsheet, label: "시트", bg: "bg-green-600", color: "text-white", href: "/dashboard-group/works/ai-sheet" },
         { icon: BsFileEarmarkImage, label: "포스터", bg: "bg-pink-500", color: "text-white" },
         { icon: Globe, label: "웹사이트", bg: "bg-amber-500", color: "text-white" },
+        { icon: FaRegFileCode, label: "코딩", bg: "bg-cyan-600", color: "text-white" },
         { icon: AiOutlineAppstoreAdd, label: "Apps +", bg: "bg-purple-500", color: "text-white" },
     ]
 
