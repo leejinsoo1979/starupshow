@@ -5,18 +5,6 @@ import {
   Bot,
   Send,
   Loader2,
-  RefreshCw,
-  PenSquare,
-  Plus,
-  ChevronDown,
-  Inbox,
-  Star,
-  Trash2,
-  Mail,
-  Clock,
-  Paperclip,
-  FileEdit,
-  MailWarning,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useThemeStore } from '@/stores/themeStore'
@@ -44,32 +32,6 @@ interface EmailSidebarChatProps {
   isSyncing: boolean
 }
 
-const folderLabels: Record<Folder, string> = {
-  inbox: '받은메일',
-  starred: '중요메일',
-  sent: '보낸메일',
-  trash: '휴지통',
-  spam: '스팸',
-  drafts: '임시보관함',
-  all: '전체메일',
-  scheduled: '예약메일',
-  attachments: '첨부파일',
-}
-
-const FolderIcon = ({ folder }: { folder: Folder }) => {
-  switch (folder) {
-    case 'inbox': return <Inbox className="w-3.5 h-3.5" />
-    case 'sent': return <Send className="w-3.5 h-3.5" />
-    case 'starred': return <Star className="w-3.5 h-3.5" />
-    case 'trash': return <Trash2 className="w-3.5 h-3.5" />
-    case 'spam': return <MailWarning className="w-3.5 h-3.5" />
-    case 'drafts': return <FileEdit className="w-3.5 h-3.5" />
-    case 'all': return <Mail className="w-3.5 h-3.5" />
-    case 'attachments': return <Paperclip className="w-3.5 h-3.5" />
-    case 'scheduled': return <Clock className="w-3.5 h-3.5" />
-    default: return <Inbox className="w-3.5 h-3.5" />
-  }
-}
 
 export function EmailSidebarChat({
   accounts,
@@ -88,7 +50,7 @@ export function EmailSidebarChat({
     {
       id: '1',
       role: 'assistant',
-      content: '안녕하세요! 대화로 이메일을 제어해보세요.\n\n🔍 "안읽은 메일" "오늘 온 메일"\n📊 "요약해줘" "검색 [키워드]"',
+      content: '안녕하세요! 대화로 이메일을 제어해보세요.\n\n"안읽은 메일" "오늘 온 메일"\n"요약해줘" "검색 [키워드]"',
       timestamp: new Date(),
     }
   ])
@@ -148,25 +110,25 @@ export function EmailSidebarChat({
     // Folder navigation
     if (input.includes('받은') && (input.includes('메일') || input.includes('편지'))) {
       onFolderChange('inbox')
-      response = `📥 받은메일함 (${inboxCount}개)`
+      response = `받은메일함 (${inboxCount}개)`
     } else if (input.includes('보낸') && (input.includes('메일') || input.includes('편지'))) {
       onFolderChange('sent')
-      response = `📤 보낸메일함 (${sentCount}개)`
+      response = `보낸메일함 (${sentCount}개)`
     } else if (input.includes('휴지통') || input.includes('삭제')) {
       onFolderChange('trash')
-      response = `🗑️ 휴지통 (${trashCount}개)`
+      response = `휴지통 (${trashCount}개)`
     } else if (input.includes('스팸') || input.includes('spam')) {
       onFolderChange('spam')
-      response = `⚠️ 스팸함 (${spamCount}개)`
+      response = `스팸함 (${spamCount}개)`
     } else if (input.includes('임시') || input.includes('초안') || input.includes('draft')) {
       onFolderChange('drafts')
-      response = `📝 임시보관함 (${draftsCount}개)`
+      response = `임시보관함 (${draftsCount}개)`
     } else if (input.includes('전체') && input.includes('메일')) {
       onFolderChange('all')
-      response = `📬 전체메일 (${allCount}개)`
+      response = `전체메일 (${allCount}개)`
     } else if (input.includes('읽지 않은') || input.includes('안읽은')) {
       const unread = allEmails.filter(e => !e.is_read && !e.is_trash)
-      response = `📬 읽지 않은 메일 ${unread.length}개`
+      response = `읽지 않은 메일 ${unread.length}개`
       if (unread.length > 0) {
         unread.slice(0, 3).forEach((email, i) => {
           response += `\n${i + 1}. ${email.from_name || email.from_address}`
@@ -174,12 +136,12 @@ export function EmailSidebarChat({
       }
     } else if (input.includes('중요') || input.includes('별표') || input.includes('starred')) {
       onFolderChange('starred')
-      response = `⭐ 중요메일 (${starredCount}개)`
+      response = `중요메일 (${starredCount}개)`
     } else if (input.includes('첨부') || input.includes('파일')) {
       onFolderChange('attachments')
-      response = `📎 첨부파일메일 (${attachmentCount}개)`
+      response = `첨부파일메일 (${attachmentCount}개)`
     } else if (input.includes('요약') || input.includes('정리')) {
-      response = `📊 현황\n• 전체: ${allCount}개\n• 안읽음: ${unreadCount}개\n• 중요: ${starredCount}개\n• 첨부: ${attachmentCount}개`
+      response = `현황\n• 전체: ${allCount}개\n• 안읽음: ${unreadCount}개\n• 중요: ${starredCount}개\n• 첨부: ${attachmentCount}개`
     } else if (input.includes('오늘')) {
       const today = new Date()
       today.setHours(0, 0, 0, 0)
@@ -187,7 +149,7 @@ export function EmailSidebarChat({
         const emailDate = new Date(e.received_at || e.created_at)
         return emailDate >= today && !e.is_trash
       })
-      response = `📅 오늘 받은 메일 ${todayEmails.length}개`
+      response = `오늘 받은 메일 ${todayEmails.length}개`
     } else if (input.includes('검색') || input.includes('찾아')) {
       const searchTerm = input.replace(/검색|찾아|줘|해줘|보여/g, '').trim()
       if (searchTerm) {
@@ -197,18 +159,18 @@ export function EmailSidebarChat({
            e.from_address?.toLowerCase().includes(searchTerm)) &&
           !e.is_trash
         )
-        response = `🔍 "${searchTerm}" 검색: ${results.length}개`
+        response = `"${searchTerm}" 검색: ${results.length}개`
       } else {
-        response = '🔍 검색어를 입력해주세요'
+        response = '검색어를 입력해주세요'
       }
     } else if (input.includes('동기화') || input.includes('새로고침') || input.includes('sync')) {
       onSync()
-      response = '🔄 동기화 중...'
+      response = '동기화 중...'
     } else if (input.includes('메일 쓰기') || input.includes('작성') || input.includes('compose')) {
       onCompose()
-      response = '✏️ 메일 작성'
+      response = '메일 작성'
     } else {
-      response = `📂 "받은메일" "보낸메일" "휴지통"\n🔍 "안읽은 메일" "첨부파일"\n📊 "요약해줘"`
+      response = `"받은메일" "보낸메일" "휴지통"\n"안읽은 메일" "첨부파일"\n"요약해줘"`
     }
 
     setTimeout(() => {
@@ -236,34 +198,6 @@ export function EmailSidebarChat({
           </div>
         </div>
 
-        {/* Account Selector */}
-        {accounts.length > 0 ? (
-          <div className="relative">
-            <select
-              value={selectedAccount?.id || ''}
-              onChange={(e) => {
-                const account = accounts.find((a) => a.id === e.target.value)
-                if (account) onAccountChange(account)
-              }}
-              className="w-full px-2.5 py-1.5 rounded-lg bg-zinc-100 dark:bg-zinc-800 border-0 text-zinc-900 dark:text-white text-xs focus:outline-none appearance-none cursor-pointer truncate"
-            >
-              {accounts.map((account) => (
-                <option key={account.id} value={account.id}>
-                  {account.email_address}
-                </option>
-              ))}
-            </select>
-            <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-3 h-3 text-zinc-400 pointer-events-none" />
-          </div>
-        ) : (
-          <button
-            onClick={onAddAccount}
-            className="w-full px-2.5 py-1.5 rounded-lg bg-zinc-100 dark:bg-zinc-800 text-zinc-500 text-xs hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors flex items-center justify-center gap-1.5"
-          >
-            <Plus className="w-3 h-3" />
-            계정 추가
-          </button>
-        )}
       </div>
 
       {/* Chat Messages */}
