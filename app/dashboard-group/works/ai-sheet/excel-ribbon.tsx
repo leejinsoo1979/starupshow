@@ -83,8 +83,8 @@ export default function ExcelRibbon({ onAction }: ExcelRibbonProps) {
 
     // 그룹 컨테이너
     const RibbonGroup = ({ title, children }: { title: string; children: React.ReactNode }) => (
-        <div className="flex flex-col h-[90px]">
-            <div className="flex items-start gap-1 px-3 pt-2 flex-1">
+        <div className="flex flex-col h-[90px] overflow-visible">
+            <div className="flex items-start gap-1 px-3 pt-2 flex-1 overflow-visible">
                 {children}
             </div>
             <div className="text-[11px] text-gray-600 text-center py-1.5 border-t border-gray-200">
@@ -135,9 +135,25 @@ export default function ExcelRibbon({ onAction }: ExcelRibbonProps) {
         selected?: boolean
     }) => {
         const isOpen = openDropdown === id
+        const buttonRef = useRef<HTMLButtonElement>(null)
+        const [dropdownStyle, setDropdownStyle] = useState<React.CSSProperties>({})
+
+        useEffect(() => {
+            if (isOpen && buttonRef.current) {
+                const rect = buttonRef.current.getBoundingClientRect()
+                setDropdownStyle({
+                    position: 'fixed',
+                    top: rect.bottom + 4,
+                    left: rect.left,
+                    zIndex: 9999
+                })
+            }
+        }, [isOpen])
+
         return (
             <div className="relative" ref={isOpen ? dropdownRef : undefined}>
                 <button
+                    ref={buttonRef}
                     onClick={() => toggleDropdown(id)}
                     className={cn(
                         "flex flex-col items-center justify-center px-3 py-1.5 rounded min-w-[60px] h-[62px] border-2 transition-all",
@@ -155,7 +171,7 @@ export default function ExcelRibbon({ onAction }: ExcelRibbonProps) {
                     </span>
                 </button>
                 {isOpen && children && (
-                    <div className="absolute top-full left-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-50 min-w-[200px] py-1">
+                    <div style={dropdownStyle} className="bg-white border border-gray-200 rounded-lg shadow-xl min-w-[200px] py-1">
                         {children}
                     </div>
                 )}
@@ -204,9 +220,25 @@ export default function ExcelRibbon({ onAction }: ExcelRibbonProps) {
         children?: React.ReactNode
     }) => {
         const isOpen = openDropdown === id
+        const buttonRef = useRef<HTMLButtonElement>(null)
+        const [dropdownStyle, setDropdownStyle] = useState<React.CSSProperties>({})
+
+        useEffect(() => {
+            if (isOpen && buttonRef.current) {
+                const rect = buttonRef.current.getBoundingClientRect()
+                setDropdownStyle({
+                    position: 'fixed',
+                    top: rect.bottom + 4,
+                    left: rect.left,
+                    zIndex: 9999
+                })
+            }
+        }, [isOpen])
+
         return (
             <div className="relative" ref={isOpen ? dropdownRef : undefined}>
                 <button
+                    ref={buttonRef}
                     onClick={() => toggleDropdown(id)}
                     className={cn(
                         "flex items-center gap-1 px-2 py-1 rounded text-[11px] text-gray-700 border border-transparent",
@@ -218,7 +250,7 @@ export default function ExcelRibbon({ onAction }: ExcelRibbonProps) {
                     <ChevronDown className="w-3 h-3 text-gray-500" />
                 </button>
                 {isOpen && children && (
-                    <div className="absolute top-full left-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-50 min-w-[180px] py-1">
+                    <div style={dropdownStyle} className="bg-white border border-gray-200 rounded-lg shadow-xl min-w-[180px] py-1">
                         {children}
                     </div>
                 )}
@@ -227,7 +259,7 @@ export default function ExcelRibbon({ onAction }: ExcelRibbonProps) {
     }
 
     const renderHomeTab = () => (
-        <div className="flex items-stretch h-full" ref={dropdownRef}>
+        <div className="flex items-stretch h-full overflow-visible" ref={dropdownRef}>
             {/* 실행 취소/다시 실행 */}
             <div className="flex items-center gap-1 px-2">
                 <button className="p-1.5 hover:bg-gray-200 rounded" title="실행 취소 (Ctrl+Z)">
@@ -499,7 +531,7 @@ export default function ExcelRibbon({ onAction }: ExcelRibbonProps) {
     )
 
     return (
-        <div className="bg-white border-b border-gray-300 select-none">
+        <div className="bg-white border-b border-gray-300 select-none relative z-40">
             {/* 탭 바 */}
             <div className="flex items-center bg-[#f3f3f3] border-b border-gray-200">
                 {tabs.map((tab) => (
@@ -519,7 +551,7 @@ export default function ExcelRibbon({ onAction }: ExcelRibbonProps) {
             </div>
 
             {/* 리본 콘텐츠 */}
-            <div className="bg-[#f8f9fa] overflow-x-auto">
+            <div className="bg-[#f8f9fa] overflow-x-auto overflow-y-visible">
                 {activeTab === "홈" && renderHomeTab()}
                 {activeTab === "삽입" && (
                     <div className="flex items-stretch h-[90px] px-4">

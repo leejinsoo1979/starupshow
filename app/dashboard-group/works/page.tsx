@@ -305,7 +305,7 @@ function WorksHome({ onOpenCreate, onStartChat }: { onOpenCreate: () => void, on
     }> = [
         { icon: RiSparkling2Fill, label: "범용", bg: "bg-blue-600", color: "text-white", active: true },
         { icon: BsFiletypeDoc, label: "문서", bg: "bg-emerald-500", color: "text-white" },
-        { icon: BsFiletypePpt, label: "슬라이드", bg: "bg-orange-500", color: "text-white" },
+        { icon: BsFiletypePpt, label: "슬라이드", bg: "bg-orange-500", color: "text-white", href: "/dashboard-group/works/ai-slides" },
         { icon: BsFileEarmarkSpreadsheet, label: "시트", bg: "bg-green-600", color: "text-white", href: "/dashboard-group/works/ai-sheet" },
         { icon: BsFileEarmarkImage, label: "포스터", bg: "bg-pink-500", color: "text-white" },
         { icon: Globe, label: "웹사이트", bg: "bg-amber-500", color: "text-white" },

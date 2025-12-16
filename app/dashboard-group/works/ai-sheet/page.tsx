@@ -495,7 +495,7 @@ export default function AISheetPage() {
             </div>
 
             {/* Right Panel - Spreadsheet (Full Excel UI) - Always Light Mode */}
-            <div className="flex-1 flex flex-col bg-white overflow-hidden" data-theme="light">
+            <div className="flex-1 flex flex-col bg-white overflow-visible" data-theme="light">
                 {/* Korean Excel Ribbon Toolbar */}
                 <ExcelRibbon onAction={handleRibbonAction} />
 
