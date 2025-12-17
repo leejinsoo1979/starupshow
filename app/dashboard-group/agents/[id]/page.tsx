@@ -4966,17 +4966,32 @@ export default function AgentProfilePage() {
                         {pendingTask.confirmation_message}
                       </div>
 
-                      {/* Action buttons */}
-                      <div className="mt-5 flex gap-3">
+                      {/* Action buttons - 우측 하단 배치 */}
+                      <div className="mt-5 flex justify-end gap-2">
+                        <button
+                          onClick={handleCancelTask}
+                          disabled={isExecutingTask}
+                          className={cn(
+                            'flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200',
+                            'hover:scale-[1.02] active:scale-[0.98]',
+                            'disabled:opacity-50 disabled:cursor-not-allowed',
+                            isDark
+                              ? 'bg-zinc-800 hover:bg-zinc-700 text-zinc-300 border border-zinc-700'
+                              : 'bg-white hover:bg-zinc-50 text-zinc-600 border border-zinc-200 shadow-sm'
+                          )}
+                        >
+                          <XCircle className="w-4 h-4" />
+                          <span>반려</span>
+                        </button>
                         <button
                           onClick={handleConfirmTask}
                           disabled={isExecutingTask}
                           className={cn(
-                            'flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl',
+                            'flex items-center gap-1.5 px-4 py-2 rounded-lg',
                             'text-sm font-semibold transition-all duration-200',
-                            'bg-gradient-to-r from-emerald-500 to-teal-500 text-white',
-                            'hover:from-emerald-600 hover:to-teal-600',
-                            'hover:shadow-lg hover:shadow-emerald-500/25 hover:scale-[1.02]',
+                            'bg-accent text-white',
+                            'hover:bg-accent/90',
+                            'hover:shadow-lg hover:shadow-accent/25 hover:scale-[1.02]',
                             'active:scale-[0.98]',
                             'disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100'
                           )}
@@ -4989,23 +5004,9 @@ export default function AgentProfilePage() {
                           ) : (
                             <>
                               <CheckCircle className="w-4 h-4" />
-                              <span>네, 진행해주세요</span>
+                              <span>승인</span>
                             </>
                           )}
-                        </button>
-                        <button
-                          onClick={handleCancelTask}
-                          disabled={isExecutingTask}
-                          className={cn(
-                            'px-4 py-2.5 rounded-xl text-sm font-medium transition-all duration-200',
-                            'hover:scale-[1.02] active:scale-[0.98]',
-                            'disabled:opacity-50 disabled:cursor-not-allowed',
-                            isDark
-                              ? 'bg-zinc-800 hover:bg-zinc-700 text-zinc-300 border border-zinc-700'
-                              : 'bg-white hover:bg-zinc-50 text-zinc-700 border border-zinc-200 shadow-sm'
-                          )}
-                        >
-                          <XCircle className="w-4 h-4" />
                         </button>
                       </div>
                     </div>
@@ -5119,17 +5120,32 @@ export default function AgentProfilePage() {
                       ))}
                     </div>
 
-                    {/* Action buttons */}
-                    <div className="flex gap-3">
+                    {/* Action buttons - 우측 하단 배치 */}
+                    <div className="flex justify-end gap-2">
+                      <button
+                        onClick={handleCancelAction}
+                        disabled={isExecutingAction}
+                        className={cn(
+                          'flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200',
+                          'hover:scale-[1.02] active:scale-[0.98]',
+                          'disabled:opacity-50 disabled:cursor-not-allowed',
+                          isDark
+                            ? 'bg-zinc-800 hover:bg-zinc-700 text-zinc-300 border border-zinc-700'
+                            : 'bg-white hover:bg-zinc-50 text-zinc-600 border border-zinc-200 shadow-sm'
+                        )}
+                      >
+                        <XCircle className="w-4 h-4" />
+                        <span>반려</span>
+                      </button>
                       <button
                         onClick={handleConfirmAction}
                         disabled={isExecutingAction}
                         className={cn(
-                          'flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl',
+                          'flex items-center gap-1.5 px-4 py-2 rounded-lg',
                           'text-sm font-semibold transition-all duration-200',
-                          'bg-gradient-to-r from-blue-500 to-indigo-500 text-white',
-                          'hover:from-blue-600 hover:to-indigo-600',
-                          'hover:shadow-lg hover:shadow-blue-500/25 hover:scale-[1.02]',
+                          'bg-accent text-white',
+                          'hover:bg-accent/90',
+                          'hover:shadow-lg hover:shadow-accent/25 hover:scale-[1.02]',
                           'active:scale-[0.98]',
                           'disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100'
                         )}
@@ -5142,23 +5158,9 @@ export default function AgentProfilePage() {
                         ) : (
                           <>
                             <CheckCircle className="w-4 h-4" />
-                            <span>컨펌</span>
+                            <span>승인</span>
                           </>
                         )}
-                      </button>
-                      <button
-                        onClick={handleCancelAction}
-                        disabled={isExecutingAction}
-                        className={cn(
-                          'px-4 py-2.5 rounded-xl text-sm font-medium transition-all duration-200',
-                          'hover:scale-[1.02] active:scale-[0.98]',
-                          'disabled:opacity-50 disabled:cursor-not-allowed',
-                          isDark
-                            ? 'bg-zinc-800 hover:bg-zinc-700 text-zinc-300 border border-zinc-700'
-                            : 'bg-white hover:bg-zinc-50 text-zinc-700 border border-zinc-200 shadow-sm'
-                        )}
-                      >
-                        <XCircle className="w-4 h-4" />
                       </button>
                     </div>
                   </div>
