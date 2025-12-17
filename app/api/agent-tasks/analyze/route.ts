@@ -23,31 +23,37 @@ type ActionType = 'project_create' | 'task_create' | 'general'
 
 // 인텐트 감지 함수
 function detectIntent(instruction: string): { actionType: ActionType; extractedData: any } {
-  const lowerInstruction = instruction.toLowerCase()
+  console.log('[detectIntent] Analyzing instruction:', instruction)
 
-  // 프로젝트 생성 인텐트 감지
+  // 프로젝트 생성 인텐트 감지 (한국어/영어)
   const projectCreatePatterns = [
-    /프로젝트\s*(를|을)?\s*(만들|생성|추가|새로)/,
-    /새\s*(로운|)?\s*프로젝트/,
-    /프로젝트\s*하나\s*(만들|생성)/,
+    /프로젝트\s*(를|을)?\s*(만들|생성|추가|새로)/i,
+    /새\s*(로운|)?\s*프로젝트/i,
+    /프로젝트\s*하나\s*(만들|생성)/i,
+    /프로젝트.*만들어/i,
+    /프로젝트.*생성해/i,
     /create\s*project/i,
     /new\s*project/i,
   ]
 
   for (const pattern of projectCreatePatterns) {
     if (pattern.test(instruction)) {
+      console.log('[detectIntent] Matched project_create pattern:', pattern)
       // 프로젝트명 추출 시도
       const nameMatch = instruction.match(/["']([^"']+)["']/) ||
-                        instruction.match(/프로젝트\s*(?:이름은?|명은?)?\s*(.+?)(?:로|으로|라고|$)/)
+                        instruction.match(/프로젝트\s*(?:이름은?|명은?)?\s*(.+?)(?:로|으로|라고|해|$)/)
+      const suggestedName = nameMatch?.[1]?.trim() || null
+      console.log('[detectIntent] Extracted name:', suggestedName)
       return {
         actionType: 'project_create',
         extractedData: {
-          suggestedName: nameMatch?.[1]?.trim() || null
+          suggestedName
         }
       }
     }
   }
 
+  console.log('[detectIntent] No special intent detected, using general')
   return { actionType: 'general', extractedData: null }
 }
 
@@ -68,7 +74,8 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { instruction, agent_id, task_model = 'gemini-3-flash' } = body
+    const { instruction, agent_id, task_model = 'grok-4-1-fast' } = body
+    console.log('[TaskAnalyze] Request:', { instruction, agent_id, task_model })
 
     if (!instruction || !agent_id) {
       return NextResponse.json(
@@ -97,6 +104,7 @@ export async function POST(request: NextRequest) {
 
     // 프로젝트 생성 인텐트인 경우 특별 처리
     if (actionType === 'project_create') {
+      console.log('[TaskAnalyze] Detected project_create action, returning form fields')
       return NextResponse.json({
         action_type: 'project_create',
         confirmation_message: generateProjectCreateMessage(agent, extractedData?.suggestedName),
