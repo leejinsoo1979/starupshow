@@ -332,15 +332,26 @@ const SpreadsheetEditor = forwardRef<SpreadsheetEditorAPI, SpreadsheetEditorProp
                     if (!ref) return
                     ref.deleteRowOrColumn(type, start, end, options)
                 },
-                setRowHeight: (rowInfo, options) => {
+                setRowHeight: (rowInfo, options, custom = true) => {
                     const ref = getRef()
                     if (!ref) return
-                    ref.setRowHeight(rowInfo, options)
+                    ref.setRowHeight(rowInfo, options, custom)
                 },
-                setColumnWidth: (columnInfo, options) => {
+                setColumnWidth: (columnInfo, options, custom = true) => {
                     const ref = getRef()
-                    if (!ref) return
-                    ref.setColumnWidth(columnInfo, options)
+                    if (!ref) {
+                        console.error('setColumnWidth: ref is null')
+                        return
+                    }
+                    console.log('setColumnWidth called with:', { columnInfo, options, custom })
+                    try {
+                        // Fortune-sheet's setColumnWidth API doesn't work reliably
+                        // Try calling it anyway
+                        ref.setColumnWidth(columnInfo, options, custom)
+                        console.log('setColumnWidth API called')
+                    } catch (e) {
+                        console.error('setColumnWidth error:', e)
+                    }
                 },
                 getRowHeight: (rows, options) => {
                     const ref = getRef()

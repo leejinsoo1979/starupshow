@@ -56,6 +56,7 @@ import { CustomToolNode } from "./nodes/CustomToolNode"
 import { StartNode } from "./nodes/StartNode"
 import { EndNode } from "./nodes/EndNode"
 import { PromptNode } from "./nodes/PromptNode"
+import { ActivepiecesNode } from "./nodes/ActivepiecesNode"
 import {
   createAgentNode,
   validateAgent,
@@ -66,8 +67,9 @@ import {
 import { AVAILABLE_MODELS, PROVIDER_INFO, LLMProvider, getDefaultModel } from "@/lib/llm/models"
 import type { AgentNodeData, AgentType } from "@/lib/agent"
 import { TerminalPanel, TerminalPanelRef } from "@/components/editor"
-import { useMcpBridge } from "@/hooks/useMcpBridge"
+import { useMcpRealtimeBridge } from "@/hooks/useMcpRealtimeBridge"
 import { Logo } from "@/components/ui"
+import { Clipboard, Check, Wifi, WifiOff } from "lucide-react"
 
 const nodeTypes: NodeTypes = {
   llm: LLMNode,
@@ -87,6 +89,7 @@ const nodeTypes: NodeTypes = {
   javascript: JavaScriptNode,
   embedding: EmbeddingNode,
   custom_tool: CustomToolNode,
+  activepieces: ActivepiecesNode,
 }
 
 const initialNodes: Node<AgentNodeData>[] = [
@@ -193,8 +196,8 @@ function AgentBuilderInner({ agentId }: AgentBuilderInnerProps) {
     }
   }, [agentId, setNodes, setEdges, fitView])
 
-  // MCP Bridge - Claude Code에서 노드 조작 가능하게 함
-  const { isConnected: isMcpConnected } = useMcpBridge({
+  // MCP Bridge - Claude Code에서 노드 조작 가능하게 함 (Supabase Realtime 사용)
+  const { isConnected: isMcpConnected, sessionId: mcpSessionId } = useMcpRealtimeBridge({
     nodes,
     edges,
     setNodes,
@@ -208,6 +211,17 @@ function AgentBuilderInner({ agentId }: AgentBuilderInnerProps) {
       }
     },
   })
+
+  // 세션 ID 복사 상태
+  const [sessionIdCopied, setSessionIdCopied] = useState(false)
+
+  const handleCopySessionId = useCallback(() => {
+    if (mcpSessionId) {
+      navigator.clipboard.writeText(mcpSessionId)
+      setSessionIdCopied(true)
+      setTimeout(() => setSessionIdCopied(false), 2000)
+    }
+  }, [mcpSessionId])
 
   // History for undo/redo
   const [history, setHistory] = useState<{ nodes: Node<AgentNodeData>[]; edges: Edge[] }[]>([])
@@ -595,6 +609,33 @@ function AgentBuilderInner({ agentId }: AgentBuilderInnerProps) {
           <Button variant="outline" size="sm" onClick={handleCopyJson} className="bg-white dark:bg-zinc-900 border-zinc-300/50 dark:border-zinc-700/50 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 h-8 text-xs !rounded-md">
             <span className="mr-2">&lt;/&gt;</span> Export Code
           </Button>
+          {/* MCP 세션 정보 */}
+          <div className="flex items-center gap-1.5 px-2 py-1 bg-zinc-100 dark:bg-zinc-800 rounded-md border border-zinc-200 dark:border-zinc-700">
+            {isMcpConnected ? (
+              <Wifi className="w-3 h-3 text-emerald-500" />
+            ) : (
+              <WifiOff className="w-3 h-3 text-zinc-400" />
+            )}
+            <span className="text-xs text-zinc-500 dark:text-zinc-400">MCP:</span>
+            <code className="text-xs font-mono text-zinc-700 dark:text-zinc-300 max-w-[120px] truncate" title={mcpSessionId}>
+              {mcpSessionId ? mcpSessionId.substring(0, 16) + '...' : '연결 중...'}
+            </code>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleCopySessionId}
+              disabled={!mcpSessionId}
+              className="h-5 w-5 p-0 hover:bg-zinc-200 dark:hover:bg-zinc-700"
+              title="세션 ID 복사"
+            >
+              {sessionIdCopied ? (
+                <Check className="w-3 h-3 text-emerald-500" />
+              ) : (
+                <Clipboard className="w-3 h-3 text-zinc-400" />
+              )}
+            </Button>
+          </div>
+
           <Button
             variant="outline"
             size="sm"

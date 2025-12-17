@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { isDevMode, DEV_USER } from '@/lib/dev-user'
+import { saveConversationMemory } from '@/lib/memory/memory-service'
 
 // GET: 특정 에이전트와의 대화 기록 조회
 export async function GET(
@@ -107,6 +108,13 @@ export async function POST(
       conversation = newConversation
     }
 
+    // 에이전트 정보 조회 (메모리 저장용)
+    const { data: agent } = await (adminClient as any)
+      .from('deployed_agents')
+      .select('id, name')
+      .eq('id', agentId)
+      .single()
+
     // 메시지 저장
     const { data: message, error: messageError } = await (adminClient as any)
       .from('agent_chat_messages')
@@ -124,6 +132,20 @@ export async function POST(
       console.error('Create message error:', messageError)
       return NextResponse.json({ error: messageError.message }, { status: 500 })
     }
+
+    // 장기 메모리에 저장 (비동기로 처리하여 응답 지연 방지)
+    // ownerAgentId: 대화 상대 에이전트 (이 대화는 해당 에이전트의 메모리)
+    saveConversationMemory({
+      userId: user.id,
+      content: content || `[이미지: ${image_url}]`,
+      role: role as 'user' | 'assistant' | 'agent',
+      ownerAgentId: agentId,  // 에이전트별 독립 메모리: 이 대화는 agentId의 메모리
+      agentId: role === 'assistant' ? agentId : null,
+      agentName: role === 'assistant' ? agent?.name : null,
+      conversationId: conversation.id,
+      emotion: emotion || null,
+      messageId: message.id,
+    }).catch((err) => console.error('[Memory] Failed to save conversation:', err))
 
     // 대화 세션 업데이트 (마지막 메시지 시간)
     await (adminClient as any)

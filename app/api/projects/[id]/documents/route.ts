@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { isDevMode, DEV_USER } from '@/lib/dev-user'
+import { saveDocumentMemory } from '@/lib/memory/memory-service'
 
 // GET: List all documents for a project
 export async function GET(
@@ -130,6 +131,19 @@ export async function POST(
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 })
     }
+
+    // 장기 메모리에 문서 생성 저장 (비동기)
+    saveDocumentMemory({
+      userId: user.id,
+      documentId: document.id,
+      title: document.title,
+      content: document.summary || document.content.slice(0, 500),
+      docType: document.doc_type,
+      projectId: projectId,
+      sourceUrl: source_url,
+      tags: tags,
+      isUpdate: false,
+    }).catch((err) => console.error('[Memory] Failed to save document creation:', err))
 
     return NextResponse.json(document, { status: 201 })
   } catch (error) {

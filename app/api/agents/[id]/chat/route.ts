@@ -3,6 +3,12 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { isDevMode, DEV_USER } from '@/lib/dev-user'
 import { createClient } from '@/lib/supabase/server'
 import { generateAgentChatResponse } from '@/lib/langchain/agent-chat'
+import {
+  loadAgentWorkContext,
+  formatContextForPrompt,
+  saveInstruction,
+  updateActiveContext,
+} from '@/lib/agent/work-memory'
 
 // POST: 에이전트와 1:1 대화 (프로필 페이지용 간단한 채팅)
 export async function POST(
@@ -118,6 +124,36 @@ export async function POST(
       }))
     }
 
+    // ========================================
+    // 에이전트 워크 컨텍스트 로드
+    // 업무 맥락을 기억해서 자연스러운 대화 지원
+    // ========================================
+    let workContextPrompt = ''
+    try {
+      const workContext = await loadAgentWorkContext(agentId, user.id)
+      workContextPrompt = formatContextForPrompt(workContext)
+
+      // 현재 대화 세션 업데이트
+      if (conversation?.id) {
+        await updateActiveContext(agentId, user.id, {
+          currentConversationId: conversation.id,
+        })
+      }
+
+      // 지시사항으로 저장 (비동기, 응답 지연 방지)
+      saveInstruction({
+        agentId,
+        userId: user.id,
+        instruction: message,
+        conversationId: conversation?.id,
+      }).catch(err => console.error('[WorkMemory] Save instruction error:', err))
+
+      console.log(`[AgentChat] Work context loaded: ${workContextPrompt.length} chars`)
+    } catch (contextError) {
+      console.error('[AgentChat] Work context load error:', contextError)
+      // 컨텍스트 로드 실패해도 대화는 계속
+    }
+
     // 에이전트 응답 생성 (타임아웃 처리)
     let response: string
     try {
@@ -135,6 +171,7 @@ export async function POST(
           participantNames: [userProfile?.name || user.email?.split('@')[0] || '사용자'],
           userName: userProfile?.name || user.email?.split('@')[0] || '사용자',
           userRole: userProfile?.job_title,
+          workContext: workContextPrompt, // 업무 맥락 주입
         },
         validImages // 이미지 전달
       )

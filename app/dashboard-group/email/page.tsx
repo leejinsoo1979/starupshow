@@ -88,6 +88,12 @@ export default function EmailPage() {
     body: string
     originalEmail: EmailMessage
   } | null>(null)
+  // 내게쓰기용 상태
+  const [selfComposeData, setSelfComposeData] = useState<{
+    to: string
+    subject: string
+    body: string
+  } | null>(null)
   // 답장 유형 선택을 위한 상태
   const [replyOptionsEmail, setReplyOptionsEmail] = useState<EmailMessage | null>(null)
 
@@ -568,9 +574,20 @@ export default function EmailPage() {
     setSelectedEmail(null)
   }
 
+  // 내게쓰기 핸들러
+  const handleComposeToSelf = () => {
+    if (!selectedAccount) return
+    setSelfComposeData({
+      to: selectedAccount.email_address,
+      subject: '',
+      body: '',
+    })
+    setIsComposeOpen(true)
+  }
+
   return (
-    <div className="h-[calc(100vh-64px)] flex bg-white dark:bg-zinc-900">
-      {/* Folder Menu */}
+    <div className="h-screen flex bg-white dark:bg-zinc-900">
+      {/* Folder Menu - 전체 높이 사용 (자체 헤더 포함) */}
       <div className="w-64 flex-shrink-0 border-r border-zinc-200 dark:border-zinc-800">
         <EmailFolderMenu
           accounts={accounts}
@@ -580,14 +597,18 @@ export default function EmailPage() {
           allEmails={allEmails}
           currentFolder={currentFolder}
           onFolderChange={handleFolderChange}
-          onCompose={() => setIsComposeOpen(true)}
+          onCompose={() => {
+            setSelfComposeData(null)
+            setIsComposeOpen(true)
+          }}
+          onComposeToSelf={handleComposeToSelf}
           onSync={syncEmails}
           isSyncing={isSyncing}
         />
       </div>
 
-      {/* Right Section: Header + (Content + Chat) */}
-      <div className="flex-1 flex flex-col min-w-0">
+      {/* Right Section: Header + (Content + Chat) - pt-16으로 헤더 공간 확보 */}
+      <div className="flex-1 flex flex-col min-w-0 pt-16">
         {/* Header - spans full width */}
         <div className="flex items-center justify-between px-4 py-3 border-b border-zinc-200 dark:border-zinc-700">
           <div className="flex items-center gap-3">
@@ -675,16 +696,22 @@ export default function EmailPage() {
                 onBack={() => {
                   setIsComposeOpen(false)
                   setPendingAiReply(null)
+                  setSelfComposeData(null)
                 }}
                 onSend={async (data) => {
                   await handleSendEmail(data)
                   setPendingAiReply(null)
+                  setSelfComposeData(null)
                 }}
                 isSending={isSending}
                 replyTo={pendingAiReply ? {
                   to: pendingAiReply.to,
                   subject: pendingAiReply.subject,
                   body: pendingAiReply.body,
+                } : selfComposeData ? {
+                  to: selfComposeData.to,
+                  subject: selfComposeData.subject,
+                  body: selfComposeData.body,
                 } : undefined}
               />
             </motion.div>

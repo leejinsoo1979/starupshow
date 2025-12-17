@@ -31,7 +31,7 @@ export default function DashboardLayout({
   const pathname = usePathname()
   const { setUser, setCurrentStartup, setIsLoading, isLoading } = useAuthStore()
   const { sidebarOpen, emailSidebarWidth, isResizingEmail } = useUIStore()
-  const isFullWidthPage = pathname?.includes('/messenger') || pathname?.includes('/agent-builder') || pathname?.includes('/email') || pathname?.match(/\/project\/[^/]+$/) || pathname?.includes('/works/new') || pathname?.includes('/works/ai-slides') || pathname?.includes('/works/ai-sheet') || pathname?.includes('/works/ai-docs') || pathname?.includes('/tools/ai-summary')
+  const isFullWidthPage = pathname?.includes('/messenger') || pathname?.includes('/agent-builder') || pathname?.includes('/email') || pathname?.match(/\/project\/[^/]+$/) || pathname?.includes('/works/new') || pathname?.includes('/apps/ai-slides') || pathname?.includes('/apps/ai-sheet') || pathname?.includes('/apps/ai-docs') || pathname?.includes('/apps/ai-summary')
 
   useEffect(() => {
     const supabase = createClient()
@@ -141,13 +141,14 @@ export default function DashboardLayout({
       <CommitModal />
       <main
         className={cn(
-          "pt-16",
-          isResizingEmail ? "" : "transition-all duration-300",
+          // 이메일 페이지는 pt-16 제거 (폴더 메뉴가 전체 높이 사용)
+          !isEmailPage && "pt-16",
+          "transition-all duration-300",
           isFullWidthPage ? "h-screen overflow-hidden" : "min-h-screen"
         )}
         style={{ paddingLeft: `${sidebarWidth}px` }}
       >
-        <div className={isFullWidthPage ? "h-[calc(100vh-64px)] overflow-hidden" : "p-8"}>
+        <div className={isFullWidthPage ? (isEmailPage ? "h-screen overflow-hidden" : "h-[calc(100vh-64px)] overflow-hidden") : "p-8"}>
           {children}
         </div>
       </main>

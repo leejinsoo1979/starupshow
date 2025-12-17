@@ -4,6 +4,8 @@ import { HumanMessage, SystemMessage, AIMessage, ToolMessage, BaseMessage } from
 import { DynamicStructuredTool } from '@langchain/core/tools'
 import { getToolsByNames, getAllToolNames, MCPToolName, ALL_TOOLS } from './tools'
 import { loadAgentApiConnections, createAllApiTools, generateApiToolsDescription } from './api-tool'
+import { createPythonTools, checkPythonBackendHealth } from './python-tools'
+import { createIntegrationTools, type IntegrationConfig } from './integration-executor'
 import { getRAGContext, hasKnowledge } from '@/lib/rag/retriever'
 import { getDefaultModel } from '@/lib/llm/models'
 import type { LLMProvider } from '@/lib/llm/models'
@@ -61,12 +63,86 @@ export async function executeAgentWithTools(
     const apiTools = createAllApiTools(apiConnections)
     const apiToolsDescription = generateApiToolsDescription(apiConnections)
 
-    // Combine MCP tools and API tools
-    const tools: DynamicStructuredTool[] = [...mcpTools, ...apiTools]
+    // 🔥 Extract Python tools from workflow nodes
+    let pythonTools: DynamicStructuredTool[] = []
+    let pythonToolsDescription = ''
+
+    // 🔥 Extract Integration tools from workflow nodes
+    let integrationTools: DynamicStructuredTool[] = []
+    let integrationToolsDescription = ''
+
+    if (agent.workflow_nodes && Array.isArray(agent.workflow_nodes)) {
+      const pythonToolNames: string[] = []
+      const integrationConfigs: IntegrationConfig[] = []
+
+      for (const node of agent.workflow_nodes as Array<{
+        type?: string;
+        data?: {
+          pythonToolName?: string;
+          integrationApp?: string;
+          integrationAction?: string;
+          integrationConfig?: Record<string, unknown>;
+        }
+      }>) {
+        // Check for custom_tool nodes with pythonToolName
+        if (node.type === 'custom_tool' && node.data?.pythonToolName) {
+          pythonToolNames.push(node.data.pythonToolName)
+        }
+
+        // Check for custom_tool nodes with integrationApp (Activepieces-style integrations)
+        if (node.type === 'custom_tool' && node.data?.integrationApp && node.data?.integrationAction) {
+          integrationConfigs.push({
+            app: node.data.integrationApp,
+            action: node.data.integrationAction,
+            config: node.data.integrationConfig || {},
+          })
+        }
+      }
+
+      // Load Python tools
+      if (pythonToolNames.length > 0) {
+        // Check if Python backend is available
+        const backendAvailable = await checkPythonBackendHealth()
+
+        if (backendAvailable) {
+          pythonTools = await createPythonTools(pythonToolNames)
+          console.log(`  - Python tools loaded: ${pythonToolNames.join(', ')}`)
+
+          // Generate description for Python tools
+          if (pythonTools.length > 0) {
+            pythonToolsDescription = '\n\n### Python Backend 도구\n' +
+              pythonTools.map(t => `- ${t.name}: ${t.description}`).join('\n')
+          }
+        } else {
+          console.warn('Python backend not available, skipping Python tools')
+        }
+      }
+
+      // Load Integration tools
+      if (integrationConfigs.length > 0) {
+        integrationTools = createIntegrationTools(integrationConfigs)
+        console.log(`  - Integration tools loaded: ${integrationConfigs.map(c => `${c.app}/${c.action}`).join(', ')}`)
+
+        // Generate description for Integration tools
+        if (integrationTools.length > 0) {
+          integrationToolsDescription = '\n\n### 외부 서비스 연동 도구\n' +
+            integrationTools.map(t => `- ${t.name}: ${t.description}`).join('\n')
+        }
+      }
+    }
+
+    // Combine MCP tools, API tools, Python tools, and Integration tools
+    const tools: DynamicStructuredTool[] = [...mcpTools, ...apiTools, ...pythonTools, ...integrationTools]
 
     console.log(`Agent "${agent.name}" executing with tools:`, tools.map(t => t.name))
     if (apiTools.length > 0) {
       console.log(`  - API tools: ${apiTools.map(t => t.name).join(', ')}`)
+    }
+    if (pythonTools.length > 0) {
+      console.log(`  - Python tools: ${pythonTools.map(t => t.name).join(', ')}`)
+    }
+    if (integrationTools.length > 0) {
+      console.log(`  - Integration tools: ${integrationTools.map(t => t.name).join(', ')}`)
     }
 
     // 🔥 RAG 지식베이스 컨텍스트 가져오기
@@ -145,6 +221,8 @@ ${knowledgeSection}
 ## 🔧 사용 가능한 도구
 ${tools.map(t => `- ${t.name}: ${t.description}`).join('\n')}
 ${apiToolsDescription}
+${pythonToolsDescription}
+${integrationToolsDescription}
 
 ## 📋 현재 업무
 - 제목: ${task.title}
@@ -158,9 +236,11 @@ ${apiToolsDescription}
 4. 웹 검색이 필요하면 web_search 도구를 사용하세요.
 5. **이미지/GIF 요청 시 image_search 도구를 사용**하세요. 매번 다른 검색어로 새로운 이미지를 찾으세요.
 6. 외부 API가 연결되어 있으면 해당 API 도구를 적극 활용하세요.
-7. 모든 답변은 지식베이스 또는 도구에서 얻은 실제 데이터를 기반으로 하세요.
-8. 출처를 반드시 명시하세요 (지식베이스 출처 포함).
-9. 절대로 정보를 지어내지 마세요.`
+7. **Python 도구가 있으면 데이터베이스와 연동된 고급 기능을 활용**하세요.
+8. **외부 서비스 연동 도구 (Slack, Discord, Google Sheets 등)가 있으면 적극 사용**하세요.
+9. 모든 답변은 지식베이스 또는 도구에서 얻은 실제 데이터를 기반으로 하세요.
+10. 출처를 반드시 명시하세요 (지식베이스 출처 포함).
+11. 절대로 정보를 지어내지 마세요.`
 
     const messages: BaseMessage[] = [
       new SystemMessage(systemPrompt),

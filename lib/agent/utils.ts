@@ -238,6 +238,19 @@ export const AGENT_NODE_CONFIGS: Record<AgentType, AgentNodeTypeConfig> = {
     category: "tools",
     handles: { inputs: 1, outputs: 1 },
   },
+  activepieces: {
+    type: "activepieces",
+    label: "Activepieces",
+    labelKo: "Activepieces",
+    description: "Automation flows (200+ apps)",
+    descriptionKo: "200+ 앱 연동 자동화",
+    icon: "Zap",
+    color: "#6366f1", // Indigo
+    bgColor: "#6366f120",
+    borderColor: "#6366f1",
+    category: "tools",
+    handles: { inputs: 1, outputs: 1 },
+  },
 }
 
 // Default node data by type
@@ -335,6 +348,13 @@ function getDefaultAgentNodeData(type: AgentType): Partial<AgentNodeData> {
       return {
         ...baseData,
         // Default tool config?
+      }
+    case "activepieces":
+      return {
+        ...baseData,
+        activepiecesTriggerType: "manual",
+        activepiecesWaitForCompletion: true,
+        activepiecesInputs: {},
       }
     default:
       return baseData

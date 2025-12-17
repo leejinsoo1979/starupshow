@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Button, Input } from '@/components/ui'
 import { createClient } from '@/lib/supabase/client'
-import { Mail, Lock, AlertCircle, ArrowRight, Github } from 'lucide-react'
+import { Mail, Lock, AlertCircle, ArrowRight, Github, Code2 } from 'lucide-react'
 
 const GoogleIcon = (props: React.ComponentProps<'svg'>) => (
   <svg
@@ -25,6 +25,7 @@ export default function LoginPage() {
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [isLoading, setIsLoading] = useState(false)
+  const [isDevLoading, setIsDevLoading] = useState(false)
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -60,6 +61,31 @@ export default function LoginPage() {
         redirectTo: `${window.location.origin}/auth/callback`,
       },
     })
+  }
+
+  const handleDevLogin = async () => {
+    setError('')
+    setIsDevLoading(true)
+
+    try {
+      const supabase = createClient()
+      const { error } = await supabase.auth.signInWithPassword({
+        email: 'dev@glowus.app',
+        password: 'dev123456',
+      })
+
+      if (error) {
+        setError('개발자 계정 로그인 실패: ' + error.message)
+        return
+      }
+
+      router.push('/dashboard-group')
+      router.refresh()
+    } catch {
+      setError('개발자 계정 로그인 중 오류가 발생했습니다.')
+    } finally {
+      setIsDevLoading(false)
+    }
   }
 
   return (
@@ -112,6 +138,17 @@ export default function LoginPage() {
         >
           <Github strokeWidth={2.5} className="me-2 size-4" />
           GitHub로 계속하기
+        </Button>
+        <Button
+          type="button"
+          size="lg"
+          variant="outline"
+          className="w-full border-amber-600/50 bg-amber-950/30 hover:bg-amber-900/40 text-amber-200"
+          onClick={handleDevLogin}
+          isLoading={isDevLoading}
+        >
+          <Code2 strokeWidth={2.5} className="me-2 size-4" />
+          개발자 계정 접속
         </Button>
       </div>
 

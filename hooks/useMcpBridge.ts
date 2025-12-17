@@ -27,7 +27,22 @@ let globalReconnectAttempts = 0
 let globalReconnectTimer: NodeJS.Timeout | null = null
 let globalIsConnecting = false  // 연결 중복 방지
 let globalWs: WebSocket | null = null  // 전역 WebSocket 인스턴스
-const MAX_RECONNECT_ATTEMPTS = 3
+
+/**
+ * 재연결 상태 리셋 (외부에서 호출 가능)
+ */
+export function resetMcpConnection() {
+  globalReconnectAttempts = 0
+  globalIsConnecting = false
+  if (globalReconnectTimer) {
+    clearTimeout(globalReconnectTimer)
+    globalReconnectTimer = null
+  }
+  if (globalWs) {
+    globalWs.close()
+    globalWs = null
+  }
+}
 
 /**
  * MCP Bridge Hook
@@ -386,11 +401,6 @@ export function useMcpBridge({
       return
     }
 
-    if (globalReconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
-      log(`최대 재연결 횟수(${MAX_RECONNECT_ATTEMPTS})에 도달. 터미널 서버 실행 필요: node server/terminal-server.js`)
-      return
-    }
-
     try {
       globalIsConnecting = true
       const ws = new WebSocket(WS_URL)
@@ -453,20 +463,17 @@ export function useMcpBridge({
   const scheduleReconnect = useCallback(() => {
     if (!mountedRef.current) return
     if (globalReconnectTimer) return
-    if (globalReconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
-      log(`최대 재연결 횟수(${MAX_RECONNECT_ATTEMPTS})에 도달`)
-      return
-    }
 
     globalReconnectAttempts++
-    log(`재연결 시도 ${globalReconnectAttempts}/${MAX_RECONNECT_ATTEMPTS}...`)
+    const delay = Math.min(3000 * Math.min(globalReconnectAttempts, 5), 15000) // 최대 15초
+    log(`재연결 시도 ${globalReconnectAttempts}회 (${delay/1000}초 후)...`)
 
     globalReconnectTimer = setTimeout(() => {
       globalReconnectTimer = null
       if (mountedRef.current) {
         connect()
       }
-    }, 3000)
+    }, delay)
   }, [log, connect])
 
   /**
@@ -496,8 +503,20 @@ export function useMcpBridge({
     }
   }, [connect])
 
+  /**
+   * 수동 재연결
+   */
+  const reconnect = useCallback(() => {
+    log('수동 재연결 시도...')
+    resetMcpConnection()
+    setTimeout(() => {
+      connect()
+    }, 100)
+  }, [log, connect])
+
   return {
     isConnected,
     sendCanvasState,
+    reconnect,
   }
 }

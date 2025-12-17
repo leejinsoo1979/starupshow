@@ -21,12 +21,25 @@ import {
   addMonths,
   subMonths,
 } from 'date-fns'
-import { Clock, MapPin, Video, X, Trash2, Edit3 } from 'lucide-react'
+import { Clock, MapPin, Video, X, Trash2, Edit3, ChevronDown, Calendar, Check, Link2, Unlink, Loader2, ExternalLink } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
+import { FcGoogle } from 'react-icons/fc'
+import { useSearchParams } from 'next/navigation'
+
+type CalendarSource = 'internal' | 'google'
+
+interface GoogleCalendarStatus {
+  connected: boolean
+  googleEmail: string | null
+  syncEnabled: boolean
+  lastSyncAt: string | null
+  selectedCalendars: string[]
+}
 
 export default function CalendarPage() {
   const { accentColor } = useThemeStore()
   const queryClient = useQueryClient()
+  const searchParams = useSearchParams()
 
   const [currentDate, setCurrentDate] = useState(new Date())
   const [selectedDate, setSelectedDate] = useState<Date | null>(null)
@@ -34,6 +47,35 @@ export default function CalendarPage() {
   const [isEventModalOpen, setIsEventModalOpen] = useState(false)
   const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null)
   const [eventDetailOpen, setEventDetailOpen] = useState(false)
+  const [calendarSource, setCalendarSource] = useState<CalendarSource>('internal')
+  const [isSourceDropdownOpen, setIsSourceDropdownOpen] = useState(false)
+  const [isConnecting, setIsConnecting] = useState(false)
+
+  // Check for Google Calendar connection result from URL
+  useEffect(() => {
+    const googleConnected = searchParams.get('google_connected')
+    const error = searchParams.get('error')
+
+    if (googleConnected === 'true') {
+      setCalendarSource('google')
+      queryClient.invalidateQueries({ queryKey: ['google-calendar-status'] })
+      // Remove query params from URL
+      window.history.replaceState({}, '', '/dashboard-group/calendar')
+    } else if (error) {
+      console.error('Google Calendar connection error:', error)
+      window.history.replaceState({}, '', '/dashboard-group/calendar')
+    }
+  }, [searchParams, queryClient])
+
+  // Fetch Google Calendar connection status
+  const { data: googleStatus } = useQuery<GoogleCalendarStatus>({
+    queryKey: ['google-calendar-status'],
+    queryFn: async () => {
+      const res = await fetch('/api/google-calendar/status')
+      if (!res.ok) throw new Error('Failed to fetch status')
+      return res.json()
+    },
+  })
 
   const getAccentClasses = () => {
     switch (accentColor) {
@@ -64,14 +106,74 @@ export default function CalendarPage() {
     }
   }, [currentDate])
 
-  // Fetch events
-  const { data: events = [], isLoading } = useQuery({
+  // Fetch internal events
+  const { data: internalEvents = [], isLoading: isLoadingInternal } = useQuery({
     queryKey: ['calendar-events', getDateRange()],
     queryFn: async () => {
       const { start, end } = getDateRange()
       const res = await fetch(`/api/calendar/events?start_date=${start}&end_date=${end}`)
       if (!res.ok) throw new Error('Failed to fetch events')
       return res.json()
+    },
+  })
+
+  // Fetch Google Calendar events
+  const { data: googleEventsData, isLoading: isLoadingGoogle } = useQuery({
+    queryKey: ['google-calendar-events', getDateRange()],
+    queryFn: async () => {
+      const { start, end } = getDateRange()
+      const res = await fetch(
+        `/api/google-calendar/events?timeMin=${start}T00:00:00Z&timeMax=${end}T23:59:59Z`
+      )
+      if (!res.ok) {
+        const data = await res.json()
+        if (data.needsAuth) {
+          return { events: [], needsAuth: true }
+        }
+        throw new Error('Failed to fetch Google events')
+      }
+      return res.json()
+    },
+    enabled: googleStatus?.connected === true,
+  })
+
+  // Get events based on selected source
+  const events = calendarSource === 'google'
+    ? (googleEventsData?.events || []).map((e: any) => ({
+        ...e,
+        id: e.google_event_id,
+        source: 'google' as const,
+      }))
+    : internalEvents
+
+  const isLoading = calendarSource === 'google' ? isLoadingGoogle : isLoadingInternal
+
+  // Connect to Google Calendar
+  const connectGoogle = async () => {
+    setIsConnecting(true)
+    try {
+      const res = await fetch('/api/google-calendar/auth')
+      const data = await res.json()
+      if (data.authUrl) {
+        window.location.href = data.authUrl
+      }
+    } catch (error) {
+      console.error('Failed to connect Google Calendar:', error)
+      setIsConnecting(false)
+    }
+  }
+
+  // Disconnect from Google Calendar
+  const disconnectGoogle = useMutation({
+    mutationFn: async () => {
+      const res = await fetch('/api/google-calendar/disconnect', { method: 'POST' })
+      if (!res.ok) throw new Error('Failed to disconnect')
+      return res.json()
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['google-calendar-status'] })
+      queryClient.invalidateQueries({ queryKey: ['google-calendar-events'] })
+      setCalendarSource('internal')
     },
   })
 
@@ -226,14 +328,154 @@ export default function CalendarPage() {
 
   return (
     <div className="space-y-6">
-      {/* Page Header */}
-      <div>
-        <h1 className="text-2xl font-bold text-zinc-900 dark:text-white">
-          캘린더
-        </h1>
-        <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1">
-          일정을 확인하고 관리하세요
-        </p>
+      {/* Page Header with Calendar Source Dropdown */}
+      <div className="flex items-start justify-between">
+        <div>
+          {/* Calendar Source Dropdown */}
+          <div className="relative">
+            <button
+              onClick={() => setIsSourceDropdownOpen(!isSourceDropdownOpen)}
+              className="flex items-center gap-2 text-2xl font-bold text-zinc-900 dark:text-white hover:bg-zinc-100 dark:hover:bg-zinc-800 px-3 py-1.5 rounded-lg transition-colors -ml-3"
+            >
+              {calendarSource === 'internal' ? (
+                <Calendar className="w-6 h-6 text-zinc-600 dark:text-zinc-400" />
+              ) : (
+                <FcGoogle className="w-6 h-6" />
+              )}
+              <span>{calendarSource === 'internal' ? '내 캘린더' : 'Google Calendar'}</span>
+              <ChevronDown className={cn(
+                "w-5 h-5 text-zinc-400 transition-transform",
+                isSourceDropdownOpen && "rotate-180"
+              )} />
+            </button>
+
+            {/* Dropdown Menu */}
+            <AnimatePresence>
+              {isSourceDropdownOpen && (
+                <>
+                  {/* Backdrop */}
+                  <div
+                    className="fixed inset-0 z-10"
+                    onClick={() => setIsSourceDropdownOpen(false)}
+                  />
+
+                  <motion.div
+                    initial={{ opacity: 0, y: -10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -10 }}
+                    transition={{ duration: 0.15 }}
+                    className="absolute top-full left-0 mt-1 w-64 bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-700 shadow-xl z-20 overflow-hidden"
+                  >
+                    {/* Internal Calendar */}
+                    <button
+                      onClick={() => {
+                        setCalendarSource('internal')
+                        setIsSourceDropdownOpen(false)
+                      }}
+                      className={cn(
+                        "w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-colors",
+                        calendarSource === 'internal' && "bg-zinc-50 dark:bg-zinc-800"
+                      )}
+                    >
+                      <div className="w-10 h-10 rounded-lg bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center">
+                        <Calendar className="w-5 h-5 text-zinc-600 dark:text-zinc-400" />
+                      </div>
+                      <div className="flex-1">
+                        <div className="font-semibold text-zinc-900 dark:text-white">내 캘린더</div>
+                        <div className="text-xs text-zinc-500 dark:text-zinc-400">기본 일정 관리</div>
+                      </div>
+                      {calendarSource === 'internal' && (
+                        <Check className="w-5 h-5 text-green-500" />
+                      )}
+                    </button>
+
+                    <div className="border-t border-zinc-200 dark:border-zinc-700" />
+
+                    {/* Google Calendar - Connected */}
+                    {googleStatus?.connected ? (
+                      <>
+                        <button
+                          onClick={() => {
+                            setCalendarSource('google')
+                            setIsSourceDropdownOpen(false)
+                          }}
+                          className={cn(
+                            "w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-colors",
+                            calendarSource === 'google' && "bg-zinc-50 dark:bg-zinc-800"
+                          )}
+                        >
+                          <div className="w-10 h-10 rounded-lg bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center">
+                            <FcGoogle className="w-5 h-5" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="font-semibold text-zinc-900 dark:text-white">Google Calendar</div>
+                            <div className="text-xs text-zinc-500 dark:text-zinc-400 truncate">
+                              {googleStatus.googleEmail}
+                            </div>
+                          </div>
+                          {calendarSource === 'google' && (
+                            <Check className="w-5 h-5 text-green-500 flex-shrink-0" />
+                          )}
+                        </button>
+
+                        {/* Disconnect Option */}
+                        <div className="border-t border-zinc-200 dark:border-zinc-700" />
+                        <button
+                          onClick={() => {
+                            if (confirm('Google Calendar 연동을 해제하시겠습니까?')) {
+                              disconnectGoogle.mutate()
+                              setIsSourceDropdownOpen(false)
+                            }
+                          }}
+                          className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors text-red-600 dark:text-red-400"
+                        >
+                          <div className="w-10 h-10 rounded-lg bg-red-100 dark:bg-red-500/20 flex items-center justify-center">
+                            <Unlink className="w-5 h-5" />
+                          </div>
+                          <div className="flex-1">
+                            <div className="font-medium">연동 해제</div>
+                            <div className="text-xs opacity-75">Google Calendar 연결 끊기</div>
+                          </div>
+                        </button>
+                      </>
+                    ) : (
+                      /* Google Calendar - Not Connected */
+                      <>
+                        <button
+                          onClick={() => {
+                            connectGoogle()
+                            setIsSourceDropdownOpen(false)
+                          }}
+                          disabled={isConnecting}
+                          className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-colors disabled:opacity-50"
+                        >
+                          <div className="w-10 h-10 rounded-lg bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center">
+                            {isConnecting ? (
+                              <Loader2 className="w-5 h-5 text-zinc-400 animate-spin" />
+                            ) : (
+                              <FcGoogle className="w-5 h-5" />
+                            )}
+                          </div>
+                          <div className="flex-1">
+                            <div className="font-semibold text-zinc-900 dark:text-white">Google Calendar</div>
+                            <div className="text-xs text-zinc-500 dark:text-zinc-400">
+                              {isConnecting ? '연결 중...' : '클릭하여 연동하기'}
+                            </div>
+                          </div>
+                          <Link2 className="w-5 h-5 text-zinc-400" />
+                        </button>
+                      </>
+                    )}
+                  </motion.div>
+                </>
+              )}
+            </AnimatePresence>
+          </div>
+
+          <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1 ml-0">
+            일정을 확인하고 관리하세요
+          </p>
+        </div>
       </div>
 
       {/* Calendar Header */}
@@ -246,6 +488,16 @@ export default function CalendarPage() {
         onToday={handleToday}
       />
 
+      {/* Google Calendar Sync Info */}
+      {calendarSource === 'google' && googleStatus?.connected && googleEventsData?.lastSync && (
+        <div className="flex items-center gap-2 text-xs text-zinc-500 dark:text-zinc-400">
+          <FcGoogle className="w-4 h-4" />
+          <span>{googleStatus.googleEmail}</span>
+          <span className="mx-1">•</span>
+          <span>마지막 동기화: {format(new Date(googleEventsData.lastSync), 'HH:mm')}</span>
+        </div>
+      )}
+
       {/* Calendar View */}
       <motion.div
         key={view}
@@ -257,7 +509,29 @@ export default function CalendarPage() {
           <div className="bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-200 dark:border-zinc-800 p-12">
             <div className="flex flex-col items-center justify-center">
               <div className={cn("w-12 h-12 rounded-full border-4 border-t-transparent animate-spin", `border-${accentColor}-500`)} />
-              <p className="mt-4 text-sm text-zinc-500 dark:text-zinc-400">일정을 불러오는 중...</p>
+              <p className="mt-4 text-sm text-zinc-500 dark:text-zinc-400">
+                {calendarSource === 'google' ? 'Google Calendar에서 일정을 불러오는 중...' : '일정을 불러오는 중...'}
+              </p>
+            </div>
+          </div>
+        ) : calendarSource === 'google' && !googleStatus?.connected ? (
+          <div className="bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-200 dark:border-zinc-800 p-12">
+            <div className="flex flex-col items-center justify-center">
+              <div className="w-16 h-16 rounded-full bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center mb-4">
+                <FcGoogle className="w-8 h-8" />
+              </div>
+              <h3 className="text-lg font-bold text-zinc-900 dark:text-white mb-2">Google Calendar 연동 필요</h3>
+              <p className="text-sm text-zinc-500 dark:text-zinc-400 text-center mb-4">
+                Google Calendar를 연동하여 일정을 확인하세요
+              </p>
+              <Button
+                variant="accent"
+                onClick={connectGoogle}
+                disabled={isConnecting}
+                leftIcon={isConnecting ? <Loader2 className="w-4 h-4 animate-spin" /> : <FcGoogle className="w-4 h-4" />}
+              >
+                {isConnecting ? '연결 중...' : 'Google Calendar 연동하기'}
+              </Button>
             </div>
           </div>
         ) : (
@@ -406,23 +680,33 @@ export default function CalendarPage() {
 
               {/* Actions */}
               <div className="absolute bottom-0 left-0 right-0 px-6 py-4 bg-white dark:bg-zinc-900 border-t border-zinc-200 dark:border-zinc-800 flex items-center justify-between">
-                <Button
-                  variant="ghost"
-                  size="md"
-                  onClick={() => handleDeleteEvent(selectedEvent.id)}
-                  className="text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-500/10"
-                  leftIcon={<Trash2 className="w-4 h-4" />}
-                >
-                  삭제
-                </Button>
-                <Button
-                  variant="accent"
-                  size="md"
-                  onClick={handleEditEvent}
-                  leftIcon={<Edit3 className="w-4 h-4" />}
-                >
-                  수정
-                </Button>
+                {(selectedEvent as any).source === 'google' ? (
+                  /* Google Calendar Event - Read Only */
+                  <div className="flex items-center gap-2 text-sm text-zinc-500 dark:text-zinc-400">
+                    <FcGoogle className="w-4 h-4" />
+                    <span>Google Calendar 이벤트 (읽기 전용)</span>
+                  </div>
+                ) : (
+                  <>
+                    <Button
+                      variant="ghost"
+                      size="md"
+                      onClick={() => handleDeleteEvent(selectedEvent.id)}
+                      className="text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-500/10"
+                      leftIcon={<Trash2 className="w-4 h-4" />}
+                    >
+                      삭제
+                    </Button>
+                    <Button
+                      variant="accent"
+                      size="md"
+                      onClick={handleEditEvent}
+                      leftIcon={<Edit3 className="w-4 h-4" />}
+                    >
+                      수정
+                    </Button>
+                  </>
+                )}
               </div>
             </motion.div>
           </>

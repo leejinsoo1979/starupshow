@@ -370,7 +370,7 @@ function ToolCard({ tool, onEdit }: { tool: ToolItem, onEdit: () => void }) {
             whileHover={{ y: -4 }}
             onClick={() => {
                 if (tool.id === 'ai-summary-perfect') {
-                    window.location.href = '/dashboard-group/tools/ai-summary'
+                    window.location.href = '/dashboard-group/apps/ai-summary'
                 }
             }}
             onMouseLeave={() => setIsMenuOpen(false)}

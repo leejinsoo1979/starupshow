@@ -22,6 +22,7 @@ import {
   Layers,
   Flag,
   Plus,
+  Zap,
 } from "lucide-react"
 import { AGENT_NODE_CONFIGS, getCategoryLabel } from "@/lib/agent"
 import type { AgentType, AgentNodeTypeConfig } from "@/lib/agent"
@@ -43,6 +44,7 @@ const iconMap: Record<string, React.ComponentType<{ className?: string; style?: 
   Image: ImageIcon,
   Layers,
   Flag,
+  Zap,
 }
 
 interface AgentNodeLibraryProps {

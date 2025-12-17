@@ -1,2 +1,5 @@
 export { useAuth } from './useAuth'
 export { useRealtime } from './useRealtime'
+export { usePythonTools, usePythonToolsByCategory } from './usePythonTools'
+export type { PythonTool, PythonToolCategory } from './usePythonTools'
+export { useMcpBridge, resetMcpConnection } from './useMcpBridge'

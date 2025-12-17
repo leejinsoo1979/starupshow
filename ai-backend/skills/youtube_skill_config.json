@@ -1,0 +1,89 @@
+{
+  "name": "youtube_transcript",
+  "displayName": "YouTube 자막 추출 및 요약",
+  "description": "유튜브 영상의 자막을 추출하고 AI로 요약합니다. 영상 정보, 타임스탬프 포함 자막, 3줄 요약, 목차, 타임라인 요약을 제공합니다.",
+  "category": "content",
+  "icon": "youtube",
+  "version": "1.0.0",
+  "inputs": [
+    {
+      "name": "url",
+      "type": "string",
+      "required": true,
+      "description": "YouTube 영상 URL 또는 비디오 ID"
+    },
+    {
+      "name": "languages",
+      "type": "array",
+      "required": false,
+      "default": ["ko", "en"],
+      "description": "자막 언어 우선순위"
+    },
+    {
+      "name": "generate_summary",
+      "type": "boolean",
+      "required": false,
+      "default": true,
+      "description": "AI 요약 생성 여부"
+    }
+  ],
+  "outputs": [
+    {
+      "name": "success",
+      "type": "boolean",
+      "description": "성공 여부"
+    },
+    {
+      "name": "videoInfo",
+      "type": "object",
+      "description": "영상 정보 (제목, 채널, 날짜, 조회수, 썸네일)"
+    },
+    {
+      "name": "transcript",
+      "type": "array",
+      "description": "타임스탬프 포함 자막 목록"
+    },
+    {
+      "name": "fullText",
+      "type": "string",
+      "description": "전체 자막 텍스트"
+    },
+    {
+      "name": "summary",
+      "type": "object",
+      "description": "AI 요약 (3줄 요약, 목차, 타임라인)"
+    }
+  ],
+  "endpoint": "/api/youtube/transcript",
+  "method": "POST",
+  "pythonModule": "skills.youtube_transcript",
+  "pythonFunction": "skill_interface",
+  "requirements": [
+    "youtube-transcript-api>=1.2.0",
+    "yt-dlp>=2025.0.0",
+    "requests>=2.31.0"
+  ],
+  "examples": [
+    {
+      "name": "기본 사용",
+      "input": {
+        "url": "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
+      }
+    },
+    {
+      "name": "한국어 자막만",
+      "input": {
+        "url": "https://www.youtube.com/watch?v=VIDEO_ID",
+        "languages": ["ko"],
+        "generate_summary": true
+      }
+    },
+    {
+      "name": "요약 없이 자막만",
+      "input": {
+        "url": "VIDEO_ID",
+        "generate_summary": false
+      }
+    }
+  ]
+}

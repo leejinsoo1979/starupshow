@@ -511,18 +511,15 @@ const categories: Category[] = [
       { name: '오늘 할 일', href: '/dashboard-group/tasks?filter=today', icon: ListTodo },
       { name: '내가 맡은 업무', href: '/dashboard-group/tasks?filter=mine', icon: User },
       { name: '마감 임박', href: '/dashboard-group/tasks?filter=urgent', icon: AlertCircle },
-      { name: '진행 중 프로젝트', href: '/dashboard-group/project?status=active', icon: Play },
       { name: '오늘 일정', href: '/dashboard-group/calendar?view=today', icon: CalendarDays },
       {
-        name: '캘린더',
-        icon: IoCalendarNumberOutline,
+        name: '프로젝트',
+        icon: IoRocketOutline,
         children: [
-          { name: '전체 일정', href: '/dashboard-group/calendar', icon: IoCalendarNumberOutline },
-          { name: '개인 일정', href: '/dashboard-group/calendar?view=personal', icon: User },
-          { name: '프로젝트 일정', href: '/dashboard-group/calendar?view=projects', icon: FolderKanban },
-          { name: '마감일', href: '/dashboard-group/calendar?view=deadlines', icon: AlertCircle },
-          { name: '회의', href: '/dashboard-group/calendar?view=meetings', icon: Users },
-          { name: 'AI 일정 제안', href: '/dashboard-group/calendar?view=ai', icon: Sparkles },
+          { name: '전체 프로젝트', href: '/dashboard-group/project', icon: FolderKanban },
+          { name: '진행 중', href: '/dashboard-group/project?status=active', icon: Play },
+          { name: '완료', href: '/dashboard-group/project?status=completed', icon: CheckCircle },
+          { name: '보류', href: '/dashboard-group/project?status=on_hold', icon: Archive },
         ]
       },
       { name: '개인 KPI', href: '/dashboard-group/kpis', icon: Target },
@@ -534,64 +531,66 @@ const categories: Category[] = [
     name: 'Apps',
     icon: CgMenuGridO,
     items: [
-      { name: '모든 앱', href: '/dashboard-group/works?tab=tools', icon: CgMenuGridO },
+      { name: '모든 앱', href: '/dashboard-group/apps', icon: CgMenuGridO },
       {
         name: '업무',
         icon: Briefcase,
         children: [
-          { name: 'AI 실시간 요약', href: '/dashboard-group/tools/ai-summary', icon: Sparkles },
-          { name: 'AI 완벽요약', href: '/dashboard-group/tools/ai-summary-perfect', icon: FileText },
-          { name: 'PPT 초안', href: '/dashboard-group/tools/ppt-draft', icon: FileText },
-          { name: '기사 초안', href: '/dashboard-group/tools/article-draft', icon: FileText },
-          { name: '상세페이지', href: '/dashboard-group/tools/detail-page', icon: FileText },
-          { name: '이미지 제작', href: '/dashboard-group/tools/image-gen', icon: Sparkles },
-          { name: '카피라이팅', href: '/dashboard-group/tools/copywriting', icon: FileText },
+          { name: 'AI 실시간 요약', href: '/dashboard-group/apps/ai-summary', icon: Sparkles },
+          { name: 'AI 완벽요약', href: '/dashboard-group/apps/ai-summary', icon: FileText },
+          { name: 'PPT 초안', href: '/dashboard-group/apps/ppt-draft', icon: FileText },
+          { name: '기사 초안', href: '/dashboard-group/apps/article-draft', icon: FileText },
+          { name: '상세페이지', href: '/dashboard-group/apps/detail-page', icon: FileText },
+          { name: '이미지 제작', href: '/dashboard-group/apps/image-gen', icon: Sparkles },
+          { name: '카피라이팅', href: '/dashboard-group/apps/copywriting', icon: FileText },
         ]
       },
       {
         name: '학업',
         icon: GraduationCap,
         children: [
-          { name: 'AI 탐지 방어', href: '/dashboard-group/tools/ai-detection', icon: ShieldCheck },
-          { name: '독후감', href: '/dashboard-group/tools/book-report', icon: FileText },
-          { name: '레포트', href: '/dashboard-group/tools/report', icon: FileText },
-          { name: '발표 대본', href: '/dashboard-group/tools/presentation-script', icon: FileText },
-          { name: '생활기록부', href: '/dashboard-group/tools/school-record', icon: FileText },
-          { name: '코딩 과제', href: '/dashboard-group/tools/coding-task', icon: FileText },
+          { name: 'AI 탐지 방어', href: '/dashboard-group/apps/ai-detection', icon: ShieldCheck },
+          { name: '독후감', href: '/dashboard-group/apps/book-report', icon: FileText },
+          { name: '레포트', href: '/dashboard-group/apps/report', icon: FileText },
+          { name: '발표 대본', href: '/dashboard-group/apps/presentation-script', icon: FileText },
+          { name: '생활기록부', href: '/dashboard-group/apps/school-record', icon: FileText },
+          { name: '코딩 과제', href: '/dashboard-group/apps/coding-task', icon: FileText },
         ]
       },
       {
         name: '취업',
         icon: UserCog,
         children: [
-          { name: '면접 준비', href: '/dashboard-group/tools/interview-prep', icon: Users },
-          { name: '이력서', href: '/dashboard-group/tools/resume', icon: FileText },
-          { name: '자기소개서', href: '/dashboard-group/tools/cover-letter', icon: FileText },
+          { name: '면접 준비', href: '/dashboard-group/apps/interview-prep', icon: Users },
+          { name: '이력서', href: '/dashboard-group/apps/resume', icon: FileText },
+          { name: '자기소개서', href: '/dashboard-group/apps/cover-letter', icon: FileText },
         ]
       },
       {
         name: '부업',
         icon: Wallet,
         children: [
-          { name: 'SNS 게시물', href: '/dashboard-group/tools/sns-post', icon: FileText },
-          { name: '블로그', href: '/dashboard-group/tools/blog', icon: FileText },
-          { name: '상품 리뷰', href: '/dashboard-group/tools/product-review', icon: FileText },
-          { name: '영상 시나리오', href: '/dashboard-group/tools/video-scenario', icon: FileText },
-          { name: '전자책', href: '/dashboard-group/tools/ebook', icon: FileText },
+          { name: 'SNS 게시물', href: '/dashboard-group/apps/sns-post', icon: FileText },
+          { name: '블로그', href: '/dashboard-group/apps/blog', icon: FileText },
+          { name: '상품 리뷰', href: '/dashboard-group/apps/product-review', icon: FileText },
+          { name: '영상 시나리오', href: '/dashboard-group/apps/video-scenario', icon: FileText },
+          { name: '전자책', href: '/dashboard-group/apps/ebook', icon: FileText },
         ]
       },
     ]
   },
-  // 프로젝트 - 일을 묶는 단위
+  // 캘린더 - 일정 관리
   {
-    id: 'projects',
-    name: '프로젝트',
-    icon: IoRocketOutline,
+    id: 'calendar',
+    name: '캘린더',
+    icon: IoCalendarNumberOutline,
     items: [
-      { name: '전체 프로젝트', href: '/dashboard-group/project', icon: FolderKanban },
-      { name: '진행 중', href: '/dashboard-group/project?status=active', icon: Play },
-      { name: '완료', href: '/dashboard-group/project?status=completed', icon: CheckCircle },
-      { name: '보류', href: '/dashboard-group/project?status=on_hold', icon: Archive },
+      { name: '전체 일정', href: '/dashboard-group/calendar', icon: IoCalendarNumberOutline },
+      { name: '개인 일정', href: '/dashboard-group/calendar?view=personal', icon: User },
+      { name: '프로젝트 일정', href: '/dashboard-group/calendar?view=projects', icon: FolderKanban },
+      { name: '마감일', href: '/dashboard-group/calendar?view=deadlines', icon: AlertCircle },
+      { name: '회의', href: '/dashboard-group/calendar?view=meetings', icon: Users },
+      { name: 'AI 일정 제안', href: '/dashboard-group/calendar?view=ai', icon: Sparkles },
     ]
   },
   // 파일·문서 - 내가 쓰는 모든 자료
@@ -1083,7 +1082,7 @@ export function TwoLevelSidebar() {
       pathname.startsWith('/dashboard-group/tax') ||
       pathname.startsWith('/dashboard-group/payroll') ||
       pathname.startsWith('/dashboard-group/expense')) return 'company'
-    if (pathname.startsWith('/dashboard-group/project')) return 'projects'
+    if (pathname.startsWith('/dashboard-group/project')) return 'workspace'
     if (pathname.startsWith('/dashboard-group/files')) return 'files'
     if (pathname.startsWith('/dashboard-group/calendar')) return 'calendar'
     if (pathname.startsWith('/dashboard-group/email')) return 'email'
@@ -1097,7 +1096,7 @@ export function TwoLevelSidebar() {
       if (tab === 'tools') return 'apps'
       return 'workspace'
     }
-    if (pathname.includes('/tools/')) return 'apps'
+    if (pathname.startsWith('/dashboard-group/apps') || pathname.includes('/tools/')) return 'apps'
     if (pathname.startsWith('/dashboard-group/kpis') ||
       pathname === '/dashboard-group') return 'workspace'
     return activeCategory || 'workspace'
@@ -1220,6 +1219,8 @@ export function TwoLevelSidebar() {
                     targetPath = '/dashboard-group'
                   } else if (category.id === 'team') {
                     targetPath = '/dashboard-group/team'
+                  } else if (category.id === 'calendar') {
+                    targetPath = '/dashboard-group/calendar'
                   } else {
                     // 첫 번째 아이템의 href 사용 (# 시작하는 건 제외)
                     const firstItem = category.items.find(item => item.href && !item.href.startsWith('#'))

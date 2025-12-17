@@ -6,6 +6,7 @@
 import { createClient } from '@supabase/supabase-js'
 import type { DeployedAgent, ProjectDocumentType } from '@/types/database'
 import type { ExecutionResult } from './executor'
+import { saveDocumentMemory, saveTaskMemory } from '@/lib/memory/memory-service'
 
 // Extended AgentTask with optional project_id (passed from execute API)
 interface AgentTaskWithProject {
@@ -229,6 +230,40 @@ export async function saveResultToDocument(options: SaveDocumentOptions): Promis
     if (projectTaskId && !existingProjectTaskId) {
       console.log(`✅ Project task created: ${projectTaskId} (DONE)`)
     }
+
+    // 장기 메모리에 문서 저장 (에이전트가 생성한 결과물, 비동기)
+    if (agent.owner_id) {
+      saveDocumentMemory({
+        userId: agent.owner_id,
+        documentId: document.id,
+        title: task.title,
+        content: summary,
+        docType: docType,
+        projectId: finalProjectId,
+        agentId: agent.id,
+        agentName: agent.name,
+        sourceUrl: sourceUrl,
+        tags: result.toolsUsed,
+        isUpdate: false,
+      }).catch((err) => console.error('[Memory] Failed to save document:', err))
+
+      // 태스크 완료도 기록
+      if (projectTaskId && !existingProjectTaskId) {
+        saveTaskMemory({
+          userId: agent.owner_id,
+          taskId: projectTaskId,
+          title: task.title,
+          description: task.description,
+          status: 'DONE',
+          agentId: agent.id,
+          agentName: agent.name,
+          projectId: finalProjectId,
+          result: summary,
+          isCompleted: true,
+        }).catch((err) => console.error('[Memory] Failed to save task completion:', err))
+      }
+    }
+
     return { success: true, documentId: document.id, projectTaskId: projectTaskId ?? undefined }
   } catch (error) {
     console.error('Document save error:', error)

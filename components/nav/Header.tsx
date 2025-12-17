@@ -26,7 +26,7 @@ import {
 export function Header() {
   const router = useRouter()
   const pathname = usePathname()
-  const { openCommitModal, sidebarOpen, emailSidebarWidth, isResizingEmail } = useUIStore()
+  const { openCommitModal, sidebarOpen } = useUIStore()
   const { user, logout: clearAuth } = useAuthStore()
   const { resolvedTheme } = useTheme()
   const [showUserMenu, setShowUserMenu] = useState(false)
@@ -37,7 +37,8 @@ export function Header() {
 
   // Calculate header left position based on sidebar state and email page
   const isEmailPage = pathname?.includes('/email')
-  const headerLeft = sidebarOpen ? (isEmailPage ? 64 + emailSidebarWidth : 304) : 64
+  // 이메일 페이지: Level1(64px) + FolderMenu(256px) = 320px - 폴더 메뉴는 자체 헤더 사용
+  const headerLeft = sidebarOpen ? (isEmailPage ? 320 : 304) : 64
 
   const handleLogout = async () => {
     const supabase = createClient()
@@ -49,29 +50,30 @@ export function Header() {
   return (
     <header
       style={{ left: headerLeft }}
-      className={`fixed top-0 right-0 z-30 h-16 backdrop-blur-xl ${isResizingEmail ? '' : 'transition-all duration-300'} ${isDark
+      className={`fixed top-0 right-0 z-30 h-16 backdrop-blur-xl transition-all duration-300 ${isDark
           ? 'bg-zinc-900/80 border-b border-zinc-800'
           : 'bg-white/80 border-b border-zinc-200'
         }`}
     >
-      <div className="h-full px-8 flex items-center justify-between gap-4">
-        {/* Search */}
-        <div className="w-full max-w-md">
+      <div className="h-full px-8 flex items-center justify-end gap-3">
+        {/* Actions */}
+        {/* Search - 에이전트 빌더 옆 */}
+        <div className="w-72">
           <motion.div
             className={`relative transition-all duration-300 ${searchFocused ? 'scale-[1.02]' : ''}`}
           >
-            <Search className={`absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 transition-colors ${searchFocused ? 'text-accent' : 'text-theme-muted'}`} />
+            <Search className={`absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 transition-colors ${searchFocused ? 'text-accent' : 'text-theme-muted'}`} />
             <input
               type="text"
-              placeholder="프로젝트, 태스크, 커밋 검색..."
-              className={`w-full h-11 pl-12 pr-24 rounded-xl text-sm focus:outline-none focus:border-accent focus:ring-4 focus:ring-accent/10 transition-all ${isDark
-                ? 'bg-zinc-800/80 border-2 border-zinc-700/50 text-zinc-100 placeholder:text-zinc-500'
-                : 'bg-zinc-100 border-2 border-zinc-200 text-zinc-900 placeholder:text-zinc-400'
+              placeholder="검색..."
+              className={`w-full h-9 pl-9 pr-16 rounded-lg text-sm focus:outline-none focus:border-accent focus:ring-2 focus:ring-accent/10 transition-all ${isDark
+                ? 'bg-zinc-800/80 border border-zinc-700/50 text-zinc-100 placeholder:text-zinc-500'
+                : 'bg-zinc-100 border border-zinc-200 text-zinc-900 placeholder:text-zinc-400'
                 }`}
               onFocus={() => setSearchFocused(true)}
               onBlur={() => setSearchFocused(false)}
             />
-            <div className={`absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-1 px-2 py-1 rounded-lg ${isDark ? 'bg-zinc-700/50' : 'bg-zinc-200'
+            <div className={`absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-0.5 px-1.5 py-0.5 rounded ${isDark ? 'bg-zinc-700/50' : 'bg-zinc-200'
               }`}>
               <Command className="w-3 h-3 text-theme-muted" />
               <span className="text-xs text-theme-muted font-medium">K</span>
@@ -79,24 +81,21 @@ export function Header() {
           </motion.div>
         </div>
 
-        {/* Actions */}
-        <div className="flex items-center gap-3">
-          {/* Agent Builder Button */}
-          <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
-            <Button
-              onClick={() => router.push('/agent-builder')}
-              size="sm"
-              variant="outline"
-              leftIcon={<Bot className="w-4 h-4" />}
-              className="mr-2"
-            >
-              에이전트 빌더
-            </Button>
-          </motion.div>
+        {/* Agent Builder Button */}
+        <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+          <Button
+            onClick={() => router.push('/agent-builder')}
+            size="sm"
+            variant="outline"
+            leftIcon={<Bot className="w-4 h-4" />}
+          >
+            에이전트 빌더
+          </Button>
+        </motion.div>
 
-          {/* Quick Commit Button */}
-          <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
-            <Button
+        {/* Quick Commit Button */}
+        <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+          <Button
               onClick={openCommitModal}
               size="sm"
               leftIcon={<Plus className="w-4 h-4" />}
@@ -239,7 +238,6 @@ export function Header() {
               )}
             </AnimatePresence>
           </div>
-        </div>
       </div>
     </header>
   )

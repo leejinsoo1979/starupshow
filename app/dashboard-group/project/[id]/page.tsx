@@ -31,7 +31,7 @@ import {
   type ProjectSection,
 } from "@/components/project-dashboard"
 import {
-  TaskKanbanBoard,
+  WorkflowCanvas,
   ProjectDocuments,
   ProjectOverview,
 } from "@/components/project-workflow"
@@ -444,11 +444,11 @@ export default function ProjectDetailPage() {
           <div className="space-y-6">
             <div className="flex items-center justify-between">
               <div>
-                <h2 className="text-xl font-bold text-white">작업 관리</h2>
-                <p className="text-sm text-zinc-500 mt-1">칸반 보드로 태스크 상태 관리</p>
+                <h2 className="text-xl font-bold text-zinc-900 dark:text-white">작업 관리</h2>
+                <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1">AI 워크플로우로 태스크 자동화</p>
               </div>
             </div>
-            <TaskKanbanBoard projectId={projectId} />
+            <WorkflowCanvas projectId={projectId} />
           </div>
         )
 

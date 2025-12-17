@@ -62,6 +62,11 @@ const lightTheme = {
 
 const MAX_TERMINAL_RECONNECT_ATTEMPTS = 3
 
+// Production 환경 체크 (Vercel에서는 localhost 연결 불가)
+const isProduction = typeof window !== 'undefined' &&
+  !window.location.hostname.includes('localhost') &&
+  !window.location.hostname.includes('127.0.0.1')
+
 export default function XTermWrapper({ tabId, onExecute }: XTermWrapperProps) {
   const terminalRef = useRef<HTMLDivElement>(null)
   const xtermRef = useRef<Terminal | null>(null)
@@ -177,6 +182,20 @@ export default function XTermWrapper({ tabId, onExecute }: XTermWrapperProps) {
   function connectWebSocket(terminal: Terminal) {
     if (!isMountedRef.current) return
     if (wsRef.current?.readyState === WebSocket.OPEN) return
+
+    // Production 환경에서는 WebSocket 연결 시도하지 않음
+    if (isProduction) {
+      terminal.write('\x1b[36m┌─────────────────────────────────────────────────────┐\x1b[0m\r\n')
+      terminal.write('\x1b[36m│\x1b[0m  \x1b[33m⚡ Cloud Terminal Mode\x1b[0m                            \x1b[36m│\x1b[0m\r\n')
+      terminal.write('\x1b[36m│\x1b[0m                                                     \x1b[36m│\x1b[0m\r\n')
+      terminal.write('\x1b[36m│\x1b[0m  터미널은 로컬 개발 환경에서만 사용 가능합니다.    \x1b[36m│\x1b[0m\r\n')
+      terminal.write('\x1b[36m│\x1b[0m  MCP 기능은 정상 작동합니다.                       \x1b[36m│\x1b[0m\r\n')
+      terminal.write('\x1b[36m│\x1b[0m                                                     \x1b[36m│\x1b[0m\r\n')
+      terminal.write('\x1b[36m│\x1b[0m  \x1b[32m✓\x1b[0m Claude Code로 캔버스 제어 가능                 \x1b[36m│\x1b[0m\r\n')
+      terminal.write('\x1b[36m│\x1b[0m  \x1b[32m✓\x1b[0m 세션 ID를 복사하여 Claude에서 사용             \x1b[36m│\x1b[0m\r\n')
+      terminal.write('\x1b[36m└─────────────────────────────────────────────────────┘\x1b[0m\r\n')
+      return
+    }
 
     if (reconnectAttemptsRef.current >= MAX_TERMINAL_RECONNECT_ATTEMPTS) {
       console.log(`[Terminal] 최대 재연결 횟수(${MAX_TERMINAL_RECONNECT_ATTEMPTS})에 도달`)

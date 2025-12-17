@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { isDevMode, DEV_USER } from '@/lib/dev-user'
 import { executeAgentWithTools } from '@/lib/agent/executor'
+import { saveTaskMemory } from '@/lib/memory/memory-service'
 import type { DeployedAgent, AgentTask } from '@/types/database'
 
 // GET: List agent tasks
@@ -168,6 +169,19 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: taskError.message }, { status: 500 })
     }
 
+    // 장기 메모리에 태스크 생성 저장 (비동기)
+    saveTaskMemory({
+      userId: user.id,
+      taskId: task.id,
+      title: task.title,
+      description: task.description,
+      status: 'PENDING',
+      agentId: assignee_agent_id,
+      agentName: assigneeAgent.name,
+      projectId: startup_id,
+      isCompleted: false,
+    }).catch((err) => console.error('[Memory] Failed to save task creation:', err))
+
     // Auto-execute if requested
     if (auto_execute) {
       // Update status to IN_PROGRESS
@@ -198,6 +212,21 @@ export async function POST(request: NextRequest) {
       if (updateError) {
         console.error('Task update error:', updateError)
       }
+
+      // 장기 메모리에 태스크 완료/실패 저장 (비동기)
+      saveTaskMemory({
+        userId: user.id,
+        taskId: task.id,
+        title: task.title,
+        description: task.description,
+        status: result.success ? 'COMPLETED' : 'FAILED',
+        agentId: assignee_agent_id,
+        agentName: assigneeAgent.name,
+        projectId: startup_id,
+        result: result.output,
+        error: result.error,
+        isCompleted: true,
+      }).catch((err) => console.error('[Memory] Failed to save task completion:', err))
 
       // If there's a conversation, add the result as a message
       if (conversation_id) {

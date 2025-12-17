@@ -111,14 +111,42 @@ def get_transcript_with_supadata(video_id: str, languages: List[str] = ['ko', 'e
         if not transcript:
             return {'success': False, 'error': '자막을 찾을 수 없습니다'}
 
-        # 비디오 정보는 별도로 가져오기
+        # 비디오 정보 - Supadata에서 제공하거나 yt-dlp로 가져오기
+        title = data.get('title', '')
+        channel = ''
+        views = ''
+        upload_date = ''
+
+        # 제목이 없으면 yt-dlp로 영상 정보만 가져오기
+        if not title:
+            try:
+                import subprocess
+                import sys
+                cmd = [sys.executable, '-m', 'yt_dlp', '--skip-download', '-j', f'https://www.youtube.com/watch?v={video_id}']
+                result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+                if result.returncode == 0 and result.stdout:
+                    import json as json_module
+                    for line in reversed(result.stdout.strip().split('\n')):
+                        if line.strip().startswith('{'):
+                            try:
+                                info = json_module.loads(line)
+                                title = info.get('title', '')
+                                channel = info.get('channel', info.get('uploader', ''))
+                                views = f"{info.get('view_count', 0):,}회" if info.get('view_count') else ''
+                                upload_date = info.get('upload_date', '')[:10] if info.get('upload_date') else ''
+                                break
+                            except:
+                                pass
+            except Exception as e:
+                print(f"yt-dlp video info error: {e}")
+
         video_info = {
             'id': video_id,
-            'title': data.get('title', ''),
-            'channel': '',
+            'title': title,
+            'channel': channel,
             'thumbnail': f'https://img.youtube.com/vi/{video_id}/maxresdefault.jpg',
-            'date': '',
-            'views': ''
+            'date': upload_date,
+            'views': views
         }
 
         return {
@@ -473,66 +501,73 @@ def generate_summary_with_ai(full_text: str, title: str) -> dict:
     grok_api_key = os.environ.get('XAI_API_KEY')
     if grok_api_key:
         try:
-            prompt = f'''당신은 전문적인 콘텐츠 요약 전문가이자 블로그 작가입니다. 아래 유튜브 영상의 스크립트를 분석하고 구조화된 요약과 블로그 글을 생성해주세요.
+            prompt = f'''당신은 유튜브 영상 분석 전문가입니다. 스크립트를 꼼꼼히 읽고 상세한 타임라인과 요약을 작성하세요.
 
 영상 제목: {title}
 
-스크립트:
-{full_text[:15000]}
+스크립트 (타임스탬프 포함):
+{full_text[:20000]}
 
-다음 JSON 형식으로 응답해주세요 (반드시 유효한 JSON만 출력, 마크다운 코드블록 없이):
+다음 JSON 형식으로 응답하세요 (마크다운 코드블록 없이 순수 JSON만):
 
 {{
     "threeLine": [
-        "첫 번째 핵심 요약 (2-3문장)",
-        "두 번째 핵심 요약 (2-3문장)",
-        "세 번째 핵심 요약 (2-3문장)"
+        "핵심 메시지 1: 영상에서 가장 중요한 주장이나 정보를 구체적으로 (예: 특정 수치, 사례, 인용문 포함)",
+        "핵심 메시지 2: 두 번째로 중요한 내용을 구체적으로",
+        "핵심 메시지 3: 세 번째로 중요한 내용을 구체적으로"
     ],
     "keyPoints": [
-        "핵심 포인트 1: 구체적인 인사이트나 정보",
-        "핵심 포인트 2: 구체적인 인사이트나 정보",
-        "핵심 포인트 3: 구체적인 인사이트나 정보",
-        "핵심 포인트 4: 구체적인 인사이트나 정보",
-        "핵심 포인트 5: 구체적인 인사이트나 정보"
+        "💡 [주제] 구체적인 인사이트 (예시나 수치 포함)",
+        "💡 [주제] 구체적인 인사이트",
+        "💡 [주제] 구체적인 인사이트",
+        "💡 [주제] 구체적인 인사이트",
+        "💡 [주제] 구체적인 인사이트",
+        "💡 [주제] 구체적인 인사이트",
+        "💡 [주제] 구체적인 인사이트"
     ],
     "tableOfContents": [
-        "주제1",
-        "주제2",
-        "주제3",
-        "주제4",
-        "주제5"
+        "1. 첫 번째 대주제",
+        "2. 두 번째 대주제",
+        "3. 세 번째 대주제",
+        "4. 네 번째 대주제",
+        "5. 다섯 번째 대주제"
     ],
     "timeline": [
         {{
-            "title": "섹션 제목",
+            "title": "🎬 인트로: [구체적인 도입부 내용]",
             "timestamp": "00:00",
-            "content": "이 섹션의 주요 내용 요약 (2-3문장)",
+            "content": "이 섹션에서 다루는 내용을 3-5문장으로 상세히 설명. 발화자가 말한 핵심 내용, 예시, 주장을 구체적으로 포함.",
             "details": [
-                "세부 포인트 1",
-                "세부 포인트 2"
+                "• 첫 번째 세부 포인트: 구체적인 내용이나 예시",
+                "• 두 번째 세부 포인트: 언급된 수치나 사례",
+                "• 세 번째 세부 포인트: 핵심 인용이나 주장",
+                "• 네 번째 세부 포인트: 추가 정보"
             ]
+        }},
+        {{
+            "title": "📌 [두 번째 섹션 제목]",
+            "timestamp": "MM:SS",
+            "content": "상세 설명...",
+            "details": ["• 세부1", "• 세부2", "• 세부3", "• 세부4"]
         }}
     ],
-    "blogPost": "여기에 2500자 이상의 상세한 블로그 글 작성"
+    "blogPost": "상세 블로그 글 (2500자 이상)"
 }}
 
-주의사항:
-1. 한국어로 작성
-2. threeLine은 영상의 가장 중요한 3가지 핵심 메시지
-3. keyPoints는 영상에서 배울 수 있는 구체적인 인사이트 5-10개 (불릿 포인트 형식)
-4. tableOfContents는 주요 주제 5-7개
-5. timeline은 시간순 4-7개 섹션
-6. blogPost 작성 규칙 (매우 중요!!!):
-   - 최소 2500자 이상, 3000자 권장
-   - 독자의 관심을 끄는 후킹 문장으로 시작
-   - 영상 내용을 직접 본 것처럼 생생하게 전달
-   - 각 섹션마다 구체적인 예시, 인용문, 수치 포함
-   - 독자가 실제로 적용할 수 있는 액션 아이템 제시
-   - 개인적인 의견이나 해석 추가
-   - 관련 배경 지식이나 맥락 설명
-   - 마지막에 독자에게 질문하며 참여 유도
-   - 형식: # 제목 → ## 들어가며 → ## 본론(여러 섹션) → ## 핵심 정리 → ## 마치며
-7. JSON만 출력 (마크다운 없이)'''
+⚠️ 타임라인 작성 규칙 (매우 중요!!!):
+1. 최소 8-12개 섹션으로 나누세요 (영상 길이에 비례)
+2. timestamp는 스크립트의 실제 타임스탬프를 참고하여 정확히 기입
+3. title은 이모지 + 구체적인 제목 (예: "🔥 AI 에이전트가 바꿀 업무 자동화의 미래")
+4. content는 3-5문장으로 해당 구간의 핵심 내용을 상세히 설명
+5. details는 4-6개의 구체적인 포인트 (예시, 수치, 인용문 포함)
+6. 각 섹션이 무슨 내용인지 읽는 사람이 영상을 안 봐도 이해할 수 있게 작성
+
+📝 전체 작성 규칙:
+- 모든 내용은 한국어로 작성
+- 추상적인 표현 금지, 구체적인 정보만 작성
+- "~에 대해 설명합니다" 같은 메타 설명 금지
+- 실제 영상에서 언급된 내용만 작성
+- blogPost는 2500자 이상, 독자가 영상을 안 봐도 될 정도로 상세히'''
 
             response = requests.post(
                 'https://api.x.ai/v1/chat/completions',
@@ -543,10 +578,10 @@ def generate_summary_with_ai(full_text: str, title: str) -> dict:
                 json={
                     'model': 'grok-3-mini-fast-beta',
                     'messages': [{'role': 'user', 'content': prompt}],
-                    'temperature': 0.3,
-                    'max_tokens': 4000,
+                    'temperature': 0.4,
+                    'max_tokens': 8000,
                 },
-                timeout=60
+                timeout=120
             )
 
             if response.ok:
@@ -567,68 +602,82 @@ def generate_summary_with_ai(full_text: str, title: str) -> dict:
     google_api_key = os.environ.get('GOOGLE_API_KEY')
     if google_api_key:
         try:
-            prompt = f'''당신은 전문적인 콘텐츠 요약 전문가이자 블로그 작가입니다. 아래 유튜브 영상의 스크립트를 분석하고 구조화된 요약과 블로그 글을 생성해주세요.
+            prompt = f'''당신은 유튜브 영상 분석 전문가입니다. 스크립트를 꼼꼼히 읽고 상세한 타임라인과 요약을 작성하세요.
 
 영상 제목: {title}
 
-스크립트:
-{full_text[:15000]}
+스크립트 (타임스탬프 포함):
+{full_text[:20000]}
 
-다음 JSON 형식으로 응답해주세요 (반드시 유효한 JSON만 출력, 마크다운 코드블록 없이):
+다음 JSON 형식으로 응답하세요 (마크다운 코드블록 없이 순수 JSON만):
 
 {{
     "threeLine": [
-        "첫 번째 핵심 요약 (2-3문장)",
-        "두 번째 핵심 요약 (2-3문장)",
-        "세 번째 핵심 요약 (2-3문장)"
+        "핵심 메시지 1: 영상에서 가장 중요한 주장이나 정보를 구체적으로 (예: 특정 수치, 사례, 인용문 포함)",
+        "핵심 메시지 2: 두 번째로 중요한 내용을 구체적으로",
+        "핵심 메시지 3: 세 번째로 중요한 내용을 구체적으로"
     ],
     "keyPoints": [
-        "핵심 포인트 1: 구체적인 인사이트나 정보",
-        "핵심 포인트 2: 구체적인 인사이트나 정보",
-        "핵심 포인트 3: 구체적인 인사이트나 정보",
-        "핵심 포인트 4: 구체적인 인사이트나 정보",
-        "핵심 포인트 5: 구체적인 인사이트나 정보"
+        "💡 [주제] 구체적인 인사이트 (예시나 수치 포함)",
+        "💡 [주제] 구체적인 인사이트",
+        "💡 [주제] 구체적인 인사이트",
+        "💡 [주제] 구체적인 인사이트",
+        "💡 [주제] 구체적인 인사이트",
+        "💡 [주제] 구체적인 인사이트",
+        "💡 [주제] 구체적인 인사이트"
     ],
     "tableOfContents": [
-        "주제1",
-        "주제2",
-        "주제3",
-        "주제4",
-        "주제5"
+        "1. 첫 번째 대주제",
+        "2. 두 번째 대주제",
+        "3. 세 번째 대주제",
+        "4. 네 번째 대주제",
+        "5. 다섯 번째 대주제"
     ],
     "timeline": [
         {{
-            "title": "섹션 제목",
+            "title": "🎬 인트로: [구체적인 도입부 내용]",
             "timestamp": "00:00",
-            "content": "이 섹션의 주요 내용 요약 (2-3문장)",
+            "content": "이 섹션에서 다루는 내용을 3-5문장으로 상세히 설명. 발화자가 말한 핵심 내용, 예시, 주장을 구체적으로 포함.",
             "details": [
-                "세부 포인트 1",
-                "세부 포인트 2"
+                "• 첫 번째 세부 포인트: 구체적인 내용이나 예시",
+                "• 두 번째 세부 포인트: 언급된 수치나 사례",
+                "• 세 번째 세부 포인트: 핵심 인용이나 주장",
+                "• 네 번째 세부 포인트: 추가 정보"
             ]
+        }},
+        {{
+            "title": "📌 [두 번째 섹션 제목]",
+            "timestamp": "MM:SS",
+            "content": "상세 설명...",
+            "details": ["• 세부1", "• 세부2", "• 세부3", "• 세부4"]
         }}
     ],
-    "blogPost": "여기에 2500자 이상의 상세한 블로그 글 작성"
+    "blogPost": "상세 블로그 글 (2500자 이상)"
 }}
 
-blogPost 작성 규칙 (매우 중요!!!):
-- 최소 2500자 이상, 3000자 권장
-- 독자의 관심을 끄는 후킹 문장으로 시작
-- 영상 내용을 직접 본 것처럼 생생하게 전달
-- 각 섹션마다 구체적인 예시, 인용문, 수치 포함
-- 독자가 실제로 적용할 수 있는 액션 아이템 제시
-- 개인적인 의견이나 해석 추가
-- 관련 배경 지식이나 맥락 설명
-- 마지막에 독자에게 질문하며 참여 유도
-- 형식: # 제목 → ## 들어가며 → ## 본론(여러 섹션) → ## 핵심 정리 → ## 마치며'''
+⚠️ 타임라인 작성 규칙 (매우 중요!!!):
+1. 최소 8-12개 섹션으로 나누세요 (영상 길이에 비례)
+2. timestamp는 스크립트의 실제 타임스탬프를 참고하여 정확히 기입
+3. title은 이모지 + 구체적인 제목 (예: "🔥 AI 에이전트가 바꿀 업무 자동화의 미래")
+4. content는 3-5문장으로 해당 구간의 핵심 내용을 상세히 설명
+5. details는 4-6개의 구체적인 포인트 (예시, 수치, 인용문 포함)
+6. 각 섹션이 무슨 내용인지 읽는 사람이 영상을 안 봐도 이해할 수 있게 작성
+
+📝 전체 작성 규칙:
+- 모든 내용은 한국어로 작성
+- 추상적인 표현 금지, 구체적인 정보만 작성
+- "~에 대해 설명합니다" 같은 메타 설명 금지
+- 실제 영상에서 언급된 내용만 작성
+- blogPost는 2500자 이상, 독자가 영상을 안 봐도 될 정도로 상세히'''
 
             url = f'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key={google_api_key}'
             response = requests.post(url, json={
                 'contents': [{'parts': [{'text': prompt}]}],
                 'generationConfig': {
-                    'temperature': 0.3,
-                    'maxOutputTokens': 4000,
+                    'temperature': 0.4,
+                    'maxOutputTokens': 8000,
                 }
-            }, timeout=60)
+            }, timeout=120)
 
             if response.ok:
                 result = response.json()

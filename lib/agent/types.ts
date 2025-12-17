@@ -56,6 +56,30 @@ export interface AgentNodeData {
 
   // Prompt properties
   prompt?: string
+
+  // Python Tool properties (for custom_tool nodes)
+  pythonToolName?: string
+  pythonToolDescription?: string
+  pythonToolParameters?: Record<string, {
+    type: string
+    description?: string
+    default?: unknown
+    enum?: string[]
+  }>
+  pythonToolArgs?: Record<string, unknown>
+
+  // Activepieces properties
+  activepiecesFlowId?: string
+  activepiecesFlowName?: string
+  activepiecesWebhookUrl?: string
+  activepiecesTriggerType?: "manual" | "webhook"
+  activepiecesInputs?: Record<string, unknown>
+  activepiecesWaitForCompletion?: boolean
+
+  // Integration properties
+  integrationApp?: string
+  integrationAction?: string
+  integrationConfig?: Record<string, unknown>
 }
 
 export type AgentNode = Node<AgentNodeData>
@@ -78,6 +102,7 @@ export type AgentType =
   | "javascript"    // JavaScript
   | "embedding"     // Embedding Model
   | "custom_tool"   // Custom Tool
+  | "activepieces"  // Activepieces Automation
 
 export interface AgentTool {
   id: string

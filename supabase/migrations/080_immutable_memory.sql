@@ -18,15 +18,15 @@ CREATE TABLE IF NOT EXISTS public.immutable_memory (
   user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
 
   -- 시간 (절대 변경 불가)
-  timestamp TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  "timestamp" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 
-  -- 자동 생성 시간 필드 (검색 최적화)
-  date DATE GENERATED ALWAYS AS (timestamp::DATE) STORED,
-  hour INT GENERATED ALWAYS AS (EXTRACT(HOUR FROM timestamp)::INT) STORED,
-  day_of_week INT GENERATED ALWAYS AS (EXTRACT(DOW FROM timestamp)::INT) STORED,
-  week_of_year INT GENERATED ALWAYS AS (EXTRACT(WEEK FROM timestamp)::INT) STORED,
-  month INT GENERATED ALWAYS AS (EXTRACT(MONTH FROM timestamp)::INT) STORED,
-  year INT GENERATED ALWAYS AS (EXTRACT(YEAR FROM timestamp)::INT) STORED,
+  -- 시간 필드 (트리거로 자동 생성)
+  "date" DATE,
+  "hour" INT,
+  day_of_week INT,
+  week_of_year INT,
+  "month" INT,
+  "year" INT,
 
   -- 원본 데이터 (절대 변경 불가)
   raw_content TEXT NOT NULL,
@@ -233,7 +233,30 @@ CREATE INDEX IF NOT EXISTS idx_memory_monthly_summary_user
   ON public.memory_monthly_summary(user_id, year DESC, month DESC);
 
 -- ============================================
--- 6. 불변성 보호 트리거
+-- 6. 시간 필드 자동 생성 트리거
+-- ============================================
+
+CREATE OR REPLACE FUNCTION public.set_immutable_memory_time_fields()
+RETURNS TRIGGER AS $$
+BEGIN
+  NEW."date" := NEW."timestamp"::DATE;
+  NEW."hour" := EXTRACT(HOUR FROM NEW."timestamp")::INT;
+  NEW.day_of_week := EXTRACT(DOW FROM NEW."timestamp")::INT;
+  NEW.week_of_year := EXTRACT(WEEK FROM NEW."timestamp")::INT;
+  NEW."month" := EXTRACT(MONTH FROM NEW."timestamp")::INT;
+  NEW."year" := EXTRACT(YEAR FROM NEW."timestamp")::INT;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS immutable_memory_set_time_fields ON public.immutable_memory;
+CREATE TRIGGER immutable_memory_set_time_fields
+  BEFORE INSERT ON public.immutable_memory
+  FOR EACH ROW
+  EXECUTE FUNCTION public.set_immutable_memory_time_fields();
+
+-- ============================================
+-- 7. 불변성 보호 트리거
 -- ============================================
 
 -- UPDATE 방지 함수
@@ -350,7 +373,7 @@ CREATE OR REPLACE FUNCTION public.get_memories_by_date(
 )
 RETURNS TABLE (
   id UUID,
-  timestamp TIMESTAMPTZ,
+  "timestamp" TIMESTAMPTZ,
   event_type TEXT,
   role TEXT,
   raw_content TEXT,
@@ -361,7 +384,7 @@ LANGUAGE SQL
 STABLE
 AS $$
   SELECT
-    id, timestamp, event_type, role, raw_content, source_agent, session_id
+    id, "timestamp", event_type, role, raw_content, source_agent, session_id
   FROM public.immutable_memory
   WHERE user_id = p_user_id
     AND date = p_date
@@ -380,8 +403,8 @@ CREATE OR REPLACE FUNCTION public.get_memories_by_range(
 )
 RETURNS TABLE (
   id UUID,
-  timestamp TIMESTAMPTZ,
-  date DATE,
+  "timestamp" TIMESTAMPTZ,
+  "date" DATE,
   event_type TEXT,
   role TEXT,
   raw_content TEXT,
@@ -391,10 +414,10 @@ LANGUAGE SQL
 STABLE
 AS $$
   SELECT
-    id, timestamp, date, event_type, role, raw_content, source_agent
+    id, "timestamp", "date", event_type, role, raw_content, source_agent
   FROM public.immutable_memory
   WHERE user_id = p_user_id
-    AND date BETWEEN p_start_date AND p_end_date
+    AND "date" BETWEEN p_start_date AND p_end_date
     AND (p_event_types IS NULL OR event_type = ANY(p_event_types))
   ORDER BY timestamp ASC;
 $$;
@@ -410,8 +433,8 @@ CREATE OR REPLACE FUNCTION public.get_recent_memories(
 )
 RETURNS TABLE (
   id UUID,
-  timestamp TIMESTAMPTZ,
-  date DATE,
+  "timestamp" TIMESTAMPTZ,
+  "date" DATE,
   event_type TEXT,
   raw_content TEXT,
   source_agent TEXT
@@ -420,10 +443,10 @@ LANGUAGE SQL
 STABLE
 AS $$
   SELECT
-    id, timestamp, date, event_type, raw_content, source_agent
+    id, "timestamp", "date", event_type, raw_content, source_agent
   FROM public.immutable_memory
   WHERE user_id = p_user_id
-    AND timestamp >= NOW() - (p_days || ' days')::INTERVAL
+    AND "timestamp" >= NOW() - (p_days || ' days')::INTERVAL
   ORDER BY timestamp DESC
   LIMIT p_limit;
 $$;
@@ -444,13 +467,13 @@ CREATE OR REPLACE FUNCTION public.search_memories_hybrid(
 )
 RETURNS TABLE (
   id UUID,
-  timestamp TIMESTAMPTZ,
+  "timestamp" TIMESTAMPTZ,
   raw_content TEXT,
   event_type TEXT,
   semantic_score FLOAT,
   recency_score FLOAT,
   combined_score FLOAT,
-  date DATE
+  "date" DATE
 )
 LANGUAGE plpgsql
 STABLE
@@ -459,7 +482,7 @@ DECLARE
   max_age FLOAT;
 BEGIN
   -- 최대 나이 계산
-  SELECT GREATEST(EXTRACT(EPOCH FROM (NOW() - MIN(m.timestamp))) / 86400.0, 1)
+  SELECT GREATEST(EXTRACT(EPOCH FROM (NOW() - MIN(m."timestamp"))) / 86400.0, 1)
   INTO max_age
   FROM public.immutable_memory m
   WHERE m.user_id = p_user_id;
@@ -467,21 +490,21 @@ BEGIN
   RETURN QUERY
   SELECT
     m.id,
-    m.timestamp,
+    m."timestamp",
     m.raw_content,
     m.event_type,
     (1 - (e.embedding <=> p_embedding))::FLOAT AS semantic_score,
-    (1 - EXTRACT(EPOCH FROM (NOW() - m.timestamp)) / 86400.0 / max_age)::FLOAT AS recency_score,
+    (1 - EXTRACT(EPOCH FROM (NOW() - m."timestamp")) / 86400.0 / max_age)::FLOAT AS recency_score,
     (
       (1 - (e.embedding <=> p_embedding)) * p_semantic_weight +
-      (1 - EXTRACT(EPOCH FROM (NOW() - m.timestamp)) / 86400.0 / max_age) * p_recency_weight
+      (1 - EXTRACT(EPOCH FROM (NOW() - m."timestamp")) / 86400.0 / max_age) * p_recency_weight
     )::FLOAT AS combined_score,
-    m.date
+    m."date"
   FROM public.immutable_memory m
   JOIN public.memory_embeddings e ON e.memory_id = m.id AND e.model_name = p_model_name
   WHERE m.user_id = p_user_id
-    AND (p_start_date IS NULL OR m.date >= p_start_date)
-    AND (p_end_date IS NULL OR m.date <= p_end_date)
+    AND (p_start_date IS NULL OR m."date" >= p_start_date)
+    AND (p_end_date IS NULL OR m."date" <= p_end_date)
   ORDER BY combined_score DESC
   LIMIT p_limit;
 END;
@@ -500,7 +523,7 @@ CREATE OR REPLACE FUNCTION public.get_memories_with_analysis(
 )
 RETURNS TABLE (
   id UUID,
-  timestamp TIMESTAMPTZ,
+  "timestamp" TIMESTAMPTZ,
   raw_content TEXT,
   event_type TEXT,
   summary TEXT,
@@ -513,7 +536,7 @@ STABLE
 AS $$
   SELECT
     m.id,
-    m.timestamp,
+    m."timestamp",
     m.raw_content,
     m.event_type,
     a.summary,
@@ -523,8 +546,8 @@ AS $$
   FROM public.immutable_memory m
   LEFT JOIN public.memory_analysis a ON a.memory_id = m.id AND a.model_name = p_model_name
   WHERE m.user_id = p_user_id
-    AND m.date BETWEEN p_start_date AND p_end_date
-  ORDER BY m.timestamp DESC
+    AND m."date" BETWEEN p_start_date AND p_end_date
+  ORDER BY m."timestamp" DESC
   LIMIT p_limit;
 $$;
 

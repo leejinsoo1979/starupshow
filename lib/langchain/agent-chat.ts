@@ -165,6 +165,7 @@ export async function generateAgentChatResponse(
     userRole?: string        // 사용자 직위/역할
     userCompany?: string     // 사용자 회사
     isMessenger?: boolean    // 🔥 메신저 채팅 여부 (멀티에이전트 토론)
+    workContext?: string     // 🔥 업무 컨텍스트 (최근 업무, 지시사항, 미완료 태스크 등)
   },
   images: string[] = [], // 이미지 URL 또는 base64
   memoryContext?: {         // 🔥 외부에서 주입하는 메모리 컨텍스트
@@ -227,6 +228,11 @@ ${agent.identity.recent_focus ? `- 최근 관심사: ${agent.identity.recent_foc
     ? `\n[내가 최근에 한 말들 - 일관성 유지]\n${memoryContext.recentConversations}\n`
     : ''
 
+  // 🔥 업무 컨텍스트 (지시사항, 미완료 태스크, 최근 업무 등)
+  const workContextStr = roomContext?.workContext
+    ? `\n## 📋 업무 맥락 (꼭 기억하세요!)\n${roomContext.workContext}\n`
+    : ''
+
   // 🔥 통합 시스템 프롬프트 생성 (shared-prompts.ts의 buildAgentSystemPrompt 사용)
   const isMessenger = roomContext?.isMessenger || false
   const coreSystemPrompt = buildAgentSystemPrompt(
@@ -245,6 +251,8 @@ ${coreSystemPrompt}
 {agentDescription}
 
 {userInfo}
+
+{workContext}
 
 {ragContext}
 
@@ -311,6 +319,7 @@ ${ragContext.contextText}
     console.log('userRole:', roomContext?.userRole)
     console.log('userInfoStr:', userInfoStr ? 'SET' : 'EMPTY')
     console.log('identityStr:', identityStr ? 'SET' : 'EMPTY')
+    console.log('workContextStr:', workContextStr ? `SET (${workContextStr.length} chars)` : 'EMPTY')
     console.log('ragContextStr:', ragContextStr ? `SET (${ragSourcesUsed.length} sources)` : 'EMPTY')
     console.log('chatHistory length:', chatHistory?.length || 0)
     console.log('formattedHistory:', formattedHistory?.substring(0, 200) || 'EMPTY')
@@ -332,6 +341,8 @@ ${coreSystemPrompt}
 ${agent.description || '팀에서 함께 일하는 동료예요.'}
 
 ${userInfoStr}
+
+${workContextStr}
 
 ${fullIdentityInfo}
 
@@ -379,6 +390,7 @@ ${formattedHistory}
       response = await chain.invoke({
         agentDescription: agent.description || '팀에서 함께 일하는 동료예요.',
         userInfo: userInfoStr,
+        workContext: workContextStr, // 🔥 업무 컨텍스트 추가
         ragContext: fullIdentityInfo, // 🔥 RAG 컨텍스트 추가
         roomName: roomContext?.roomName || '채팅방',
         participants: roomContext?.participantNames?.join(', ') || userName,

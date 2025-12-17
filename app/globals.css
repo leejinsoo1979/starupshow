@@ -2,6 +2,11 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Prevent browser back/forward on swipe */
+html, body {
+  overscroll-behavior-x: none;
+}
+
 @layer base {
   :root {
     /* Theme accent color (can be changed by user) */

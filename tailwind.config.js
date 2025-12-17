@@ -96,6 +96,7 @@ module.exports = {
         'bounce-soft': 'bounceSoft 0.5s ease-out',
         'pulse-soft': 'pulseSoft 2s ease-in-out infinite',
         'pulse-slow': 'pulseSlow 3s ease-in-out infinite',
+        'pulse-subtle': 'pulseSubtle 2s ease-in-out infinite',
         'shimmer': 'shimmer 2s linear infinite',
         'float': 'float 6s ease-in-out infinite',
         'glow': 'glow 2s ease-in-out infinite alternate',
@@ -105,6 +106,7 @@ module.exports = {
         'spin-slow': 'spin 3s linear infinite',
         'bounce-slow': 'bounce 2s infinite',
         'wiggle': 'wiggle 1s ease-in-out infinite',
+        'flow': 'flow 2s linear infinite',
       },
       keyframes: {
         fadeIn: {
@@ -178,6 +180,14 @@ module.exports = {
         wiggle: {
           '0%, 100%': { transform: 'rotate(-3deg)' },
           '50%': { transform: 'rotate(3deg)' },
+        },
+        pulseSubtle: {
+          '0%, 100%': { boxShadow: '0 0 0 0 rgba(99, 102, 241, 0.4)' },
+          '50%': { boxShadow: '0 0 0 8px rgba(99, 102, 241, 0)' },
+        },
+        flow: {
+          '0%': { strokeDashoffset: '24' },
+          '100%': { strokeDashoffset: '0' },
         },
       },
       borderRadius: {

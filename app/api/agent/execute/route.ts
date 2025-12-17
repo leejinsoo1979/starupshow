@@ -4,6 +4,10 @@ import { openai } from "@ai-sdk/openai"
 import type { Node, Edge } from "reactflow"
 import { createClient } from "@supabase/supabase-js"
 import OpenAI from "openai"
+import { ActivepiecesClient } from "@/lib/activepieces/client"
+
+// Activepieces client
+const activepiecesClient = new ActivepiecesClient()
 
 export const maxDuration = 60
 
@@ -621,6 +625,65 @@ export async function POST(req: Request) {
                                     }
                                 } else {
                                     output = { message: "Tool executed", inputs }
+                                }
+
+                                executionLog.push({
+                                    nodeId,
+                                    type: nodeType,
+                                    output,
+                                })
+                                break
+                            }
+
+                            // ===== ACTIVEPIECES NODE (Automation Flows) =====
+                            case "activepieces": {
+                                const triggerType = node.data?.activepiecesTriggerType || "manual"
+                                const flowId = node.data?.activepiecesFlowId
+                                const webhookUrl = node.data?.activepiecesWebhookUrl
+                                const waitForCompletion = node.data?.activepiecesWaitForCompletion !== false
+                                const flowInputs = node.data?.activepiecesInputs || {}
+
+                                // Merge node inputs with configured inputs
+                                const payload = {
+                                    ...flowInputs,
+                                    ...(inputs[0] && typeof inputs[0] === 'object' ? inputs[0] : { input: inputs[0] }),
+                                }
+
+                                try {
+                                    if (triggerType === "webhook" && webhookUrl) {
+                                        // Webhook trigger
+                                        output = await activepiecesClient.triggerWebhook(webhookUrl, payload)
+                                    } else if (flowId) {
+                                        // Manual trigger with Flow ID
+                                        const run = await activepiecesClient.runFlow(flowId, payload)
+
+                                        if (waitForCompletion) {
+                                            // Wait for flow to complete
+                                            const completedRun = await activepiecesClient.waitForCompletion(run.id, 55000)
+                                            output = {
+                                                runId: completedRun.id,
+                                                status: completedRun.status,
+                                                output: completedRun.output,
+                                                error: completedRun.error,
+                                            }
+                                        } else {
+                                            // Return immediately
+                                            output = {
+                                                runId: run.id,
+                                                status: run.status,
+                                                message: "Flow triggered (async)",
+                                            }
+                                        }
+                                    } else {
+                                        throw new Error("Activepieces: Flow ID or Webhook URL required")
+                                    }
+                                } catch (apError: any) {
+                                    // Check if Activepieces is running
+                                    const isHealthy = await activepiecesClient.healthCheck()
+                                    if (!isHealthy) {
+                                        throw new Error("Activepieces is not running. Start with: cd docker/activepieces && docker-compose up -d")
+                                    }
+                                    throw new Error(`Activepieces error: ${apError.message}`)
                                 }
 
                                 executionLog.push({
