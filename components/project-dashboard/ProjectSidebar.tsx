@@ -196,7 +196,7 @@ export function ProjectSidebar({
       <div className="p-4 border-t border-zinc-800">
         <div className="flex items-center gap-2 text-xs text-zinc-500">
           <Rocket className="w-4 h-4" />
-          <span>StartupShow v1.0</span>
+          <span>GlowUS v1.0</span>
         </div>
       </div>
     </div>

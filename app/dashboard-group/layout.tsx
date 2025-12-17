@@ -15,7 +15,7 @@ import type { User, Startup } from '@/types'
 const DEV_BYPASS_AUTH = process.env.NEXT_PUBLIC_DEV_BYPASS_AUTH === 'true'
 const DEV_USER = {
   id: '00000000-0000-0000-0000-000000000001',
-  email: 'dev@startupshow.local',
+  email: 'dev@glowus.local',
   name: 'Dev Tester',
   role: 'FOUNDER' as const,
   created_at: new Date().toISOString(),

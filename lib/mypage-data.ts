@@ -64,7 +64,7 @@ export const resumeData = {
   experience: [
     {
       title: 'CEO & Founder',
-      company: 'StartupShow',
+      company: 'GlowUS',
       period: '2020 — 현재',
       description: '스타트업 운영 자동화 플랫폼 창업. 시드 라운드부터 시리즈 A까지 투자 유치 성공.',
     },
@@ -94,7 +94,7 @@ export const portfolioData = {
   categories: ['전체', '프로젝트', '성과', '미디어'],
   projects: [
     {
-      title: 'StartupShow 플랫폼',
+      title: 'GlowUS 플랫폼',
       category: '프로젝트',
       image: '/project-1.png',
       description: '스타트업 운영 자동화 SaaS',
