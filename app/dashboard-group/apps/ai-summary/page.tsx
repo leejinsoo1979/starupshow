@@ -94,18 +94,7 @@ export default function AiSummaryPage() {
 
     return (
         <div className="flex h-[calc(100vh-64px)] bg-white dark:bg-zinc-950 text-zinc-900 dark:text-white">
-            {/* 왼쪽: 채팅창 + AI 요약 */}
-            <div className="h-full flex-shrink-0">
-                <SummarySidebar
-                    activeTab={activeTab}
-                    onTabChange={setActiveTab}
-                    onYoutubeSubmit={handleYoutubeSubmit}
-                    summary={summary}
-                    isLoading={isLoading}
-                />
-            </div>
-
-            {/* 오른쪽: 영상 뷰어 + 스크립트 */}
+            {/* 왼쪽: 영상 뷰어 + 스크립트 */}
             <div className="flex-1 h-full overflow-hidden">
                 <YoutubeViewer
                     videoId={videoId}
@@ -115,6 +104,17 @@ export default function AiSummaryPage() {
                     comments={comments}
                     isLoading={isLoading}
                     recentSummaries={DUMMY_SUMMARIES}
+                />
+            </div>
+
+            {/* 오른쪽: 채팅창 + AI 요약 */}
+            <div className="h-full flex-shrink-0">
+                <SummarySidebar
+                    activeTab={activeTab}
+                    onTabChange={setActiveTab}
+                    onYoutubeSubmit={handleYoutubeSubmit}
+                    summary={summary}
+                    isLoading={isLoading}
                 />
             </div>
         </div>
