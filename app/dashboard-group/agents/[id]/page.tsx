@@ -4505,9 +4505,8 @@ export default function AgentProfilePage() {
                       <button
                         onClick={async () => {
                           if (!agent || chatLoading) return
-                          setChatLoading(true)
 
-                          // 1. 시스템 메시지 표시
+                          // 1. 시스템 메시지 먼저 추가 (로딩 전에)
                           const systemMessage = {
                             id: `system-${Date.now()}`,
                             role: 'system' as const,
@@ -4515,6 +4514,9 @@ export default function AgentProfilePage() {
                             timestamp: new Date(),
                           }
                           setChatMessages((prev) => [...prev, systemMessage])
+
+                          // 2. 메시지 추가 후 로딩 시작
+                          setChatLoading(true)
 
                           // 2. 에이전트에게 인사 요청 (대화 맥락에 맞게)
                           let greetingContent = `안녕하세요! ${agent?.name || '에이전트'}입니다. 무엇을 도와드릴까요?`
