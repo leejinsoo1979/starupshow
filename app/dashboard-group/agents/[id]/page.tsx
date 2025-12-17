@@ -41,6 +41,7 @@ import {
   Trash2,
   Users,
   FolderOpen,
+  FolderPlus,
   Hash,
   Building,
   Mail,
@@ -1960,6 +1961,23 @@ export default function AgentProfilePage() {
     original_instruction: string
   } | null>(null)
   const [isExecutingTask, setIsExecutingTask] = useState(false)
+
+  // 특수 액션 상태 (프로젝트 생성 등)
+  const [pendingAction, setPendingAction] = useState<{
+    action_type: 'project_create' | 'task_create'
+    confirmation_message: string
+    input_fields: Array<{
+      name: string
+      label: string
+      type: 'text' | 'textarea' | 'select' | 'date'
+      required: boolean
+      placeholder?: string
+      options?: Array<{ value: string; label: string }>
+    }>
+    extracted_data?: any
+  } | null>(null)
+  const [actionFormData, setActionFormData] = useState<Record<string, string>>({})
+  const [isExecutingAction, setIsExecutingAction] = useState(false)
   const [currentEmotion, setCurrentEmotion] = useState<EmotionType>('neutral')
   const emotionFileInputRefs = useRef<Record<string, HTMLInputElement | null>>({})
 
@@ -2711,11 +2729,30 @@ export default function AgentProfilePage() {
       }
 
       const data = await response.json()
-      setPendingTask({
-        analysis: data.analysis,
-        confirmation_message: data.confirmation_message,
-        original_instruction: instruction,
-      })
+
+      // 특수 액션 타입 처리 (프로젝트 생성 등)
+      if (data.action_type && data.action_type !== 'general') {
+        // 폼 초기값 설정
+        const initialFormData: Record<string, string> = {}
+        if (data.extracted_data?.suggestedName) {
+          initialFormData.name = data.extracted_data.suggestedName
+        }
+        setActionFormData(initialFormData)
+
+        setPendingAction({
+          action_type: data.action_type,
+          confirmation_message: data.confirmation_message,
+          input_fields: data.input_fields || [],
+          extracted_data: data.extracted_data,
+        })
+      } else {
+        // 일반 업무 분석
+        setPendingTask({
+          analysis: data.analysis,
+          confirmation_message: data.confirmation_message,
+          original_instruction: instruction,
+        })
+      }
     } catch (error) {
       console.error('업무 분석 오류:', error)
       // 에러 메시지 추가
@@ -2796,6 +2833,88 @@ export default function AgentProfilePage() {
     setChatMessages(prev => [...prev, cancelMessage])
   }
 
+  // 특수 액션 실행 (프로젝트 생성 등)
+  const handleConfirmAction = async () => {
+    if (!pendingAction || !agent) return
+
+    setIsExecutingAction(true)
+
+    try {
+      if (pendingAction.action_type === 'project_create') {
+        // 필수 필드 검증
+        if (!actionFormData.name?.trim()) {
+          alert('프로젝트 이름을 입력해주세요.')
+          setIsExecutingAction(false)
+          return
+        }
+
+        // 프로젝트 생성 API 호출
+        const response = await fetch('/api/projects', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name: actionFormData.name.trim(),
+            description: actionFormData.description?.trim() || null,
+            priority: actionFormData.priority || 'medium',
+            deadline: actionFormData.deadline || null,
+          }),
+        })
+
+        if (!response.ok) {
+          const error = await response.json()
+          throw new Error(error.error || '프로젝트 생성 실패')
+        }
+
+        const project = await response.json()
+
+        // 성공 메시지
+        const successMessage = {
+          id: `action-success-${Date.now()}`,
+          role: 'agent' as const,
+          content: `✅ 프로젝트를 생성했습니다!\n\n**${project.name}**\n${project.description ? `설명: ${project.description}\n` : ''}우선순위: ${project.priority}${project.deadline ? `\n마감일: ${project.deadline}` : ''}`,
+          timestamp: new Date(),
+        }
+        setChatMessages(prev => [...prev, successMessage])
+        saveMessageToHistory('agent', successMessage.content)
+      }
+
+      // 상태 초기화
+      setPendingAction(null)
+      setActionFormData({})
+      setIsTaskMode(false)
+    } catch (error) {
+      console.error('액션 실행 오류:', error)
+      const errorMessage = {
+        id: `error-${Date.now()}`,
+        role: 'agent' as const,
+        content: `작업 중 오류가 발생했습니다: ${error instanceof Error ? error.message : '알 수 없는 오류'}`,
+        timestamp: new Date(),
+      }
+      setChatMessages(prev => [...prev, errorMessage])
+    } finally {
+      setIsExecutingAction(false)
+    }
+  }
+
+  // 액션 취소
+  const handleCancelAction = () => {
+    setPendingAction(null)
+    setActionFormData({})
+    setIsTaskMode(false)
+    const cancelMessage = {
+      id: `cancel-${Date.now()}`,
+      role: 'agent' as const,
+      content: '작업을 취소했습니다. 다른 것을 도와드릴까요?',
+      timestamp: new Date(),
+    }
+    setChatMessages(prev => [...prev, cancelMessage])
+  }
+
+  // 액션 폼 필드 변경
+  const handleActionFormChange = (fieldName: string, value: string) => {
+    setActionFormData(prev => ({ ...prev, [fieldName]: value }))
+  }
+
   // 채팅 메시지 전송
   const handleSendChat = async () => {
     if ((!chatInput.trim() && !chatImage) || !agent || chatLoading) return
@@ -2866,22 +2985,51 @@ export default function AgentProfilePage() {
       if (res.ok) {
         const data = await res.json()
         const responseContent = data.response || '응답을 생성하지 못했습니다.'
-        const detectedEmotions = detectEmotionsInOrder(responseContent, allEmotions)
-        const detectedEmotion = detectedEmotions.length > 0 ? detectedEmotions[0] : 'neutral'
 
-        const agentMessage = {
-          id: `agent-${Date.now()}`,
-          role: 'agent' as const,
-          content: responseContent,
-          timestamp: new Date(),
-          emotion: detectedEmotion, // 하위 호환성
-          emotions: detectedEmotions, // 다중 감정 (텍스트 순서)
+        // 프로젝트 생성 등 특수 액션 감지
+        if (data.action_type && data.requires_confirmation) {
+          // 에이전트 응답 메시지 먼저 표시
+          const agentMessage = {
+            id: `agent-${Date.now()}`,
+            role: 'agent' as const,
+            content: responseContent,
+            timestamp: new Date(),
+          }
+          setChatMessages((prev) => [...prev, agentMessage])
+
+          // 폼 초기값 설정
+          const initialFormData: Record<string, string> = {}
+          if (data.extracted_data?.suggestedName) {
+            initialFormData.name = data.extracted_data.suggestedName
+          }
+          setActionFormData(initialFormData)
+
+          // pendingAction 설정 (컨펌 폼 표시)
+          setPendingAction({
+            action_type: data.action_type,
+            confirmation_message: responseContent,
+            input_fields: data.input_fields || [],
+            extracted_data: data.extracted_data,
+          })
+        } else {
+          // 일반 응답 처리
+          const detectedEmotions = detectEmotionsInOrder(responseContent, allEmotions)
+          const detectedEmotion = detectedEmotions.length > 0 ? detectedEmotions[0] : 'neutral'
+
+          const agentMessage = {
+            id: `agent-${Date.now()}`,
+            role: 'agent' as const,
+            content: responseContent,
+            timestamp: new Date(),
+            emotion: detectedEmotion, // 하위 호환성
+            emotions: detectedEmotions, // 다중 감정 (텍스트 순서)
+          }
+          setChatMessages((prev) => [...prev, agentMessage])
+          setCurrentEmotion(detectedEmotion)
+
+          // 에이전트 응답 히스토리에 저장
+          saveMessageToHistory('agent', responseContent, undefined, detectedEmotion)
         }
-        setChatMessages((prev) => [...prev, agentMessage])
-        setCurrentEmotion(detectedEmotion)
-
-        // 에이전트 응답 히스토리에 저장
-        saveMessageToHistory('agent', responseContent, undefined, detectedEmotion)
       } else {
         // 에러 응답 처리 - JSON 파싱 실패 대비
         let errorMessage = '응답 실패'
@@ -3193,8 +3341,33 @@ export default function AgentProfilePage() {
 
   if (loading) {
     return (
-      <div className="h-full flex items-center justify-center">
-        <Loader2 className="w-8 h-8 animate-spin text-zinc-400" />
+      <div className="h-full flex flex-col items-center justify-center gap-6">
+        {/* Animated Bot Icon */}
+        <div className="relative">
+          <div className="absolute inset-0 bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500 rounded-full blur-xl opacity-30 animate-pulse" />
+          <div className="relative w-24 h-24 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center shadow-2xl">
+            <Bot className="w-12 h-12 text-white animate-bounce" />
+          </div>
+          {/* Orbiting dots */}
+          <div className="absolute inset-0 animate-spin" style={{ animationDuration: '3s' }}>
+            <div className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1 w-3 h-3 bg-blue-400 rounded-full" />
+          </div>
+          <div className="absolute inset-0 animate-spin" style={{ animationDuration: '3s', animationDelay: '1s' }}>
+            <div className="absolute bottom-0 left-1/2 -translate-x-1/2 translate-y-1 w-3 h-3 bg-purple-400 rounded-full" />
+          </div>
+          <div className="absolute inset-0 animate-spin" style={{ animationDuration: '3s', animationDelay: '2s' }}>
+            <div className="absolute top-1/2 right-0 translate-x-1 -translate-y-1/2 w-3 h-3 bg-pink-400 rounded-full" />
+          </div>
+        </div>
+        {/* Loading text */}
+        <div className="flex flex-col items-center gap-2">
+          <p className="text-lg font-medium text-zinc-700 dark:text-zinc-300">에이전트 불러오는 중...</p>
+          <div className="flex gap-1">
+            <span className="w-2 h-2 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+            <span className="w-2 h-2 bg-purple-500 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+            <span className="w-2 h-2 bg-pink-500 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+          </div>
+        </div>
       </div>
     )
   }
@@ -4225,7 +4398,54 @@ export default function AgentProfilePage() {
                   isDark ? 'bg-zinc-900/50 border-zinc-800' : 'bg-zinc-50 border-zinc-200'
                 )}
               >
-                {chatMessages.length === 0 ? (
+                {/* 채팅 로딩 애니메이션 */}
+                {chatLoading && chatMessages.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center h-full">
+                    {/* 에이전트 아바타 with 로딩 효과 */}
+                    <div className="relative mb-8">
+                      {/* 배경 글로우 */}
+                      <div className="absolute inset-0 bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500 rounded-full blur-2xl opacity-40 animate-pulse scale-110" />
+
+                      {/* 회전하는 링 */}
+                      <div className="absolute inset-[-8px] border-4 border-transparent border-t-blue-500 border-r-purple-500 rounded-full animate-spin" style={{ animationDuration: '1.5s' }} />
+                      <div className="absolute inset-[-16px] border-4 border-transparent border-b-pink-500 border-l-cyan-500 rounded-full animate-spin" style={{ animationDuration: '2s', animationDirection: 'reverse' }} />
+
+                      {/* 에이전트 이미지 */}
+                      <div className="relative w-32 h-32 md:w-40 md:h-40 rounded-full overflow-hidden shadow-2xl">
+                        {agent?.avatar_url ? (
+                          <img
+                            src={agent.avatar_url}
+                            alt={agent?.name || '에이전트'}
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (
+                          <div className={cn(
+                            'w-full h-full flex items-center justify-center bg-gradient-to-br from-blue-500 to-purple-600'
+                          )}>
+                            <Bot className="w-16 h-16 text-white" />
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* 에이전트 이름 */}
+                    <h3 className={cn('text-xl font-bold mb-3', isDark ? 'text-white' : 'text-zinc-900')}>
+                      {agent?.name}
+                    </h3>
+
+                    {/* 로딩 텍스트 */}
+                    <p className={cn('text-sm mb-4', isDark ? 'text-zinc-400' : 'text-zinc-500')}>
+                      대화를 준비하고 있어요...
+                    </p>
+
+                    {/* 애니메이션 dots */}
+                    <div className="flex gap-2">
+                      <span className="w-3 h-3 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                      <span className="w-3 h-3 bg-purple-500 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                      <span className="w-3 h-3 bg-pink-500 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                    </div>
+                  </div>
+                ) : chatMessages.length === 0 ? (
                   <div className="flex flex-col items-center justify-center h-full text-center py-8">
                     {/* 프로필 GIF/이미지 - 크게 중앙에 */}
                     <div className="mb-6">
@@ -4768,6 +4988,158 @@ export default function AgentProfilePage() {
                           <XCircle className="w-4 h-4" />
                         </button>
                       </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Pending Action (프로젝트 생성 등) */}
+                {pendingAction && (
+                  <div className={cn(
+                    'p-4 rounded-2xl border-2',
+                    isDark
+                      ? 'bg-gradient-to-br from-blue-900/30 to-indigo-900/30 border-blue-700/50'
+                      : 'bg-gradient-to-br from-blue-50 to-indigo-50 border-blue-200'
+                  )}>
+                    {/* Header */}
+                    <div className={cn(
+                      'flex items-center gap-3 pb-3 mb-3 border-b',
+                      isDark ? 'border-blue-800/50' : 'border-blue-200'
+                    )}>
+                      <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-500 flex items-center justify-center shadow-lg">
+                        <FolderPlus className="w-5 h-5 text-white" />
+                      </div>
+                      <div className="flex-1">
+                        <span className={cn(
+                          'text-sm font-semibold',
+                          isDark ? 'text-blue-300' : 'text-blue-700'
+                        )}>
+                          프로젝트 생성
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Message */}
+                    <div className={cn(
+                      'text-sm whitespace-pre-wrap leading-relaxed mb-4',
+                      isDark ? 'text-zinc-200' : 'text-zinc-700'
+                    )}>
+                      {pendingAction.confirmation_message}
+                    </div>
+
+                    {/* Dynamic Form Fields */}
+                    <div className="space-y-3 mb-4">
+                      {pendingAction.input_fields.map((field) => (
+                        <div key={field.name} className="flex flex-col gap-1">
+                          <label className={cn(
+                            'text-xs font-medium',
+                            isDark ? 'text-zinc-400' : 'text-zinc-600'
+                          )}>
+                            {field.label}
+                            {field.required && <span className="text-red-500 ml-1">*</span>}
+                          </label>
+                          {field.type === 'text' && (
+                            <input
+                              type="text"
+                              value={actionFormData[field.name] || ''}
+                              onChange={(e) => handleActionFormChange(field.name, e.target.value)}
+                              placeholder={field.placeholder}
+                              className={cn(
+                                'px-3 py-2 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500',
+                                isDark
+                                  ? 'bg-zinc-800 border border-zinc-700 text-zinc-100'
+                                  : 'bg-white border border-zinc-300 text-zinc-900'
+                              )}
+                            />
+                          )}
+                          {field.type === 'textarea' && (
+                            <textarea
+                              value={actionFormData[field.name] || ''}
+                              onChange={(e) => handleActionFormChange(field.name, e.target.value)}
+                              placeholder={field.placeholder}
+                              rows={2}
+                              className={cn(
+                                'px-3 py-2 rounded-lg text-sm resize-none focus:outline-none focus:ring-2 focus:ring-blue-500',
+                                isDark
+                                  ? 'bg-zinc-800 border border-zinc-700 text-zinc-100'
+                                  : 'bg-white border border-zinc-300 text-zinc-900'
+                              )}
+                            />
+                          )}
+                          {field.type === 'select' && field.options && (
+                            <select
+                              value={actionFormData[field.name] || ''}
+                              onChange={(e) => handleActionFormChange(field.name, e.target.value)}
+                              className={cn(
+                                'px-3 py-2 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500',
+                                isDark
+                                  ? 'bg-zinc-800 border border-zinc-700 text-zinc-100'
+                                  : 'bg-white border border-zinc-300 text-zinc-900'
+                              )}
+                            >
+                              <option value="">선택하세요</option>
+                              {field.options.map((opt) => (
+                                <option key={opt.value} value={opt.value}>{opt.label}</option>
+                              ))}
+                            </select>
+                          )}
+                          {field.type === 'date' && (
+                            <input
+                              type="date"
+                              value={actionFormData[field.name] || ''}
+                              onChange={(e) => handleActionFormChange(field.name, e.target.value)}
+                              className={cn(
+                                'px-3 py-2 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500',
+                                isDark
+                                  ? 'bg-zinc-800 border border-zinc-700 text-zinc-100'
+                                  : 'bg-white border border-zinc-300 text-zinc-900'
+                              )}
+                            />
+                          )}
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Action buttons */}
+                    <div className="flex gap-3">
+                      <button
+                        onClick={handleConfirmAction}
+                        disabled={isExecutingAction}
+                        className={cn(
+                          'flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl',
+                          'text-sm font-semibold transition-all duration-200',
+                          'bg-gradient-to-r from-blue-500 to-indigo-500 text-white',
+                          'hover:from-blue-600 hover:to-indigo-600',
+                          'hover:shadow-lg hover:shadow-blue-500/25 hover:scale-[1.02]',
+                          'active:scale-[0.98]',
+                          'disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100'
+                        )}
+                      >
+                        {isExecutingAction ? (
+                          <>
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                            <span>생성 중...</span>
+                          </>
+                        ) : (
+                          <>
+                            <CheckCircle className="w-4 h-4" />
+                            <span>컨펌</span>
+                          </>
+                        )}
+                      </button>
+                      <button
+                        onClick={handleCancelAction}
+                        disabled={isExecutingAction}
+                        className={cn(
+                          'px-4 py-2.5 rounded-xl text-sm font-medium transition-all duration-200',
+                          'hover:scale-[1.02] active:scale-[0.98]',
+                          'disabled:opacity-50 disabled:cursor-not-allowed',
+                          isDark
+                            ? 'bg-zinc-800 hover:bg-zinc-700 text-zinc-300 border border-zinc-700'
+                            : 'bg-white hover:bg-zinc-50 text-zinc-700 border border-zinc-200 shadow-sm'
+                        )}
+                      >
+                        <XCircle className="w-4 h-4" />
+                      </button>
                     </div>
                   </div>
                 )}

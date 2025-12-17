@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { isDevMode, DEV_USER } from '@/lib/dev-user'
-import { ChatOpenAI } from '@langchain/openai'
+import { ChatGoogleGenerativeAI } from '@langchain/google-genai'
 import type { DeployedAgent } from '@/types/database'
 
 // 특수 액션 타입 정의
@@ -108,11 +108,11 @@ export async function POST(request: NextRequest) {
       })
     }
 
-    // Use OpenAI to analyze the instruction
-    const model = new ChatOpenAI({
-      modelName: 'gpt-4o-mini',
+    // Use Gemini to analyze the instruction (업무지시 모드)
+    const model = new ChatGoogleGenerativeAI({
+      model: 'gemini-2.0-flash',
       temperature: 0.3,
-      openAIApiKey: process.env.OPENAI_API_KEY,
+      apiKey: process.env.GOOGLE_API_KEY,
     })
 
     const analysisPrompt = `당신은 "${agent.name}"이라는 AI 에이전트입니다.

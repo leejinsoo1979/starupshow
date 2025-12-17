@@ -20,6 +20,7 @@
     "@handsontable/react": "^16.2.0",
     "@hello-pangea/dnd": "^18.0.1",
     "@langchain/core": "^1.1.4",
+    "@langchain/google-genai": "^2.1.1",
     "@langchain/langgraph": "^1.0.4",
     "@langchain/ollama": "^1.0.3",
     "@langchain/openai": "^1.1.3",

@@ -10,6 +10,36 @@ import {
   updateActiveContext,
 } from '@/lib/agent/work-memory'
 
+// 인텐트 감지 함수
+type ActionType = 'project_create' | 'task_create' | 'general'
+
+function detectIntent(message: string): { actionType: ActionType; extractedData: any } {
+  // 프로젝트 생성 인텐트 감지
+  const projectCreatePatterns = [
+    /프로젝트\s*(를|을)?\s*(만들|생성|추가|새로)/,
+    /새\s*(로운|)?\s*프로젝트/,
+    /프로젝트\s*하나\s*(만들|생성)/,
+    /create\s*project/i,
+    /new\s*project/i,
+  ]
+
+  for (const pattern of projectCreatePatterns) {
+    if (pattern.test(message)) {
+      // 프로젝트명 추출 시도
+      const nameMatch = message.match(/["']([^"']+)["']/) ||
+                        message.match(/프로젝트\s*(?:이름은?|명은?)?\s*(.+?)(?:로|으로|라고|$)/)
+      return {
+        actionType: 'project_create',
+        extractedData: {
+          suggestedName: nameMatch?.[1]?.trim() || null
+        }
+      }
+    }
+  }
+
+  return { actionType: 'general', extractedData: null }
+}
+
 // POST: 에이전트와 1:1 대화 (프로필 페이지용 간단한 채팅)
 export async function POST(
   request: NextRequest,
@@ -38,6 +68,9 @@ export async function POST(
       return NextResponse.json({ error: '메시지가 필요합니다' }, { status: 400 })
     }
 
+    // 인텐트 감지 (프로젝트 생성 등)
+    const { actionType, extractedData } = detectIntent(message)
+
     // 이미지 검증 (최대 4장, 각각 10MB 미만)
     const validImages: string[] = []
     if (images && Array.isArray(images)) {
@@ -57,6 +90,36 @@ export async function POST(
 
     if (agentError || !agent) {
       return NextResponse.json({ error: '에이전트를 찾을 수 없습니다' }, { status: 404 })
+    }
+
+    // 프로젝트 생성 인텐트 감지 시 컨펌 폼 반환
+    if (actionType === 'project_create') {
+      const confirmMessage = extractedData?.suggestedName
+        ? `"${extractedData.suggestedName}" 프로젝트를 생성할까요?\n\n아래 세부사항을 입력해주시면 바로 생성해드릴게요!`
+        : `프로젝트를 생성해드릴게요!\n\n아래 세부사항을 입력해주시면 바로 생성해드릴게요.`
+
+      return NextResponse.json({
+        response: confirmMessage,
+        action_type: 'project_create',
+        requires_confirmation: true,
+        input_fields: [
+          { name: 'name', label: '프로젝트 이름', type: 'text', required: true, placeholder: '예: 신규 마케팅 캠페인' },
+          { name: 'description', label: '설명', type: 'textarea', required: false, placeholder: '프로젝트에 대한 간단한 설명' },
+          { name: 'priority', label: '우선순위', type: 'select', required: false, options: [
+            { value: 'low', label: '낮음' },
+            { value: 'medium', label: '보통' },
+            { value: 'high', label: '높음' },
+            { value: 'urgent', label: '긴급' }
+          ]},
+          { name: 'deadline', label: '마감일', type: 'date', required: false }
+        ],
+        extracted_data: extractedData,
+        agent: {
+          id: agent.id,
+          name: agent.name,
+          avatar_url: agent.avatar_url
+        }
+      })
     }
 
     // 에이전트 정체성 조회
