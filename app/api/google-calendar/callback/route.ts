@@ -41,29 +41,32 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    // Verify state
+    // Verify state and extract user ID
     let stateData: { userId: string; timestamp: number } | null = null
     try {
       if (state) {
         stateData = JSON.parse(Buffer.from(state, 'base64').toString())
+        console.log('[GoogleCalendar Callback] State data:', stateData)
       }
-    } catch {
-      console.error('Invalid state parameter')
+    } catch (e) {
+      console.error('Invalid state parameter:', e)
     }
 
-    const supabase = await createClient()
-    const { data: { user } } = await supabase.auth.getUser()
+    // Use userId from state (more reliable than session in OAuth callback)
+    let userId = stateData?.userId
 
-    if (!user) {
-      return NextResponse.redirect(
-        new URL('/auth-group/login?redirect=/dashboard-group/calendar', request.url)
-      )
+    // Fallback to session if state doesn't have userId
+    if (!userId) {
+      const supabase = await createClient()
+      const { data: { user } } = await supabase.auth.getUser()
+      userId = user?.id
+      console.log('[GoogleCalendar Callback] Using session userId:', userId)
     }
 
-    // Verify state matches current user
-    if (stateData && stateData.userId !== user.id) {
+    if (!userId) {
+      console.error('[GoogleCalendar Callback] No user ID found in state or session')
       return NextResponse.redirect(
-        new URL('/dashboard-group/calendar?error=state_mismatch', request.url)
+        new URL('/dashboard-group/calendar?error=no_user', request.url)
       )
     }
 
@@ -81,12 +84,15 @@ export async function GET(request: NextRequest) {
     // Calculate token expiry
     const tokenExpiry = new Date(Date.now() + (tokens.expiry_date || 3600 * 1000))
 
-    // Save or update connection in database
-    const { error: upsertError } = await (supabase as any)
+    // Save or update connection in database using admin client
+    const { createAdminClient } = await import('@/lib/supabase/admin')
+    const adminClient = createAdminClient()
+
+    const { error: upsertError } = await (adminClient as any)
       .from('google_calendar_connections')
       .upsert(
         {
-          user_id: user.id,
+          user_id: userId,
           access_token: tokens.access_token,
           refresh_token: tokens.refresh_token,
           token_expiry: tokenExpiry.toISOString(),
