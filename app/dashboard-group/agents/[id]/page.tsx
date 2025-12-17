@@ -5217,10 +5217,10 @@ export default function AgentProfilePage() {
                     className={cn(
                       'w-8 h-8 rounded-lg flex items-center justify-center transition-all flex-shrink-0',
                       isTaskMode
-                        ? 'bg-amber-500 text-white hover:bg-amber-600'
+                        ? 'bg-accent text-white hover:bg-accent/90'
                         : isDark
-                          ? 'hover:bg-amber-900/30 text-zinc-400 hover:text-amber-400'
-                          : 'hover:bg-amber-100 text-zinc-500 hover:text-amber-600',
+                          ? 'hover:bg-accent/20 text-zinc-400 hover:text-accent'
+                          : 'hover:bg-accent/10 text-zinc-500 hover:text-accent',
                       (chatLoading || isAnalyzingTask || !!pendingTask) && 'opacity-50 cursor-not-allowed'
                     )}
                     title={isTaskMode ? '업무 지시 모드 해제' : '업무 지시'}
@@ -5236,8 +5236,8 @@ export default function AgentProfilePage() {
                       className={cn(
                         'h-8 px-2 rounded-lg text-xs border-none outline-none transition-all flex-shrink-0',
                         isDark
-                          ? 'bg-amber-900/30 text-amber-300 hover:bg-amber-900/50'
-                          : 'bg-amber-100 text-amber-700 hover:bg-amber-200',
+                          ? 'bg-accent/20 text-accent hover:bg-accent/30'
+                          : 'bg-accent/10 text-accent hover:bg-accent/20',
                         (chatLoading || isAnalyzingTask || !!pendingTask) && 'opacity-50 cursor-not-allowed'
                       )}
                       title="업무 분석 모델 선택"
@@ -5275,7 +5275,7 @@ export default function AgentProfilePage() {
                       'focus:outline-none focus:ring-0 focus:border-none focus-visible:outline-none focus-visible:ring-0',
                       '!outline-none !ring-0',
                       isDark ? 'text-white placeholder:text-zinc-500' : 'text-zinc-900 placeholder:text-zinc-400',
-                      isTaskMode && 'placeholder:text-amber-500/70'
+                      isTaskMode && 'placeholder:text-accent/70'
                     )}
                     style={{ outline: 'none', boxShadow: 'none' }}
                     disabled={chatLoading || isAnalyzingTask || !!pendingTask}

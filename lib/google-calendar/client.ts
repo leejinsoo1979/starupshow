@@ -6,9 +6,14 @@
 import { createClient } from '@/lib/supabase/server'
 
 // Google OAuth configuration
-const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID!
-const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET!
-const GOOGLE_REDIRECT_URI = process.env.NEXT_PUBLIC_APP_URL + '/api/google-calendar/callback'
+const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || ''
+const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET || ''
+const GOOGLE_REDIRECT_URI = 'https://glowus.vercel.app/api/google-calendar/callback'
+
+// Debug logging
+console.log('[GoogleCalendar] Client ID exists:', !!GOOGLE_CLIENT_ID)
+console.log('[GoogleCalendar] Client Secret exists:', !!GOOGLE_CLIENT_SECRET)
+console.log('[GoogleCalendar] Redirect URI:', GOOGLE_REDIRECT_URI)
 
 // Google Calendar API scopes
 const SCOPES = [

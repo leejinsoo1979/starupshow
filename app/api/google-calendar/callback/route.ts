@@ -17,12 +17,21 @@ export async function GET(request: NextRequest) {
     const code = searchParams.get('code')
     const state = searchParams.get('state')
     const error = searchParams.get('error')
+    const errorDescription = searchParams.get('error_description')
+
+    console.log('[GoogleCalendar Callback] Received params:', {
+      hasCode: !!code,
+      hasState: !!state,
+      error,
+      errorDescription,
+      fullUrl: request.url,
+    })
 
     // Handle error from Google
     if (error) {
-      console.error('Google OAuth error:', error)
+      console.error('Google OAuth error:', error, errorDescription)
       return NextResponse.redirect(
-        new URL('/dashboard-group/calendar?error=google_auth_failed', request.url)
+        new URL(`/dashboard-group/calendar?error=google_auth_failed&reason=${encodeURIComponent(error)}`, request.url)
       )
     }
 
@@ -42,7 +51,7 @@ export async function GET(request: NextRequest) {
       console.error('Invalid state parameter')
     }
 
-    const supabase = createClient()
+    const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
 
     if (!user) {

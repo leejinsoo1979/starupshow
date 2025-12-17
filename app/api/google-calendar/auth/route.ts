@@ -9,7 +9,7 @@ import { getGoogleAuthUrl } from '@/lib/google-calendar/client'
 
 export async function GET(request: NextRequest) {
   try {
-    const supabase = createClient()
+    const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
 
     if (!user) {
@@ -23,6 +23,9 @@ export async function GET(request: NextRequest) {
     })).toString('base64')
 
     const authUrl = getGoogleAuthUrl(state)
+
+    console.log('[GoogleCalendar Auth] Generated URL:', authUrl)
+    console.log('[GoogleCalendar Auth] GOOGLE_CLIENT_ID:', process.env.GOOGLE_CLIENT_ID ? 'SET' : 'MISSING')
 
     return NextResponse.json({ authUrl })
   } catch (error) {
