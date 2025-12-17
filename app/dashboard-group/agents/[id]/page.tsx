@@ -4514,6 +4514,9 @@ export default function AgentProfilePage() {
                           setChatMessages((prev) => [...prev, systemMessage])
 
                           // 2. 에이전트에게 인사 요청 (대화 맥락에 맞게)
+                          let greetingContent = `안녕하세요! ${agent?.name || '에이전트'}입니다. 무엇을 도와드릴까요?`
+                          let greetingEmotion = 'happy'
+
                           try {
                             // 대화 기록과 사용자 정보(직함 등)는 이미 시스템 프롬프트에 포함되어 있음
                             // 에이전트가 자연스럽게 인사하도록 간단한 트리거만 전달
@@ -4535,30 +4538,32 @@ export default function AgentProfilePage() {
 
                             if (res.ok) {
                               const data = await res.json()
-                              const responseContent = data.response || '안녕하세요!'
-                              const detectedEmotions = detectEmotionsInOrder(responseContent, allEmotions)
-                              const detectedEmotion = detectedEmotions.length > 0 ? detectedEmotions[0] : 'happy'
-
-                              const agentMessage = {
-                                id: `agent-${Date.now()}`,
-                                role: 'agent' as const,
-                                content: responseContent,
-                                timestamp: new Date(),
-                                emotion: detectedEmotion,
-                                emotions: detectedEmotions,
-                              }
-                              setChatMessages((prev) => [...prev, agentMessage])
-                              setCurrentEmotion(detectedEmotion)
-                              saveMessageToHistory('agent', responseContent, undefined, detectedEmotion)
+                              greetingContent = data.response || greetingContent
+                              const detectedEmotions = detectEmotionsInOrder(greetingContent, allEmotions)
+                              greetingEmotion = detectedEmotions.length > 0 ? detectedEmotions[0] : 'happy'
                             }
                           } catch (err) {
                             console.error('Greeting error:', err)
-                          } finally {
-                            setChatLoading(false)
-                            setChatTypingStatus('none')
-                            // 채팅 시작 후 입력창에 포커스
-                            setTimeout(() => chatInputRef.current?.focus(), 100)
                           }
+
+                          // 인사 메시지 항상 표시 (API 실패해도 기본 인사 표시)
+                          const agentMessage = {
+                            id: `agent-${Date.now()}`,
+                            role: 'agent' as const,
+                            content: greetingContent,
+                            timestamp: new Date(),
+                            emotion: greetingEmotion,
+                            emotions: [greetingEmotion],
+                          }
+                          setChatMessages((prev) => [...prev, agentMessage])
+                          setCurrentEmotion(greetingEmotion)
+                          saveMessageToHistory('agent', greetingContent, undefined, greetingEmotion)
+
+                          // 로딩 종료 및 포커스 이동
+                          setChatLoading(false)
+                          setChatTypingStatus('none')
+                          // 채팅 시작 후 입력창에 포커스
+                          setTimeout(() => chatInputRef.current?.focus(), 100)
                         }}
                         className={cn(
                           'px-6 py-3 rounded-xl font-medium transition-all flex items-center gap-2',
