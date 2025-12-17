@@ -4810,26 +4810,26 @@ export default function AgentProfilePage() {
                     'bg-gradient-to-r shadow-lg',
                     'animate-in slide-in-from-top-2 duration-300',
                     isDark
-                      ? 'from-amber-950/40 to-orange-950/40 border-amber-700/30 shadow-amber-900/20'
-                      : 'from-amber-50 to-orange-50 border-amber-200/60 shadow-amber-200/50'
+                      ? 'from-accent/20 to-accent/10 border-accent/30 shadow-accent/20'
+                      : 'from-accent/10 to-accent/5 border-accent/30 shadow-accent/20'
                   )}>
                     <div className="flex items-center gap-3">
                       <div className={cn(
                         'w-10 h-10 rounded-xl flex items-center justify-center',
-                        'bg-gradient-to-br from-amber-400 to-orange-500 shadow-lg shadow-amber-500/30'
+                        'bg-accent shadow-lg shadow-accent/30'
                       )}>
                         <ClipboardList className="w-5 h-5 text-white" />
                       </div>
                       <div className="flex-1">
                         <span className={cn(
                           'text-sm font-semibold block',
-                          isDark ? 'text-amber-200' : 'text-amber-800'
+                          isDark ? 'text-accent' : 'text-accent'
                         )}>
                           업무 지시 모드
                         </span>
                         <span className={cn(
                           'text-xs',
-                          isDark ? 'text-amber-400/70' : 'text-amber-600/80'
+                          isDark ? 'text-accent/70' : 'text-accent/80'
                         )}>
                           원하는 업무를 자유롭게 말씀하세요
                         </span>
@@ -4840,8 +4840,8 @@ export default function AgentProfilePage() {
                           'px-3 py-1.5 rounded-lg text-xs font-medium transition-all',
                           'hover:scale-105 active:scale-95',
                           isDark
-                            ? 'text-amber-300 bg-amber-900/40 hover:bg-amber-900/60 border border-amber-700/30'
-                            : 'text-amber-700 bg-amber-100 hover:bg-amber-200 border border-amber-200'
+                            ? 'text-accent bg-accent/20 hover:bg-accent/30 border border-accent/30'
+                            : 'text-accent bg-accent/10 hover:bg-accent/20 border border-accent/30'
                         )}
                       >
                         취소
@@ -5288,7 +5288,7 @@ export default function AgentProfilePage() {
                       'w-8 h-8 rounded-lg flex items-center justify-center transition-all flex-shrink-0',
                       (chatInput.trim() || chatImage) && !chatLoading && !isAnalyzingTask && !pendingTask
                         ? isTaskMode
-                          ? 'bg-amber-500 text-white hover:bg-amber-600'
+                          ? 'bg-accent text-white hover:bg-accent/90'
                           : 'bg-accent text-white hover:bg-accent/90'
                         : isDark
                           ? 'bg-zinc-800 text-zinc-500'
