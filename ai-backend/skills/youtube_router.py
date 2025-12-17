@@ -49,6 +49,8 @@ class Summary(BaseModel):
     threeLine: List[str]
     tableOfContents: List[str]
     timeline: List[TimelineItem]
+    keyPoints: Optional[List[str]] = None  # 핵심요약 (5-10개 포인트)
+    blogPost: Optional[str] = None  # 블로그 글
 
 
 class YouTubeResponse(BaseModel):
@@ -464,14 +466,14 @@ def get_transcript_with_ytdlp(video_id: str, languages: List[str] = ['ko', 'en']
 
 
 def generate_summary_with_ai(full_text: str, title: str) -> dict:
-    """AI로 요약 생성"""
+    """AI로 요약 생성 (핵심요약 + 블로그 글 포함)"""
     import requests
 
     # Grok API 먼저 시도
     grok_api_key = os.environ.get('XAI_API_KEY')
     if grok_api_key:
         try:
-            prompt = f'''당신은 전문적인 콘텐츠 요약 전문가입니다. 아래 유튜브 영상의 스크립트를 분석하고 구조화된 요약을 생성해주세요.
+            prompt = f'''당신은 전문적인 콘텐츠 요약 전문가이자 블로그 작가입니다. 아래 유튜브 영상의 스크립트를 분석하고 구조화된 요약과 블로그 글을 생성해주세요.
 
 영상 제목: {title}
 
@@ -485,6 +487,13 @@ def generate_summary_with_ai(full_text: str, title: str) -> dict:
         "첫 번째 핵심 요약 (2-3문장)",
         "두 번째 핵심 요약 (2-3문장)",
         "세 번째 핵심 요약 (2-3문장)"
+    ],
+    "keyPoints": [
+        "핵심 포인트 1: 구체적인 인사이트나 정보",
+        "핵심 포인트 2: 구체적인 인사이트나 정보",
+        "핵심 포인트 3: 구체적인 인사이트나 정보",
+        "핵심 포인트 4: 구체적인 인사이트나 정보",
+        "핵심 포인트 5: 구체적인 인사이트나 정보"
     ],
     "tableOfContents": [
         "주제1",
@@ -503,15 +512,18 @@ def generate_summary_with_ai(full_text: str, title: str) -> dict:
                 "세부 포인트 2"
             ]
         }}
-    ]
+    ],
+    "blogPost": "# 블로그 제목\\n\\n## 서론\\n영상 내용을 소개하는 도입부 (2-3문장)\\n\\n## 본론\\n### 첫 번째 주제\\n상세 내용...\\n\\n### 두 번째 주제\\n상세 내용...\\n\\n### 세 번째 주제\\n상세 내용...\\n\\n## 결론\\n핵심 메시지 정리와 독자에게 전하는 말\\n\\n---\\n*이 글은 유튜브 영상을 기반으로 작성되었습니다.*"
 }}
 
 주의사항:
 1. 한국어로 작성
 2. threeLine은 영상의 가장 중요한 3가지 핵심 메시지
-3. tableOfContents는 주요 주제 5-7개
-4. timeline은 시간순 4-7개 섹션
-5. JSON만 출력 (마크다운 없이)'''
+3. keyPoints는 영상에서 배울 수 있는 구체적인 인사이트 5-10개 (불릿 포인트 형식)
+4. tableOfContents는 주요 주제 5-7개
+5. timeline은 시간순 4-7개 섹션
+6. blogPost는 마크다운 형식의 블로그 글 (1000-2000자, 서론/본론/결론 구조)
+7. JSON만 출력 (마크다운 없이)'''
 
             response = requests.post(
                 'https://api.x.ai/v1/chat/completions',
@@ -546,7 +558,7 @@ def generate_summary_with_ai(full_text: str, title: str) -> dict:
     google_api_key = os.environ.get('GOOGLE_API_KEY')
     if google_api_key:
         try:
-            prompt = f'''당신은 전문적인 콘텐츠 요약 전문가입니다. 아래 유튜브 영상의 스크립트를 분석하고 구조화된 요약을 생성해주세요.
+            prompt = f'''당신은 전문적인 콘텐츠 요약 전문가이자 블로그 작가입니다. 아래 유튜브 영상의 스크립트를 분석하고 구조화된 요약과 블로그 글을 생성해주세요.
 
 영상 제목: {title}
 
@@ -560,6 +572,13 @@ def generate_summary_with_ai(full_text: str, title: str) -> dict:
         "첫 번째 핵심 요약 (2-3문장)",
         "두 번째 핵심 요약 (2-3문장)",
         "세 번째 핵심 요약 (2-3문장)"
+    ],
+    "keyPoints": [
+        "핵심 포인트 1: 구체적인 인사이트나 정보",
+        "핵심 포인트 2: 구체적인 인사이트나 정보",
+        "핵심 포인트 3: 구체적인 인사이트나 정보",
+        "핵심 포인트 4: 구체적인 인사이트나 정보",
+        "핵심 포인트 5: 구체적인 인사이트나 정보"
     ],
     "tableOfContents": [
         "주제1",
@@ -578,7 +597,8 @@ def generate_summary_with_ai(full_text: str, title: str) -> dict:
                 "세부 포인트 2"
             ]
         }}
-    ]
+    ],
+    "blogPost": "# 블로그 제목\\n\\n## 서론\\n영상 내용을 소개하는 도입부 (2-3문장)\\n\\n## 본론\\n### 첫 번째 주제\\n상세 내용...\\n\\n### 두 번째 주제\\n상세 내용...\\n\\n### 세 번째 주제\\n상세 내용...\\n\\n## 결론\\n핵심 메시지 정리와 독자에게 전하는 말\\n\\n---\\n*이 글은 유튜브 영상을 기반으로 작성되었습니다.*"
 }}'''
 
             url = f'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key={google_api_key}'
