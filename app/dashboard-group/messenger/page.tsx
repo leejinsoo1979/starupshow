@@ -1352,10 +1352,27 @@ function NewChatModal({
   const [teamMembers, setTeamMembers] = useState<any[]>([])
   const [agents, setAgents] = useState<any[]>([])
   const [selectedParticipants, setSelectedParticipants] = useState<{ type: 'user' | 'agent'; id: string }[]>([])
+  const [category, setCategory] = useState('') // 카테고리
   const [roomName, setRoomName] = useState('')
+  const [showCustomName, setShowCustomName] = useState(false) // 직접 입력 모드
   const [topic, setTopic] = useState('')
   const [duration, setDuration] = useState(5)
   const [facilitatorId, setFacilitatorId] = useState<string | null>(null) // 진행자 ID
+  const [attachments, setAttachments] = useState<File[]>([]) // 첨부파일
+  const [attachmentPreviews, setAttachmentPreviews] = useState<{ name: string; size: string; type: string }[]>([])
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
+  const categoryOptions = [
+    { value: 'marketing', label: '마케팅 전략', icon: '📈' },
+    { value: 'product', label: '제품 기획', icon: '💡' },
+    { value: 'development', label: '개발 회의', icon: '💻' },
+    { value: 'design', label: '디자인 리뷰', icon: '🎨' },
+    { value: 'hr', label: '인사/채용', icon: '👥' },
+    { value: 'finance', label: '재무/예산', icon: '💰' },
+    { value: 'sales', label: '영업/세일즈', icon: '🤝' },
+    { value: 'general', label: '일반 회의', icon: '📋' },
+    { value: 'custom', label: '직접 입력', icon: '✏️' },
+  ]
 
   const durationOptions = [
     { value: 3, label: '3분' },
@@ -1364,6 +1381,47 @@ function NewChatModal({
     { value: 15, label: '15분' },
     { value: 30, label: '30분' },
   ]
+
+  // 파일 첨부 처리
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || [])
+    if (files.length === 0) return
+
+    // 최대 5개 파일, 각 10MB 제한
+    const validFiles = files.slice(0, 5).filter(file => file.size <= 10 * 1024 * 1024)
+    setAttachments(prev => [...prev, ...validFiles].slice(0, 5))
+    setAttachmentPreviews(prev => [
+      ...prev,
+      ...validFiles.map(f => ({
+        name: f.name,
+        size: f.size < 1024 * 1024
+          ? `${(f.size / 1024).toFixed(1)}KB`
+          : `${(f.size / (1024 * 1024)).toFixed(1)}MB`,
+        type: f.type
+      }))
+    ].slice(0, 5))
+  }
+
+  // 파일 제거
+  const removeAttachment = (index: number) => {
+    setAttachments(prev => prev.filter((_, i) => i !== index))
+    setAttachmentPreviews(prev => prev.filter((_, i) => i !== index))
+  }
+
+  // 카테고리 선택 시 방 이름 자동 설정
+  const handleCategoryChange = (value: string) => {
+    setCategory(value)
+    if (value === 'custom') {
+      setShowCustomName(true)
+      setRoomName('')
+    } else {
+      setShowCustomName(false)
+      const selected = categoryOptions.find(c => c.value === value)
+      if (selected) {
+        setRoomName(selected.label)
+      }
+    }
+  }
 
   // 팀원 및 에이전트 목록 조회
   useEffect(() => {
@@ -1413,13 +1471,41 @@ function NewChatModal({
     }
     setLoading(true)
     try {
+      // 첨부파일을 base64로 변환
+      let attachmentData: { name: string; content: string; type: string }[] = []
+      if (attachments.length > 0) {
+        attachmentData = await Promise.all(
+          attachments.map(async (file) => {
+            const content = await new Promise<string>((resolve) => {
+              const reader = new FileReader()
+              reader.onload = () => {
+                // 텍스트 파일은 텍스트로, 나머지는 base64로
+                if (file.type.startsWith('text/') || file.name.endsWith('.md') || file.name.endsWith('.txt')) {
+                  resolve(reader.result as string)
+                } else {
+                  resolve(reader.result as string)
+                }
+              }
+              if (file.type.startsWith('text/') || file.name.endsWith('.md') || file.name.endsWith('.txt')) {
+                reader.readAsText(file)
+              } else {
+                reader.readAsDataURL(file)
+              }
+            })
+            return { name: file.name, content, type: file.type }
+          })
+        )
+      }
+
       await onCreateRoom({
         name: roomName,
         type: 'meeting',
+        category: category || null,
         participant_ids: selectedParticipants,
         topic: topic.trim() || null,
         duration: duration,
-        facilitator_id: facilitatorId, // 진행자 ID
+        facilitator_id: facilitatorId,
+        attachments: attachmentData.length > 0 ? attachmentData : null,
       })
     } catch (err) {
       console.error('Failed to create room:', err)
@@ -1451,21 +1537,46 @@ function NewChatModal({
       >
         <h2 className="text-xl font-bold mb-4">새 대화 시작</h2>
 
-        {/* 채팅방 이름 (필수) */}
+        {/* 회의 카테고리 (필수) */}
         <div className="mb-4">
           <label className="block text-sm font-medium mb-2">
-            채팅방 이름 <span className="text-red-500">*</span>
+            회의 유형 <span className="text-red-500">*</span>
           </label>
-          <input
-            type="text"
-            value={roomName}
-            onChange={(e) => setRoomName(e.target.value)}
-            placeholder="예: 마케팅 전략 회의"
-            className={`w-full px-4 py-2.5 rounded-xl no-focus-ring ${
-              isDark ? 'bg-zinc-800 text-white' : 'bg-zinc-100 text-zinc-900'
-            }`}
-          />
+          <div className="grid grid-cols-3 gap-2">
+            {categoryOptions.map((opt) => (
+              <button
+                key={opt.value}
+                onClick={() => handleCategoryChange(opt.value)}
+                className={`py-2 px-3 rounded-xl text-sm font-medium transition-all flex items-center justify-center gap-1 ${
+                  category === opt.value
+                    ? 'bg-purple-500 text-white'
+                    : isDark ? 'bg-zinc-800 text-zinc-300 hover:bg-zinc-700' : 'bg-zinc-100 text-zinc-700 hover:bg-zinc-200'
+                }`}
+              >
+                <span>{opt.icon}</span>
+                <span className="truncate">{opt.label}</span>
+              </button>
+            ))}
+          </div>
         </div>
+
+        {/* 직접 입력 시 채팅방 이름 */}
+        {showCustomName && (
+          <div className="mb-4">
+            <label className="block text-sm font-medium mb-2">
+              채팅방 이름 <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="text"
+              value={roomName}
+              onChange={(e) => setRoomName(e.target.value)}
+              placeholder="회의 이름을 입력하세요"
+              className={`w-full px-4 py-2.5 rounded-xl no-focus-ring ${
+                isDark ? 'bg-zinc-800 text-white' : 'bg-zinc-100 text-zinc-900'
+              }`}
+            />
+          </div>
+        )}
 
         {/* 토론 주제 (선택) */}
         <div className="mb-4">
@@ -1484,6 +1595,61 @@ function NewChatModal({
           <p className="text-xs text-zinc-500 mt-1">
             주제를 입력하면 에이전트들이 해당 주제로 토론합니다
           </p>
+        </div>
+
+        {/* 회의 자료 첨부 (선택) */}
+        <div className="mb-4">
+          <label className="block text-sm font-medium mb-2">
+            회의 자료 <span className="text-zinc-400 text-xs">(선택)</span>
+          </label>
+          <input
+            ref={fileInputRef}
+            type="file"
+            onChange={handleFileChange}
+            multiple
+            accept=".pdf,.doc,.docx,.txt,.md,.xls,.xlsx,.ppt,.pptx,.csv,.json"
+            className="hidden"
+          />
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            className={`w-full px-4 py-3 rounded-xl border-2 border-dashed transition-all flex items-center justify-center gap-2 ${
+              isDark
+                ? 'border-zinc-700 hover:border-purple-500 text-zinc-400 hover:text-purple-400'
+                : 'border-zinc-300 hover:border-purple-500 text-zinc-500 hover:text-purple-500'
+            }`}
+          >
+            <Paperclip className="w-4 h-4" />
+            <span className="text-sm">파일 첨부 (PDF, 문서, 엑셀 등)</span>
+          </button>
+          <p className="text-xs text-zinc-500 mt-1">
+            첨부된 자료를 기준으로 에이전트들이 회의합니다 (최대 5개, 각 10MB)
+          </p>
+
+          {/* 첨부파일 목록 */}
+          {attachmentPreviews.length > 0 && (
+            <div className="mt-2 space-y-1">
+              {attachmentPreviews.map((file, idx) => (
+                <div
+                  key={idx}
+                  className={`flex items-center justify-between px-3 py-2 rounded-lg ${
+                    isDark ? 'bg-zinc-800' : 'bg-zinc-100'
+                  }`}
+                >
+                  <div className="flex items-center gap-2 flex-1 min-w-0">
+                    <FileText className="w-4 h-4 text-purple-500 flex-shrink-0" />
+                    <span className="text-sm truncate">{file.name}</span>
+                    <span className="text-xs text-zinc-500 flex-shrink-0">{file.size}</span>
+                  </div>
+                  <button
+                    onClick={() => removeAttachment(idx)}
+                    className="text-zinc-400 hover:text-red-500 transition-colors"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* 회의 시간 */}
