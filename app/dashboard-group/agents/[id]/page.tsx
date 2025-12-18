@@ -3519,11 +3519,10 @@ export default function AgentProfilePage() {
                 onChange={handleFileSelect}
                 className="hidden"
               />
-              <div className="absolute inset-0 rounded-full bg-gradient-to-br from-accent/20 via-accent/5 to-transparent animate-pulse" />
               <div
                 className={cn(
-                  'absolute inset-[2px] rounded-full overflow-hidden flex items-center justify-center',
-                  isDark ? 'bg-zinc-800' : 'bg-zinc-100'
+                  'w-full h-full rounded-full overflow-hidden flex items-center justify-center border',
+                  isDark ? 'bg-zinc-800 border-zinc-700' : 'bg-zinc-100 border-zinc-200'
                 )}
               >
                 {uploading ? (
@@ -3552,13 +3551,8 @@ export default function AgentProfilePage() {
               </div>
               {/* Hover overlay */}
               {!editMode && (
-                <div
-                  className={cn(
-                    'absolute inset-[2px] rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity',
-                    'bg-black/50'
-                  )}
-                >
-                  <Camera className="w-6 h-6 md:w-8 md:h-8 text-white" />
+                <div className="absolute inset-0 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black/40">
+                  <Camera className="w-5 h-5 text-white" />
                 </div>
               )}
               {/* Status indicator */}

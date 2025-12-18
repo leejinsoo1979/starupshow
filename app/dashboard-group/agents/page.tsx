@@ -440,80 +440,31 @@ export default function AgentsPage() {
                 if (viewMode === "grid") {
                   const isActive = agent.status === "ACTIVE"
                   return (
-                    <motion.div
+                    <div
                       key={agent.id}
-                      initial={{ opacity: 0, y: 10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: index * 0.03 }}
                       onClick={() => router.push(`/dashboard-group/agents/${agent.id}`)}
-                      className="group cursor-pointer"
+                      className={`group cursor-pointer rounded-lg border p-4 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 ${
+                        isDark ? 'bg-zinc-900 border-zinc-800' : 'bg-white border-zinc-200'
+                      } ${!isActive && 'opacity-50'}`}
                     >
-                      <div className={`relative rounded-xl border p-4 transition-all duration-200 ${
-                        isActive
-                          ? 'bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800 hover:border-zinc-300 dark:hover:border-zinc-700 hover:shadow-md'
-                          : 'bg-zinc-50 dark:bg-zinc-900/50 border-zinc-200/50 dark:border-zinc-800/50 opacity-60 hover:opacity-100'
-                      }`}>
-                        {/* Header */}
-                        <div className="flex items-center gap-3 mb-3">
-                          <div className="relative flex-shrink-0">
-                            <img
-                              src={getAvatarUrl(agent)}
-                              alt={agent.name}
-                              className={`w-12 h-12 rounded-lg object-cover ${!isActive && 'grayscale-[40%]'}`}
-                            />
-                            <div className={`absolute -bottom-1 -right-1 w-3 h-3 rounded-full border-2 border-white dark:border-zinc-900 ${
-                              isActive ? 'bg-green-500' : 'bg-zinc-400'
-                            }`} />
+                      <div className="flex items-start gap-3">
+                        <img
+                          src={getAvatarUrl(agent)}
+                          alt={agent.name}
+                          className="w-10 h-10 rounded-full object-cover flex-shrink-0"
+                        />
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className="font-medium text-sm text-zinc-900 dark:text-white truncate">{agent.name}</span>
+                            <span className={`w-2 h-2 rounded-full flex-shrink-0 ${isActive ? 'bg-green-500' : 'bg-zinc-300 dark:bg-zinc-600'}`} />
                           </div>
-                          <div className="flex-1 min-w-0">
-                            <h3 className="font-semibold text-sm text-zinc-900 dark:text-white truncate">
-                              {agent.name}
-                            </h3>
-                            <p className="text-xs text-zinc-500 dark:text-zinc-500">
-                              {agent.model || 'qwen2.5:3b'}
-                            </p>
+                          <p className="text-xs text-zinc-500 line-clamp-2 mb-2">{agent.description || "에이전트"}</p>
+                          <div className="flex items-center gap-2 text-[11px] text-zinc-400">
+                            <span>{agent.model || 'qwen2.5:3b'}</span>
                           </div>
-                          <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                            <button
-                              onClick={(e) => handleToggleStatus(agent, e)}
-                              className={`p-1.5 rounded-md transition-colors ${
-                                isActive
-                                  ? 'hover:bg-amber-100 dark:hover:bg-amber-900/30 text-amber-500'
-                                  : 'hover:bg-green-100 dark:hover:bg-green-900/30 text-green-500'
-                              }`}
-                            >
-                              {isActive ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}
-                            </button>
-                            <button
-                              onClick={(e) => { e.stopPropagation(); router.push(`/agent-builder/${agent.id}`) }}
-                              className="p-1.5 rounded-md hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-500"
-                            >
-                              <Settings className="w-3.5 h-3.5" />
-                            </button>
-                          </div>
-                        </div>
-
-                        {/* Description */}
-                        <p className="text-xs text-zinc-500 dark:text-zinc-400 line-clamp-2 mb-3">
-                          {agent.description || "AI 에이전트입니다"}
-                        </p>
-
-                        {/* Tags */}
-                        <div className="flex flex-wrap gap-1">
-                          {(agent.capabilities || [])
-                            .filter((cap: string) => !cap.startsWith('team:'))
-                            .slice(0, 3)
-                            .map((cap: string, idx: number) => (
-                              <span
-                                key={idx}
-                                className="px-2 py-0.5 rounded text-[10px] font-medium bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400"
-                              >
-                                {cap}
-                              </span>
-                            ))}
                         </div>
                       </div>
-                    </motion.div>
+                    </div>
                   )
                 }
 
