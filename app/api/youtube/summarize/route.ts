@@ -8,6 +8,7 @@ const google = createGoogleGenerativeAI({
 })
 
 const YOUTUBE_API_KEY = process.env.GOOGLE_API_KEY
+const SUPADATA_API_KEY = process.env.SUPADATA_API_KEY
 
 // 타임스탬프 포맷팅
 function formatTimestamp(seconds: number): string {
@@ -157,7 +158,61 @@ function extractJsonObject(str: string, startIndex: number): string | null {
     return null
 }
 
-// YouTube 페이지에서 자막 URL 추출
+// Supadata API로 자막 가져오기 (프록시 서비스 - Vercel에서 작동)
+async function fetchTranscriptWithSupadata(videoId: string): Promise<{ start: number; text: string }[]> {
+    if (!SUPADATA_API_KEY) {
+        console.log('SUPADATA_API_KEY not set, skipping Supadata')
+        return []
+    }
+
+    try {
+        console.log('Trying Supadata API...')
+        const url = `https://api.supadata.ai/v1/youtube/transcript?url=https://www.youtube.com/watch?v=${videoId}&lang=ko`
+
+        const response = await fetch(url, {
+            headers: {
+                'x-api-key': SUPADATA_API_KEY,
+            },
+        })
+
+        if (response.status === 401) {
+            console.error('Supadata API key is invalid')
+            return []
+        }
+
+        if (!response.ok) {
+            console.error('Supadata API error:', response.status)
+            return []
+        }
+
+        const data = await response.json()
+
+        if (!data.content || data.content.length === 0) {
+            console.log('No transcript content from Supadata')
+            return []
+        }
+
+        const results: { start: number; text: string }[] = []
+
+        for (const item of data.content) {
+            const start = (item.offset || 0) / 1000 // ms to seconds
+            const text = (item.text || '').trim()
+
+            if (text) {
+                results.push({ start, text })
+            }
+        }
+
+        console.log(`✓ Supadata API returned ${results.length} transcript items`)
+        return results
+
+    } catch (error) {
+        console.error('Supadata API error:', error)
+        return []
+    }
+}
+
+// YouTube 페이지에서 자막 URL 추출 (로컬용 - Vercel에서는 차단됨)
 async function fetchTranscript(videoId: string): Promise<{ start: number; text: string }[]> {
     try {
         // 1. 영상 페이지 가져오기
@@ -445,15 +500,22 @@ export async function POST(request: Request) {
             })
         }
 
-        // 2. 직접 추출 시도 (fallback)
-        console.log('Falling back to direct extraction...')
+        // 2. Supadata API 시도 (Vercel에서 작동하는 프록시 서비스)
+        console.log('Trying Supadata API...')
+        let transcriptItems = await fetchTranscriptWithSupadata(videoId)
 
-        // 자막 가져오기
-        const transcriptItems = await fetchTranscript(videoId)
+        // 3. Supadata 실패 시 직접 추출 시도 (로컬에서만 작동)
+        if (transcriptItems.length === 0) {
+            console.log('Supadata failed, falling back to direct extraction...')
+            transcriptItems = await fetchTranscript(videoId)
+        }
 
         if (transcriptItems.length === 0) {
+            const errorMsg = SUPADATA_API_KEY
+                ? '이 영상에서 자막을 가져올 수 없습니다. 자막이 없거나 비공개 영상입니다.'
+                : '자막을 가져올 수 없습니다. SUPADATA_API_KEY를 설정하거나 로컬에서 실행하세요. (https://supadata.ai 무료 가입)'
             return NextResponse.json(
-                { error: '이 영상에서 자막을 가져올 수 없습니다. YouTube가 IP를 차단했거나 자막이 없는 영상입니다.' },
+                { error: errorMsg },
                 { status: 400 }
             )
         }
