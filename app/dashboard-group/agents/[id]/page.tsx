@@ -3874,6 +3874,7 @@ export default function AgentProfilePage() {
                       편집
                     </button>
                   )}
+                </div>
 
                 {editingSection === 'identity' ? (
                   <div className="space-y-6">

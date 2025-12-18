@@ -7,6 +7,7 @@ import type {
   AgentNodeTypeConfig,
   AgentTemplate,
 } from "./types"
+import type { DeployedAgent, AgentStatus } from "@/types/database"
 
 // Generate unique node ID
 export function generateAgentNodeId(type: AgentType): string {
@@ -580,4 +581,48 @@ export function getCategoryLabel(category: string): string {
     control: "제어",
   }
   return labels[category] || category
+}
+
+
+// --- Agent Card / UI Helpers ---
+
+export const AGENT_STATUS_CONFIG: Record<AgentStatus, { label: string; color: string; bgColor: string }> = {
+  ACTIVE: { label: "활성", color: "#22c55e", bgColor: "#22c55e20" },
+  INACTIVE: { label: "비활성", color: "#64748b", bgColor: "#64748b20" },
+  BUSY: { label: "작업 중", color: "#f59e0b", bgColor: "#f59e0b20" },
+  ERROR: { label: "오류", color: "#ef4444", bgColor: "#ef444420" },
+}
+
+export function getCategoryId(capabilities: string[]): string {
+  if (capabilities.includes("대화 기억") || capabilities.includes("프롬프트 처리")) return "chatbot"
+  if (capabilities.includes("문서 검색")) return "analyzer"
+  if (capabilities.includes("이미지 생성") || capabilities.includes("텍스트 생성")) return "generator"
+  return "assistant"
+}
+
+export function generateRobotAvatar(name: string): string {
+  const seed = encodeURIComponent(name)
+  return `https://api.dicebear.com/7.x/bottts/svg?seed=${seed}&backgroundColor=3B82F6,10B981,F59E0B,EF4444,8B5CF6,EC4899`
+}
+
+export function getAvatarUrl(agent: DeployedAgent): string {
+  if (!agent.avatar_url || agent.avatar_url.includes('ui-avatars.com')) {
+    return generateRobotAvatar(agent.name)
+  }
+  return agent.avatar_url
+}
+
+export function formatTimeAgo(dateString: string | null): string {
+  if (!dateString) return "사용 기록 없음"
+  const date = new Date(dateString)
+  const now = new Date()
+  const diffMs = now.getTime() - date.getTime()
+  const diffMin = Math.floor(diffMs / 60000)
+  const diffHour = Math.floor(diffMs / 3600000)
+  const diffDay = Math.floor(diffMs / 86400000)
+
+  if (diffMin < 1) return "방금 사용"
+  if (diffMin < 60) return `${diffMin}분 전`
+  if (diffHour < 24) return `${diffHour}시간 전`
+  return `${diffDay}일 전`
 }

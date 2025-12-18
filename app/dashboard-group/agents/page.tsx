@@ -34,8 +34,9 @@ import {
 import { Button } from "@/components/ui/Button"
 import { useThemeStore, accentColors } from "@/stores/themeStore"
 import { AgentGroupModal } from "@/components/agent/AgentGroupModal"
-import { PROVIDER_INFO, LLMProvider } from "@/lib/llm/models"
+import { AgentCard } from "@/components/agent/AgentCard"
 import type { DeployedAgent, AgentStatus, AgentGroup, InteractionMode } from "@/types/database"
+import { getCategoryId, generateRobotAvatar } from "@/lib/agent/utils"
 
 type TabType = "agents" | "groups"
 type ViewMode = "grid" | "list"
@@ -48,13 +49,6 @@ const interactionModeLabels: Record<InteractionMode, string> = {
   supervisor: "감독자",
 }
 
-const statusConfig: Record<AgentStatus, { label: string; color: string; bgColor: string }> = {
-  ACTIVE: { label: "활성", color: "#22c55e", bgColor: "#22c55e20" },
-  INACTIVE: { label: "비활성", color: "#64748b", bgColor: "#64748b20" },
-  BUSY: { label: "작업 중", color: "#f59e0b", bgColor: "#f59e0b20" },
-  ERROR: { label: "오류", color: "#ef4444", bgColor: "#ef444420" },
-}
-
 // 카테고리 정의
 const categories = [
   { id: "all", label: "전체", icon: Layers },
@@ -63,40 +57,6 @@ const categories = [
   { id: "generator", label: "생성기", icon: Sparkles },
   { id: "assistant", label: "어시스턴트", icon: Bot },
 ]
-
-function getCategoryId(capabilities: string[]): string {
-  if (capabilities.includes("대화 기억") || capabilities.includes("프롬프트 처리")) return "chatbot"
-  if (capabilities.includes("문서 검색")) return "analyzer"
-  if (capabilities.includes("이미지 생성") || capabilities.includes("텍스트 생성")) return "generator"
-  return "assistant"
-}
-
-function generateRobotAvatar(name: string): string {
-  const seed = encodeURIComponent(name)
-  return `https://api.dicebear.com/7.x/bottts/svg?seed=${seed}&backgroundColor=3B82F6,10B981,F59E0B,EF4444,8B5CF6,EC4899`
-}
-
-function getAvatarUrl(agent: DeployedAgent): string {
-  if (!agent.avatar_url || agent.avatar_url.includes('ui-avatars.com')) {
-    return generateRobotAvatar(agent.name)
-  }
-  return agent.avatar_url
-}
-
-function formatTimeAgo(dateString: string | null): string {
-  if (!dateString) return "사용 기록 없음"
-  const date = new Date(dateString)
-  const now = new Date()
-  const diffMs = now.getTime() - date.getTime()
-  const diffMin = Math.floor(diffMs / 60000)
-  const diffHour = Math.floor(diffMs / 3600000)
-  const diffDay = Math.floor(diffMs / 86400000)
-
-  if (diffMin < 1) return "방금 사용"
-  if (diffMin < 60) return `${diffMin}분 전`
-  if (diffHour < 24) return `${diffHour}시간 전`
-  return `${diffDay}일 전`
-}
 
 export default function AgentsPage() {
   const router = useRouter()
@@ -431,160 +391,16 @@ export default function AgentsPage() {
                 : "space-y-3"
               }
             >
-              {filteredAgents.map((agent, index) => {
-                const status = statusConfig[agent.status] || statusConfig.INACTIVE
-                const categoryId = getCategoryId(agent.capabilities || [])
-                const category = categories.find(c => c.id === categoryId) || categories[4]
-                const CategoryIcon = category.icon
-
-                if (viewMode === "grid") {
-                  return (
-                    <motion.div
-                      key={agent.id}
-                      initial={{ opacity: 0, y: 20 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: index * 0.03 }}
-                      onClick={() => router.push(`/dashboard-group/agents/${agent.id}`)}
-                      className="group relative bg-white dark:bg-zinc-900/80 rounded-2xl border border-zinc-200 dark:border-zinc-800 p-5 cursor-pointer transition-all duration-300 hover:shadow-xl hover:shadow-zinc-200/50 dark:hover:shadow-zinc-900/50 hover:border-zinc-300 dark:hover:border-zinc-700 hover:-translate-y-1"
-                    >
-                      {/* Status Indicator */}
-                      <div
-                        className="absolute top-4 right-4 w-2.5 h-2.5 rounded-full"
-                        style={{ backgroundColor: status.color }}
-                        title={status.label}
-                      />
-
-                      {/* Avatar */}
-                      <div className="relative mb-4">
-                        <img
-                          src={getAvatarUrl(agent)}
-                          alt={agent.name}
-                          className="w-16 h-16 rounded-2xl object-cover bg-zinc-100 dark:bg-zinc-800 shadow-md"
-                        />
-                        <div
-                          className="absolute -bottom-1 -right-1 w-7 h-7 rounded-lg flex items-center justify-center border-2 border-white dark:border-zinc-900"
-                          style={{ backgroundColor: mounted ? `${currentAccent.color}20` : "#8b5cf620" }}
-                        >
-                          <CategoryIcon className="w-3.5 h-3.5" style={{ color: mounted ? currentAccent.color : "#8b5cf6" }} />
-                        </div>
-                      </div>
-
-                      {/* Info */}
-                      <h3 className="font-semibold text-zinc-900 dark:text-white truncate">
-                        {agent.name}
-                      </h3>
-                      <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1 line-clamp-2 min-h-[40px]">
-                        {agent.description || "설명이 없습니다"}
-                      </p>
-
-                      {/* Tags */}
-                      <div className="flex flex-wrap gap-1.5 mt-3">
-                        {(agent.capabilities || [])
-                          .filter((cap: string) => !cap.startsWith('team:'))
-                          .slice(0, 3)
-                          .map((cap: string, idx: number) => (
-                            <span
-                              key={idx}
-                              className="px-2 py-0.5 rounded-md text-xs bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400"
-                            >
-                              {cap}
-                            </span>
-                          ))}
-                      </div>
-
-                      {/* Footer */}
-                      <div className="flex items-center justify-between mt-4 pt-4 border-t border-zinc-100 dark:border-zinc-800">
-                        <div className="flex items-center gap-1.5 text-xs text-zinc-400">
-                          <span>{PROVIDER_INFO[(agent.llm_provider || 'ollama') as LLMProvider]?.icon || '🤖'}</span>
-                          <span className="truncate max-w-[80px]">{agent.model || 'qwen2.5:3b'}</span>
-                        </div>
-                        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                          <button
-                            onClick={(e) => handleToggleStatus(agent, e)}
-                            className="p-1.5 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
-                            title={agent.status === "ACTIVE" ? "비활성화" : "활성화"}
-                          >
-                            {agent.status === "ACTIVE" ? <Pause className="w-3.5 h-3.5 text-zinc-500" /> : <Play className="w-3.5 h-3.5 text-zinc-500" />}
-                          </button>
-                          <button
-                            onClick={(e) => { e.stopPropagation(); router.push(`/agent-builder/${agent.id}`) }}
-                            className="p-1.5 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
-                            title="편집"
-                          >
-                            <Settings className="w-3.5 h-3.5 text-zinc-500" />
-                          </button>
-                          <button
-                            onClick={(e) => handleDelete(agent.id, e)}
-                            className="p-1.5 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
-                            title="삭제"
-                          >
-                            <Trash2 className="w-3.5 h-3.5 text-red-400" />
-                          </button>
-                        </div>
-                      </div>
-                    </motion.div>
-                  )
-                }
-
-                // List View
-                return (
-                  <motion.div
-                    key={agent.id}
-                    initial={{ opacity: 0, x: -20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: index * 0.02 }}
-                    onClick={() => router.push(`/dashboard-group/agents/${agent.id}`)}
-                    className="group bg-white dark:bg-zinc-900/80 rounded-xl border border-zinc-200 dark:border-zinc-800 p-4 cursor-pointer transition-all hover:shadow-lg hover:border-zinc-300 dark:hover:border-zinc-700"
-                  >
-                    <div className="flex items-center gap-4">
-                      <img
-                        src={getAvatarUrl(agent)}
-                        alt={agent.name}
-                        className="w-12 h-12 rounded-xl object-cover bg-zinc-100 dark:bg-zinc-800"
-                      />
-
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
-                          <h3 className="font-semibold text-zinc-900 dark:text-white truncate">{agent.name}</h3>
-                          <span
-                            className="px-2 py-0.5 rounded-full text-xs font-medium"
-                            style={{ backgroundColor: status.bgColor, color: status.color }}
-                          >
-                            {status.label}
-                          </span>
-                          <span className="px-2 py-0.5 rounded-full text-xs bg-zinc-100 dark:bg-zinc-800 text-zinc-500">
-                            {category.label}
-                          </span>
-                        </div>
-                        <p className="text-sm text-zinc-500 truncate mt-0.5">{agent.description || "설명 없음"}</p>
-                      </div>
-
-                      <div className="flex items-center gap-6 text-sm text-zinc-500">
-                        <div className="flex items-center gap-1.5">
-                          <Clock className="w-4 h-4" />
-                          <span>{formatTimeAgo(agent.last_active_at)}</span>
-                        </div>
-                        <div className="flex items-center gap-1.5">
-                          <span>{PROVIDER_INFO[(agent.llm_provider || 'ollama') as LLMProvider]?.icon || '🤖'}</span>
-                          <span>{agent.model || 'qwen2.5:3b'}</span>
-                        </div>
-                      </div>
-
-                      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <button onClick={(e) => handleToggleStatus(agent, e)} className="p-2 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800">
-                          {agent.status === "ACTIVE" ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
-                        </button>
-                        <button onClick={(e) => { e.stopPropagation(); router.push(`/agent-builder/${agent.id}`) }} className="p-2 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800">
-                          <Settings className="w-4 h-4" />
-                        </button>
-                        <button onClick={(e) => handleDelete(agent.id, e)} className="p-2 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20">
-                          <Trash2 className="w-4 h-4 text-red-400" />
-                        </button>
-                      </div>
-                    </div>
-                  </motion.div>
-                )
-              })}
+              {filteredAgents.map((agent, index) => (
+                <AgentCard
+                  key={agent.id}
+                  agent={agent}
+                  viewMode={viewMode}
+                  index={index}
+                  onToggleStatus={handleToggleStatus}
+                  onDelete={handleDelete}
+                />
+              ))}
             </motion.div>
           </AnimatePresence>
         )}

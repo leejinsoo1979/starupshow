@@ -12,14 +12,18 @@ export function useChatRooms() {
   const [error, setError] = useState<string | null>(null)
   const supabaseRef = useRef(createClient())
   const fetchingRef = useRef(false)
+  const initialLoadRef = useRef(true)  // 초기 로드 여부 추적
 
-  const fetchRooms = useCallback(async () => {
+  const fetchRooms = useCallback(async (showLoading = true) => {
     // 이미 fetch 중이면 스킵
     if (fetchingRef.current) return
     fetchingRef.current = true
 
     try {
-      setLoading(true)
+      // 초기 로드일 때만 로딩 표시 (polling 시에는 로딩 표시 안 함)
+      if (showLoading && initialLoadRef.current) {
+        setLoading(true)
+      }
       const res = await fetch('/api/chat/rooms')
       const data = await res.json()
 
@@ -41,6 +45,7 @@ export function useChatRooms() {
     } finally {
       setLoading(false)
       fetchingRef.current = false
+      initialLoadRef.current = false  // 초기 로드 완료
     }
   }, [])
 
@@ -51,10 +56,10 @@ export function useChatRooms() {
 
   // 실시간 업데이트 구독 - 비활성화 (무한 루프 방지)
   // Realtime subscription이 fetchRooms()를 반복 호출하여 무한 로딩 발생
-  // 대신 polling 방식으로 5초마다 업데이트
+  // 대신 polling 방식으로 5초마다 업데이트 (로딩 표시 없이)
   useEffect(() => {
     const interval = setInterval(() => {
-      fetchRooms()
+      fetchRooms(false)  // showLoading = false, 로딩 스피너 표시 안 함
     }, 5000)
 
     return () => clearInterval(interval)
