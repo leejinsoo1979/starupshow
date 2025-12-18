@@ -1,11 +1,28 @@
 import { createClient } from '@/lib/supabase/server'
 import { DEFAULT_PROMPT_SECTIONS, type PromptSections } from './shared-prompts'
 
+// DB 레코드 타입
+interface PromptSettingsRecord {
+  id: string
+  team_id: string
+  work_operating_model: string
+  human_communication: string
+  professional_habits: string
+  no_hallucination: string
+  collaboration_conflict: string
+  deliverable_templates: string
+  context_anchor: string
+  response_format: string
+  messenger_rules: string
+  created_at: string
+  updated_at: string
+}
+
 /**
  * 팀의 프롬프트 설정을 DB에서 가져오기
  * @param teamId 팀 ID (옵션 - 없으면 기본값 반환)
  */
-export async function getPromptSettings(teamId?: string): Promise<PromptSections> {
+export async function getPromptSettings(teamId?: string | null): Promise<PromptSections> {
   if (!teamId) {
     return DEFAULT_PROMPT_SECTIONS
   }
@@ -13,11 +30,13 @@ export async function getPromptSettings(teamId?: string): Promise<PromptSections
   try {
     const supabase = await createClient()
 
-    const { data: settings, error } = await supabase
-      .from('agent_prompt_settings')
+    const { data, error } = await supabase
+      .from('agent_prompt_settings' as any)
       .select('*')
       .eq('team_id', teamId)
       .single()
+
+    const settings = data as PromptSettingsRecord | null
 
     if (error || !settings) {
       console.log('[getPromptSettings] No custom settings found, using defaults')
@@ -50,17 +69,17 @@ export async function getAgentTeamId(agentId: string): Promise<string | null> {
   try {
     const supabase = await createClient()
 
-    const { data: agent, error } = await supabase
+    const { data, error } = await supabase
       .from('agents')
       .select('team_id')
       .eq('id', agentId)
       .single()
 
-    if (error || !agent) {
+    if (error || !data) {
       return null
     }
 
-    return agent.team_id
+    return (data as any).team_id || null
   } catch (error) {
     console.error('[getAgentTeamId] Error:', error)
     return null

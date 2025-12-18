@@ -12,6 +12,23 @@ import {
   MESSENGER_CHAT_RULES,
 } from '@/lib/agent/shared-prompts'
 
+// 프롬프트 설정 타입
+interface PromptSettings {
+  id?: string
+  team_id: string
+  work_operating_model: string
+  human_communication: string
+  professional_habits: string
+  no_hallucination: string
+  collaboration_conflict: string
+  deliverable_templates: string
+  context_anchor: string
+  response_format: string
+  messenger_rules: string
+  created_at?: string
+  updated_at?: string
+}
+
 // 기본값 (shared-prompts.ts에서 가져옴)
 const DEFAULT_PROMPTS = {
   work_operating_model: WORK_OPERATING_MODEL,
@@ -26,7 +43,7 @@ const DEFAULT_PROMPTS = {
 }
 
 // GET - 프롬프트 설정 조회
-export async function GET(request: Request) {
+export async function GET() {
   try {
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
@@ -48,11 +65,13 @@ export async function GET(request: Request) {
     }
 
     // 팀의 프롬프트 설정 조회
-    const { data: settings, error } = await supabase
-      .from('agent_prompt_settings')
+    const { data, error } = await supabase
+      .from('agent_prompt_settings' as any)
       .select('*')
-      .eq('team_id', teamMember.team_id)
+      .eq('team_id', (teamMember as any).team_id)
       .single()
+
+    const settings = data as PromptSettings | null
 
     if (error || !settings) {
       // 설정이 없으면 기본값 반환
@@ -100,11 +119,13 @@ export async function PUT(request: Request) {
       return NextResponse.json({ error: 'No team found' }, { status: 400 })
     }
 
+    const teamId = (teamMember as any).team_id
+
     // upsert (있으면 업데이트, 없으면 생성)
     const { data, error } = await supabase
-      .from('agent_prompt_settings')
+      .from('agent_prompt_settings' as any)
       .upsert({
-        team_id: teamMember.team_id,
+        team_id: teamId,
         work_operating_model: body.work_operating_model,
         human_communication: body.human_communication,
         professional_habits: body.professional_habits,
@@ -114,7 +135,7 @@ export async function PUT(request: Request) {
         context_anchor: body.context_anchor,
         response_format: body.response_format,
         messenger_rules: body.messenger_rules,
-      }, {
+      } as any, {
         onConflict: 'team_id',
       })
       .select()
@@ -133,7 +154,7 @@ export async function PUT(request: Request) {
 }
 
 // POST - 기본값으로 초기화
-export async function POST(request: Request) {
+export async function POST() {
   try {
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
@@ -153,13 +174,15 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'No team found' }, { status: 400 })
     }
 
+    const teamId = (teamMember as any).team_id
+
     // 기본값으로 upsert
     const { data, error } = await supabase
-      .from('agent_prompt_settings')
+      .from('agent_prompt_settings' as any)
       .upsert({
-        team_id: teamMember.team_id,
+        team_id: teamId,
         ...DEFAULT_PROMPTS,
-      }, {
+      } as any, {
         onConflict: 'team_id',
       })
       .select()

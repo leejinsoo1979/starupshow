@@ -259,7 +259,7 @@ ${roomContext.userCompany ? `- 회사: ${roomContext.userCompany}` : ''}
   const isMessenger = roomContext?.isMessenger || false
 
   // 팀 프롬프트 설정 가져오기 (커스텀 설정이 있으면 사용)
-  const teamId = agent.team_id || await getAgentTeamId(agent.id)
+  const teamId = (agent as any).team_id || await getAgentTeamId(agent.id)
   const customPromptSections = teamId ? await getPromptSettings(teamId) : undefined
 
   const coreSystemPrompt = buildDynamicAgentSystemPrompt(
