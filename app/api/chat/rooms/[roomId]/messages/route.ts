@@ -831,17 +831,8 @@ async function processAgentResponsesRelay(
           ? filteredHistory[filteredHistory.length - 1].name
           : '사용자'
 
-        // 🔥 대화 흐름 힌트 (강제하지 않고 자연스럽게)
-        const flowHints = [
-          '자연스럽게 대화하세요',
-          '궁금한 점이 있으면 물어보세요',
-          '당신의 경험이나 생각을 공유하세요',
-          '이어서 말해도 되고, 다른 관점을 제시해도 됩니다',
-          '동의하든 반대하든 솔직하게 말하세요',
-          '구체적인 예시나 아이디어가 있으면 말하세요',
-        ]
-        const flowIndex = (agent.id.charCodeAt(0) + round) % flowHints.length
-        const flowHint = flowHints[flowIndex]
+        // 🔥 대화 흐름 (자연스럽게, 강제 X)
+        // flowHint 제거 - 프롬프트에서 충분히 지시함
 
         // 회의 단계 구분
         // Phase 0: 첫 인사 (각 에이전트 1번씩)
@@ -871,92 +862,66 @@ async function processAgentResponsesRelay(
         let contextMessage: string
 
         if (isFirstGreeting) {
-          // Phase 0: 첫 인사
-          const greetingStyles = [
-            '반갑게 인사하세요',
-            '밝게 인사하세요',
-            '편하게 인사하세요',
-          ]
-          const greetStyle = greetingStyles[agentIndex % greetingStyles.length]
-
-          contextMessage = `회의실에 입장했습니다.
+          // Phase 0: 첫 인사 (자연스럽게)
+          contextMessage = `회의실 입장.
 
 참여자: ${uniqueAgents.map(a => a.name).join(', ')}
 당신: ${agent.name}
 
-${filteredHistory.length > 0 ? `[먼저 온 사람들]\n${historyText}\n\n` : ''}지시사항:
-- ${greetStyle} (예: "안녕하세요~", "어 왔어요?", "오랜만이에요!")
-- 1문장만, 한국어만`
+${filteredHistory.length > 0 ? `[먼저 온 사람들]\n${historyText}\n\n` : ''}👋 가볍게 인사해
+예: "어 안녕~", "왔어요?", "오 다들 왔네", "하이하이"
+- 1문장, 격식 차리지 말고`
 
         } else if (isSmallTalk) {
-          // Phase 1: 회의 준비 단계 (스몰토크 대신 회의 준비로 변경)
-          contextMessage = `[대화]
-${historyText}
+          // Phase 1: 인사 응답
+          contextMessage = `${historyText}
 
 ---
 당신: ${agent.name}${topicInstruction}
 
-"${lastSpeaker}"의 인사에 간단히 반응하고, 회의 준비가 됐다고 하세요.
-예: "네, 저도 왔어요! 바로 시작할까요?", "안녕하세요, 준비됐어요!"
-
-- 1문장, 친근하게
-- 회의 주제와 관련없는 얘기(날씨, 주말 등) 하지 마세요`
+인사 받고 가볍게 대꾸해. 바로 시작하자고 해도 됨.
+예: "ㅇㅇ 왔어요~", "오 시작하죠", "네네 준비 됐어요"
+- 1문장`
 
         } else if (isMeetingStart) {
-          // Phase 2: 회의 시작 선언 (진행자 또는 첫 번째 에이전트가)
+          // Phase 2: 회의 시작
           if (isFacilitator) {
-            // 진행자가 회의 시작
-            contextMessage = `[대화]
-${historyText}
+            contextMessage = `${historyText}
 
 ---
-당신: ${agent.name} (👑 오늘 회의 진행자)${topicInstruction}
+당신: ${agent.name} (👑 진행자)${topicInstruction}
 
-당신은 오늘 회의 진행자입니다. 회의를 시작하세요.
-- "자, 이제 본론으로 들어가볼까요?" 같이 시작을 알리세요
-${topicInstruction ? '- 주제를 언급하고 첫 질문을 던지세요' : '- 자연스럽게 주제를 던지세요'}
-
-진행자로서:
-- 회의 진행을 이끌어가세요
-- 다른 참여자에게 질문을 던지세요
-
-- 1-2문장, 한국어만`
+자연스럽게 회의 시작해.
+예: "자 그럼 시작할까요?", "오케이 바로 들어가죠", "그럼 본론으로~"
+${topicInstruction ? '주제 언급하고 질문 던져' : ''}
+- 1-2문장`
           } else {
-            contextMessage = `[대화]
-${historyText}
+            contextMessage = `${historyText}
 
 ---
 당신: ${agent.name}${topicInstruction}
 
-인사가 끝났으니 회의를 시작하자고 제안하세요.
-예: "자, 그럼 슬슬 시작해볼까요?", "좋아요, 본론으로 들어가죠!"
-
-${topicInstruction ? '그리고 주제에 대한 첫 의견을 던지세요.' : ''}
-
-- 1-2문장, 한국어만`
+회의 시작하자고 해. ${topicInstruction ? '주제에 대해 한마디 해도 됨' : ''}
+예: "슬슬 시작하죠", "오케이 들어가볼까요"
+- 1-2문장`
           }
 
         } else {
           // Phase 3+: 본격 토론
           if (isFacilitator) {
-            // 진행자는 특별한 역할
             contextMessage = `${historyText}
 
 ---
-👑 당신: ${agent.name} (회의 진행자) | 참여자: ${otherAgentNames || '사용자'}${topicInstruction}
+👑 당신: ${agent.name} (진행자) | 참여자: ${otherAgentNames || '사용자'}${topicInstruction}
 
-"${lastSpeaker}"의 발언 후, 진행자로서 반응하세요.
+진행자로서 자연스럽게 참여해.
+- 주제 벗어나면: "어 잠깐, 다시 본론으로"
+- 의견 물을 때: "~는 어떻게 생각해요?"
+- 정리할 때: "음 정리하면..."
+- 너무 길어지면 끊어
 
-**진행자 역할:**
-- 토론이 주제에서 벗어나면 "잠깐, 다시 본론으로 돌아가죠" 라고 지적
-- 불필요한 얘기나 헛소리하면 "그건 좀 관련없는 얘기 같은데요" 라고 따끔하게 지적
-- 특정 참여자에게 "~씨는 어떻게 생각해요?" 라고 의견 요청
-- 논의가 길어지면 "정리하면..." 으로 요약
-- 때로는 날카로운 질문으로 토론 자극
-
-규칙:
-- 1-2문장, 한국어만
-- 진행자답게 회의를 이끌어가세요`
+🗣️ 말투: "어 근데", "아 그거", "음...", "오 괜찮은데" 등 자연스럽게
+- 1-2문장`
           } else {
             // 일반 참여자
             const facilitatorNote = facilitatorName ? `\n(👑 진행자: ${facilitatorName} - 진행자 지시에 따르세요)` : ''
@@ -966,13 +931,14 @@ ${topicInstruction ? '그리고 주제에 대한 첫 의견을 던지세요.' : 
 ---
 당신: ${agent.name} | 대화 상대: ${otherAgentNames || '사용자'}${topicInstruction}${facilitatorNote}
 
-위 대화를 보고 자연스럽게 참여하세요. ${flowHint}
+위 대화에 자연스럽게 참여하세요.
 
-💬 팁:
-- 실제 회의처럼 대화하세요 (끊임없이 주고받기)
-- 앞 사람 말에 이어서 "아, 그러고 보니...", "근데 그건..." 처럼 자연스럽게
-- 질문하거나, 의견 덧붙이거나, 새 아이디어 제안하거나
-- 1-3문장, 한국어`
+🗣️ 말투: 실제 직장인/스타트업 회의처럼 (반말~존댓말 혼용 OK)
+예시: "어 근데 그거", "아 맞아맞아", "음... 글쎄", "오 괜찮은데?", "아니 근데 그건 좀...", "ㅋㅋ 그건 아닌듯"
+
+❌ 피하기: 동화책/교과서 말투, 너무 공손한 존댓말, "~하는 것 같습니다", "~라고 생각합니다"
+
+1-3문장, 한국어`
           }
         }
 
