@@ -48,6 +48,10 @@ export class McpRealtimeBridge {
   private onDisconnect?: () => void
   private onError?: (error: Error) => void
   private isConnected = false
+  private reconnectAttempts = 0
+  private maxReconnectAttempts = 10
+  private reconnectTimer: ReturnType<typeof setTimeout> | null = null
+  private heartbeatTimer: ReturnType<typeof setInterval> | null = null
 
   constructor(options: McpRealtimeBridgeOptions) {
     this.supabase = options.supabase
@@ -66,6 +70,12 @@ export class McpRealtimeBridge {
     if (this.channel) {
       console.log('[MCP Bridge] Already connected')
       return
+    }
+
+    // 재연결 타이머 정리
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer)
+      this.reconnectTimer = null
     }
 
     const channelName = `mcp-bridge:${this.sessionId}`
@@ -105,6 +115,7 @@ export class McpRealtimeBridge {
       if (status === 'SUBSCRIBED') {
         console.log('[MCP Bridge] Connected to channel')
         this.isConnected = true
+        this.reconnectAttempts = 0 // 성공 시 초기화
 
         // Presence 등록
         await this.channel?.track({
@@ -119,13 +130,102 @@ export class McpRealtimeBridge {
           sessionId: this.sessionId,
         })
 
+        // Heartbeat 시작
+        this.startHeartbeat()
+
         this.onConnect?.()
       } else if (status === 'CLOSED' || status === 'CHANNEL_ERROR') {
         console.log(`[MCP Bridge] Channel status: ${status}`)
         this.isConnected = false
+        this.stopHeartbeat()
         this.onDisconnect?.()
+
+        // 자동 재연결
+        this.scheduleReconnect()
       }
     })
+  }
+
+  /**
+   * Heartbeat 시작 (연결 유지)
+   */
+  private startHeartbeat(): void {
+    this.stopHeartbeat()
+
+    // 30초마다 presence 업데이트
+    this.heartbeatTimer = setInterval(async () => {
+      if (this.channel && this.isConnected) {
+        try {
+          await this.channel.track({
+            clientType: this.clientType,
+            online_at: new Date().toISOString(),
+            heartbeat: Date.now(),
+          })
+        } catch (error) {
+          console.error('[MCP Bridge] Heartbeat failed:', error)
+          // Heartbeat 실패 시 재연결
+          this.handleConnectionLost()
+        }
+      }
+    }, 30000)
+  }
+
+  /**
+   * Heartbeat 중지
+   */
+  private stopHeartbeat(): void {
+    if (this.heartbeatTimer) {
+      clearInterval(this.heartbeatTimer)
+      this.heartbeatTimer = null
+    }
+  }
+
+  /**
+   * 재연결 스케줄링
+   */
+  private scheduleReconnect(): void {
+    if (this.reconnectTimer) return
+    if (this.reconnectAttempts >= this.maxReconnectAttempts) {
+      console.error('[MCP Bridge] Max reconnect attempts reached')
+      this.onError?.(new Error('Max reconnect attempts reached'))
+      return
+    }
+
+    this.reconnectAttempts++
+    const delay = Math.min(1000 * Math.pow(2, this.reconnectAttempts - 1), 30000) // 최대 30초
+    console.log(`[MCP Bridge] Reconnecting in ${delay}ms (attempt ${this.reconnectAttempts})`)
+
+    this.reconnectTimer = setTimeout(() => {
+      this.reconnectTimer = null
+      this.cleanupChannel()
+      this.connect()
+    }, delay)
+  }
+
+  /**
+   * 연결 끊김 처리
+   */
+  private handleConnectionLost(): void {
+    console.log('[MCP Bridge] Connection lost, reconnecting...')
+    this.isConnected = false
+    this.stopHeartbeat()
+    this.cleanupChannel()
+    this.scheduleReconnect()
+  }
+
+  /**
+   * 채널 정리
+   */
+  private cleanupChannel(): void {
+    if (this.channel) {
+      try {
+        this.channel.unsubscribe()
+        this.supabase.removeChannel(this.channel)
+      } catch (e) {
+        // 무시
+      }
+      this.channel = null
+    }
   }
 
   /**
@@ -207,13 +307,18 @@ export class McpRealtimeBridge {
    * 연결 해제
    */
   disconnect(): void {
-    if (this.channel) {
-      this.channel.unsubscribe()
-      this.supabase.removeChannel(this.channel)
-      this.channel = null
-      this.isConnected = false
-      console.log('[MCP Bridge] Disconnected')
+    // 타이머 정리
+    this.stopHeartbeat()
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer)
+      this.reconnectTimer = null
     }
+
+    // 채널 정리
+    this.cleanupChannel()
+    this.isConnected = false
+    this.reconnectAttempts = 0
+    console.log('[MCP Bridge] Disconnected')
   }
 
   /**
@@ -221,6 +326,16 @@ export class McpRealtimeBridge {
    */
   get connected(): boolean {
     return this.isConnected
+  }
+
+  /**
+   * 수동 재연결
+   */
+  reconnect(): void {
+    console.log('[MCP Bridge] Manual reconnect requested')
+    this.disconnect()
+    this.reconnectAttempts = 0
+    setTimeout(() => this.connect(), 100)
   }
 }
 
