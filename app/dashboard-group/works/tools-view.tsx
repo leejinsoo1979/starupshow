@@ -78,8 +78,8 @@ const INITIAL_TOOLS_DATA: ToolItem[] = [
     },
     {
         id: 'ai-summary-perfect',
-        title: 'AI 완벽요약',
-        description: '유튜브, 문서, 웹사이트, 긴 글 무엇이든 완벽하게 요약해 주는 기능',
+        title: '유튜브 영상 요약',
+        description: '유튜브 영상을 AI가 완벽하게 요약해 주는 기능',
         icon: FileText,
         iconColor: 'text-green-500',
         iconBg: 'bg-green-100 dark:bg-green-900/20',

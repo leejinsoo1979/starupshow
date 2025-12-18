@@ -250,7 +250,7 @@ export function SummarySidebar({ activeTab, onTabChange, onYoutubeSubmit, summar
                     <div className="w-14 h-14 bg-zinc-200 dark:bg-zinc-800 rounded-full flex items-center justify-center mb-3">
                         <Bot className="w-7 h-7 text-zinc-500" />
                     </div>
-                    <p className="text-sm font-medium text-zinc-600 dark:text-zinc-400">AI 완벽요약</p>
+                    <p className="text-sm font-medium text-zinc-600 dark:text-zinc-400">유튜브 영상 요약</p>
                     <p className="text-xs text-zinc-500 mt-1">유튜브 링크를 입력하면<br />AI가 영상을 요약해드립니다</p>
                 </div>
             )
@@ -471,7 +471,7 @@ export function SummarySidebar({ activeTab, onTabChange, onYoutubeSubmit, summar
         <div className="w-[480px] bg-zinc-50 dark:bg-zinc-900 border-r border-zinc-200 dark:border-zinc-800 flex flex-col h-full flex-shrink-0 overflow-hidden">
             {/* Header */}
             <div className="p-4 pb-0 flex-shrink-0">
-                <h1 className="text-lg font-bold text-zinc-900 dark:text-white">AI 완벽요약</h1>
+                <h1 className="text-lg font-bold text-zinc-900 dark:text-white">유튜브 영상 요약</h1>
             </div>
 
             {/* Tab Navigation */}

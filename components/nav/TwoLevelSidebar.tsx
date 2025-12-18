@@ -537,7 +537,7 @@ const categories: Category[] = [
         icon: Briefcase,
         children: [
           { name: 'AI 실시간 요약', href: '/dashboard-group/apps/ai-summary', icon: Sparkles },
-          { name: 'AI 완벽요약', href: '/dashboard-group/apps/ai-summary', icon: FileText },
+          { name: '유튜브 영상 요약', href: '/dashboard-group/apps/ai-summary', icon: FileText },
           { name: 'PPT 초안', href: '/dashboard-group/apps/ppt-draft', icon: FileText },
           { name: '기사 초안', href: '/dashboard-group/apps/article-draft', icon: FileText },
           { name: '상세페이지', href: '/dashboard-group/apps/detail-page', icon: FileText },
