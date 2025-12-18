@@ -59,19 +59,10 @@ export default function AgentProfilePage() {
   const fetchAgent = async () => {
     try {
       const supabase = createClient()
+      // 기본 에이전트 정보만 조회 (FK 관계가 없는 테이블 조인 제거)
       const { data, error } = await supabase
         .from('deployed_agents')
-        .select(`
-          *,
-          team:teams(*),
-          chat_rooms(count),
-          tasks(count),
-          project_stats(
-            total_conversations,
-            total_tasks_completed,
-            total_decisions_made
-          )
-        `)
+        .select('*')
         .eq('id', agentId)
         .single()
 
