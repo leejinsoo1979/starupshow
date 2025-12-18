@@ -12,7 +12,8 @@ export async function GET() {
   }
 
   // 프로필 조회 (없으면 생성)
-  let { data: profile, error } = await supabase
+  // Note: user_profiles 테이블이 아직 마이그레이션되지 않은 경우를 위해 any 캐스팅
+  let { data: profile, error } = await (supabase as any)
     .from('user_profiles')
     .select('*')
     .eq('user_id', user.id)
@@ -20,7 +21,7 @@ export async function GET() {
 
   if (error && error.code === 'PGRST116') {
     // 프로필이 없으면 생성
-    const { data: newProfile, error: insertError } = await supabase
+    const { data: newProfile, error: insertError } = await (supabase as any)
       .from('user_profiles')
       .insert({ user_id: user.id })
       .select()
@@ -66,7 +67,8 @@ export async function PATCH(request: Request) {
   }
 
   // upsert로 프로필 업데이트 (없으면 생성)
-  const { data: profile, error } = await supabase
+  // Note: user_profiles 테이블이 아직 마이그레이션되지 않은 경우를 위해 any 캐스팅
+  const { data: profile, error } = await (supabase as any)
     .from('user_profiles')
     .upsert(
       { user_id: user.id, ...updateData },

@@ -1,27 +1,42 @@
 'use client'
 
-import { BookOpen, Briefcase, Building2 } from 'lucide-react'
+import { BookOpen, Briefcase, Building2, Pencil } from 'lucide-react'
 import { useTheme } from 'next-themes'
 import { cn } from '@/lib/utils'
 import { resumeData } from '@/lib/mypage-data'
 
 interface ResumeSectionProps {
   data?: typeof resumeData
+  onEdit?: () => void
 }
 
-export function ResumeSection({ data = resumeData }: ResumeSectionProps) {
+export function ResumeSection({ data = resumeData, onEdit }: ResumeSectionProps) {
   const { resolvedTheme } = useTheme()
   const isDark = resolvedTheme === 'dark'
 
   return (
     <div className="space-y-8 md:space-y-10">
       <div>
-        <h2 className={cn(
-          'text-2xl md:text-3xl font-bold mb-4',
-          isDark ? 'text-white' : 'text-zinc-900'
-        )}>
-          이력
-        </h2>
+        <div className="flex items-center justify-between mb-4">
+          <h2 className={cn(
+            'text-2xl md:text-3xl font-bold',
+            isDark ? 'text-white' : 'text-zinc-900'
+          )}>
+            이력
+          </h2>
+          {onEdit && (
+            <button
+              onClick={onEdit}
+              className={cn(
+                'p-2 rounded-lg transition-colors',
+                isDark ? 'hover:bg-zinc-800 text-zinc-400' : 'hover:bg-zinc-100 text-zinc-500'
+              )}
+              title="이력 편집"
+            >
+              <Pencil className="w-4 h-4" />
+            </button>
+          )}
+        </div>
         <div className="w-10 h-1 bg-accent rounded-full mb-6" />
       </div>
 

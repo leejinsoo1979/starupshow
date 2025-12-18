@@ -1,15 +1,9 @@
 'use client'
 
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
-import dynamic from 'next/dynamic'
 import { Header } from '@/components/nav/Header'
-
-// SSR 비활성화로 Hydration 에러 방지
-const TwoLevelSidebar = dynamic(
-  () => import('@/components/nav/TwoLevelSidebar').then(mod => ({ default: mod.TwoLevelSidebar })),
-  { ssr: false }
-)
+import { TwoLevelSidebar } from '@/components/nav/TwoLevelSidebar'
 import { CommitModal } from '@/components/commits/CommitModal'
 import { WorkHistorySidebar } from '@/components/tools/WorkHistorySidebar'
 import { useAuthStore } from '@/stores/authStore'
@@ -38,7 +32,13 @@ export default function DashboardLayout({
   const pathname = usePathname()
   const { setUser, setCurrentStartup, setIsLoading, isLoading } = useAuthStore()
   const { sidebarOpen, emailSidebarWidth, isResizingEmail } = useUIStore()
+  const [mounted, setMounted] = useState(false)
   const isFullWidthPage = pathname?.includes('/messenger') || pathname?.includes('/agent-builder') || pathname?.includes('/email') || pathname?.match(/\/project\/[^/]+$/) || pathname?.includes('/works/new') || pathname?.includes('/apps/ai-slides') || pathname?.includes('/apps/ai-sheet') || pathname?.includes('/apps/ai-docs') || pathname?.includes('/apps/ai-summary')
+
+  // Prevent hydration mismatch
+  useEffect(() => {
+    setMounted(true)
+  }, [])
 
   useEffect(() => {
     const supabase = createClient()
@@ -122,12 +122,13 @@ export default function DashboardLayout({
     }
   }, [router, setUser, setCurrentStartup, setIsLoading])
 
-  if (isLoading) {
+  // Prevent hydration mismatch - show simple loading until mounted
+  if (!mounted || isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-theme">
+      <div className="min-h-screen flex items-center justify-center bg-zinc-900">
         <div className="text-center">
-          <div className="w-8 h-8 border-4 border-accent border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-          <p className="text-theme-muted">로딩 중...</p>
+          <div className="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+          <p className="text-zinc-400">로딩 중...</p>
         </div>
       </div>
     )

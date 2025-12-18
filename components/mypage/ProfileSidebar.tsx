@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useRef, useCallback } from 'react'
-import { Mail, Phone, Calendar, MapPin, Camera, Loader2, ZoomIn, ZoomOut, Check, X, Smile, ChevronRight } from 'lucide-react'
+import { Mail, Phone, Calendar, MapPin, Camera, Loader2, ZoomIn, ZoomOut, Check, X, Smile, ChevronRight, Pencil } from 'lucide-react'
 import { Github, Twitter, Linkedin } from 'lucide-react'
 import { useTheme } from 'next-themes'
 import Link from 'next/link'
@@ -17,7 +17,7 @@ interface ProfileSidebarProps {
   onEdit?: () => void
 }
 
-export function ProfileSidebar({ data = profileData, className }: ProfileSidebarProps) {
+export function ProfileSidebar({ data = profileData, className, onEdit }: ProfileSidebarProps) {
   const { resolvedTheme } = useTheme()
   const isDark = resolvedTheme === 'dark'
   const { user, updateUser } = useAuthStore()
@@ -216,10 +216,24 @@ export function ProfileSidebar({ data = profileData, className }: ProfileSidebar
 
   return (
     <aside className={cn(
-      'w-full rounded-2xl border p-6 md:p-8',
+      'w-full rounded-2xl border p-6 md:p-8 relative',
       isDark ? 'bg-zinc-950 border-zinc-800' : 'bg-white border-zinc-200',
       className
     )}>
+      {/* Edit Button */}
+      {onEdit && (
+        <button
+          onClick={onEdit}
+          className={cn(
+            'absolute top-4 right-4 p-2 rounded-lg transition-colors',
+            isDark ? 'hover:bg-zinc-800 text-zinc-400' : 'hover:bg-zinc-100 text-zinc-500'
+          )}
+          title="프로필 편집"
+        >
+          <Pencil className="w-4 h-4" />
+        </button>
+      )}
+
       {/* Profile Image */}
       <div className="flex flex-col items-center">
         <div className="relative mb-5 md:mb-8">

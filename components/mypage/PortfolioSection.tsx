@@ -1,16 +1,17 @@
 'use client'
 
 import { useState } from 'react'
-import { Rocket, Trophy, Newspaper, FolderKanban } from 'lucide-react'
+import { Rocket, Trophy, Newspaper, FolderKanban, Pencil } from 'lucide-react'
 import { useTheme } from 'next-themes'
 import { cn } from '@/lib/utils'
 import { portfolioData } from '@/lib/mypage-data'
 
 interface PortfolioSectionProps {
   data?: typeof portfolioData
+  onEdit?: () => void
 }
 
-export function PortfolioSection({ data = portfolioData }: PortfolioSectionProps) {
+export function PortfolioSection({ data = portfolioData, onEdit }: PortfolioSectionProps) {
   const { resolvedTheme } = useTheme()
   const isDark = resolvedTheme === 'dark'
   const [activeFilter, setActiveFilter] = useState('전체')
@@ -34,12 +35,26 @@ export function PortfolioSection({ data = portfolioData }: PortfolioSectionProps
   return (
     <div className="space-y-6 md:space-y-8">
       <div>
-        <h2 className={cn(
-          'text-2xl md:text-3xl font-bold mb-4',
-          isDark ? 'text-white' : 'text-zinc-900'
-        )}>
-          포트폴리오
-        </h2>
+        <div className="flex items-center justify-between mb-4">
+          <h2 className={cn(
+            'text-2xl md:text-3xl font-bold',
+            isDark ? 'text-white' : 'text-zinc-900'
+          )}>
+            포트폴리오
+          </h2>
+          {onEdit && (
+            <button
+              onClick={onEdit}
+              className={cn(
+                'p-2 rounded-lg transition-colors',
+                isDark ? 'hover:bg-zinc-800 text-zinc-400' : 'hover:bg-zinc-100 text-zinc-500'
+              )}
+              title="포트폴리오 편집"
+            >
+              <Pencil className="w-4 h-4" />
+            </button>
+          )}
+        </div>
         <div className="w-10 h-1 bg-accent rounded-full mb-6" />
       </div>
 

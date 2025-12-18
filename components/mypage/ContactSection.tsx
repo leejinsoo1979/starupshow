@@ -1,6 +1,6 @@
 'use client'
 
-import { Mail, Phone, MapPin, Send, Calendar } from 'lucide-react'
+import { Mail, Phone, MapPin, Send, Calendar, Pencil } from 'lucide-react'
 import { useState } from 'react'
 import { useTheme } from 'next-themes'
 import { cn } from '@/lib/utils'
@@ -8,9 +8,10 @@ import { contactData } from '@/lib/mypage-data'
 
 interface ContactSectionProps {
   data?: typeof contactData
+  onEdit?: () => void
 }
 
-export function ContactSection({ data = contactData }: ContactSectionProps) {
+export function ContactSection({ data = contactData, onEdit }: ContactSectionProps) {
   const { resolvedTheme } = useTheme()
   const isDark = resolvedTheme === 'dark'
   const [formData, setFormData] = useState({
@@ -28,12 +29,26 @@ export function ContactSection({ data = contactData }: ContactSectionProps) {
   return (
     <div className="space-y-6 md:space-y-8">
       <div>
-        <h2 className={cn(
-          'text-2xl md:text-3xl font-bold mb-4',
-          isDark ? 'text-white' : 'text-zinc-900'
-        )}>
-          연락하기
-        </h2>
+        <div className="flex items-center justify-between mb-4">
+          <h2 className={cn(
+            'text-2xl md:text-3xl font-bold',
+            isDark ? 'text-white' : 'text-zinc-900'
+          )}>
+            연락하기
+          </h2>
+          {onEdit && (
+            <button
+              onClick={onEdit}
+              className={cn(
+                'p-2 rounded-lg transition-colors',
+                isDark ? 'hover:bg-zinc-800 text-zinc-400' : 'hover:bg-zinc-100 text-zinc-500'
+              )}
+              title="연락처 편집"
+            >
+              <Pencil className="w-4 h-4" />
+            </button>
+          )}
+        </div>
         <div className="w-10 h-1 bg-accent rounded-full mb-6" />
       </div>
 
