@@ -2,8 +2,14 @@
 
 import { useEffect } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
-import { TwoLevelSidebar } from '@/components/nav/TwoLevelSidebar'
+import dynamic from 'next/dynamic'
 import { Header } from '@/components/nav/Header'
+
+// SSR 비활성화로 Hydration 에러 방지
+const TwoLevelSidebar = dynamic(
+  () => import('@/components/nav/TwoLevelSidebar').then(mod => ({ default: mod.TwoLevelSidebar })),
+  { ssr: false }
+)
 import { CommitModal } from '@/components/commits/CommitModal'
 import { WorkHistorySidebar } from '@/components/tools/WorkHistorySidebar'
 import { useAuthStore } from '@/stores/authStore'

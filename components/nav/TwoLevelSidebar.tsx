@@ -1181,6 +1181,11 @@ export function TwoLevelSidebar() {
 
   const isDashboardRoot = pathname === '/dashboard-group'
 
+  // Hydration 에러 방지: 클라이언트 마운트 전에는 렌더링하지 않음
+  if (!mounted) {
+    return <div className="flex fixed left-0 top-0 h-screen z-50 w-16" />
+  }
+
   return (
     <div className="flex fixed left-0 top-0 h-screen z-50">
       {/* Level 1: 아이콘 사이드바 */}

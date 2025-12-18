@@ -52,6 +52,7 @@ import {
   Upload,
   ChevronRight,
   ChevronUp,
+  ChevronDown,
   ClipboardList,
   CheckCircle,
   XCircle,
@@ -105,6 +106,124 @@ const knowledgeTypeLabels: Record<string, string> = {
   procedure: '절차',
   decision_rule: '결정 규칙',
   lesson_learned: '교훈',
+}
+
+// 8섹션 프롬프트 정의
+const PROMPT_SECTIONS = [
+  { key: 'work_operating_model', label: '업무 운영 방식', icon: Briefcase, description: '업무 프로세스, 수락/거절, 상태 관리, 범위 설정' },
+  { key: 'human_communication', label: '사람형 커뮤니케이션', icon: MessageSquare, description: '말투, 직급별 존댓말, 감정 표현, 리액션 패턴' },
+  { key: 'professional_habits', label: '직원다운 업무 습관', icon: Target, description: '시간 관념, 책임감, 팀워크, 주도성' },
+  { key: 'no_hallucination', label: '사실성 규칙', icon: CheckCircle, description: '정보 정확성, 허위 정보 금지, 출처 기반 응답' },
+  { key: 'collaboration_conflict', label: '협업 및 갈등 해결', icon: Users, description: '협업 원칙, 갈등 대응, 업무 조율' },
+  { key: 'deliverable_templates', label: '산출물 형식', icon: FileText, description: '보고서, 이메일, 회의록 등 형식 가이드' },
+  { key: 'context_anchor', label: '컨텍스트 앵커', icon: Brain, description: '대화 흐름, 이전 대화 참조, 맥락 유지' },
+  { key: 'response_format', label: '응답 포맷', icon: ClipboardList, description: '응답 길이, 구조, 이모티콘 사용' },
+  { key: 'messenger_rules', label: '메신저 규칙', icon: Send, description: '메신저 전용 채팅 규칙' },
+] as const
+
+// 기본 프롬프트 값 (8섹션)
+const DEFAULT_PROMPT_VALUES: Record<string, string> = {
+  work_operating_model: `## 📋 업무 운영 방식
+
+### 1.1 업무 프로세스
+- **요청 → 이해 → 확인 → 실행 → 보고** 순서를 따릅니다
+- 요청받은 업무는 반드시 완료 후 결과를 보고합니다
+- 진행 중인 업무가 있으면 먼저 언급하고 새 요청을 처리합니다
+
+### 1.2 업무 수락 및 거절
+- 할 수 있는 일: "네, 할게요" / "알겠어요, 진행할게요"
+- 확인 필요: "혹시 ~이런 뜻이 맞을까요?"
+- 역량 밖 업무: "제 전문 분야는 아닌데요, 대신 ~은 도와드릴 수 있어요"`,
+
+  human_communication: `## 💬 사람형 커뮤니케이션 규칙
+
+### 2.1 말투 기본 원칙
+- 짧고 자연스러운 문장 (1-3문장 기본)
+- 구어체 허용: "근데요", "뭔가", "좀", "일단"
+- 감탄사 활용: "오!", "아~", "음..."
+
+### 2.2 직급별 말투
+- **대표/CEO/임원**: "~입니다", "~요" (존댓말 필수)
+- **팀장/리더**: "~요" (편한 존댓말)
+- **동료**: "~요" 기본, 친해지면 "~해", "~지"`,
+
+  professional_habits: `## 👔 직원다운 업무 습관
+
+### 3.1 시간 관념
+- 업무 시간 인식: 평일 9-18시 개념 보유
+- 급한 요청: "지금 바로 할게요"
+- 여유 있는 요청: "내일까지 드릴게요"
+
+### 3.2 책임감 있는 행동
+- 맡은 일은 끝까지 추적
+- 중간에 막히면 바로 보고
+- 실수하면 솔직히 인정`,
+
+  no_hallucination: `## 🔒 사실성 및 정확성 규칙
+
+### 4.1 정보 정확성
+- 확실한 정보만 단정적으로 말하기
+- 불확실하면 "~인 것 같아요" 사용
+- 모르면 "잘 모르겠어요" 솔직히 말하기
+
+### 4.2 금지되는 허위 정보
+- 없는 기능을 있다고 하기 ❌
+- 모르는 것을 아는 척 하기 ❌`,
+
+  collaboration_conflict: `## 🤝 협업 및 갈등 해결
+
+### 5.1 협업 원칙
+- 팀원 존중, 의견 경청
+- 정보는 투명하게 공유
+- 도움 요청과 제공에 적극적
+
+### 5.2 갈등 대응
+- 감정 앞세우지 않기
+- 사실 기반 대화
+- 필요시 중재 요청`,
+
+  deliverable_templates: `## 📝 산출물 형식
+
+### 6.1 보고서/문서
+- 제목 → 요약 → 본문 → 결론
+- 핵심 먼저, 세부 사항 후
+
+### 6.2 이메일
+- 수신자별 적절한 인사말
+- 목적 명확히, 간결하게`,
+
+  context_anchor: `## 🧠 컨텍스트 앵커
+
+### 7.1 대화 맥락 유지
+- 이전 대화 내용 기억하고 참조
+- "아까 말씀하신 ~건은요"
+- 관련 내용 연결해서 답변
+
+### 7.2 상황 인식
+- 현재 진행 중인 업무 파악
+- 긴급도와 중요도 판단`,
+
+  response_format: `## 📋 응답 포맷
+
+### 8.1 응답 길이
+- 간단한 질문: 1-2문장
+- 설명 필요: 3-5문장
+- 상세 분석: 구조화된 형식
+
+### 8.2 이모티콘 사용
+- 과하지 않게, 적절히 활용
+- 공식 문서에는 자제`,
+
+  messenger_rules: `## 💬 메신저 채팅 규칙
+
+### 9.1 메신저 대화 스타일
+- 짧고 빠른 응답 (1-2문장)
+- 이모티콘/리액션 적극 활용
+- 구어체로 자연스럽게
+
+### 9.2 응답 타이밍
+- 급한 건 바로 응답
+- 긴 내용은 "잠시만요" 후 작성`,
 }
 
 // 감정 타입 정의 (기본 감정)
@@ -1935,6 +2054,9 @@ export default function AgentProfilePage() {
   const [editingSection, setEditingSection] = useState<string | null>(null)
   const [editForm, setEditForm] = useState<any>({})
 
+  // 프롬프트 섹션 확장 상태
+  const [expandedPromptSections, setExpandedPromptSections] = useState<Record<string, boolean>>({})
+
   // Image upload states
   const [uploading, setUploading] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -3200,9 +3322,20 @@ export default function AgentProfilePage() {
             temperature: parseFloat(editForm.temperature) || 0.7,
           }
           break
-        case 'system_prompt':
+        case 'prompt_sections':
+          // 8섹션 프롬프트를 JSONB로 저장
           updateData = {
-            system_prompt: editForm.system_prompt,
+            prompt_sections: {
+              work_operating_model: editForm.work_operating_model || '',
+              human_communication: editForm.human_communication || '',
+              professional_habits: editForm.professional_habits || '',
+              no_hallucination: editForm.no_hallucination || '',
+              collaboration_conflict: editForm.collaboration_conflict || '',
+              deliverable_templates: editForm.deliverable_templates || '',
+              context_anchor: editForm.context_anchor || '',
+              response_format: editForm.response_format || '',
+              messenger_rules: editForm.messenger_rules || '',
+            },
           }
           break
         case 'capabilities':
@@ -6123,7 +6256,7 @@ export default function AgentProfilePage() {
                 )}
               </div>
 
-              {/* System Prompt - Editable */}
+              {/* 에이전트 프롬프트 (8섹션) - Editable */}
               <div
                 className={cn(
                   'p-4 md:p-6 rounded-xl md:rounded-2xl border',
@@ -6132,12 +6265,25 @@ export default function AgentProfilePage() {
               >
                 <div className="flex items-center justify-between mb-4">
                   <h3 className={cn('font-semibold flex items-center gap-2', isDark ? 'text-white' : 'text-zinc-900')}>
-                    <MessageSquare className="w-5 h-5 text-purple-500" />
-                    시스템 프롬프트
+                    <Brain className="w-5 h-5 text-purple-500" />
+                    에이전트 행동 프롬프트 (8섹션)
                   </h3>
-                  {editingSection !== 'system_prompt' && (
+                  {editingSection !== 'prompt_sections' && (
                     <button
-                      onClick={() => startEditing('system_prompt', { system_prompt: agent.system_prompt || '' })}
+                      onClick={() => {
+                        const promptSections = (agent as any).prompt_sections || {}
+                        startEditing('prompt_sections', {
+                          work_operating_model: promptSections.work_operating_model || DEFAULT_PROMPT_VALUES.work_operating_model,
+                          human_communication: promptSections.human_communication || DEFAULT_PROMPT_VALUES.human_communication,
+                          professional_habits: promptSections.professional_habits || DEFAULT_PROMPT_VALUES.professional_habits,
+                          no_hallucination: promptSections.no_hallucination || DEFAULT_PROMPT_VALUES.no_hallucination,
+                          collaboration_conflict: promptSections.collaboration_conflict || DEFAULT_PROMPT_VALUES.collaboration_conflict,
+                          deliverable_templates: promptSections.deliverable_templates || DEFAULT_PROMPT_VALUES.deliverable_templates,
+                          context_anchor: promptSections.context_anchor || DEFAULT_PROMPT_VALUES.context_anchor,
+                          response_format: promptSections.response_format || DEFAULT_PROMPT_VALUES.response_format,
+                          messenger_rules: promptSections.messenger_rules || DEFAULT_PROMPT_VALUES.messenger_rules,
+                        })
+                      }}
                       className={cn(
                         'flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm',
                         isDark ? 'bg-zinc-700 hover:bg-zinc-600' : 'bg-zinc-200 hover:bg-zinc-300'
@@ -6149,24 +6295,68 @@ export default function AgentProfilePage() {
                   )}
                 </div>
 
-                {editingSection === 'system_prompt' ? (
-                  <div className="space-y-4">
-                    <textarea
-                      value={editForm.system_prompt || ''}
-                      onChange={(e) => setEditForm({ ...editForm, system_prompt: e.target.value })}
-                      className={cn(
-                        'w-full px-4 py-3 rounded-lg border resize-none font-mono text-sm',
-                        isDark
-                          ? 'bg-zinc-900 border-zinc-700 text-zinc-200'
-                          : 'bg-white border-zinc-200 text-zinc-900'
-                      )}
-                      placeholder="에이전트의 성격과 행동을 정의하는 시스템 프롬프트를 입력하세요..."
-                      rows={15}
-                    />
-                    <p className={cn('text-xs', isDark ? 'text-zinc-500' : 'text-zinc-400')}>
-                      이 프롬프트는 에이전트가 대화할 때 기본 성격과 행동 방식을 결정합니다.
-                    </p>
-                    <div className="flex justify-end gap-2 pt-2">
+                <p className={cn('text-sm mb-4', isDark ? 'text-zinc-400' : 'text-zinc-600')}>
+                  에이전트가 사람처럼 행동하도록 8개 영역의 프롬프트를 설정합니다.
+                </p>
+
+                {editingSection === 'prompt_sections' ? (
+                  <div className="space-y-3">
+                    {PROMPT_SECTIONS.map((section) => {
+                      const IconComponent = section.icon
+                      const isExpanded = expandedPromptSections[section.key]
+                      return (
+                        <div
+                          key={section.key}
+                          className={cn(
+                            'rounded-lg border overflow-hidden',
+                            isDark ? 'bg-zinc-900 border-zinc-700' : 'bg-white border-zinc-200'
+                          )}
+                        >
+                          <button
+                            type="button"
+                            onClick={() => setExpandedPromptSections(prev => ({ ...prev, [section.key]: !prev[section.key] }))}
+                            className={cn(
+                              'w-full flex items-center justify-between p-4 text-left',
+                              isDark ? 'hover:bg-zinc-800' : 'hover:bg-zinc-50'
+                            )}
+                          >
+                            <div className="flex items-center gap-3">
+                              <IconComponent className="w-5 h-5 text-accent" />
+                              <div>
+                                <span className={cn('font-medium', isDark ? 'text-white' : 'text-zinc-900')}>
+                                  {section.label}
+                                </span>
+                                <p className={cn('text-xs mt-0.5', isDark ? 'text-zinc-500' : 'text-zinc-400')}>
+                                  {section.description}
+                                </p>
+                              </div>
+                            </div>
+                            {isExpanded ? (
+                              <ChevronUp className={cn('w-5 h-5', isDark ? 'text-zinc-400' : 'text-zinc-500')} />
+                            ) : (
+                              <ChevronDown className={cn('w-5 h-5', isDark ? 'text-zinc-400' : 'text-zinc-500')} />
+                            )}
+                          </button>
+                          {isExpanded && (
+                            <div className="px-4 pb-4">
+                              <textarea
+                                value={editForm[section.key] || ''}
+                                onChange={(e) => setEditForm({ ...editForm, [section.key]: e.target.value })}
+                                className={cn(
+                                  'w-full px-3 py-2 rounded-lg border resize-none font-mono text-sm',
+                                  isDark
+                                    ? 'bg-zinc-800 border-zinc-600 text-zinc-200'
+                                    : 'bg-zinc-50 border-zinc-200 text-zinc-900'
+                                )}
+                                rows={10}
+                                placeholder={`${section.label} 관련 프롬프트를 입력하세요...`}
+                              />
+                            </div>
+                          )}
+                        </div>
+                      )
+                    })}
+                    <div className="flex justify-end gap-2 pt-4">
                       <button
                         onClick={cancelEditing}
                         className={cn(
@@ -6177,7 +6367,7 @@ export default function AgentProfilePage() {
                         취소
                       </button>
                       <button
-                        onClick={() => saveSection('system_prompt')}
+                        onClick={() => saveSection('prompt_sections')}
                         disabled={saving}
                         className="px-4 py-2 rounded-lg text-sm bg-accent text-white hover:bg-accent/90 flex items-center gap-1"
                       >
@@ -6186,16 +6376,33 @@ export default function AgentProfilePage() {
                       </button>
                     </div>
                   </div>
-                ) : agent.system_prompt ? (
-                  <div className={cn('p-4 rounded-lg max-h-[300px] overflow-y-auto', isDark ? 'bg-zinc-900' : 'bg-white')}>
-                    <pre className={cn('text-sm whitespace-pre-wrap font-mono', isDark ? 'text-zinc-300' : 'text-zinc-700')}>
-                      {agent.system_prompt}
-                    </pre>
-                  </div>
                 ) : (
-                  <p className={cn('text-sm', isDark ? 'text-zinc-500' : 'text-zinc-400')}>
-                    시스템 프롬프트가 설정되지 않았습니다. 편집 버튼을 눌러 추가해보세요.
-                  </p>
+                  <div className="space-y-2">
+                    {PROMPT_SECTIONS.map((section) => {
+                      const IconComponent = section.icon
+                      const promptSections = (agent as any).prompt_sections || {}
+                      const hasCustomValue = promptSections[section.key] && promptSections[section.key].trim() !== ''
+                      return (
+                        <div
+                          key={section.key}
+                          className={cn(
+                            'flex items-center gap-3 px-4 py-3 rounded-lg',
+                            isDark ? 'bg-zinc-900' : 'bg-white'
+                          )}
+                        >
+                          <IconComponent className={cn('w-4 h-4', hasCustomValue ? 'text-green-500' : 'text-zinc-400')} />
+                          <span className={cn('text-sm', isDark ? 'text-zinc-300' : 'text-zinc-700')}>
+                            {section.label}
+                          </span>
+                          {hasCustomValue ? (
+                            <span className="text-xs text-green-500 ml-auto">설정됨</span>
+                          ) : (
+                            <span className={cn('text-xs ml-auto', isDark ? 'text-zinc-500' : 'text-zinc-400')}>기본값</span>
+                          )}
+                        </div>
+                      )
+                    })}
+                  </div>
                 )}
               </div>
 

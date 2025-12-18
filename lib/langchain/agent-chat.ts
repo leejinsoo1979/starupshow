@@ -258,9 +258,18 @@ ${roomContext.userCompany ? `- 회사: ${roomContext.userCompany}` : ''}
   // 🔥 통합 시스템 프롬프트 생성 (DB 기반 동적 프롬프트)
   const isMessenger = roomContext?.isMessenger || false
 
-  // 팀 프롬프트 설정 가져오기 (커스텀 설정이 있으면 사용)
-  const teamId = (agent as any).team_id || await getAgentTeamId(agent.id)
-  const customPromptSections = teamId ? await getPromptSettings(teamId) : undefined
+  // 프롬프트 설정 우선순위: 에이전트 개별 설정 > 팀 설정 > 기본값
+  const agentPromptSections = (agent as any).prompt_sections
+  let customPromptSections = undefined
+
+  // 에이전트 개별 prompt_sections가 있고 비어있지 않으면 사용
+  if (agentPromptSections && Object.keys(agentPromptSections).length > 0) {
+    customPromptSections = agentPromptSections
+  } else {
+    // 없으면 팀 프롬프트 설정 가져오기
+    const teamId = (agent as any).team_id || await getAgentTeamId(agent.id)
+    customPromptSections = teamId ? await getPromptSettings(teamId) : undefined
+  }
 
   const coreSystemPrompt = buildDynamicAgentSystemPrompt(
     agent.name,

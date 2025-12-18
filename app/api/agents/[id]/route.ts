@@ -219,6 +219,8 @@ export async function PATCH(
       'next_agent_id',
       'chain_config',
       'chain_order',
+      // 8섹션 프롬프트 설정 (JSONB)
+      'prompt_sections',
     ]
 
     const updates: Record<string, unknown> = {}
