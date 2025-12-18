@@ -111,17 +111,23 @@ export class McpRealtimeBridge {
     })
 
     // 채널 구독
-    this.channel.subscribe(async (status) => {
+    this.channel.subscribe(async (status, err) => {
+      console.log(`[MCP Bridge] Channel status: ${status}`, err ? `Error: ${err.message}` : '')
+
       if (status === 'SUBSCRIBED') {
         console.log('[MCP Bridge] Connected to channel')
         this.isConnected = true
         this.reconnectAttempts = 0 // 성공 시 초기화
 
         // Presence 등록
-        await this.channel?.track({
-          clientType: this.clientType,
-          online_at: new Date().toISOString(),
-        })
+        try {
+          await this.channel?.track({
+            clientType: this.clientType,
+            online_at: new Date().toISOString(),
+          })
+        } catch (e) {
+          console.error('[MCP Bridge] Presence track failed:', e)
+        }
 
         // 연결 알림 메시지 전송
         this.send({
@@ -134,13 +140,24 @@ export class McpRealtimeBridge {
         this.startHeartbeat()
 
         this.onConnect?.()
-      } else if (status === 'CLOSED' || status === 'CHANNEL_ERROR') {
-        console.log(`[MCP Bridge] Channel status: ${status}`)
+      } else if (status === 'CLOSED') {
+        console.log('[MCP Bridge] Channel closed')
         this.isConnected = false
         this.stopHeartbeat()
         this.onDisconnect?.()
-
-        // 자동 재연결
+        // CLOSED는 정상 종료일 수 있으므로 재연결 안함
+      } else if (status === 'CHANNEL_ERROR') {
+        console.error('[MCP Bridge] Channel error:', err)
+        this.isConnected = false
+        this.stopHeartbeat()
+        this.onDisconnect?.()
+        // 에러 시 재연결
+        this.scheduleReconnect()
+      } else if (status === 'TIMED_OUT') {
+        console.log('[MCP Bridge] Channel timed out')
+        this.isConnected = false
+        this.stopHeartbeat()
+        this.onDisconnect?.()
         this.scheduleReconnect()
       }
     })

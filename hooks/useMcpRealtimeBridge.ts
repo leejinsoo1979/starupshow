@@ -342,6 +342,8 @@ export function useMcpRealtimeBridge({
     mountedRef.current = true
     const sid = getOrCreateSessionId()
     setSessionId(sid)
+    log(`세션 ID: ${sid}`)
+    log(`Supabase URL: ${process.env.NEXT_PUBLIC_SUPABASE_URL?.substring(0, 30)}...`)
 
     const bridge = new McpRealtimeBridge({
       supabase,
@@ -350,23 +352,25 @@ export function useMcpRealtimeBridge({
       onMessage: handleMessage,
       onConnect: () => {
         if (mountedRef.current) {
-          log(`연결됨 (세션: ${sid})`)
+          log(`✅ 연결됨 (세션: ${sid})`)
           setIsConnected(true)
           sendCanvasState()
         }
       },
       onDisconnect: () => {
         if (mountedRef.current) {
-          log('연결 해제됨')
+          log('❌ 연결 해제됨 - 자동 재연결 대기 중...')
           setIsConnected(false)
         }
       },
       onError: (error) => {
+        log(`🚨 에러: ${error.message}`)
         console.error('[MCP Realtime] Error:', error)
       },
     })
 
     bridgeRef.current = bridge
+    log('브릿지 연결 시도...')
     bridge.connect()
 
     return () => {
