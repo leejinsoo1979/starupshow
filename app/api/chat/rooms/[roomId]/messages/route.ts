@@ -1183,10 +1183,10 @@ async function generateAgentResponseHandler(
       .eq('room_id', roomId)
       .eq('agent_id', agent.id)
 
-    // 채팅방 정보 조회
+    // 채팅방 정보 조회 (첨부 자료 포함)
     const { data: room } = await supabase
       .from('chat_rooms')
-      .select('name, type, is_meeting_active, meeting_topic, project_id')
+      .select('name, type, is_meeting_active, meeting_topic, meeting_attachments, project_id')
       .eq('id', roomId)
       .single()
 
@@ -1369,7 +1369,8 @@ ${memoryContext}
         agentWithConfig,
         room.meeting_topic,
         recentMessages?.reverse() || [],
-        otherAgents
+        otherAgents,
+        room.meeting_attachments  // 첨부 자료 전달
       )
     } else {
       // 일반 채팅 모드 (메모리 포함)

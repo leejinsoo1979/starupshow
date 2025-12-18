@@ -258,14 +258,21 @@ export async function POST(request: NextRequest) {
     }
 
     // 시스템 메시지 추가
+    let systemContent = '채팅방이 생성되었습니다.'
+    if (type === 'meeting') {
+      systemContent = '회의가 시작되었습니다.'
+      if (attachments && attachments.length > 0) {
+        const attachmentNames = attachments.map(a => a.name).join(', ')
+        systemContent += ` (첨부자료: ${attachmentNames})`
+      }
+    }
+
     await (adminClient as any).from('chat_messages').insert({
       room_id: room.id,
       sender_type: 'user',
       sender_user_id: user.id,
       message_type: 'system',
-      content: type === 'meeting'
-        ? '회의가 시작되었습니다.'
-        : '채팅방이 생성되었습니다.',
+      content: systemContent,
     })
 
     // 생성된 방 정보 반환

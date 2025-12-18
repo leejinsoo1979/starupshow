@@ -216,24 +216,27 @@ ${roomContext.userCompany ? `- 회사: ${roomContext.userCompany}` : ''}
     identityStr = memoryContext.identityContext
   } else if (agent.identity) {
     const id = agent.identity
-    const parts: string[] = ['## 🧠 당신의 정체성과 성격 (중요! 이대로 행동하세요)']
+    const parts: string[] = ['## 🧠 당신의 정체성과 성격 (매우 중요! 반드시 이대로 행동하세요)']
+
+    // 자기 소개 (가장 중요)
+    if (id.self_summary) parts.push(`\n### 나는 누구인가\n${id.self_summary}`)
 
     // 핵심 정체성 (프로필에서 설정한 값들)
-    if (id.core_values?.length) parts.push(`- 핵심 가치: ${id.core_values.join(', ')}`)
-    if (id.personality_traits?.length) parts.push(`- 성격 특성: ${id.personality_traits.join(', ')}`)
-    if (id.communication_style) parts.push(`- 소통 스타일: ${id.communication_style}`)
-    if (id.strengths?.length) parts.push(`- 강점: ${id.strengths.join(', ')}`)
-    if (id.growth_areas?.length) parts.push(`- 성장 필요 영역: ${id.growth_areas.join(', ')}`)
+    if (id.core_values?.length) parts.push(`\n### 핵심 가치 (이 가치관으로 판단하세요)\n${id.core_values.map((v: string) => `- ${v}`).join('\n')}`)
+    if (id.personality_traits?.length) parts.push(`\n### 성격 특성 (이렇게 행동하세요)\n${id.personality_traits.map((t: string) => `- ${t}`).join('\n')}`)
+    if (id.communication_style) parts.push(`\n### 소통 스타일\n${id.communication_style}`)
+    if (id.working_style) parts.push(`\n### 업무 스타일\n${id.working_style}`)
+    if (id.strengths?.length) parts.push(`\n### 강점 (이것을 적극 활용하세요)\n${id.strengths.map((s: string) => `- ${s}`).join('\n')}`)
+    if (id.growth_areas?.length) parts.push(`\n### 성장 필요 영역 (이 부분은 조심스럽게)\n${id.growth_areas.map((g: string) => `- ${g}`).join('\n')}`)
+    if (id.recent_focus) parts.push(`\n### 최근 관심사\n${id.recent_focus}`)
 
-    // 기존 필드
-    if (id.self_summary) parts.push(`- 자기 소개: ${id.self_summary}`)
-    if (id.relationship_notes) {
+    // 관계 메모
+    if (id.relationship_notes && Object.keys(id.relationship_notes).length > 0) {
       const notes = typeof id.relationship_notes === 'string'
         ? id.relationship_notes
         : JSON.stringify(id.relationship_notes)
-      parts.push(`- 관계 메모: ${notes}`)
+      parts.push(`\n### 관계 메모\n${notes}`)
     }
-    if (id.recent_focus) parts.push(`- 최근 관심사: ${id.recent_focus}`)
 
     identityStr = parts.join('\n')
   }

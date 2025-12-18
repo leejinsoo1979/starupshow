@@ -97,6 +97,8 @@ export function useChatRooms() {
     name?: string
     type: 'direct' | 'group' | 'meeting'
     participant_ids: { type: 'user' | 'agent'; id: string }[]
+    category?: string | null
+    attachments?: { name: string; content: string; type: string }[] | null
   }) => {
     const res = await fetch('/api/chat/rooms', {
       method: 'POST',
