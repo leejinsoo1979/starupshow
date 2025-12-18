@@ -71,6 +71,7 @@ export function useChatRooms() {
     participant_ids: { type: 'user' | 'agent'; id: string }[]
     category?: string | null
     attachments?: { name: string; content: string; type: string }[] | null
+    meeting_config?: Record<string, any> | null  // 회의 설정
   }) => {
     const res = await fetch('/api/chat/rooms', {
       method: 'POST',

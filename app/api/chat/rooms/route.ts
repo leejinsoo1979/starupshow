@@ -177,7 +177,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body: CreateRoomRequest = await request.json()
-    const { name, type, team_id, category, attachments, participant_ids } = body
+    const { name, type, team_id, category, attachments, participant_ids, meeting_config } = body
 
     // 1:1 채팅인 경우 기존 방이 있는지 확인
     if (type === 'direct' && participant_ids.length === 1) {
@@ -221,6 +221,7 @@ export async function POST(request: NextRequest) {
         created_by: user.id,
         category: category || null,
         meeting_attachments: attachments && attachments.length > 0 ? attachments : null,
+        meeting_config: meeting_config || null,  // 회의 설정 저장
       })
       .select()
       .single()

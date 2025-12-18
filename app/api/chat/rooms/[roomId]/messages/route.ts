@@ -304,10 +304,10 @@ async function triggerAgentResponse(
       }
     }
 
-    // 채팅방 정보 조회 (진행자 포함)
+    // 채팅방 정보 조회 (진행자, 회의 설정 포함)
     const { data: room, error: roomError } = await supabase
       .from('chat_rooms')
-      .select('name, type, is_meeting_active, meeting_topic, meeting_facilitator_id')
+      .select('name, type, is_meeting_active, meeting_topic, meeting_facilitator_id, meeting_config')
       .eq('id', roomId)
       .single()
 
@@ -315,6 +315,7 @@ async function triggerAgentResponse(
       name: room?.name,
       is_meeting_active: room?.is_meeting_active,
       meeting_facilitator_id: room?.meeting_facilitator_id,
+      meeting_config: room?.meeting_config,
       error: roomError?.message
     })
 
@@ -407,6 +408,7 @@ async function triggerMultiAgentResponse(
         isMeeting: room?.is_meeting_active,
         meetingTopic: room?.meeting_topic,
         facilitatorId: room?.meeting_facilitator_id, // 진행자 ID
+        meetingConfig: room?.meeting_config, // 🔥 회의 설정
       },
       imageUrls, // 🔥 이미지 전달
       userId // 🔥 사용자 ID (API 키 조회용)
@@ -466,11 +468,28 @@ async function processAgentResponsesRelay(
   supabase: any,
   agents: any[],
   userContent: string,
-  roomContext: { roomId: string; roomName?: string; roomType?: string; isMeeting?: boolean; meetingTopic?: string; facilitatorId?: string },
-  images: string[] = [], // 🔥 이미지 파라미터 추가
-  userId?: string // 🔥 사용자 ID (API 키 조회용)
+  roomContext: {
+    roomId: string
+    roomName?: string
+    roomType?: string
+    isMeeting?: boolean
+    meetingTopic?: string
+    facilitatorId?: string
+    meetingConfig?: {
+      purpose?: string
+      discussionMode?: string
+      allowDebate?: boolean
+      failureResolution?: string
+      agentConfigs?: { id: string; role?: string; tendency?: string; canDecide?: boolean }[]
+    }
+  },
+  images: string[] = [],
+  userId?: string
 ) {
-  const { roomId, facilitatorId } = roomContext
+  const { roomId, facilitatorId, meetingConfig } = roomContext
+
+  // 🔥 회의 설정 로깅
+  console.log('[Relay] Meeting config:', meetingConfig)
 
   // 중복 에이전트 제거 (ID 기준)
   const uniqueAgents = agents.filter((agent, index, self) =>
@@ -831,8 +850,42 @@ async function processAgentResponsesRelay(
           ? filteredHistory[filteredHistory.length - 1].name
           : '사용자'
 
-        // 🔥 대화 흐름 (자연스럽게, 강제 X)
-        // flowHint 제거 - 프롬프트에서 충분히 지시함
+        // 🔥 회의 설정 기반 지시사항
+        const purposeInstructions: Record<string, string> = {
+          strategic_decision: '🎯 전략적 관점에서 최적의 방향을 찾아야 합니다. 장기적 영향, 리소스, 경쟁우위를 고려하세요.',
+          problem_analysis: '🔍 문제의 근본 원인을 파악하세요. "왜?"를 반복해서 물어보고 체계적으로 분석하세요.',
+          action_planning: '📋 실행 가능한 계획을 세우세요. 담당자, 일정, 필요 리소스를 구체적으로 말하세요.',
+          idea_expansion: '💡 창의적으로 생각하세요. 비판은 나중에! 일단 아이디어를 많이 던지세요.',
+          risk_validation: '⚠️ 위험요소와 대응책을 점검하세요. "이게 실패하면?", "최악의 경우는?"',
+        }
+
+        const modeInstructions: Record<string, string> = {
+          quick: '빠르게 핵심만! 긴 설명 NO, 결론 위주로.',
+          balanced: '찬반 양쪽을 균형있게 검토하세요.',
+          deep: '깊이 있게 분석하세요. 근거와 데이터를 들어 말하세요.',
+          brainstorm: '아이디어 자유롭게! 평가/비판은 나중에. "이건 어때?" 식으로.',
+        }
+
+        const debateInstruction = meetingConfig?.allowDebate
+          ? '💬 다른 의견에 동의하지 않으면 솔직하게 반박해도 됩니다.'
+          : ''
+
+        // 에이전트별 역할 설정
+        const agentRole = meetingConfig?.agentConfigs?.find(c => c.id === agent.id)
+        const roleInstructions: Record<string, string> = {
+          strategist: '당신은 전략가입니다. 최종 방향을 제안하세요.',
+          analyst: '당신은 분석가입니다. 데이터와 근거로 검증하세요.',
+          executor: '당신은 실행가입니다. 실행 가능성을 평가하세요.',
+          critic: '당신은 반대자입니다. 허점과 리스크를 지적하세요.',
+          mediator: '당신은 중재자입니다. 의견을 조율하고 정리하세요.',
+        }
+
+        const configInstruction = [
+          meetingConfig?.purpose ? purposeInstructions[meetingConfig.purpose] : '',
+          meetingConfig?.discussionMode ? modeInstructions[meetingConfig.discussionMode] : '',
+          debateInstruction,
+          agentRole?.role ? roleInstructions[agentRole.role] : '',
+        ].filter(Boolean).join('\n')
 
         // 회의 단계 구분
         // Phase 0: 첫 인사 (각 에이전트 1번씩)
@@ -930,13 +983,14 @@ ${topicInstruction ? '주제 언급하고 질문 던져' : ''}
 
 ---
 당신: ${agent.name} | 대화 상대: ${otherAgentNames || '사용자'}${topicInstruction}${facilitatorNote}
+${configInstruction ? `\n${configInstruction}` : ''}
 
 위 대화에 자연스럽게 참여하세요.
 
 🗣️ 말투: 실제 직장인/스타트업 회의처럼 (반말~존댓말 혼용 OK)
 예시: "어 근데 그거", "아 맞아맞아", "음... 글쎄", "오 괜찮은데?", "아니 근데 그건 좀...", "ㅋㅋ 그건 아닌듯"
 
-❌ 피하기: 동화책/교과서 말투, 너무 공손한 존댓말, "~하는 것 같습니다", "~라고 생각합니다"
+❌ 피하기: 동화책/교과서 말투, 너무 공손한 존댓말
 
 1-3문장, 한국어`
           }

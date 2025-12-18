@@ -84,6 +84,38 @@ export interface ChatMessage {
   reply_to?: ChatMessage
 }
 
+// 회의 설정 타입
+export interface MeetingConfig {
+  // MISSION OBJECTIVE
+  purpose?: 'strategic_decision' | 'problem_analysis' | 'action_planning' | 'idea_expansion' | 'risk_validation'
+
+  // DISCUSSION PROTOCOL
+  discussionMode?: 'quick' | 'balanced' | 'deep' | 'brainstorm'
+  allowDebate?: boolean  // AI 간 상호 반박
+  failureResolution?: 'majority' | 'leader' | 'defer'  // 합의 실패 시 처리
+
+  // 에이전트별 역할/성향 설정
+  agentConfigs?: {
+    id: string
+    role?: 'strategist' | 'analyst' | 'executor' | 'critic' | 'mediator'
+    tendency?: 'aggressive' | 'conservative' | 'creative' | 'data-driven'
+    canDecide?: boolean
+  }[]
+
+  // CONTEXT
+  linkedProject?: string | null
+  memoryScope?: 'organization' | 'project' | 'none'
+
+  // OUTPUT
+  outputs?: {
+    summary?: boolean
+    actionItems?: boolean
+    decision?: boolean
+    nextAgenda?: boolean
+    boardReflection?: boolean
+  }
+}
+
 // API Request/Response Types
 export interface CreateRoomRequest {
   name?: string
@@ -95,6 +127,7 @@ export interface CreateRoomRequest {
     type: ParticipantType
     id: string
   }[]
+  meeting_config?: MeetingConfig  // 회의 설정
 }
 
 export interface SendMessageRequest {

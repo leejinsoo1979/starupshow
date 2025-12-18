@@ -588,7 +588,7 @@ export default function EmailPage() {
   return (
     <div className="h-full flex bg-white dark:bg-zinc-900">
       {/* Folder Menu */}
-      <div className="w-48 flex-shrink-0 border-r border-zinc-200 dark:border-zinc-800 overflow-hidden">
+      <div className="w-60 flex-shrink-0 border-r border-zinc-200 dark:border-zinc-800 overflow-hidden">
         <EmailFolderMenu
           accounts={accounts}
           selectedAccount={selectedAccount}
