@@ -53,14 +53,20 @@ export function useAuth() {
 
         // Fetch user's team if founder
         if (profile.role === 'FOUNDER') {
-          const { data: teamMember } = await supabase
-            .from('team_members')
-            .select('team:teams(*)')
-            .eq('user_id', authUser.id)
-            .single() as { data: TeamMemberWithTeam | null }
+          try {
+            const { data: teamMember, error: teamError } = await supabase
+              .from('team_members')
+              .select('team:teams(*)')
+              .eq('user_id', authUser.id)
+              .single() as { data: TeamMemberWithTeam | null, error: any }
 
-          if (teamMember?.team) {
-            setCurrentTeam(teamMember.team)
+            if (teamError) {
+              console.warn('[useAuth] Failed to fetch team:', teamError.message)
+            } else if (teamMember?.team) {
+              setCurrentTeam(teamMember.team)
+            }
+          } catch (err) {
+            console.warn('[useAuth] Error fetching team:', err)
           }
         }
       }
