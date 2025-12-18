@@ -215,12 +215,27 @@ ${roomContext.userCompany ? `- 회사: ${roomContext.userCompany}` : ''}
   if (memoryContext?.identityContext) {
     identityStr = memoryContext.identityContext
   } else if (agent.identity) {
-    identityStr = `
-## 🧠 당신의 기억과 정체성
-${agent.identity.self_summary ? `- 자기 소개: ${agent.identity.self_summary}` : ''}
-${agent.identity.relationship_notes ? `- 관계 메모: ${agent.identity.relationship_notes}` : ''}
-${agent.identity.recent_focus ? `- 최근 관심사: ${agent.identity.recent_focus}` : ''}
-`
+    const id = agent.identity
+    const parts: string[] = ['## 🧠 당신의 정체성과 성격 (중요! 이대로 행동하세요)']
+
+    // 핵심 정체성 (프로필에서 설정한 값들)
+    if (id.core_values?.length) parts.push(`- 핵심 가치: ${id.core_values.join(', ')}`)
+    if (id.personality_traits?.length) parts.push(`- 성격 특성: ${id.personality_traits.join(', ')}`)
+    if (id.communication_style) parts.push(`- 소통 스타일: ${id.communication_style}`)
+    if (id.strengths?.length) parts.push(`- 강점: ${id.strengths.join(', ')}`)
+    if (id.growth_areas?.length) parts.push(`- 성장 필요 영역: ${id.growth_areas.join(', ')}`)
+
+    // 기존 필드
+    if (id.self_summary) parts.push(`- 자기 소개: ${id.self_summary}`)
+    if (id.relationship_notes) {
+      const notes = typeof id.relationship_notes === 'string'
+        ? id.relationship_notes
+        : JSON.stringify(id.relationship_notes)
+      parts.push(`- 관계 메모: ${notes}`)
+    }
+    if (id.recent_focus) parts.push(`- 최근 관심사: ${id.recent_focus}`)
+
+    identityStr = parts.join('\n')
   }
 
   // 🔥 외부에서 주입된 메모리 컨텍스트 (최근 대화 등)
@@ -411,6 +426,13 @@ ${formattedHistory}
   }
 }
 
+// 회의 첨부 자료 타입
+interface MeetingAttachment {
+  name: string
+  content: string
+  type: string
+}
+
 // 에이전트 간 대화 생성 (미팅 모드)
 export async function generateAgentMeetingResponse(
   agent: {
@@ -425,7 +447,8 @@ export async function generateAgentMeetingResponse(
   },
   topic: string,
   previousMessages: any[] = [],
-  otherAgents: { name: string; role: string }[] = []
+  otherAgents: { name: string; role: string }[] = [],
+  meetingAttachments?: MeetingAttachment[] | null
 ): Promise<string> {
   // LLM 설정 - DB의 llm_provider, model 필드 우선 사용
   const provider = (agent.llm_provider || agent.config?.llm_provider || 'ollama') as LLMProvider
@@ -448,6 +471,8 @@ export async function generateAgentMeetingResponse(
 
 ## 🔥 오늘의 토론 주제
 {topic}
+
+{attachmentsSection}
 
 ## 참석자
 {otherParticipants}
@@ -504,10 +529,24 @@ export async function generateAgentMeetingResponse(
   const chain = meetingPrompt.pipe(llm).pipe(new StringOutputParser())
 
   try {
+    // 첨부 자료 섹션 생성
+    let attachmentsSection = ''
+    if (meetingAttachments && meetingAttachments.length > 0) {
+      attachmentsSection = `## 📎 회의 첨부 자료 (반드시 참고하세요!)
+아래는 이 회의에서 참고해야 할 자료입니다. 이 내용을 바탕으로 토론하세요.
+
+${meetingAttachments.map((att, idx) => `### 자료 ${idx + 1}: ${att.name}
+\`\`\`
+${att.content.substring(0, 5000)}${att.content.length > 5000 ? '\n... (내용 일부 생략)' : ''}
+\`\`\`
+`).join('\n')}`
+    }
+
     const response = await chain.invoke({
       agentName: agent.name,
       agentDescription: agent.description || '',
       topic,
+      attachmentsSection,
       otherParticipants: otherAgents.map((a) => `- ${a.name} (${a.role})`).join('\n'),
       discussion: formatChatHistory(previousMessages),
     })
