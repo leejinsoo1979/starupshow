@@ -1633,6 +1633,7 @@ function NewChatModal({
         className={`w-full max-w-2xl rounded-2xl overflow-hidden ${
           isDark ? 'bg-zinc-900' : 'bg-white'
         } shadow-2xl max-h-[90vh] flex flex-col`}
+        style={{ border: `1px solid ${isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)'}` }}
       >
         {/* 헤더 - 콘솔 스타일 */}
         <div className={`px-6 py-4 border-b ${isDark ? 'border-zinc-800 bg-zinc-950' : 'border-zinc-200 bg-zinc-50'}`}>
