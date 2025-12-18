@@ -766,17 +766,34 @@ async function processAgentResponsesRelay(
     if (hasFacilitator && facilitatorAgent && round >= 2) {
       console.log(`[Facilitator Mode] Starting facilitator-driven discussion round ${round}`)
 
-      // 아직 발언 안 한 에이전트 찾기 (진행자 제외)
-      const agentsNotYetSpoken = nonFacilitatorAgents.filter(a => agentSpeakCount[a.id] < round - 1)
-      // 현재 라운드에서 질문할 에이전트 선택
-      const agentToAsk = agentsNotYetSpoken.length > 0
-        ? agentsNotYetSpoken[0]
-        : nonFacilitatorAgents[(round - 2) % nonFacilitatorAgents.length]
+      // 시간 상태 확인
+      const facilTimeStatus = await getTimeStatus()
 
-      console.log(`[Facilitator Mode] Facilitator will ask: ${agentToAsk.name}`)
+      // 진행자 역할 결정: 질문/통제/정리
+      type FacilitatorRole = 'ask' | 'control' | 'summarize' | 'push_conclusion'
+      let facilitatorRole: FacilitatorRole = 'ask'
 
-      // --- 1. 진행자가 에이전트를 지목하여 질문 ---
-      await supabase.from('chat_participants').update({ is_typing: true }).eq('room_id', roomId).eq('agent_id', facilitatorAgent.id)
+      // 시간에 따른 역할 변경
+      if (facilTimeStatus.phase === 'urgent' || facilTimeStatus.phase === 'expired') {
+        facilitatorRole = 'push_conclusion'
+      } else if (facilTimeStatus.phase === 'closing') {
+        facilitatorRole = 'summarize'
+      } else if (round % 4 === 0) {
+        // 4라운드마다 중간 정리
+        facilitatorRole = 'summarize'
+      } else if (conversationHistory.length > 5) {
+        // 대화가 길어지면 가끔 통제
+        const lastMessages = conversationHistory.slice(-3)
+        const offTopicKeywords = ['근데 다른 얘기인데', '아 참', '그건 그렇고']
+        const maybeOffTopic = lastMessages.some(m => offTopicKeywords.some(k => m.content.includes(k)))
+        if (maybeOffTopic) facilitatorRole = 'control'
+      }
+
+      console.log(`[Facilitator Mode] Role: ${facilitatorRole}, Time: ${facilTimeStatus.phase}`)
+
+      // 아직 발언 적은 에이전트 찾기 (진행자 제외)
+      const sortedBySpeak = [...nonFacilitatorAgents].sort((a, b) => agentSpeakCount[a.id] - agentSpeakCount[b.id])
+      const agentToAsk = sortedBySpeak[0]
 
       const recentHistory = conversationHistory.slice(-8)
       const historyText = recentHistory.map(h => `[${h.name}]: ${h.content}`).join('\n\n')
@@ -784,27 +801,78 @@ async function processAgentResponsesRelay(
         ? `\n🎯 토론 주제: "${roomContext.meetingTopic}"`
         : ''
 
-      const facilitatorPrompt = `${historyText}
+      // --- 1. 진행자 발언 ---
+      await supabase.from('chat_participants').update({ is_typing: true }).eq('room_id', roomId).eq('agent_id', facilitatorAgent.id)
+
+      let facilitatorPrompt = ''
+
+      if (facilitatorRole === 'ask') {
+        facilitatorPrompt = `${historyText}
 
 ---
-👑 당신: ${facilitatorAgent.name} (회의 진행자)${topicInstruction}
+👑 당신: ${facilitatorAgent.name} (회의 진행자)${topicInstruction}${facilTimeStatus.hint ? `\n${facilTimeStatus.hint}` : ''}
 
 지금까지 대화를 듣고, **${agentToAsk.name}**님에게 의견을 물어보세요.
 
 예시:
-- "${agentToAsk.name}님은 이 부분에 대해 어떻게 생각하세요?"
-- "${agentToAsk.name}님, 혹시 다른 관점이 있으신가요?"
-- "그럼 ${agentToAsk.name}님 의견도 들어볼까요?"
+- "어 ${agentToAsk.name}님은 어떻게 생각해요?"
+- "${agentToAsk.name}님 의견도 들어볼까요?"
+- "근데 ${agentToAsk.name}님은?"
 
-규칙:
-- 반드시 ${agentToAsk.name}을 이름으로 지목하세요
-- 이전 발언을 간단히 정리하거나 코멘트해도 좋아요
-- 1-2문장, 한국어만`
+🗣️ 말투: 실제 회의처럼 자연스럽게
+- 1-2문장`
+      } else if (facilitatorRole === 'control') {
+        facilitatorPrompt = `${historyText}
+
+---
+👑 당신: ${facilitatorAgent.name} (회의 진행자)${topicInstruction}
+
+대화가 좀 샜네요. 본론으로 끌어오세요.
+
+예시:
+- "어 잠깐, 다시 본론으로 가면"
+- "아 그건 그렇고, 원래 주제로 돌아가면"
+- "ㅋㅋ 그건 나중에 하고 일단"
+
+🗣️ 말투: 부드럽게 끊기
+- 1-2문장`
+      } else if (facilitatorRole === 'summarize') {
+        facilitatorPrompt = `${historyText}
+
+---
+👑 당신: ${facilitatorAgent.name} (회의 진행자)${topicInstruction}${facilTimeStatus.hint ? `\n${facilTimeStatus.hint}` : ''}
+
+지금까지 나온 의견을 간단히 정리하고, 다음으로 넘어가세요.
+
+예시:
+- "음 정리하면, A는 ~하고, B는 ~한다는 거죠?"
+- "자 그러면 여기까지 정리하고 다음 포인트로"
+- "오케이 여기까지 들었고요, 그럼 다음은..."
+
+🗣️ 말투: 자연스럽게 정리
+- 2-3문장`
+      } else {
+        // push_conclusion
+        facilitatorPrompt = `${historyText}
+
+---
+👑 당신: ${facilitatorAgent.name} (회의 진행자)${topicInstruction}
+⏰ ${facilTimeStatus.hint || '시간이 거의 다 됐어요!'}
+
+결론을 이끌어내세요. 지금까지 나온 의견 중 합의점을 찾거나, 다수 의견을 정리하세요.
+
+예시:
+- "자 시간이 없으니까 정리하면, 결론은 ~로 가는 게 맞죠?"
+- "오케이 마무리하면, 일단 ~하기로 하고, 나머지는 다음에?"
+- "됐어요 정리할게요. ~로 결정하죠?"
+
+🗣️ 말투: 단호하지만 자연스럽게
+- 2-3문장`
+      }
 
       let facilitatorResponse = await generateSingleAgentResponse(supabase, facilitatorAgent, facilitatorPrompt, roomContext, images, userId)
 
       if (facilitatorResponse) {
-        // 응답 정제
         facilitatorResponse = cleanAgentResponse(facilitatorResponse, uniqueAgents)
 
         await supabase.from('chat_messages').insert({
@@ -814,14 +882,13 @@ async function processAgentResponsesRelay(
           message_type: 'text',
           content: facilitatorResponse,
           is_ai_response: true,
-          metadata: { agent_name: facilitatorAgent.name, is_facilitator: true },
+          metadata: { agent_name: facilitatorAgent.name, is_facilitator: true, facilitator_role: facilitatorRole },
         })
 
-        // 🔥 진행자 대화 메모리 저장
         try {
           const memoryService = getMemoryService(supabase)
           await memoryService.logConversation(facilitatorAgent.id, roomId, facilitatorPrompt, facilitatorResponse, {
-            room_name: roomContext.roomName, is_facilitator: true, round: round + 1,
+            room_name: roomContext.roomName, is_facilitator: true, round: round + 1, role: facilitatorRole,
           })
         } catch (e) { /* ignore */ }
 
@@ -834,70 +901,159 @@ async function processAgentResponsesRelay(
         totalMessages++
         agentSpeakCount[facilitatorAgent.id]++
 
-        console.log(`[Facilitator] ${facilitatorAgent.name}: ${facilitatorResponse.slice(0, 50)}...`)
+        console.log(`[Facilitator:${facilitatorRole}] ${facilitatorAgent.name}: ${facilitatorResponse.slice(0, 50)}...`)
       }
 
       await supabase.from('chat_participants').update({ is_typing: false }).eq('room_id', roomId).eq('agent_id', facilitatorAgent.id)
-
-      // 잠깐 대기 (자연스러운 흐름)
       await new Promise(resolve => setTimeout(resolve, 1500))
 
-      // --- 2. 지목받은 에이전트가 대답 ---
-      await supabase.from('chat_participants').update({ is_typing: true }).eq('room_id', roomId).eq('agent_id', agentToAsk.id)
+      // --- 2. 지목받은 에이전트 또는 다른 에이전트들 반응 ---
+      // 진행자가 질문했으면 지목된 에이전트가 답변
+      // 정리/통제면 다른 에이전트가 동의/반응
+      const respondingAgents = facilitatorRole === 'ask'
+        ? [agentToAsk]
+        : nonFacilitatorAgents.slice(0, 2) // 정리/통제 시 최대 2명 반응
 
-      const updatedHistory = conversationHistory.slice(-8)
-      const updatedHistoryText = updatedHistory.map(h => `[${h.name}]: ${h.content}`).join('\n\n')
+      for (const respondingAgent of respondingAgents) {
+        if (totalMessages >= maxTotalMessages) break
 
-      const agentPrompt = `${updatedHistoryText}
+        await supabase.from('chat_participants').update({ is_typing: true }).eq('room_id', roomId).eq('agent_id', respondingAgent.id)
+
+        const updatedHistory = conversationHistory.slice(-8)
+        const updatedHistoryText = updatedHistory.map(h => `[${h.name}]: ${h.content}`).join('\n\n')
+
+        let agentPrompt = ''
+
+        if (facilitatorRole === 'ask') {
+          agentPrompt = `${updatedHistoryText}
 
 ---
-당신: ${agentToAsk.name}${topicInstruction}
+당신: ${respondingAgent.name}${topicInstruction}
 (👑 진행자 ${facilitatorAgent.name}님이 당신에게 질문했습니다)
 
-진행자가 당신에게 의견을 물었습니다. 성실하게 답변하세요.
+질문에 성실하게 답변하세요.
 
-규칙:
-- 질문에 대한 당신의 생각을 명확히 말하세요
-- 구체적인 예시나 이유를 들면 좋아요
-- 다른 사람 의견에 동의/반박할 수도 있어요
-- 1-3문장, 한국어만`
+🗣️ 말투: 실제 회의처럼
+예시: "어 제 생각엔~", "음... 저는 ~라고 봐요", "아 그게 말이죠~"
+- 2-3문장`
+        } else if (facilitatorRole === 'push_conclusion') {
+          agentPrompt = `${updatedHistoryText}
 
-      let agentResponse = await generateSingleAgentResponse(supabase, agentToAsk, agentPrompt, roomContext, images, userId)
+---
+당신: ${respondingAgent.name}${topicInstruction}
+(👑 진행자가 결론을 내리려고 합니다)
 
-      if (agentResponse) {
-        agentResponse = cleanAgentResponse(agentResponse, uniqueAgents)
+진행자 정리에 동의하거나, 마지막 한마디를 하세요.
 
-        await supabase.from('chat_messages').insert({
-          room_id: roomId,
-          sender_type: 'agent',
-          sender_agent_id: agentToAsk.id,
-          message_type: 'text',
-          content: agentResponse,
-          is_ai_response: true,
-          metadata: { agent_name: agentToAsk.name },
-        })
+🗣️ 말투: 짧게
+예시: "네 그렇게 하죠", "오케이 저도 동의", "아 근데 마지막으로 ~만"
+- 1-2문장`
+        } else {
+          agentPrompt = `${updatedHistoryText}
 
-        // 🔥 지목된 에이전트 대화 메모리 저장
-        try {
-          const memoryService = getMemoryService(supabase)
-          await memoryService.logConversation(agentToAsk.id, roomId, agentPrompt, agentResponse, {
-            room_name: roomContext.roomName, round: round + 1,
+---
+당신: ${respondingAgent.name}${topicInstruction}
+(👑 진행자가 정리/통제 중입니다)
+
+진행자 말에 짧게 반응하세요.
+
+🗣️ 말투: 짧게 동의/반응
+예시: "네네", "오 그러네요", "맞아요", "아 ㅋㅋ"
+- 1문장`
+        }
+
+        let agentResponse = await generateSingleAgentResponse(supabase, respondingAgent, agentPrompt, roomContext, images, userId)
+
+        if (agentResponse) {
+          agentResponse = cleanAgentResponse(agentResponse, uniqueAgents)
+
+          await supabase.from('chat_messages').insert({
+            room_id: roomId,
+            sender_type: 'agent',
+            sender_agent_id: respondingAgent.id,
+            message_type: 'text',
+            content: agentResponse,
+            is_ai_response: true,
+            metadata: { agent_name: respondingAgent.name },
           })
-        } catch (e) { /* ignore */ }
 
-        conversationHistory.push({
-          role: 'agent',
-          name: agentToAsk.name,
-          agentId: agentToAsk.id,
-          content: agentResponse
-        })
-        totalMessages++
-        agentSpeakCount[agentToAsk.id]++
+          try {
+            const memoryService = getMemoryService(supabase)
+            await memoryService.logConversation(respondingAgent.id, roomId, agentPrompt, agentResponse, {
+              room_name: roomContext.roomName, round: round + 1,
+            })
+          } catch (e) { /* ignore */ }
 
-        console.log(`[Agent] ${agentToAsk.name}: ${agentResponse.slice(0, 50)}...`)
+          conversationHistory.push({
+            role: 'agent',
+            name: respondingAgent.name,
+            agentId: respondingAgent.id,
+            content: agentResponse
+          })
+          totalMessages++
+          agentSpeakCount[respondingAgent.id]++
+
+          console.log(`[Agent] ${respondingAgent.name}: ${agentResponse.slice(0, 50)}...`)
+        }
+
+        await supabase.from('chat_participants').update({ is_typing: false }).eq('room_id', roomId).eq('agent_id', respondingAgent.id)
+        await new Promise(resolve => setTimeout(resolve, 1500))
       }
 
-      await supabase.from('chat_participants').update({ is_typing: false }).eq('room_id', roomId).eq('agent_id', agentToAsk.id)
+      // --- 3. 자유 토론 (다른 에이전트들 추가 반응, 선택적) ---
+      // 질문 모드일 때만 다른 에이전트들도 반응할 수 있게
+      if (facilitatorRole === 'ask' && nonFacilitatorAgents.length > 1) {
+        const otherAgents = nonFacilitatorAgents.filter(a => a.id !== agentToAsk.id)
+        // 50% 확률로 한 명이 추가 반응
+        if (Math.random() > 0.5 && otherAgents.length > 0) {
+          const reactor = otherAgents[Math.floor(Math.random() * otherAgents.length)]
+
+          await supabase.from('chat_participants').update({ is_typing: true }).eq('room_id', roomId).eq('agent_id', reactor.id)
+
+          const latestHistory = conversationHistory.slice(-6)
+          const latestHistoryText = latestHistory.map(h => `[${h.name}]: ${h.content}`).join('\n\n')
+
+          const reactorPrompt = `${latestHistoryText}
+
+---
+당신: ${reactor.name}${topicInstruction}
+
+방금 ${agentToAsk.name}님 의견에 반응하세요. 동의/반박/추가 의견 뭐든 OK.
+
+🗣️ 말투: 자연스럽게
+예시: "어 맞아 저도~", "아 근데 그건~", "오 그 포인트 좋네"
+- 1-2문장`
+
+          let reactorResponse = await generateSingleAgentResponse(supabase, reactor, reactorPrompt, roomContext, images, userId)
+
+          if (reactorResponse) {
+            reactorResponse = cleanAgentResponse(reactorResponse, uniqueAgents)
+
+            await supabase.from('chat_messages').insert({
+              room_id: roomId,
+              sender_type: 'agent',
+              sender_agent_id: reactor.id,
+              message_type: 'text',
+              content: reactorResponse,
+              is_ai_response: true,
+              metadata: { agent_name: reactor.name, is_reaction: true },
+            })
+
+            conversationHistory.push({
+              role: 'agent',
+              name: reactor.name,
+              agentId: reactor.id,
+              content: reactorResponse
+            })
+            totalMessages++
+            agentSpeakCount[reactor.id]++
+
+            console.log(`[Reactor] ${reactor.name}: ${reactorResponse.slice(0, 50)}...`)
+          }
+
+          await supabase.from('chat_participants').update({ is_typing: false }).eq('room_id', roomId).eq('agent_id', reactor.id)
+        }
+      }
 
       // 다음 라운드로
       continue
