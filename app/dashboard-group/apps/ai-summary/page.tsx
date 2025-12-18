@@ -3,6 +3,7 @@
 import React, { useState } from 'react'
 import { SummarySidebar } from '@/components/tools/SummarySidebar'
 import { YoutubeViewer } from '@/components/tools/YoutubeViewer'
+import { WorkHistorySidebar } from '@/components/tools/WorkHistorySidebar'
 
 // 유튜브 URL에서 비디오 ID 추출
 function extractYoutubeId(url: string): string | null {
@@ -126,6 +127,9 @@ export default function AiSummaryPage() {
                     error={error}
                 />
             </div>
+
+            {/* 우측 폴딩 퀵 메뉴 - 작업 목록 */}
+            <WorkHistorySidebar />
         </div>
     )
 }
