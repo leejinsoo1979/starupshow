@@ -84,35 +84,75 @@ export interface ChatMessage {
   reply_to?: ChatMessage
 }
 
-// 회의 설정 타입
+// 회의 설정 타입 (확장된 구조화 회의)
 export interface MeetingConfig {
-  // MISSION OBJECTIVE
+  // =====================
+  // WHY: MISSION BRIEFING
+  // =====================
   purpose?: 'strategic_decision' | 'problem_analysis' | 'action_planning' | 'idea_expansion' | 'risk_validation'
 
-  // DISCUSSION PROTOCOL
+  // 오늘 반드시 결정할 것 (1문장)
+  decisionStatement?: string
+
+  // 성공 기준 (끝나면 남아야 하는 것)
+  successCriteria?: string
+
+  // 선택지 (Options, 2~5개)
+  optionsPool?: string
+
+  // 선택 기준 (가중치 포함 권장)
+  decisionCriteria?: string
+
+  // 제약/레드라인 (절대 조건)
+  constraints?: string
+
+  // =====================
+  // HOW: DISCUSSION PROTOCOL
+  // =====================
   discussionMode?: 'quick' | 'balanced' | 'deep' | 'brainstorm'
   allowDebate?: boolean  // AI 간 상호 반박
   failureResolution?: 'majority' | 'leader' | 'defer'  // 합의 실패 시 처리
 
-  // 에이전트별 역할/성향 설정
+  // 반복 발언 감지 (유사도 높으면 재작성)
+  repetitionGuard?: boolean
+
+  // 레드라인 자동 감시
+  constraintEnforce?: boolean
+
+  // =====================
+  // WHO: 에이전트별 역할/성향 설정
+  // =====================
   agentConfigs?: {
     id: string
     role?: 'strategist' | 'analyst' | 'executor' | 'critic' | 'mediator'
     tendency?: 'aggressive' | 'conservative' | 'creative' | 'data-driven'
     canDecide?: boolean
+    customMission?: string  // 커스텀 미션
+    customKpis?: string[]   // 커스텀 KPI
   }[]
 
-  // CONTEXT
+  // =====================
+  // CONTEXT: 입력 자료
+  // =====================
   linkedProject?: string | null
   memoryScope?: 'organization' | 'project' | 'none'
 
-  // OUTPUT
+  // 현재 사실 (What's true now)
+  currentTruths?: string
+
+  // 용어 정의
+  definitions?: string
+
+  // =====================
+  // OUTPUT: 산출물
+  // =====================
   outputs?: {
-    summary?: boolean
-    actionItems?: boolean
-    decision?: boolean
-    nextAgenda?: boolean
-    boardReflection?: boolean
+    summary?: boolean        // 의사결정 요약
+    actionItems?: boolean    // 실행 태스크 생성
+    decision?: boolean       // 최종 결정사항
+    nextAgenda?: boolean     // 다음 회의 안건
+    boardReflection?: boolean // 에이전트별 의견 정리
+    riskRegister?: boolean   // 반대/리스크 요약
   }
 }
 

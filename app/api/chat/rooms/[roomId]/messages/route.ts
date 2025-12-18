@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { SendMessageRequest } from '@/types/chat'
+import { SendMessageRequest, MeetingConfig } from '@/types/chat'
 import { generateAgentChatResponse, generateAgentMeetingResponse } from '@/lib/langchain/agent-chat'
 import {
   processAgentResponsesWithMemory,
@@ -13,6 +13,18 @@ import { getMemoryService } from '@/lib/agents/memory'
 import { getDevUserIfEnabled } from '@/lib/dev-user'
 import { parseFileFromUrl, formatFilesForContext, ParsedFileContent } from '@/lib/utils/file-parser'
 import { getLLMConfigForAgent } from '@/lib/llm/user-keys'
+import {
+  generateMasterPrompt,
+  generateAgentSystemPrompt,
+  getStepHint,
+  roundToStep,
+  MEETING_HARD_RULES,
+  SPEAKING_FORMAT,
+  ROLE_PRESETS,
+  DISCUSSION_MODES,
+  MeetingContext,
+  AgentPromptContext,
+} from '@/lib/meeting/prompt-templates'
 
 // GET: 메시지 목록 조회 (페이지네이션)
 export async function GET(
@@ -475,13 +487,7 @@ async function processAgentResponsesRelay(
     isMeeting?: boolean
     meetingTopic?: string
     facilitatorId?: string
-    meetingConfig?: {
-      purpose?: string
-      discussionMode?: string
-      allowDebate?: boolean
-      failureResolution?: string
-      agentConfigs?: { id: string; role?: string; tendency?: string; canDecide?: boolean }[]
-    }
+    meetingConfig?: MeetingConfig
   },
   images: string[] = [],
   userId?: string
@@ -1255,47 +1261,110 @@ ${topicInstruction ? '주제 언급하고 질문 던져' : ''}
           }
 
         } else {
-          // Phase 3+: 본격 토론
+          // Phase 3+: 본격 토론 (구조화된 회의 모드)
+
+          // 🔥 현재 단계 계산 (5단계 턴 구조)
+          const currentStep = roundToStep(round, uniqueAgents.length)
+          const stepHint = getStepHint(currentStep, isFacilitator)
+
+          // 🔥 에이전트 역할 설정
+          const agentConfig = meetingConfig?.agentConfigs?.find(c => c.id === agent.id)
+          const agentRoleType = agentConfig?.role as 'strategist' | 'analyst' | 'executor' | 'critic' | 'mediator' | undefined
+
+          // 🔥 회의 컨텍스트 구성
+          const meetingCtx: MeetingContext = {
+            meetingTitle: roomContext.meetingTopic || roomContext.roomName,
+            decisionStatement: meetingConfig?.decisionStatement,
+            successCriteria: meetingConfig?.successCriteria,
+            optionsPool: meetingConfig?.optionsPool,
+            decisionCriteria: meetingConfig?.decisionCriteria,
+            constraints: meetingConfig?.constraints,
+            currentTruths: meetingConfig?.currentTruths,
+            definitions: meetingConfig?.definitions,
+            meetingConfig,
+            currentStep,
+            roundNumber: round,
+          }
+
+          // 🔥 마스터 프롬프트 생성 (회의 전체 컨텍스트)
+          const masterPrompt = meetingConfig?.decisionStatement
+            ? generateMasterPrompt(meetingCtx)
+            : '' // decisionStatement 없으면 기존 방식
+
+          // 🔥 에이전트 시스템 프롬프트 생성
+          const agentPromptCtx: AgentPromptContext = {
+            agentName: agent.name,
+            agentRole: agentRoleType,
+            agentTendency: agentConfig?.tendency as 'aggressive' | 'conservative' | 'creative' | 'data-driven' | undefined,
+            customMission: agentConfig?.customMission,
+            customKpis: agentConfig?.customKpis,
+            isFacilitator,
+            currentStep,
+            meetingContext: meetingCtx,
+            conversationHistory: historyText,
+            otherParticipants: uniqueAgents.filter(a => a.id !== agent.id).map(a => a.name),
+          }
+
+          const agentSystemPrompt = generateAgentSystemPrompt(agentPromptCtx)
+
+          // 🔥 시간 상태에 따른 단계 오버라이드
+          let effectiveStep = currentStep
+          if (timeStatus.phase === 'urgent' || timeStatus.phase === 'expired') {
+            effectiveStep = 5 // 강제로 결정 단계
+          } else if (timeStatus.phase === 'closing') {
+            effectiveStep = Math.max(currentStep, 4) // 최소 수렴 단계
+          }
+
+          const effectiveStepHint = getStepHint(effectiveStep, isFacilitator)
+
           if (isFacilitator) {
-            // 진행자는 시간 관리도 해야 함
-            let facilitatorTimeNote = ''
-            if (timeStatus.phase === 'closing') {
-              facilitatorTimeNote = '\n⏰ 마무리 시간이야. 의견 정리하고 결론 이끌어내.'
-            } else if (timeStatus.phase === 'urgent') {
-              facilitatorTimeNote = '\n⏰ 시간 거의 끝! "자 마무리하죠", "결론 내리면..." 식으로 정리해.'
+            // 진행자 프롬프트 (구조화)
+            let facilitatorStepInstruction = ''
+            if (effectiveStep === 1) {
+              facilitatorStepInstruction = '지금은 컨텍스트 정렬 단계. "~로 이해하고 가면 될까요?" 식으로 확인.'
+            } else if (effectiveStep === 2) {
+              facilitatorStepInstruction = '옵션 수집 단계. 참여자들에게 옵션을 물어보고 정리해.'
+            } else if (effectiveStep === 3) {
+              facilitatorStepInstruction = '리스크 점검 단계. "이게 안 되면?" 식으로 허점을 찾아.'
+            } else if (effectiveStep === 4) {
+              facilitatorStepInstruction = '수렴 단계. "정리하면 ~로 가는 게 맞죠?" 식으로 압축해.'
+            } else {
+              facilitatorStepInstruction = '결정 단계. 최종 결정 + 태스크 배분. "결정: ~. 태스크: 1) 2) 3)"'
             }
 
-            contextMessage = `${historyText}
+            contextMessage = `${masterPrompt ? `${masterPrompt}\n\n---\n` : ''}[대화 기록]
+${historyText}
 
 ---
-👑 당신: ${agent.name} (진행자) | 참여자: ${otherAgentNames || '사용자'}${topicInstruction}${timeInstruction}${facilitatorTimeNote}
+${agentSystemPrompt}
 
-진행자로서 자연스럽게 참여해.
-- 주제 벗어나면: "어 잠깐, 다시 본론으로"
-- 의견 물을 때: "~는 어떻게 생각해요?"
-- 정리할 때: "음 정리하면..."
-- 너무 길어지면 끊어${conclusionPush}
+[현재 단계: ${effectiveStep}]
+${facilitatorStepInstruction}
+${timeStatus.hint ? `\n⏰ ${timeStatus.hint}` : ''}
 
-🗣️ 말투: "어 근데", "아 그거", "음...", "오 괜찮은데" 등 자연스럽게
-- 1-2문장`
+[발언 형식]
+1) 결론(1문장) → 2) 근거(최대3) → 3) 리스크(1) → 4) 질문/액션(1)
+※ 6문장 이내`
           } else {
-            // 일반 참여자
-            const facilitatorNote = facilitatorName ? `\n(👑 진행자: ${facilitatorName} - 진행자 지시에 따르세요)` : ''
+            // 일반 참여자 프롬프트 (구조화)
+            const facilitatorNote = facilitatorName ? `\n(👑 진행자: ${facilitatorName})` : ''
 
-            contextMessage = `${historyText}
+            contextMessage = `${masterPrompt ? `${masterPrompt}\n\n---\n` : ''}[대화 기록]
+${historyText}
 
 ---
-당신: ${agent.name} | 대화 상대: ${otherAgentNames || '사용자'}${topicInstruction}${facilitatorNote}${timeInstruction}
-${configInstruction ? `\n${configInstruction}` : ''}
+${agentSystemPrompt}${facilitatorNote}
 
-위 대화에 자연스럽게 참여하세요.${conclusionPush}${extensionHint}
+[현재 단계: ${effectiveStep}. ${effectiveStepHint}]
+${timeStatus.hint ? `⏰ ${timeStatus.hint}` : ''}
 
-🗣️ 말투: 실제 직장인/스타트업 회의처럼 (반말~존댓말 혼용 OK)
-예시: "어 근데 그거", "아 맞아맞아", "음... 글쎄", "오 괜찮은데?", "아니 근데 그건 좀...", "ㅋㅋ 그건 아닌듯"
+[발언 형식(강제)]
+1) 결론(1문장) - "~해야 합니다" 또는 "~가 맞습니다"
+2) 근거(최대 3개) - "왜냐하면 1) 2) 3)"
+3) 리스크/반례(1개) - "단, ~하면 문제" 또는 "반대로 ~"
+4) 질문/다음 액션(1개)
 
-❌ 피하기: 동화책/교과서 말투, 너무 공손한 존댓말
-
-1-3문장, 한국어`
+※ 6문장 이내, 같은 말 반복 금지, 빈말(좋네요/재밌네요) 금지`
           }
         }
 

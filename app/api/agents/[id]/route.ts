@@ -221,6 +221,8 @@ export async function PATCH(
       'chain_order',
       // 8섹션 프롬프트 설정 (JSONB)
       'prompt_sections',
+      // 직무/직함
+      'job_title',
     ]
 
     const updates: Record<string, unknown> = {}

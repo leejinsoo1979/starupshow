@@ -3309,6 +3309,7 @@ export default function AgentProfilePage() {
           updateData = {
             name: editForm.name,
             description: editForm.description,
+            job_title: editForm.job_title || null,
           }
           break
         case 'identity':
@@ -3793,6 +3794,18 @@ export default function AgentProfilePage() {
                 )}
                 placeholder="에이전트 이름"
               />
+              <input
+                type="text"
+                value={editForm.job_title || ''}
+                onChange={(e) => setEditForm({ ...editForm, job_title: e.target.value })}
+                className={cn(
+                  'w-full text-sm text-center px-4 py-2 rounded-lg border',
+                  isDark
+                    ? 'bg-zinc-900 border-zinc-700 text-zinc-300'
+                    : 'bg-white border-zinc-200 text-zinc-600'
+                )}
+                placeholder="직무/직함 (예: 마케팅 매니저, 개발팀장)"
+              />
               <textarea
                 value={editForm.description || ''}
                 onChange={(e) => setEditForm({ ...editForm, description: e.target.value })}
@@ -3837,7 +3850,7 @@ export default function AgentProfilePage() {
                   {agent.name}
                 </h1>
                 <button
-                  onClick={() => startEditing('basic', { name: agent.name, description: agent.description })}
+                  onClick={() => startEditing('basic', { name: agent.name, description: agent.description, job_title: (agent as any).job_title || '' })}
                   className={cn(
                     'p-1.5 rounded-lg opacity-50 hover:opacity-100 transition-opacity',
                     isDark ? 'hover:bg-zinc-800' : 'hover:bg-zinc-100'
@@ -3846,6 +3859,11 @@ export default function AgentProfilePage() {
                   <Edit3 className="w-4 h-4" />
                 </button>
               </div>
+              {(agent as any).job_title && (
+                <p className={cn('text-sm text-center', isDark ? 'text-zinc-400' : 'text-zinc-500')}>
+                  {(agent as any).job_title}
+                </p>
+              )}
               <span
                 className="px-4 py-1.5 rounded-lg text-sm font-medium mt-2"
                 style={{ backgroundColor: status.bgColor, color: status.color }}
