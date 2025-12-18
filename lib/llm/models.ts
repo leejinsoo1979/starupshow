@@ -13,12 +13,12 @@ export interface LLMConfig {
 export const AVAILABLE_MODELS = {
   grok: [
     { id: 'grok-3-mini', name: 'Grok 3 Mini', description: '경량 추론 모델 (저렴)', costTier: 'low', inputPrice: 0.30, outputPrice: 0.50, vision: false },
-    { id: 'grok-4-1-fast', name: 'Grok 4.1 Fast ⭐', description: '가성비 깡패 (추천)', costTier: 'medium', inputPrice: 1.00, outputPrice: 4.00, vision: false },
+    { id: 'grok-4-1-fast', name: 'Grok 4.1 Fast', description: '가성비 깡패 (추천)', costTier: 'medium', inputPrice: 1.00, outputPrice: 4.00, vision: false },
     { id: 'grok-2-1212', name: 'Grok 2', description: '131K 컨텍스트', costTier: 'medium', inputPrice: 2.00, outputPrice: 10.00, vision: false },
     { id: 'grok-3', name: 'Grok 3', description: '플래그십 모델', costTier: 'high', inputPrice: 3.00, outputPrice: 15.00, vision: false },
     { id: 'grok-4-0709', name: 'Grok 4', description: '최신 모델', costTier: 'high', inputPrice: 3.00, outputPrice: 15.00, vision: false },
     // Vision-capable models
-    { id: 'grok-2-vision-latest', name: 'Grok 2 Vision', description: '이미지 분석 지원 👁️', costTier: 'medium', inputPrice: 2.00, outputPrice: 10.00, vision: true },
+    { id: 'grok-2-vision-latest', name: 'Grok 2 Vision', description: '이미지 분석 지원', costTier: 'medium', inputPrice: 2.00, outputPrice: 10.00, vision: true },
   ],
   openai: [
     { id: 'gpt-4o-mini', name: 'GPT-4o Mini', description: '빠르고 저렴한 GPT-4', costTier: 'medium', inputPrice: 0.15, outputPrice: 0.60, vision: true },
@@ -26,7 +26,7 @@ export const AVAILABLE_MODELS = {
     { id: 'gpt-4-turbo', name: 'GPT-4 Turbo', description: '128K 컨텍스트', costTier: 'high', inputPrice: 10.00, outputPrice: 30.00, vision: true },
   ],
   gemini: [
-    { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash ⭐', description: '최신 플래시 (추천)', costTier: 'low', inputPrice: 0.15, outputPrice: 0.60, vision: true },
+    { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash', description: '최신 플래시 (추천)', costTier: 'low', inputPrice: 0.15, outputPrice: 0.60, vision: true },
     { id: 'gemini-2.0-flash-lite', name: 'Gemini 2.0 Flash Lite', description: '최저가 경량', costTier: 'low', inputPrice: 0.075, outputPrice: 0.30, vision: true },
     { id: 'gemini-2.0-flash', name: 'Gemini 2.0 Flash', description: '빠른 응답', costTier: 'low', inputPrice: 0.10, outputPrice: 0.40, vision: true },
     { id: 'gemini-1.5-flash', name: 'Gemini 1.5 Flash', description: '1M 컨텍스트', costTier: 'low', inputPrice: 0.075, outputPrice: 0.30, vision: true },
@@ -36,24 +36,24 @@ export const AVAILABLE_MODELS = {
     { id: 'qwen-turbo', name: 'Qwen Turbo', description: '빠른 응답', costTier: 'free', inputPrice: 0, outputPrice: 0, vision: false },
     { id: 'qwen-plus', name: 'Qwen Plus', description: '균형 잡힌 성능', costTier: 'free', inputPrice: 0, outputPrice: 0, vision: false },
     { id: 'qwen-max', name: 'Qwen Max', description: '최고 성능', costTier: 'free', inputPrice: 0, outputPrice: 0, vision: false },
-    { id: 'qwen-vl-max', name: 'Qwen VL Max', description: '이미지 분석 지원 👁️', costTier: 'free', inputPrice: 0, outputPrice: 0, vision: true },
+    { id: 'qwen-vl-max', name: 'Qwen VL Max', description: '이미지 분석 지원', costTier: 'free', inputPrice: 0, outputPrice: 0, vision: true },
   ],
   ollama: [
     { id: 'qwen2.5:3b', name: 'Qwen 2.5 3B', description: '로컬 경량 모델', costTier: 'free', inputPrice: 0, outputPrice: 0, vision: false },
     { id: 'qwen2.5:7b', name: 'Qwen 2.5 7B', description: '로컬 중형 모델', costTier: 'free', inputPrice: 0, outputPrice: 0, vision: false },
     { id: 'llama3.2:3b', name: 'Llama 3.2 3B', description: 'Meta 경량 모델', costTier: 'free', inputPrice: 0, outputPrice: 0, vision: false },
     { id: 'mistral:7b', name: 'Mistral 7B', description: '빠른 로컬 모델', costTier: 'free', inputPrice: 0, outputPrice: 0, vision: false },
-    { id: 'llava:7b', name: 'LLaVA 7B', description: '로컬 비전 모델 👁️', costTier: 'free', inputPrice: 0, outputPrice: 0, vision: true },
+    { id: 'llava:7b', name: 'LLaVA 7B', description: '로컬 비전 모델', costTier: 'free', inputPrice: 0, outputPrice: 0, vision: true },
   ],
 } as const
 
 // Provider 표시 정보
 export const PROVIDER_INFO = {
-  grok: { name: 'Grok (xAI)', icon: '🤖', description: '저렴하고 빠름', recommended: true },
-  openai: { name: 'OpenAI', icon: '🧠', description: '고품질 응답', recommended: false },
-  gemini: { name: 'Gemini (Google)', icon: '✨', description: '균형 잡힌 성능', recommended: false },
-  qwen: { name: 'Qwen (Alibaba)', icon: '🌐', description: '무료 API', recommended: false },
-  ollama: { name: 'Ollama (로컬)', icon: '💻', description: '무료, 프라이버시', recommended: false },
+  grok: { name: 'Grok (xAI)', icon: 'G', description: '저렴하고 빠름', recommended: true },
+  openai: { name: 'OpenAI', icon: 'O', description: '고품질 응답', recommended: false },
+  gemini: { name: 'Gemini (Google)', icon: 'Ge', description: '균형 잡힌 성능', recommended: false },
+  qwen: { name: 'Qwen (Alibaba)', icon: 'Q', description: '무료 API', recommended: false },
+  ollama: { name: 'Ollama (로컬)', icon: 'OL', description: '무료, 프라이버시', recommended: false },
 } as const
 
 // Provider별 기본 모델
