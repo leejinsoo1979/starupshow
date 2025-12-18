@@ -3483,7 +3483,7 @@ export default function AgentProfilePage() {
       {/* Left Sidebar - Agent Profile */}
       <aside
         className={cn(
-          'w-full lg:w-[35%] lg:min-w-[320px] lg:max-w-[400px] rounded-2xl border p-6 md:p-8',
+          'w-full lg:w-[280px] xl:w-[300px] flex-shrink-0 rounded-2xl border p-5',
           isDark ? 'bg-zinc-950 border-zinc-800' : 'bg-white border-zinc-200'
         )}
       >
@@ -3497,10 +3497,10 @@ export default function AgentProfilePage() {
 
         {/* Profile Image with Upload */}
         <div className="flex flex-col items-center">
-          <div className="relative mb-5 md:mb-8">
+          <div className="relative mb-4">
             <div
               className={cn(
-                'relative w-32 h-32 md:w-40 md:h-40 cursor-pointer group',
+                'relative w-28 h-28 md:w-32 md:h-32 cursor-pointer group',
                 editMode && 'cursor-move'
               )}
               onClick={handleImageClick}
