@@ -193,8 +193,13 @@ export default function XTermWrapper({ tabId, onExecute }: XTermWrapperProps) {
     if (!isMountedRef.current) return
     if (wsRef.current?.readyState === WebSocket.OPEN) return
 
+    // Production 환경 체크 - 디버그 로그
+    const hostname = typeof window !== 'undefined' ? window.location.hostname : 'unknown'
+    const isProd = isProductionEnv()
+    console.log(`[Terminal] hostname: ${hostname}, isProduction: ${isProd}`)
+
     // Production 환경에서는 WebSocket 연결 시도하지 않음
-    if (isProductionEnv()) {
+    if (isProd) {
       terminal.write('\x1b[36m┌─────────────────────────────────────────────────────┐\x1b[0m\r\n')
       terminal.write('\x1b[36m│\x1b[0m  \x1b[33m⚡ Cloud Terminal Mode\x1b[0m                            \x1b[36m│\x1b[0m\r\n')
       terminal.write('\x1b[36m│\x1b[0m                                                     \x1b[36m│\x1b[0m\r\n')
