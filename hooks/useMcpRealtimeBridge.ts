@@ -40,20 +40,28 @@ export function useMcpRealtimeBridge({
   const [sessionId, setSessionId] = useState<string>('')
   const mountedRef = useRef(true)
 
-  // 노드/엣지 상태 ref (콜백에서 최신 상태 접근용)
+  // 상태 ref (콜백에서 최신 상태 접근용, 재연결 방지)
   const nodesRef = useRef(nodes)
   const edgesRef = useRef(edges)
+  const onLogRef = useRef(onLog)
+  const setNodesRef = useRef(setNodes)
+  const setEdgesRef = useRef(setEdges)
+  const fitViewRef = useRef(fitView)
 
   useEffect(() => {
     nodesRef.current = nodes
     edgesRef.current = edges
-  }, [nodes, edges])
+    onLogRef.current = onLog
+    setNodesRef.current = setNodes
+    setEdgesRef.current = setEdges
+    fitViewRef.current = fitView
+  })
 
   const log = useCallback((message: string) => {
     if (!mountedRef.current) return
     console.log(`[MCP Realtime] ${message}`)
-    onLog?.(message)
-  }, [onLog])
+    onLogRef.current?.(message)
+  }, []) // 의존성 제거 - ref 사용
 
   // Supabase 클라이언트
   const supabase = useMemo(() => createClient(), [])
@@ -116,7 +124,7 @@ export function useMcpRealtimeBridge({
             Object.assign(newNode.data, config)
           }
 
-          setNodes((nds) => [...nds, newNode])
+          setNodesRef.current((nds) => [...nds, newNode])
 
           result = {
             success: true,
@@ -135,7 +143,7 @@ export function useMcpRealtimeBridge({
             config?: Record<string, unknown>
           }
 
-          setNodes((nds) =>
+          setNodesRef.current((nds) =>
             nds.map((node) => {
               if (node.id === nodeId) {
                 const updatedData = { ...node.data }
@@ -159,8 +167,8 @@ export function useMcpRealtimeBridge({
         case 'delete_node': {
           const { nodeId } = params as { nodeId: string }
 
-          setNodes((nds) => nds.filter((n) => n.id !== nodeId))
-          setEdges((eds) =>
+          setNodesRef.current((nds) => nds.filter((n) => n.id !== nodeId))
+          setEdgesRef.current((eds) =>
             eds.filter((e) => e.source !== nodeId && e.target !== nodeId)
           )
 
@@ -193,7 +201,7 @@ export function useMcpRealtimeBridge({
             style: { stroke: 'var(--edge-color)', strokeWidth: 1.5 },
           }
 
-          setEdges((eds) => [...eds, newEdge])
+          setEdgesRef.current((eds) => [...eds, newEdge])
 
           result = {
             success: true,
@@ -211,7 +219,7 @@ export function useMcpRealtimeBridge({
             targetId: string
           }
 
-          setEdges((eds) =>
+          setEdgesRef.current((eds) =>
             eds.filter((e) => !(e.source === sourceId && e.target === targetId))
           )
 
@@ -225,8 +233,8 @@ export function useMcpRealtimeBridge({
         }
 
         case 'clear_canvas': {
-          setNodes([])
-          setEdges([])
+          setNodesRef.current([])
+          setEdgesRef.current([])
 
           result = {
             success: true,
@@ -242,9 +250,9 @@ export function useMcpRealtimeBridge({
           const template = AGENT_TEMPLATES.find((t) => t.id === templateId)
 
           if (template) {
-            setNodes(template.nodes as Node<AgentNodeData>[])
-            setEdges(template.edges as Edge[])
-            fitView?.()
+            setNodesRef.current(template.nodes as Node<AgentNodeData>[])
+            setEdgesRef.current(template.edges as Edge[])
+            fitViewRef.current?.()
 
             result = {
               success: true,
@@ -312,12 +320,13 @@ export function useMcpRealtimeBridge({
     if (bridgeRef.current?.connected) {
       bridgeRef.current.sendResponse(requestId, result)
     }
-  }, [setNodes, setEdges, fitView, log, calculateAutoPosition, sendCanvasState])
+  }, [log, calculateAutoPosition, sendCanvasState]) // refs 사용으로 의존성 최소화
 
   /**
-   * 메시지 핸들러
+   * 메시지 핸들러 (ref로 최신 상태 유지)
    */
-  const handleMessage = useCallback((msg: McpMessage) => {
+  const handleMessageRef = useRef<(msg: McpMessage) => void>()
+  handleMessageRef.current = (msg: McpMessage) => {
     switch (msg.type) {
       case 'mcp-command':
         handleMcpCommand({
@@ -329,48 +338,49 @@ export function useMcpRealtimeBridge({
 
       case 'mcp-connect':
         log('MCP 서버가 연결되었습니다')
-        // MCP 서버에 현재 캔버스 상태 전송
         sendCanvasState()
         break
     }
-  }, [handleMcpCommand, log, sendCanvasState])
+  }
 
   /**
-   * 연결 관리
+   * 연결 관리 - supabase만 의존 (한 번만 실행)
    */
   useEffect(() => {
     mountedRef.current = true
     const sid = getOrCreateSessionId()
     setSessionId(sid)
-    log(`세션 ID: ${sid}`)
-    log(`Supabase URL: ${process.env.NEXT_PUBLIC_SUPABASE_URL?.substring(0, 30)}...`)
+    console.log(`[MCP Realtime] 세션 ID: ${sid}`)
+    console.log(`[MCP Realtime] Supabase URL: ${process.env.NEXT_PUBLIC_SUPABASE_URL?.substring(0, 30)}...`)
 
     const bridge = new McpRealtimeBridge({
       supabase,
       sessionId: sid,
       clientType: 'frontend',
-      onMessage: handleMessage,
+      onMessage: (msg) => handleMessageRef.current?.(msg),
       onConnect: () => {
         if (mountedRef.current) {
-          log(`✅ 연결됨 (세션: ${sid})`)
+          console.log(`[MCP Realtime] ✅ 연결됨 (세션: ${sid})`)
           setIsConnected(true)
-          sendCanvasState()
+          // 캔버스 상태 전송
+          if (bridgeRef.current?.connected) {
+            bridgeRef.current.sendCanvasState(nodesRef.current, edgesRef.current)
+          }
         }
       },
       onDisconnect: () => {
         if (mountedRef.current) {
-          log('❌ 연결 해제됨 - 자동 재연결 대기 중...')
+          console.log('[MCP Realtime] ❌ 연결 해제됨 - 자동 재연결 대기 중...')
           setIsConnected(false)
         }
       },
       onError: (error) => {
-        log(`🚨 에러: ${error.message}`)
-        console.error('[MCP Realtime] Error:', error)
+        console.error(`[MCP Realtime] 🚨 에러: ${error.message}`)
       },
     })
 
     bridgeRef.current = bridge
-    log('브릿지 연결 시도...')
+    console.log('[MCP Realtime] 브릿지 연결 시도...')
     bridge.connect()
 
     return () => {
@@ -378,7 +388,7 @@ export function useMcpRealtimeBridge({
       bridge.disconnect()
       bridgeRef.current = null
     }
-  }, [supabase, handleMessage, log, sendCanvasState])
+  }, [supabase]) // 의존성 최소화 - supabase만
 
   /**
    * 노드/엣지 변경 시 상태 동기화 (debounce)

@@ -8,6 +8,8 @@ import {
   Check,
   X,
   Sparkles,
+  Bot,
+  ChevronDown,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useThemeStore } from '@/stores/themeStore'
@@ -29,6 +31,17 @@ interface PendingAiReply {
   body: string
   originalEmail: EmailMessage
 }
+
+// AI 모델 목록
+const AI_MODELS = [
+  { id: 'grok-4-1-fast', name: 'Grok 4.1 Fast', provider: 'xai' },
+  { id: 'grok-4-1', name: 'Grok 4.1', provider: 'xai' },
+  { id: 'gemini-2.0-flash-exp', name: 'Gemini 2.0 Flash', provider: 'google' },
+  { id: 'gpt-4o', name: 'GPT-4o', provider: 'openai' },
+  { id: 'gpt-4o-mini', name: 'GPT-4o Mini', provider: 'openai' },
+  { id: 'claude-sonnet-4-20250514', name: 'Claude 4 Sonnet', provider: 'anthropic' },
+  { id: 'claude-opus-4-5-20251101', name: 'Claude 4.5 Opus', provider: 'anthropic' },
+]
 
 // 답장 유형 옵션
 const REPLY_TYPE_OPTIONS = [
@@ -97,7 +110,10 @@ export function EmailSidebarChat({
   ])
   const [chatInput, setChatInput] = useState('')
   const [isChatLoading, setIsChatLoading] = useState(false)
+  const [selectedModel, setSelectedModel] = useState('grok-4-1-fast')
+  const [isModelDropdownOpen, setIsModelDropdownOpen] = useState(false)
   const chatEndRef = useRef<HTMLDivElement>(null)
+  const dropdownRef = useRef<HTMLDivElement>(null)
 
   const getAccentClasses = () => {
     switch (accentColor) {
@@ -118,6 +134,17 @@ export function EmailSidebarChat({
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [chatMessages])
+
+  // 드롭다운 외부 클릭 시 닫기
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        setIsModelDropdownOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
 
   const handleChatSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -493,7 +520,52 @@ export function EmailSidebarChat({
 
       {/* Chat Input */}
       <form onSubmit={handleChatSubmit} className="p-3 pt-0">
-        <div className="flex gap-2">
+        <div className="flex gap-2 items-center">
+          {/* AI 모델 선택 드롭다운 */}
+          <div className="relative" ref={dropdownRef}>
+            <button
+              type="button"
+              onClick={() => setIsModelDropdownOpen(!isModelDropdownOpen)}
+              className="h-[46px] px-2 bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 rounded-xl flex items-center gap-1 text-xs font-medium hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors"
+            >
+              <Bot className="w-3.5 h-3.5" />
+              <span className="max-w-[60px] truncate hidden sm:inline">
+                {AI_MODELS.find(m => m.id === selectedModel)?.name || 'Model'}
+              </span>
+              <ChevronDown className={cn(
+                "w-3 h-3 transition-transform",
+                isModelDropdownOpen && "rotate-180"
+              )} />
+            </button>
+            {isModelDropdownOpen && (
+              <div className="absolute bottom-full left-0 mb-2 w-48 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg shadow-lg overflow-hidden z-50">
+                <div className="max-h-60 overflow-y-auto">
+                  {AI_MODELS.map((model) => (
+                    <button
+                      key={model.id}
+                      type="button"
+                      onClick={() => {
+                        setSelectedModel(model.id)
+                        setIsModelDropdownOpen(false)
+                      }}
+                      className={cn(
+                        "w-full px-3 py-2 text-left text-xs hover:bg-zinc-100 dark:hover:bg-zinc-700 transition-colors flex items-center justify-between",
+                        selectedModel === model.id && "bg-zinc-100 dark:bg-zinc-700"
+                      )}
+                    >
+                      <div>
+                        <p className="font-medium text-zinc-900 dark:text-white">{model.name}</p>
+                        <p className="text-zinc-500 text-[10px]">{model.provider}</p>
+                      </div>
+                      {selectedModel === model.id && (
+                        <Check className="w-3.5 h-3.5 text-accent" />
+                      )}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
           <input
             type="text"
             value={chatInput}

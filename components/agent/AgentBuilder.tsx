@@ -140,6 +140,14 @@ function AgentBuilderInner({ agentId }: AgentBuilderInnerProps) {
   const [isLoadingAgent, setIsLoadingAgent] = useState(false)
   const terminalRef = useRef<TerminalPanelRef>(null)
   const { project, fitView, zoomIn, zoomOut } = useReactFlow()
+
+  // MCP 로그 콜백 (memoized - 재연결 방지)
+  const handleMcpLog = useCallback((message: string) => {
+    console.log('[MCP]', message)
+    if (terminalRef.current) {
+      terminalRef.current.write(`\r\n\x1b[35m[MCP]\x1b[0m ${message}`)
+    }
+  }, [])
   const { theme, setTheme } = useTheme()
 
   // 에이전트 ID가 있으면 에이전트 데이터 로드
@@ -203,13 +211,7 @@ function AgentBuilderInner({ agentId }: AgentBuilderInnerProps) {
     setNodes,
     setEdges,
     fitView,
-    onLog: (message) => {
-      console.log('[MCP]', message)
-      // 터미널에도 출력
-      if (terminalRef.current) {
-        terminalRef.current.write(`\r\n\x1b[35m[MCP]\x1b[0m ${message}`)
-      }
-    },
+    onLog: handleMcpLog,
   })
 
   // 세션 ID 복사 상태
