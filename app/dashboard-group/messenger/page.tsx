@@ -959,7 +959,7 @@ export default function MessengerPage() {
                       const name = participant.user?.name || participant.agent?.name || '알 수 없음'
                       const avatar = name.slice(0, 2).toUpperCase()
                       const isOwner = participant.user_id === activeRoom.created_by
-                      const isMe = participant.user_id === currentUserId
+                      const isMe = !isAgentParticipant && participant.user_id === currentUserId
 
                       return (
                         <div
