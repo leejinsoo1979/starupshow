@@ -14,7 +14,6 @@ import {
   PenSquare,
   Plus,
   ChevronDown,
-  User,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useThemeStore } from '@/stores/themeStore'
@@ -149,35 +148,20 @@ export function EmailFolderMenu({
           </button>
         </div>
 
-        {/* Compose Buttons */}
-        <div className="flex gap-1">
-          <button
-            onClick={onCompose}
-            disabled={!selectedAccount}
-            className={cn(
-              "flex-1 px-2.5 py-1.5 rounded-md font-medium text-white transition-all flex items-center justify-center gap-1.5 text-[11px]",
-              selectedAccount
-                ? cn(accent.bg, accent.hover)
-                : "bg-zinc-300 dark:bg-zinc-700 cursor-not-allowed"
-            )}
-          >
-            <PenSquare className="w-3.5 h-3.5" />
-            메일 쓰기
-          </button>
-          <button
-            onClick={onComposeToSelf}
-            disabled={!selectedAccount}
-            className={cn(
-              "px-2.5 py-1.5 rounded-md font-medium transition-all flex items-center justify-center gap-1.5 text-[11px] border",
-              selectedAccount
-                ? "bg-white dark:bg-zinc-800 border-zinc-200 dark:border-zinc-700 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700"
-                : "bg-zinc-200 dark:bg-zinc-800 border-zinc-200 dark:border-zinc-700 text-zinc-400 cursor-not-allowed"
-            )}
-            title="내게쓰기"
-          >
-            <User className="w-3.5 h-3.5" />
-          </button>
-        </div>
+        {/* Compose Button */}
+        <button
+          onClick={onCompose}
+          disabled={!selectedAccount}
+          className={cn(
+            "w-full px-2.5 py-2 rounded-md font-medium text-white transition-all flex items-center justify-center gap-1.5 text-[11px]",
+            selectedAccount
+              ? cn(accent.bg, accent.hover)
+              : "bg-zinc-300 dark:bg-zinc-700 cursor-not-allowed"
+          )}
+        >
+          <PenSquare className="w-3.5 h-3.5" />
+          메일 쓰기
+        </button>
       </div>
 
       {/* Folder List */}

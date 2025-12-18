@@ -586,9 +586,9 @@ export default function EmailPage() {
   }
 
   return (
-    <div className="h-[calc(100vh-64px)] mt-16 flex bg-white dark:bg-zinc-900">
-      {/* Folder Menu - 헤더 아래로 배치 */}
-      <div className="w-52 flex-shrink-0 border-r border-zinc-200 dark:border-zinc-800">
+    <div className="h-full flex bg-white dark:bg-zinc-900">
+      {/* Folder Menu */}
+      <div className="w-48 flex-shrink-0 border-r border-zinc-200 dark:border-zinc-800 overflow-hidden">
         <EmailFolderMenu
           accounts={accounts}
           selectedAccount={selectedAccount}

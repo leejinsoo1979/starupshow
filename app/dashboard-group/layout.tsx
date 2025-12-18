@@ -143,14 +143,13 @@ export default function DashboardLayout({
       <WorkHistorySidebar />
       <main
         className={cn(
-          // 이메일 페이지는 pt-16 제거 (폴더 메뉴가 전체 높이 사용)
-          !isEmailPage && "pt-16",
+          "pt-16",
           "transition-all duration-300",
           isFullWidthPage ? "h-screen overflow-hidden" : "min-h-screen"
         )}
         style={{ paddingLeft: `${sidebarWidth}px` }}
       >
-        <div className={isFullWidthPage ? (isEmailPage ? "h-screen overflow-hidden" : "h-[calc(100vh-64px)] overflow-hidden") : "p-8"}>
+        <div className={isFullWidthPage ? (isEmailPage ? "h-[calc(100vh-64px)] overflow-hidden" : "h-[calc(100vh-64px)] overflow-hidden") : "p-8"}>
           {children}
         </div>
       </main>
