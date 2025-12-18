@@ -12,7 +12,9 @@ import {
   MESSENGER_CHAT_RULES,
   AGENT_ROLE_PROMPTS,
   buildAgentSystemPrompt,
+  buildDynamicAgentSystemPrompt,
 } from '@/lib/agent/shared-prompts'
+import { getPromptSettings, getAgentTeamId } from '@/lib/agent/prompt-settings'
 
 // LLM Provider 타입 (llm/client.ts와 호환)
 export type LLMProvider = ClientLLMProvider
@@ -253,14 +255,20 @@ ${roomContext.userCompany ? `- 회사: ${roomContext.userCompany}` : ''}
     ? `\n## 📋 업무 맥락 (꼭 기억하세요!)\n${roomContext.workContext}\n`
     : ''
 
-  // 🔥 통합 시스템 프롬프트 생성 (shared-prompts.ts의 buildAgentSystemPrompt 사용)
+  // 🔥 통합 시스템 프롬프트 생성 (DB 기반 동적 프롬프트)
   const isMessenger = roomContext?.isMessenger || false
-  const coreSystemPrompt = buildAgentSystemPrompt(
+
+  // 팀 프롬프트 설정 가져오기 (커스텀 설정이 있으면 사용)
+  const teamId = agent.team_id || await getAgentTeamId(agent.id)
+  const customPromptSections = teamId ? await getPromptSettings(teamId) : undefined
+
+  const coreSystemPrompt = buildDynamicAgentSystemPrompt(
     agent.name,
     basePersonality,
     identityStr,
     memoryStr,
-    isMessenger
+    isMessenger,
+    customPromptSections
   )
 
   // 프롬프트 템플릿 생성

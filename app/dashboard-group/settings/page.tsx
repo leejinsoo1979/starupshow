@@ -2,7 +2,7 @@
 
 import { useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { Settings, Link2, Palette, Bell, Shield, Loader2, Key } from 'lucide-react'
+import { Settings, Link2, Palette, Bell, Shield, Loader2, Key, MessageSquareText } from 'lucide-react'
 import { motion } from 'framer-motion'
 import { useTheme } from 'next-themes'
 
@@ -14,6 +14,14 @@ const settingsSections = [
     icon: Key,
     href: '/dashboard-group/settings/api-keys',
     color: 'bg-purple-500/10 text-purple-500'
+  },
+  {
+    id: 'prompts',
+    name: '에이전트 프롬프트',
+    description: '8-섹션 시스템 프롬프트 수정 및 커스터마이즈',
+    icon: MessageSquareText,
+    href: '/dashboard-group/settings/prompts',
+    color: 'bg-emerald-500/10 text-emerald-500'
   },
   {
     id: 'integrations',

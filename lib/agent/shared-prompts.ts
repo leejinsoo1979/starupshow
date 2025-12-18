@@ -457,3 +457,103 @@ export function buildLightweightPrompt(agentName: string): string {
 - "도와드릴까요?" 금지
 - 직급에 맞는 말투`
 }
+
+// ============================================================
+// DB 기반 동적 프롬프트 시스템
+// ============================================================
+
+/**
+ * DB에서 저장된 프롬프트 섹션 타입
+ */
+export interface PromptSections {
+  work_operating_model: string
+  human_communication: string
+  professional_habits: string
+  no_hallucination: string
+  collaboration_conflict: string
+  deliverable_templates: string
+  context_anchor: string
+  response_format: string
+  messenger_rules: string
+}
+
+/**
+ * 기본 프롬프트 값 (DB에 값이 없을 때 사용)
+ */
+export const DEFAULT_PROMPT_SECTIONS: PromptSections = {
+  work_operating_model: WORK_OPERATING_MODEL,
+  human_communication: HUMAN_COMMUNICATION_RULES,
+  professional_habits: PROFESSIONAL_HABITS,
+  no_hallucination: NO_HALLUCINATION_POLICY,
+  collaboration_conflict: COLLABORATION_CONFLICT_RULES,
+  deliverable_templates: DELIVERABLE_TEMPLATES,
+  context_anchor: CONTEXT_ANCHOR,
+  response_format: RESPONSE_FORMAT_RULES,
+  messenger_rules: MESSENGER_CHAT_RULES,
+}
+
+/**
+ * DB 기반 동적 시스템 프롬프트 생성
+ * @param agentName 에이전트 이름
+ * @param basePersonality 기본 성격 (system_prompt)
+ * @param identityContext 정체성 컨텍스트
+ * @param memoryContext 기억 컨텍스트
+ * @param isMessenger 메신저 채팅 여부
+ * @param customSections DB에서 가져온 커스텀 섹션 (옵션)
+ */
+export function buildDynamicAgentSystemPrompt(
+  agentName: string,
+  basePersonality: string = '',
+  identityContext: string = '',
+  memoryContext: string = '',
+  isMessenger: boolean = false,
+  customSections?: Partial<PromptSections>
+): string {
+  // 커스텀 섹션이 있으면 사용, 없으면 기본값
+  const sections = {
+    ...DEFAULT_PROMPT_SECTIONS,
+    ...customSections,
+  }
+
+  const messengerRules = isMessenger ? sections.messenger_rules : ''
+
+  return `# 🔴 핵심 정체성
+당신의 이름은 **"${agentName}"**입니다.
+당신은 AI가 아니라 실제로 존재하는 팀원입니다.
+다른 에이전트(에이미, 레이첼 등)가 아닙니다.
+
+${basePersonality ? `# 📌 나의 성격\n${basePersonality}\n` : ''}
+${identityContext}
+${memoryContext}
+
+# ═══════════════════════════════════════════════════════════════
+# 시스템 프롬프트 프레임워크 8섹션
+# ═══════════════════════════════════════════════════════════════
+
+${sections.work_operating_model}
+
+${sections.human_communication}
+
+${sections.professional_habits}
+
+${sections.no_hallucination}
+
+${sections.collaboration_conflict}
+
+${sections.deliverable_templates}
+
+${sections.context_anchor}
+
+${sections.response_format}
+
+${messengerRules}
+
+# ⚠️ 최종 체크리스트
+- [ ] 나는 "${agentName}"이다 (다른 이름 금지)
+- [ ] 나는 실제 사람처럼 행동한다
+- [ ] 인사/자기소개 반복 안 한다
+- [ ] "도와드릴까요?" 절대 안 한다
+- [ ] 짧고 자연스럽게 말한다
+- [ ] 상대방 직급에 맞는 말투 쓴다
+`
+}
