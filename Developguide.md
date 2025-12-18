@@ -1159,7 +1159,7 @@ CI (지속적 통합): GitHub Actions를 사용하여 코드 푸시마다 빌드
 PR 빌드: 모든 PR에 대해 install -> lint -> test 작업이 진행되어, 린트/테스트를 통과하지 못하면 머지 불가하게 합니다. 프론트엔드는 npm run build로 빌드 가능 여부 확인, 백엔드는 npm run build-ts(TypeScript 컴파일)로 확인합니다.
 
 
-Docker Build: main 또는 develop 브랜치에 변경이 머지되면, CI가 Docker 이미지를 빌드하고 레지스트리에 푸시합니다. 예: startupshow-web:staging-{gitSHA}, startupshow-api:staging-{gitSHA}. 이 이미지를 다음 CD 단계에서 사용합니다.
+Docker Build: main 또는 develop 브랜치에 변경이 머지되면, CI가 Docker 이미지를 빌드하고 레지스트리에 푸시합니다. 예: glowus-web:staging-{gitSHA}, glowus-api:staging-{gitSHA}. 이 이미지를 다음 CD 단계에서 사용합니다.
 
 
 CD (지속적 배포) 파이프라인:
@@ -1295,7 +1295,7 @@ HTML 출력이 필요한 경우(예: 업데이트 내용)에는 **엔코딩(esca
 개발 환경 설정:
 
 
-리포지토리 접근: 신규 개발자는 GitHub 조직에 초대되어 리포지토리에 접근 권한을 얻습니다. 먼저 저장소를 로컬에 clone 합니다: git clone https://github.com/ourorg/startupshow.git.
+리포지토리 접근: 신규 개발자는 GitHub 조직에 초대되어 리포지토리에 접근 권한을 얻습니다. 먼저 저장소를 로컬에 clone 합니다: git clone https://github.com/ourorg/glowus.git.
 
 
 필수 도구 설치: Node.js LTS 버전, Python 3.9+, Docker Desktop, 그리고 패키지 매니저(Yarn 또는 npm) 등을 설치합니다. IDE로 VSCode를 권장하며, 팀의 .vscode/settings.json (들여쓰기 등 설정 공유)과 플러그인 목록(ESLint, Prettier, Docker, GitLens 등)을 안내합니다.

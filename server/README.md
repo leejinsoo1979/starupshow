@@ -17,7 +17,7 @@ node server/terminal-server.js
 Claude Code에 MCP 서버를 등록합니다:
 
 ```bash
-claude mcp add agent-builder -- node /path/to/startupshow/server/mcp-server.js
+claude mcp add agent-builder -- node /path/to/glowus/server/mcp-server.js
 ```
 
 또는 프로젝트 디렉토리에서:

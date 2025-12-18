@@ -42,7 +42,7 @@ npm run dev
 ## 📁 프로젝트 구조
 
 ```
-startupshow/
+glowus/
 ├── app/                    # Next.js App Router
 │   ├── auth-group/        # 인증 페이지 (로그인, 회원가입)
 │   ├── dashboard-group/   # 대시보드 페이지

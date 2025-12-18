@@ -41,7 +41,7 @@ export function createClient() {
 // 개발 모드에서 사용할 목 유저
 export const DEV_USER = DEV_MODE ? {
   id: DEV_USER_ID,
-  email: 'dev@startupshow.dev',
+  email: 'dev@glowus.dev',
   user_metadata: { name: 'Dev User' },
 } : null
 

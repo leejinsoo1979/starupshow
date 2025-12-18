@@ -14,7 +14,7 @@ import type {
 } from '@/types/email'
 
 // Encryption helpers
-const ENCRYPTION_KEY = process.env.EMAIL_ENCRYPTION_KEY || 'startupshow-email-key-32bytes!!'
+const ENCRYPTION_KEY = process.env.EMAIL_ENCRYPTION_KEY || 'glowus-email-key-32-bytes-here!!'
 const ALGORITHM = 'aes-256-gcm'
 
 function encrypt(text: string): string {

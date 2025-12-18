@@ -28,7 +28,7 @@
 ## Directory Structure
 
 ```
-startupshow/
+glowus/
 ├── app/                          # Next.js App Router
 │   ├── (auth)/                   # Auth pages (login, signup)
 │   ├── (dashboard)/              # Dashboard pages
