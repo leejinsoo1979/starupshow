@@ -16,6 +16,7 @@ import { ChatRoom, ChatMessage, ChatParticipant } from '@/types/chat'
 import { DEV_USER, isDevMode } from '@/lib/dev-user'
 import { useAuth } from '@/hooks/useAuth'
 import { PROVIDER_INFO, LLMProvider } from '@/lib/llm/models'
+import { useThemeStore, accentColors } from '@/stores/themeStore'
 
 // 참여자별 고유 색상 팔레트
 const AVATAR_COLORS = [
@@ -1363,6 +1364,10 @@ function NewChatModal({
   onClose: () => void
   onCreateRoom: (data: any) => Promise<{ id: string } | void>
 }) {
+  // 테마 스토어에서 액센트 컬러 가져오기
+  const { accentColor } = useThemeStore()
+  const currentAccent = accentColors.find(c => c.id === accentColor) || accentColors[0]
+
   const [loading, setLoading] = useState(false)
   const [currentStep, setCurrentStep] = useState(0)
   const [teamMembers, setTeamMembers] = useState<any[]>([])
@@ -1633,7 +1638,10 @@ function NewChatModal({
         <div className={`px-6 py-4 border-b ${isDark ? 'border-zinc-800 bg-zinc-950' : 'border-zinc-200 bg-zinc-50'}`}>
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-emerald-500 to-cyan-500 flex items-center justify-center">
+              <div
+                className="w-10 h-10 rounded-lg flex items-center justify-center"
+                style={{ background: `linear-gradient(135deg, ${currentAccent.color}, ${currentAccent.hoverColor})` }}
+              >
                 <span className="text-white text-lg">AI</span>
               </div>
               <div>
@@ -1659,11 +1667,18 @@ function NewChatModal({
                 onClick={() => setCurrentStep(i)}
                 className={`flex-1 py-1.5 text-xs font-mono rounded transition-all ${
                   currentStep === i
-                    ? 'bg-emerald-500 text-white'
+                    ? 'text-white'
                     : currentStep > i
-                      ? isDark ? 'bg-emerald-500/20 text-emerald-400' : 'bg-emerald-100 text-emerald-600'
+                      ? ''
                       : isDark ? 'bg-zinc-800 text-zinc-500' : 'bg-zinc-100 text-zinc-400'
                 }`}
+                style={
+                  currentStep === i
+                    ? { backgroundColor: currentAccent.color }
+                    : currentStep > i
+                      ? { backgroundColor: `rgba(${currentAccent.rgb}, 0.2)`, color: currentAccent.color }
+                      : undefined
+                }
               >
                 {step}
               </button>
@@ -1678,7 +1693,7 @@ function NewChatModal({
           {currentStep === 0 && (
             <div className="space-y-4">
               <div className="mb-2">
-                <h3 className="text-sm font-semibold text-emerald-500 mb-1">MISSION OBJECTIVE</h3>
+                <h3 className="text-sm font-semibold mb-1" style={{ color: currentAccent.color }}>MISSION OBJECTIVE</h3>
                 <p className={`text-xs ${isDark ? 'text-zinc-400' : 'text-zinc-500'}`}>
                   이 선택이 AI의 사고방식과 행동을 결정합니다
                 </p>
@@ -1691,14 +1706,21 @@ function NewChatModal({
                     onClick={() => setPurpose(opt.value)}
                     className={`w-full p-4 rounded-xl text-left transition-all border ${
                       purpose === opt.value
-                        ? 'border-emerald-500 bg-emerald-500/10'
+                        ? ''
                         : isDark
                           ? 'border-zinc-800 bg-zinc-800/50 hover:border-zinc-700'
                           : 'border-zinc-200 bg-zinc-50 hover:border-zinc-300'
                     }`}
+                    style={purpose === opt.value ? {
+                      borderColor: currentAccent.color,
+                      backgroundColor: `rgba(${currentAccent.rgb}, 0.1)`
+                    } : undefined}
                   >
                     <div className="flex items-start gap-3">
-                      <span className={`text-lg ${purpose === opt.value ? 'text-emerald-500' : 'text-zinc-500'}`}>
+                      <span
+                        className="text-lg"
+                        style={{ color: purpose === opt.value ? currentAccent.color : '#71717a' }}
+                      >
                         {opt.icon}
                       </span>
                       <div className="flex-1">
@@ -1708,7 +1730,10 @@ function NewChatModal({
                         </div>
                       </div>
                       {purpose === opt.value && (
-                        <div className="w-5 h-5 rounded-full bg-emerald-500 flex items-center justify-center">
+                        <div
+                          className="w-5 h-5 rounded-full flex items-center justify-center"
+                          style={{ backgroundColor: currentAccent.color }}
+                        >
                           <span className="text-white text-xs">✓</span>
                         </div>
                       )}
@@ -1723,7 +1748,7 @@ function NewChatModal({
           {currentStep === 1 && (
             <div className="space-y-4">
               <div className="mb-2">
-                <h3 className="text-sm font-semibold text-emerald-500 mb-1">TEAM COMPOSITION</h3>
+                <h3 className="text-sm font-semibold mb-1" style={{ color: currentAccent.color }}>TEAM COMPOSITION</h3>
                 <p className={`text-xs ${isDark ? 'text-zinc-400' : 'text-zinc-500'}`}>
                   AI 에이전트를 선택하고 역할을 지정하세요
                 </p>
@@ -1764,9 +1789,10 @@ function NewChatModal({
                               onClick={() => updateAgentConfig(id, { role: r.value })}
                               className={`px-2 py-1 rounded text-xs transition-all ${
                                 role === r.value
-                                  ? 'bg-emerald-500 text-white'
+                                  ? 'text-white'
                                   : isDark ? 'bg-zinc-700 text-zinc-300' : 'bg-zinc-200 text-zinc-600'
                               }`}
+                              style={role === r.value ? { backgroundColor: currentAccent.color } : undefined}
                             >
                               {r.label}
                             </button>
@@ -1784,9 +1810,10 @@ function NewChatModal({
                               onClick={() => updateAgentConfig(id, { tendency: t.value })}
                               className={`px-2 py-1 rounded text-xs transition-all ${
                                 tendency === t.value
-                                  ? 'bg-cyan-500 text-white'
+                                  ? 'text-white'
                                   : isDark ? 'bg-zinc-700 text-zinc-300' : 'bg-zinc-200 text-zinc-600'
                               }`}
+                              style={tendency === t.value ? { backgroundColor: currentAccent.hoverColor } : undefined}
                             >
                               {t.label}
                             </button>
@@ -1834,7 +1861,7 @@ function NewChatModal({
                           <Bot className="w-3 h-3" />
                         </div>
                         <span className="text-sm flex-1 text-left">{agent.name}</span>
-                        <Plus className="w-4 h-4 text-emerald-500" />
+                        <Plus className="w-4 h-4" style={{ color: currentAccent.color }} />
                       </button>
                     ))
                   )}
@@ -1847,7 +1874,7 @@ function NewChatModal({
           {currentStep === 2 && (
             <div className="space-y-4">
               <div className="mb-2">
-                <h3 className="text-sm font-semibold text-emerald-500 mb-1">DISCUSSION PROTOCOL</h3>
+                <h3 className="text-sm font-semibold mb-1" style={{ color: currentAccent.color }}>DISCUSSION PROTOCOL</h3>
                 <p className={`text-xs ${isDark ? 'text-zinc-400' : 'text-zinc-500'}`}>
                   AI의 사고 깊이와 토론 방식을 설정합니다
                 </p>
@@ -1861,11 +1888,15 @@ function NewChatModal({
                     onClick={() => setDiscussionMode(mode.value)}
                     className={`p-3 rounded-xl text-left transition-all border ${
                       discussionMode === mode.value
-                        ? 'border-emerald-500 bg-emerald-500/10'
+                        ? ''
                         : isDark
                           ? 'border-zinc-800 bg-zinc-800/50 hover:border-zinc-700'
                           : 'border-zinc-200 bg-zinc-50 hover:border-zinc-300'
                     }`}
+                    style={discussionMode === mode.value ? {
+                      borderColor: currentAccent.color,
+                      backgroundColor: `rgba(${currentAccent.rgb}, 0.1)`
+                    } : undefined}
                   >
                     <div className="flex items-center gap-2 mb-1">
                       <div className="flex gap-0.5">
@@ -1873,10 +1904,11 @@ function NewChatModal({
                           <div
                             key={i}
                             className={`w-1.5 h-3 rounded-sm ${
-                              i <= mode.depth
-                                ? discussionMode === mode.value ? 'bg-emerald-500' : isDark ? 'bg-zinc-500' : 'bg-zinc-400'
-                                : isDark ? 'bg-zinc-700' : 'bg-zinc-200'
+                              i <= mode.depth && discussionMode !== mode.value
+                                ? isDark ? 'bg-zinc-500' : 'bg-zinc-400'
+                                : !( i <= mode.depth) ? (isDark ? 'bg-zinc-700' : 'bg-zinc-200') : ''
                             }`}
+                            style={i <= mode.depth && discussionMode === mode.value ? { backgroundColor: currentAccent.color } : undefined}
                           />
                         ))}
                       </div>
@@ -1901,9 +1933,10 @@ function NewChatModal({
                       에이전트들이 서로의 의견에 반박할 수 있습니다
                     </div>
                   </div>
-                  <div className={`w-10 h-6 rounded-full transition-colors ${
-                    allowDebate ? 'bg-emerald-500' : isDark ? 'bg-zinc-600' : 'bg-zinc-300'
-                  } flex items-center ${allowDebate ? 'justify-end' : 'justify-start'} p-1`}>
+                  <div
+                    className={`w-10 h-6 rounded-full transition-colors flex items-center ${allowDebate ? 'justify-end' : 'justify-start'} p-1`}
+                    style={{ backgroundColor: allowDebate ? currentAccent.color : isDark ? '#52525b' : '#d4d4d8' }}
+                  >
                     <div className="w-4 h-4 rounded-full bg-white" />
                   </div>
                 </button>
@@ -1921,9 +1954,10 @@ function NewChatModal({
                         onClick={() => setFailureResolution(opt.value as any)}
                         className={`flex-1 py-2 rounded-lg text-xs font-medium transition-all ${
                           failureResolution === opt.value
-                            ? 'bg-emerald-500 text-white'
+                            ? 'text-white'
                             : isDark ? 'bg-zinc-700 text-zinc-300' : 'bg-zinc-200 text-zinc-600'
                         }`}
+                        style={failureResolution === opt.value ? { backgroundColor: currentAccent.color } : undefined}
                       >
                         {opt.label}
                       </button>
@@ -1938,7 +1972,7 @@ function NewChatModal({
           {currentStep === 3 && (
             <div className="space-y-4">
               <div className="mb-2">
-                <h3 className="text-sm font-semibold text-emerald-500 mb-1">MISSION BRIEFING</h3>
+                <h3 className="text-sm font-semibold mb-1" style={{ color: currentAccent.color }}>MISSION BRIEFING</h3>
                 <p className={`text-xs ${isDark ? 'text-zinc-400' : 'text-zinc-500'}`}>
                   AI가 참고할 정보와 범위를 설정합니다
                 </p>
@@ -1994,7 +2028,7 @@ function NewChatModal({
                         }`}
                       >
                         <div className="flex items-center gap-2 flex-1 min-w-0">
-                          <FileText className="w-4 h-4 text-emerald-500 flex-shrink-0" />
+                          <FileText className="w-4 h-4 flex-shrink-0" style={{ color: currentAccent.color }} />
                           <span className="text-sm truncate">{file.name}</span>
                           <span className="text-xs text-zinc-500 flex-shrink-0">{file.size}</span>
                         </div>
@@ -2026,11 +2060,15 @@ function NewChatModal({
                       onClick={() => setMemoryScope(opt.value as any)}
                       className={`flex-1 p-2 rounded-lg text-left transition-all border ${
                         memoryScope === opt.value
-                          ? 'border-emerald-500 bg-emerald-500/10'
+                          ? ''
                           : isDark
                             ? 'border-zinc-700 bg-zinc-800/50'
                             : 'border-zinc-200 bg-zinc-50'
                       }`}
+                      style={memoryScope === opt.value ? {
+                        borderColor: currentAccent.color,
+                        backgroundColor: `rgba(${currentAccent.rgb}, 0.1)`
+                      } : undefined}
                     >
                       <div className="text-xs font-medium">{opt.label}</div>
                       <div className={`text-xs ${isDark ? 'text-zinc-500' : 'text-zinc-400'}`}>{opt.desc}</div>
@@ -2045,7 +2083,7 @@ function NewChatModal({
           {currentStep === 4 && (
             <div className="space-y-4">
               <div className="mb-2">
-                <h3 className="text-sm font-semibold text-emerald-500 mb-1">DELIVERABLES</h3>
+                <h3 className="text-sm font-semibold mb-1" style={{ color: currentAccent.color }}>DELIVERABLES</h3>
                 <p className={`text-xs ${isDark ? 'text-zinc-400' : 'text-zinc-500'}`}>
                   회의 종료 후 자동 생성할 산출물을 선택합니다
                 </p>
@@ -2065,17 +2103,27 @@ function NewChatModal({
                     onClick={() => toggleOutput(item.key as keyof typeof outputs)}
                     className={`w-full p-3 rounded-xl text-left transition-all border flex items-center gap-3 ${
                       outputs[item.key as keyof typeof outputs]
-                        ? 'border-emerald-500 bg-emerald-500/10'
+                        ? ''
                         : isDark
                           ? 'border-zinc-800 bg-zinc-800/50 hover:border-zinc-700'
                           : 'border-zinc-200 bg-zinc-50 hover:border-zinc-300'
                     }`}
+                    style={outputs[item.key as keyof typeof outputs] ? {
+                      borderColor: currentAccent.color,
+                      backgroundColor: `rgba(${currentAccent.rgb}, 0.1)`
+                    } : undefined}
                   >
-                    <div className={`w-5 h-5 rounded border flex items-center justify-center ${
-                      outputs[item.key as keyof typeof outputs]
-                        ? 'bg-emerald-500 border-emerald-500'
-                        : isDark ? 'border-zinc-600' : 'border-zinc-300'
-                    }`}>
+                    <div
+                      className={`w-5 h-5 rounded border flex items-center justify-center ${
+                        outputs[item.key as keyof typeof outputs]
+                          ? ''
+                          : isDark ? 'border-zinc-600' : 'border-zinc-300'
+                      }`}
+                      style={outputs[item.key as keyof typeof outputs] ? {
+                        backgroundColor: currentAccent.color,
+                        borderColor: currentAccent.color
+                      } : undefined}
+                    >
                       {outputs[item.key as keyof typeof outputs] && (
                         <span className="text-white text-xs">✓</span>
                       )}
@@ -2118,7 +2166,10 @@ function NewChatModal({
               <Button
                 onClick={handleSummon}
                 disabled={!purpose || agentConfigs.length === 0 || loading}
-                className="flex-1 bg-gradient-to-r from-emerald-500 to-cyan-500 hover:from-emerald-600 hover:to-cyan-600 text-white font-bold"
+                className="flex-1 text-white font-bold"
+                style={{
+                  background: `linear-gradient(to right, ${currentAccent.color}, ${currentAccent.hoverColor})`
+                }}
               >
                 {loading ? (
                   <Loader2 className="w-4 h-4 animate-spin" />
@@ -2137,12 +2188,24 @@ function NewChatModal({
             <div className={`mt-3 pt-3 border-t ${isDark ? 'border-zinc-800' : 'border-zinc-200'}`}>
               <div className="flex flex-wrap gap-2 text-xs">
                 {purpose && (
-                  <span className={`px-2 py-1 rounded ${isDark ? 'bg-zinc-800 text-emerald-400' : 'bg-emerald-100 text-emerald-600'}`}>
+                  <span
+                    className="px-2 py-1 rounded"
+                    style={{
+                      backgroundColor: isDark ? '#27272a' : `rgba(${currentAccent.rgb}, 0.15)`,
+                      color: currentAccent.color
+                    }}
+                  >
                     {purposeOptions.find(p => p.value === purpose)?.label}
                   </span>
                 )}
                 {agentConfigs.length > 0 && (
-                  <span className={`px-2 py-1 rounded ${isDark ? 'bg-zinc-800 text-cyan-400' : 'bg-cyan-100 text-cyan-600'}`}>
+                  <span
+                    className="px-2 py-1 rounded"
+                    style={{
+                      backgroundColor: isDark ? '#27272a' : `rgba(${currentAccent.rgb}, 0.15)`,
+                      color: currentAccent.hoverColor
+                    }}
+                  >
                     {agentConfigs.length}명 소집
                   </span>
                 )}
