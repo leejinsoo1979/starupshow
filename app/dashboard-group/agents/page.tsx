@@ -438,59 +438,88 @@ export default function AgentsPage() {
                 const CategoryIcon = category.icon
 
                 if (viewMode === "grid") {
-                  const isActive = agent.status === "ACTIVE"
                   return (
                     <motion.div
                       key={agent.id}
-                      initial={{ opacity: 0, y: 10 }}
+                      initial={{ opacity: 0, y: 20 }}
                       animate={{ opacity: 1, y: 0 }}
                       transition={{ delay: index * 0.03 }}
                       onClick={() => router.push(`/dashboard-group/agents/${agent.id}`)}
-                      className={`group cursor-pointer rounded-2xl border p-5 transition-all duration-200 bg-white/80 dark:bg-zinc-900/80 backdrop-blur-sm border-zinc-200/60 dark:border-zinc-800/60 hover:border-zinc-300 dark:hover:border-zinc-700 hover:shadow-lg hover:shadow-zinc-200/50 dark:hover:shadow-zinc-900/50 ${!isActive && 'opacity-60'}`}
+                      className="group relative bg-white dark:bg-zinc-900/80 rounded-2xl border border-zinc-200 dark:border-zinc-800 p-5 cursor-pointer transition-all duration-300 hover:shadow-xl hover:shadow-zinc-200/50 dark:hover:shadow-zinc-900/50 hover:border-zinc-300 dark:hover:border-zinc-700 hover:-translate-y-1"
                     >
-                      {/* Header with Avatar & Status */}
-                      <div className="flex items-start justify-between mb-4">
-                        <div className="relative">
-                          <img
-                            src={getAvatarUrl(agent)}
-                            alt={agent.name}
-                            className="w-14 h-14 rounded-xl object-cover ring-2 ring-zinc-100 dark:ring-zinc-800"
-                          />
-                          <div
-                            className={`absolute -bottom-1 -right-1 w-4 h-4 rounded-full border-2 border-white dark:border-zinc-900 ${isActive ? 'bg-emerald-500' : 'bg-zinc-400'}`}
-                          />
+                      {/* Status Indicator */}
+                      <div
+                        className="absolute top-4 right-4 w-2.5 h-2.5 rounded-full"
+                        style={{ backgroundColor: status.color }}
+                        title={status.label}
+                      />
+
+                      {/* Avatar */}
+                      <div className="relative mb-4">
+                        <img
+                          src={getAvatarUrl(agent)}
+                          alt={agent.name}
+                          className="w-16 h-16 rounded-2xl object-cover bg-zinc-100 dark:bg-zinc-800 shadow-md"
+                        />
+                        <div
+                          className="absolute -bottom-1 -right-1 w-7 h-7 rounded-lg flex items-center justify-center border-2 border-white dark:border-zinc-900"
+                          style={{ backgroundColor: mounted ? `${currentAccent.color}20` : "#8b5cf620" }}
+                        >
+                          <CategoryIcon className="w-3.5 h-3.5" style={{ color: mounted ? currentAccent.color : "#8b5cf6" }} />
+                        </div>
+                      </div>
+
+                      {/* Info */}
+                      <h3 className="font-semibold text-zinc-900 dark:text-white truncate">
+                        {agent.name}
+                      </h3>
+                      <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1 line-clamp-2 min-h-[40px]">
+                        {agent.description || "설명이 없습니다"}
+                      </p>
+
+                      {/* Tags */}
+                      <div className="flex flex-wrap gap-1.5 mt-3">
+                        {(agent.capabilities || [])
+                          .filter((cap: string) => !cap.startsWith('team:'))
+                          .slice(0, 3)
+                          .map((cap: string, idx: number) => (
+                            <span
+                              key={idx}
+                              className="px-2 py-0.5 rounded-md text-xs bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400"
+                            >
+                              {cap}
+                            </span>
+                          ))}
+                      </div>
+
+                      {/* Footer */}
+                      <div className="flex items-center justify-between mt-4 pt-4 border-t border-zinc-100 dark:border-zinc-800">
+                        <div className="flex items-center gap-1.5 text-xs text-zinc-400">
+                          <span>{PROVIDER_INFO[(agent.llm_provider || 'ollama') as LLMProvider]?.icon || '🤖'}</span>
+                          <span className="truncate max-w-[80px]">{agent.model || 'qwen2.5:3b'}</span>
                         </div>
                         <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                           <button
                             onClick={(e) => handleToggleStatus(agent, e)}
-                            className="p-2 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300"
+                            className="p-1.5 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+                            title={agent.status === "ACTIVE" ? "비활성화" : "활성화"}
                           >
-                            {agent.status === "ACTIVE" ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
+                            {agent.status === "ACTIVE" ? <Pause className="w-3.5 h-3.5 text-zinc-500" /> : <Play className="w-3.5 h-3.5 text-zinc-500" />}
                           </button>
                           <button
                             onClick={(e) => { e.stopPropagation(); router.push(`/agent-builder/${agent.id}`) }}
-                            className="p-2 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300"
+                            className="p-1.5 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+                            title="편집"
                           >
-                            <Settings className="w-4 h-4" />
+                            <Settings className="w-3.5 h-3.5 text-zinc-500" />
                           </button>
-                        </div>
-                      </div>
-
-                      {/* Name & Description */}
-                      <div className="mb-4">
-                        <h3 className="font-semibold text-zinc-900 dark:text-white mb-1 truncate">{agent.name}</h3>
-                        <p className="text-sm text-zinc-500 dark:text-zinc-400 line-clamp-2 leading-relaxed">{agent.description || "에이전트"}</p>
-                      </div>
-
-                      {/* Footer */}
-                      <div className="flex items-center justify-between pt-4 border-t border-zinc-100 dark:border-zinc-800/50">
-                        <div className="flex items-center gap-2">
-                          <Cpu className="w-3.5 h-3.5 text-zinc-400" />
-                          <span className="text-xs text-zinc-500 dark:text-zinc-400">{agent.model || 'qwen2.5:3b'}</span>
-                        </div>
-                        <div className="flex items-center gap-1.5 text-xs text-zinc-400">
-                          <Clock className="w-3.5 h-3.5" />
-                          <span>{formatTimeAgo(agent.last_active_at)}</span>
+                          <button
+                            onClick={(e) => handleDelete(agent.id, e)}
+                            className="p-1.5 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                            title="삭제"
+                          >
+                            <Trash2 className="w-3.5 h-3.5 text-red-400" />
+                          </button>
                         </div>
                       </div>
                     </motion.div>
@@ -536,6 +565,7 @@ export default function AgentsPage() {
                           <span>{formatTimeAgo(agent.last_active_at)}</span>
                         </div>
                         <div className="flex items-center gap-1.5">
+                          <span>{PROVIDER_INFO[(agent.llm_provider || 'ollama') as LLMProvider]?.icon || '🤖'}</span>
                           <span>{agent.model || 'qwen2.5:3b'}</span>
                         </div>
                       </div>
