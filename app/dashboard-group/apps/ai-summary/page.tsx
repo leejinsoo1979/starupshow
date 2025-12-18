@@ -41,6 +41,7 @@ export default function AiSummaryPage() {
     const [comments, setComments] = useState<any[]>([])
     const [isLoading, setIsLoading] = useState(false)
     const [summary, setSummary] = useState<any>(null)
+    const [error, setError] = useState<string | null>(null)
 
     const handleYoutubeSubmit = async (url: string) => {
         const id = extractYoutubeId(url)
@@ -55,6 +56,7 @@ export default function AiSummaryPage() {
         setTranscript([])
         setComments([])
         setSummary(null)
+        setError(null)
         setIsLoading(true)
 
         try {
@@ -78,15 +80,21 @@ export default function AiSummaryPage() {
                 body: JSON.stringify({ url, videoId: id })
             })
 
+            const data = await response.json()
+
             if (response.ok) {
-                const data = await response.json()
                 setVideoInfo(data.videoInfo)
                 setTranscript(data.transcript || [])
                 setComments(data.comments || [])
                 setSummary(data.summary)
+            } else {
+                // 에러 메시지 표시
+                setError(data.error || '요약 생성에 실패했습니다')
+                console.error('Summarize API error:', data.error)
             }
         } catch (error) {
             console.error('Failed to fetch transcript:', error)
+            setError('네트워크 오류가 발생했습니다')
         } finally {
             setIsLoading(false)
         }
@@ -115,6 +123,7 @@ export default function AiSummaryPage() {
                     onYoutubeSubmit={handleYoutubeSubmit}
                     summary={summary}
                     isLoading={isLoading}
+                    error={error}
                 />
             </div>
         </div>

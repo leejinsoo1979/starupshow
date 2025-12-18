@@ -37,9 +37,10 @@ interface SummarySidebarProps {
     onYoutubeSubmit?: (url: string) => void
     summary?: Summary | null
     isLoading?: boolean
+    error?: string | null
 }
 
-export function SummarySidebar({ activeTab, onTabChange, onYoutubeSubmit, summary, isLoading = false }: SummarySidebarProps) {
+export function SummarySidebar({ activeTab, onTabChange, onYoutubeSubmit, summary, isLoading = false, error = null }: SummarySidebarProps) {
     const [messages, setMessages] = useState<Message[]>([])
     const [input, setInput] = useState('')
     const [youtubeUrl, setYoutubeUrl] = useState('')
@@ -226,6 +227,19 @@ export function SummarySidebar({ activeTab, onTabChange, onYoutubeSubmit, summar
                     <div className="w-10 h-10 border-2 border-zinc-300 dark:border-zinc-600 border-t-zinc-600 dark:border-t-zinc-300 rounded-full animate-spin" />
                     <p className="text-sm font-medium text-zinc-700 dark:text-zinc-300 mt-4">AI 요약 생성 중</p>
                     <p className="text-xs text-zinc-500 mt-1">자막 분석 및 요약 작성에 시간이 걸립니다</p>
+                </div>
+            )
+        }
+
+        if (error) {
+            return (
+                <div className="flex flex-col items-center justify-center h-full text-center px-4">
+                    <div className="w-14 h-14 bg-red-100 dark:bg-red-900/30 rounded-full flex items-center justify-center mb-3">
+                        <span className="text-2xl">⚠️</span>
+                    </div>
+                    <p className="text-sm font-medium text-red-600 dark:text-red-400">요약 실패</p>
+                    <p className="text-xs text-zinc-500 mt-2 max-w-[280px]">{error}</p>
+                    <p className="text-xs text-zinc-400 mt-3">다른 영상을 시도해보세요</p>
                 </div>
             )
         }
@@ -488,7 +502,7 @@ export function SummarySidebar({ activeTab, onTabChange, onYoutubeSubmit, summar
 
             {/* Summary Content or Chat */}
             <div className="flex-1 overflow-y-auto min-h-0">
-                {summary || isLoading ? (
+                {summary || isLoading || error ? (
                     renderSummaryContent()
                 ) : (
                     // 기본 채팅 인터페이스
