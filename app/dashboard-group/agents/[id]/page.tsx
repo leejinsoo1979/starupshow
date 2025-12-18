@@ -3714,175 +3714,80 @@ export default function AgentProfilePage() {
 
         {/* Team Info */}
         {agent.team && (
-          <div className="mb-6">
-            <p className={cn('text-xs uppercase mb-3', isDark ? 'text-zinc-500' : 'text-zinc-400')}>
+          <div className="mb-4">
+            <p className={cn('text-[11px] uppercase mb-2', isDark ? 'text-zinc-500' : 'text-zinc-400')}>
               소속 팀
             </p>
             <div
               className={cn(
-                'flex items-center gap-3 p-3 rounded-xl border cursor-pointer hover:border-accent transition-colors',
-                isDark ? 'bg-zinc-900 border-zinc-800' : 'bg-zinc-50 border-zinc-200'
+                'flex items-center gap-2 p-2 rounded-md cursor-pointer hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors',
+                isDark ? 'text-zinc-300' : 'text-zinc-700'
               )}
               onClick={() => router.push(`/dashboard-group/team/${agent.team!.id}`)}
             >
-              <div
-                className={cn(
-                  'w-10 h-10 rounded-lg flex items-center justify-center',
-                  isDark ? 'bg-zinc-800' : 'bg-zinc-100'
-                )}
-              >
-                <Building className="w-5 h-5 text-accent" />
-              </div>
-              <div className="flex-1">
-                <p className={cn('font-medium text-sm', isDark ? 'text-white' : 'text-zinc-900')}>
-                  {agent.team.name}
-                </p>
-                {agent.team.description && (
-                  <p className={cn('text-xs truncate', isDark ? 'text-zinc-500' : 'text-zinc-400')}>
-                    {agent.team.description}
-                  </p>
-                )}
-              </div>
+              <Building className="w-4 h-4 text-zinc-400" />
+              <span className="text-sm">{agent.team.name}</span>
             </div>
           </div>
         )}
 
-        {/* Agent Info */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 gap-4 md:gap-5">
-          <div className="flex items-start gap-4">
-            <div
-              className={cn(
-                'w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0',
-                isDark ? 'bg-zinc-800' : 'bg-zinc-100'
-              )}
-            >
-              <span className="text-sm font-medium text-zinc-600 dark:text-zinc-300">{(providerInfo?.name || agent.llm_provider || 'Ollama').split(' ')[0]}</span>
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className={cn('text-xs uppercase mb-1', isDark ? 'text-zinc-500' : 'text-zinc-400')}>
-                LLM 제공자
-              </p>
-              <p className={cn('text-sm', isDark ? 'text-zinc-200' : 'text-zinc-700')}>
-                {providerInfo?.name || agent.llm_provider || 'Ollama'}
-              </p>
-            </div>
+        {/* Agent Info - Minimal List */}
+        <div className="space-y-3">
+          <div className="flex justify-between items-center text-sm">
+            <span className={isDark ? 'text-zinc-500' : 'text-zinc-400'}>제공자</span>
+            <span className={isDark ? 'text-zinc-200' : 'text-zinc-700'}>{providerInfo?.name || agent.llm_provider || 'Ollama'}</span>
           </div>
-
-          <div className="flex items-start gap-4">
-            <div
-              className={cn(
-                'w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0',
-                isDark ? 'bg-zinc-800' : 'bg-zinc-100'
-              )}
-            >
-              <Cpu className="w-5 h-5 text-accent" />
-            </div>
-            <div className="flex-1">
-              <p className={cn('text-xs uppercase mb-1', isDark ? 'text-zinc-500' : 'text-zinc-400')}>모델</p>
-              <p className={cn('text-sm', isDark ? 'text-zinc-200' : 'text-zinc-700')}>
-                {agent.model || 'qwen2.5:3b'}
-              </p>
-            </div>
+          <div className="flex justify-between items-center text-sm">
+            <span className={isDark ? 'text-zinc-500' : 'text-zinc-400'}>모델</span>
+            <span className={isDark ? 'text-zinc-200' : 'text-zinc-700'}>{agent.model || 'qwen2.5:3b'}</span>
           </div>
-
-          <div className="flex items-start gap-4">
-            <div
-              className={cn(
-                'w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0',
-                isDark ? 'bg-zinc-800' : 'bg-zinc-100'
-              )}
-            >
-              <Thermometer className="w-5 h-5 text-accent" />
-            </div>
-            <div className="flex-1">
-              <p className={cn('text-xs uppercase mb-1', isDark ? 'text-zinc-500' : 'text-zinc-400')}>
-                Temperature
-              </p>
-              <p className={cn('text-sm', isDark ? 'text-zinc-200' : 'text-zinc-700')}>
-                {agent.temperature ?? 0.7}
-              </p>
-            </div>
+          <div className="flex justify-between items-center text-sm">
+            <span className={isDark ? 'text-zinc-500' : 'text-zinc-400'}>Temperature</span>
+            <span className={isDark ? 'text-zinc-200' : 'text-zinc-700'}>{agent.temperature ?? 0.7}</span>
           </div>
-
-          <div className="flex items-start gap-4">
-            <div
-              className={cn(
-                'w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0',
-                isDark ? 'bg-zinc-800' : 'bg-zinc-100'
-              )}
-            >
-              <Calendar className="w-5 h-5 text-accent" />
-            </div>
-            <div className="flex-1">
-              <p className={cn('text-xs uppercase mb-1', isDark ? 'text-zinc-500' : 'text-zinc-400')}>생성일</p>
-              <p className={cn('text-sm', isDark ? 'text-zinc-200' : 'text-zinc-700')}>
-                {formatDate(agent.created_at)}
-              </p>
-            </div>
+          <div className="flex justify-between items-center text-sm">
+            <span className={isDark ? 'text-zinc-500' : 'text-zinc-400'}>생성일</span>
+            <span className={isDark ? 'text-zinc-200' : 'text-zinc-700'}>{formatDate(agent.created_at)}</span>
           </div>
-
-          <div className="flex items-start gap-4">
-            <div
-              className={cn(
-                'w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0',
-                isDark ? 'bg-zinc-800' : 'bg-zinc-100'
-              )}
-            >
-              <Activity className="w-5 h-5 text-accent" />
-            </div>
-            <div className="flex-1">
-              <p className={cn('text-xs uppercase mb-1', isDark ? 'text-zinc-500' : 'text-zinc-400')}>
-                마지막 활동
-              </p>
-              <p className={cn('text-sm', isDark ? 'text-zinc-200' : 'text-zinc-700')}>
-                {formatTimeAgo(agent.last_active_at) || '없음'}
-              </p>
-            </div>
+          <div className="flex justify-between items-center text-sm">
+            <span className={isDark ? 'text-zinc-500' : 'text-zinc-400'}>마지막 활동</span>
+            <span className={isDark ? 'text-zinc-200' : 'text-zinc-700'}>{formatTimeAgo(agent.last_active_at) || '없음'}</span>
           </div>
         </div>
 
         {/* Action Buttons */}
-        <div
-          className={cn(
-            'flex items-center justify-center gap-3 mt-6 md:mt-8 pt-6 md:pt-8 border-t',
-            isDark ? 'border-zinc-800' : 'border-zinc-200'
-          )}
-        >
+        <div className={cn('flex items-center gap-2 mt-4 pt-4 border-t', isDark ? 'border-zinc-800' : 'border-zinc-200')}>
           <button
             onClick={handleToggleStatus}
             className={cn(
-              'w-11 h-11 rounded-xl flex items-center justify-center transition-colors',
+              'flex-1 h-8 rounded-md flex items-center justify-center gap-1.5 text-xs font-medium transition-colors',
               agent.status === 'ACTIVE'
-                ? 'bg-green-100 dark:bg-green-900/30 text-green-600 hover:bg-green-200 dark:hover:bg-green-900/50'
-                : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 hover:bg-accent hover:text-white'
+                ? 'bg-green-500/10 text-green-500 hover:bg-green-500/20'
+                : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-700'
             )}
-            title={agent.status === 'ACTIVE' ? '비활성화' : '활성화'}
           >
-            {agent.status === 'ACTIVE' ? <Pause className="w-5 h-5" /> : <Play className="w-5 h-5" />}
+            {agent.status === 'ACTIVE' ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}
+            {agent.status === 'ACTIVE' ? '중지' : '시작'}
           </button>
           <button
             onClick={() => router.push(`/agent-builder/${agentId}`)}
             className={cn(
-              'w-11 h-11 rounded-xl flex items-center justify-center transition-colors',
-              isDark
-                ? 'bg-zinc-800 hover:bg-accent hover:text-white text-zinc-400'
-                : 'bg-zinc-100 hover:bg-accent hover:text-white text-zinc-600'
+              'flex-1 h-8 rounded-md flex items-center justify-center gap-1.5 text-xs font-medium transition-colors',
+              isDark ? 'bg-zinc-800 hover:bg-zinc-700 text-zinc-300' : 'bg-zinc-100 hover:bg-zinc-200 text-zinc-600'
             )}
-            title="편집"
           >
-            <Settings className="w-5 h-5" />
+            <Settings className="w-3.5 h-3.5" />
+            편집
           </button>
           <button
             onClick={() => router.push(`/dashboard-group/messenger?invite=${agentId}`)}
             className={cn(
-              'w-11 h-11 rounded-xl flex items-center justify-center transition-colors',
-              isDark
-                ? 'bg-zinc-800 hover:bg-accent hover:text-white text-zinc-400'
-                : 'bg-zinc-100 hover:bg-accent hover:text-white text-zinc-600'
+              'flex-1 h-8 rounded-md flex items-center justify-center gap-1.5 text-xs font-medium transition-colors',
+              isDark ? 'bg-zinc-800 hover:bg-zinc-700 text-zinc-300' : 'bg-zinc-100 hover:bg-zinc-200 text-zinc-600'
             )}
-            title="대화하기"
           >
-            <MessageSquare className="w-5 h-5" />
+            <MessageSquare className="w-3.5 h-3.5" />
+            대화
           </button>
         </div>
       </aside>
@@ -3924,23 +3829,17 @@ export default function AgentProfilePage() {
           </nav>
         </div>
 
-        <div className="p-6 md:p-8">
+        <div className="p-5">
           {/* About Tab */}
           {activeTab === 'about' && (
-            <div className="space-y-8">
-              {/* Hero Profile Card */}
-              <div className={cn(
-                'relative overflow-hidden rounded-3xl border',
-                isDark ? 'bg-gradient-to-br from-zinc-900 via-zinc-900 to-zinc-800 border-zinc-800' : 'bg-gradient-to-br from-white via-white to-zinc-50 border-zinc-200'
-              )}>
-                {/* Background Pattern */}
-                <div className="absolute inset-0 opacity-5">
-                  <div className="absolute top-0 right-0 w-96 h-96 bg-accent rounded-full blur-3xl translate-x-1/2 -translate-y-1/2" />
-                  <div className="absolute bottom-0 left-0 w-64 h-64 bg-purple-500 rounded-full blur-3xl -translate-x-1/2 translate-y-1/2" />
-                </div>
-
-                <div className="relative p-8">
-                  {/* Edit Button */}
+            <div className="space-y-6">
+              {/* Profile Section */}
+              <div>
+                {/* Section Header */}
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className={cn('text-lg font-semibold', isDark ? 'text-white' : 'text-zinc-900')}>
+                    프로필
+                  </h2>
                   {editingSection !== 'identity' && (
                     <button
                       onClick={() =>
@@ -3956,29 +3855,14 @@ export default function AgentProfilePage() {
                         })
                       }
                       className={cn(
-                        'absolute top-6 right-6 flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-all hover:scale-105',
-                        isDark ? 'bg-zinc-800 hover:bg-zinc-700 text-zinc-300' : 'bg-zinc-100 hover:bg-zinc-200 text-zinc-700'
+                        'flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors',
+                        isDark ? 'hover:bg-zinc-800 text-zinc-400' : 'hover:bg-zinc-100 text-zinc-500'
                       )}
                     >
-                      <Edit3 className="w-4 h-4" />
-                      프로필 편집
+                      <Edit3 className="w-3.5 h-3.5" />
+                      편집
                     </button>
                   )}
-
-                  {/* Section Header */}
-                  <div className="flex items-center gap-3 mb-6">
-                    <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-accent to-purple-600 flex items-center justify-center shadow-lg shadow-accent/25">
-                      <User className="w-6 h-6 text-white" />
-                    </div>
-                    <div>
-                      <h2 className={cn('text-2xl font-bold', isDark ? 'text-white' : 'text-zinc-900')}>
-                        프로필
-                      </h2>
-                      <p className={cn('text-sm', isDark ? 'text-zinc-500' : 'text-zinc-500')}>
-                        에이전트의 정체성과 성격
-                      </p>
-                    </div>
-                  </div>
 
                 {editingSection === 'identity' ? (
                   <div className="space-y-6">
@@ -4167,30 +4051,16 @@ export default function AgentProfilePage() {
                       </div>
                     </div>
 
-                    {/* Identity Grid */}
+                    {/* Identity Grid - Minimal */}
                     {agent.identity && (
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="space-y-4">
                         {/* Core Values */}
                         {agent.identity.core_values?.length > 0 && (
-                          <div className={cn(
-                            'p-5 rounded-2xl border transition-all hover:shadow-lg',
-                            isDark ? 'bg-zinc-800/30 border-zinc-800 hover:border-pink-500/30' : 'bg-white border-zinc-200 hover:border-pink-300'
-                          )}>
-                            <div className="flex items-center gap-3 mb-4">
-                              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-pink-500 to-rose-600 flex items-center justify-center shadow-lg shadow-pink-500/20">
-                                <Heart className="w-5 h-5 text-white" />
-                              </div>
-                              <div>
-                                <h4 className={cn('font-semibold', isDark ? 'text-white' : 'text-zinc-900')}>핵심 가치</h4>
-                                <p className={cn('text-xs', isDark ? 'text-zinc-500' : 'text-zinc-500')}>Core Values</p>
-                              </div>
-                            </div>
-                            <div className="flex flex-wrap gap-2">
+                          <div>
+                            <h4 className={cn('text-xs font-medium mb-2', isDark ? 'text-zinc-500' : 'text-zinc-400')}>핵심 가치</h4>
+                            <div className="flex flex-wrap gap-1.5">
                               {agent.identity.core_values.map((value, idx) => (
-                                <span
-                                  key={idx}
-                                  className="px-3 py-1.5 rounded-full text-sm font-medium bg-gradient-to-r from-pink-500/10 to-rose-500/10 text-pink-500 border border-pink-500/20"
-                                >
+                                <span key={idx} className={cn('px-2 py-1 rounded text-xs', isDark ? 'bg-zinc-800 text-zinc-300' : 'bg-zinc-100 text-zinc-600')}>
                                   {value}
                                 </span>
                               ))}
@@ -4200,25 +4070,11 @@ export default function AgentProfilePage() {
 
                         {/* Personality Traits */}
                         {agent.identity.personality_traits?.length > 0 && (
-                          <div className={cn(
-                            'p-5 rounded-2xl border transition-all hover:shadow-lg',
-                            isDark ? 'bg-zinc-800/30 border-zinc-800 hover:border-purple-500/30' : 'bg-white border-zinc-200 hover:border-purple-300'
-                          )}>
-                            <div className="flex items-center gap-3 mb-4">
-                              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-purple-500 to-violet-600 flex items-center justify-center shadow-lg shadow-purple-500/20">
-                                <Sparkles className="w-5 h-5 text-white" />
-                              </div>
-                              <div>
-                                <h4 className={cn('font-semibold', isDark ? 'text-white' : 'text-zinc-900')}>성격 특성</h4>
-                                <p className={cn('text-xs', isDark ? 'text-zinc-500' : 'text-zinc-500')}>Personality</p>
-                              </div>
-                            </div>
-                            <div className="flex flex-wrap gap-2">
+                          <div>
+                            <h4 className={cn('text-xs font-medium mb-2', isDark ? 'text-zinc-500' : 'text-zinc-400')}>성격 특성</h4>
+                            <div className="flex flex-wrap gap-1.5">
                               {agent.identity.personality_traits.map((trait, idx) => (
-                                <span
-                                  key={idx}
-                                  className="px-3 py-1.5 rounded-full text-sm font-medium bg-gradient-to-r from-purple-500/10 to-violet-500/10 text-purple-500 border border-purple-500/20"
-                                >
+                                <span key={idx} className={cn('px-2 py-1 rounded text-xs', isDark ? 'bg-zinc-800 text-zinc-300' : 'bg-zinc-100 text-zinc-600')}>
                                   {trait}
                                 </span>
                               ))}
@@ -4228,25 +4084,11 @@ export default function AgentProfilePage() {
 
                         {/* Strengths */}
                         {agent.identity.strengths?.length > 0 && (
-                          <div className={cn(
-                            'p-5 rounded-2xl border transition-all hover:shadow-lg',
-                            isDark ? 'bg-zinc-800/30 border-zinc-800 hover:border-emerald-500/30' : 'bg-white border-zinc-200 hover:border-emerald-300'
-                          )}>
-                            <div className="flex items-center gap-3 mb-4">
-                              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-500 to-green-600 flex items-center justify-center shadow-lg shadow-emerald-500/20">
-                                <Zap className="w-5 h-5 text-white" />
-                              </div>
-                              <div>
-                                <h4 className={cn('font-semibold', isDark ? 'text-white' : 'text-zinc-900')}>강점</h4>
-                                <p className={cn('text-xs', isDark ? 'text-zinc-500' : 'text-zinc-500')}>Strengths</p>
-                              </div>
-                            </div>
-                            <div className="flex flex-wrap gap-2">
+                          <div>
+                            <h4 className={cn('text-xs font-medium mb-2', isDark ? 'text-zinc-500' : 'text-zinc-400')}>강점</h4>
+                            <div className="flex flex-wrap gap-1.5">
                               {agent.identity.strengths.map((strength, idx) => (
-                                <span
-                                  key={idx}
-                                  className="px-3 py-1.5 rounded-full text-sm font-medium bg-gradient-to-r from-emerald-500/10 to-green-500/10 text-emerald-500 border border-emerald-500/20"
-                                >
+                                <span key={idx} className={cn('px-2 py-1 rounded text-xs', isDark ? 'bg-zinc-800 text-zinc-300' : 'bg-zinc-100 text-zinc-600')}>
                                   {strength}
                                 </span>
                               ))}
@@ -4256,25 +4098,11 @@ export default function AgentProfilePage() {
 
                         {/* Growth Areas */}
                         {agent.identity.growth_areas?.length > 0 && (
-                          <div className={cn(
-                            'p-5 rounded-2xl border transition-all hover:shadow-lg',
-                            isDark ? 'bg-zinc-800/30 border-zinc-800 hover:border-amber-500/30' : 'bg-white border-zinc-200 hover:border-amber-300'
-                          )}>
-                            <div className="flex items-center gap-3 mb-4">
-                              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center shadow-lg shadow-amber-500/20">
-                                <Target className="w-5 h-5 text-white" />
-                              </div>
-                              <div>
-                                <h4 className={cn('font-semibold', isDark ? 'text-white' : 'text-zinc-900')}>성장 영역</h4>
-                                <p className={cn('text-xs', isDark ? 'text-zinc-500' : 'text-zinc-500')}>Growth Areas</p>
-                              </div>
-                            </div>
-                            <div className="flex flex-wrap gap-2">
+                          <div>
+                            <h4 className={cn('text-xs font-medium mb-2', isDark ? 'text-zinc-500' : 'text-zinc-400')}>성장 영역</h4>
+                            <div className="flex flex-wrap gap-1.5">
                               {agent.identity.growth_areas.map((area, idx) => (
-                                <span
-                                  key={idx}
-                                  className="px-3 py-1.5 rounded-full text-sm font-medium bg-gradient-to-r from-amber-500/10 to-orange-500/10 text-amber-500 border border-amber-500/20"
-                                >
+                                <span key={idx} className={cn('px-2 py-1 rounded text-xs', isDark ? 'bg-zinc-800 text-zinc-300' : 'bg-zinc-100 text-zinc-600')}>
                                   {area}
                                 </span>
                               ))}
@@ -4286,35 +4114,19 @@ export default function AgentProfilePage() {
 
                     {/* Communication & Working Style */}
                     {agent.identity && (agent.identity.communication_style || agent.identity.working_style) && (
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="space-y-4 mt-4">
                         {agent.identity.communication_style && (
-                          <div className={cn(
-                            'p-5 rounded-2xl border',
-                            isDark ? 'bg-zinc-800/30 border-zinc-800' : 'bg-white border-zinc-200'
-                          )}>
-                            <div className="flex items-center gap-3 mb-3">
-                              <div className="w-8 h-8 rounded-lg bg-blue-500/10 flex items-center justify-center">
-                                <MessageSquare className="w-4 h-4 text-blue-500" />
-                              </div>
-                              <h4 className={cn('font-semibold', isDark ? 'text-white' : 'text-zinc-900')}>소통 스타일</h4>
-                            </div>
-                            <p className={cn('text-sm leading-relaxed', isDark ? 'text-zinc-400' : 'text-zinc-600')}>
+                          <div>
+                            <h4 className={cn('text-xs font-medium mb-1', isDark ? 'text-zinc-500' : 'text-zinc-400')}>소통 스타일</h4>
+                            <p className={cn('text-sm', isDark ? 'text-zinc-300' : 'text-zinc-600')}>
                               {agent.identity.communication_style}
                             </p>
                           </div>
                         )}
                         {agent.identity.working_style && (
-                          <div className={cn(
-                            'p-5 rounded-2xl border',
-                            isDark ? 'bg-zinc-800/30 border-zinc-800' : 'bg-white border-zinc-200'
-                          )}>
-                            <div className="flex items-center gap-3 mb-3">
-                              <div className="w-8 h-8 rounded-lg bg-cyan-500/10 flex items-center justify-center">
-                                <Briefcase className="w-4 h-4 text-cyan-500" />
-                              </div>
-                              <h4 className={cn('font-semibold', isDark ? 'text-white' : 'text-zinc-900')}>업무 스타일</h4>
-                            </div>
-                            <p className={cn('text-sm leading-relaxed', isDark ? 'text-zinc-400' : 'text-zinc-600')}>
+                          <div>
+                            <h4 className={cn('text-xs font-medium mb-1', isDark ? 'text-zinc-500' : 'text-zinc-400')}>업무 스타일</h4>
+                            <p className={cn('text-sm', isDark ? 'text-zinc-300' : 'text-zinc-600')}>
                               {agent.identity.working_style}
                             </p>
                           </div>
@@ -4324,17 +4136,9 @@ export default function AgentProfilePage() {
 
                     {/* Recent Focus */}
                     {agent.identity?.recent_focus && (
-                      <div className={cn(
-                        'p-5 rounded-2xl border border-dashed',
-                        isDark ? 'bg-zinc-800/20 border-zinc-700' : 'bg-zinc-50/50 border-zinc-300'
-                      )}>
-                        <div className="flex items-center gap-3 mb-3">
-                          <div className="w-8 h-8 rounded-lg bg-accent/10 flex items-center justify-center">
-                            <Lightbulb className="w-4 h-4 text-accent" />
-                          </div>
-                          <h4 className={cn('font-semibold', isDark ? 'text-white' : 'text-zinc-900')}>최근 집중 영역</h4>
-                        </div>
-                        <p className={cn('text-sm leading-relaxed', isDark ? 'text-zinc-400' : 'text-zinc-600')}>
+                      <div className="mt-4">
+                        <h4 className={cn('text-xs font-medium mb-1', isDark ? 'text-zinc-500' : 'text-zinc-400')}>최근 집중 영역</h4>
+                        <p className={cn('text-sm', isDark ? 'text-zinc-300' : 'text-zinc-600')}>
                           {agent.identity.recent_focus}
                         </p>
                       </div>
@@ -4342,78 +4146,38 @@ export default function AgentProfilePage() {
                   </div>
                 )}
                 </div>
-              </div>
 
               {/* Stats Section */}
-              <div className={cn(
-                'p-6 rounded-2xl border',
-                isDark ? 'bg-zinc-900/50 border-zinc-800' : 'bg-white border-zinc-200'
-              )}>
-                <div className="flex items-center gap-3 mb-6">
-                  <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-cyan-600 flex items-center justify-center shadow-lg shadow-blue-500/20">
-                    <Activity className="w-5 h-5 text-white" />
-                  </div>
-                  <div>
-                    <h3 className={cn('text-xl font-bold', isDark ? 'text-white' : 'text-zinc-900')}>활동 통계</h3>
-                    <p className={cn('text-sm', isDark ? 'text-zinc-500' : 'text-zinc-500')}>Agent Statistics</p>
-                  </div>
-                </div>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div className={cn('pt-6 border-t', isDark ? 'border-zinc-800' : 'border-zinc-200')}>
+                <h3 className={cn('text-lg font-semibold mb-4', isDark ? 'text-white' : 'text-zinc-900')}>활동 통계</h3>
+                <div className="grid grid-cols-4 gap-4">
                   {[
-                    { label: '대화 수', value: agent.identity?.total_conversations || 0, icon: MessageSquare, color: 'from-blue-500 to-cyan-500' },
-                    { label: '완료 태스크', value: agent.identity?.total_tasks_completed || 0, icon: CheckCircle, color: 'from-emerald-500 to-green-500' },
-                    { label: '의사결정', value: agent.identity?.total_decisions_made || 0, icon: Lightbulb, color: 'from-amber-500 to-orange-500' },
-                    { label: '워크플로우', value: agent.workflow_nodes?.length || 0, icon: Workflow, color: 'from-purple-500 to-violet-500' },
-                  ].map((stat, idx) => {
-                    const Icon = stat.icon
-                    return (
-                      <div
-                        key={idx}
-                        className={cn(
-                          'relative overflow-hidden p-5 rounded-2xl border transition-all hover:shadow-lg group',
-                          isDark ? 'bg-zinc-800/30 border-zinc-800 hover:border-zinc-700' : 'bg-zinc-50 border-zinc-200 hover:border-zinc-300'
-                        )}
-                      >
-                        <div className={`absolute top-0 right-0 w-20 h-20 rounded-full bg-gradient-to-br ${stat.color} opacity-5 translate-x-1/3 -translate-y-1/3 group-hover:opacity-10 transition-opacity`} />
-                        <div className="relative">
-                          <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${stat.color} flex items-center justify-center mb-3 shadow-lg`}>
-                            <Icon className="w-5 h-5 text-white" />
-                          </div>
-                          <p className={cn('text-3xl font-bold mb-1', isDark ? 'text-white' : 'text-zinc-900')}>{stat.value}</p>
-                          <p className={cn('text-sm', isDark ? 'text-zinc-500' : 'text-zinc-500')}>
-                            {stat.label}
-                          </p>
-                        </div>
-                      </div>
-                    )
-                  })}
+                    { label: '대화 수', value: agent.identity?.total_conversations || 0 },
+                    { label: '완료 태스크', value: agent.identity?.total_tasks_completed || 0 },
+                    { label: '의사결정', value: agent.identity?.total_decisions_made || 0 },
+                    { label: '워크플로우', value: agent.workflow_nodes?.length || 0 },
+                  ].map((stat, idx) => (
+                    <div key={idx} className="text-center">
+                      <p className={cn('text-2xl font-semibold', isDark ? 'text-white' : 'text-zinc-900')}>{stat.value}</p>
+                      <p className={cn('text-xs', isDark ? 'text-zinc-500' : 'text-zinc-400')}>{stat.label}</p>
+                    </div>
+                  ))}
                 </div>
               </div>
 
               {/* Capabilities - Editable */}
-              <div className={cn(
-                'p-6 rounded-2xl border',
-                isDark ? 'bg-zinc-900/50 border-zinc-800' : 'bg-white border-zinc-200'
-              )}>
-                <div className="flex items-center justify-between mb-6">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-blue-600 flex items-center justify-center shadow-lg shadow-indigo-500/20">
-                      <Sparkles className="w-5 h-5 text-white" />
-                    </div>
-                    <div>
-                      <h3 className={cn('text-xl font-bold', isDark ? 'text-white' : 'text-zinc-900')}>기능 & 역량</h3>
-                      <p className={cn('text-sm', isDark ? 'text-zinc-500' : 'text-zinc-500')}>Capabilities</p>
-                    </div>
-                  </div>
+              <div className={cn('pt-6 border-t', isDark ? 'border-zinc-800' : 'border-zinc-200')}>
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className={cn('text-lg font-semibold', isDark ? 'text-white' : 'text-zinc-900')}>기능 & 역량</h3>
                   {editingSection !== 'capabilities' && (
                     <button
                       onClick={() => startEditing('capabilities', { capabilities: agent.capabilities || [] })}
                       className={cn(
-                        'flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-all hover:scale-105',
-                        isDark ? 'bg-zinc-800 hover:bg-zinc-700 text-zinc-300' : 'bg-zinc-100 hover:bg-zinc-200 text-zinc-700'
+                        'flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors',
+                        isDark ? 'hover:bg-zinc-800 text-zinc-400' : 'hover:bg-zinc-100 text-zinc-500'
                       )}
                     >
-                      <Edit3 className="w-4 h-4" />
+                      <Edit3 className="w-3.5 h-3.5" />
                       편집
                     </button>
                   )}

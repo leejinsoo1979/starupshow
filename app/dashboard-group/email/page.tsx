@@ -586,9 +586,9 @@ export default function EmailPage() {
   }
 
   return (
-    <div className="h-screen flex bg-white dark:bg-zinc-900">
-      {/* Folder Menu - 전체 높이 사용 (자체 헤더 포함) */}
-      <div className="w-64 flex-shrink-0 border-r border-zinc-200 dark:border-zinc-800">
+    <div className="h-[calc(100vh-64px)] mt-16 flex bg-white dark:bg-zinc-900">
+      {/* Folder Menu - 헤더 아래로 배치 */}
+      <div className="w-52 flex-shrink-0 border-r border-zinc-200 dark:border-zinc-800">
         <EmailFolderMenu
           accounts={accounts}
           selectedAccount={selectedAccount}
@@ -607,8 +607,8 @@ export default function EmailPage() {
         />
       </div>
 
-      {/* Right Section: Header + (Content + Chat) - pt-16으로 헤더 공간 확보 */}
-      <div className="flex-1 flex flex-col min-w-0 pt-16">
+      {/* Right Section: Header + (Content + Chat) */}
+      <div className="flex-1 flex flex-col min-w-0">
         {/* Header - spans full width */}
         <div className="flex items-center justify-between px-4 py-3 border-b border-zinc-200 dark:border-zinc-700">
           <div className="flex items-center gap-3">
