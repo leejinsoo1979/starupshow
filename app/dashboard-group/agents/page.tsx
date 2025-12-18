@@ -443,9 +443,7 @@ export default function AgentsPage() {
                     <div
                       key={agent.id}
                       onClick={() => router.push(`/dashboard-group/agents/${agent.id}`)}
-                      className={`group cursor-pointer rounded-lg border p-4 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 ${
-                        isDark ? 'bg-zinc-900 border-zinc-800' : 'bg-white border-zinc-200'
-                      } ${!isActive && 'opacity-50'}`}
+                      className={`group cursor-pointer rounded-lg border p-4 bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 ${!isActive && 'opacity-50'}`}
                     >
                       <div className="flex items-start gap-3">
                         <img
