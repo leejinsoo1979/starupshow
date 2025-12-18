@@ -1,4 +1,4 @@
--- StartupShow Initial Schema
+-- Glowus Initial Schema
 -- Based on Developguide.md specifications
 
 -- Enable UUID extension

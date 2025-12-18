@@ -111,7 +111,7 @@ export const webFetchTool = new DynamicStructuredTool({
     try {
       const response = await fetch(url, {
         headers: {
-          'User-Agent': 'Mozilla/5.0 (compatible; StartupShow-Agent/1.0)',
+          'User-Agent': 'Mozilla/5.0 (compatible; Glowus-Agent/1.0)',
         },
       })
 

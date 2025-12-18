@@ -1,4 +1,4 @@
--- StartupShow Database Schema
+-- Glowus Database Schema
 -- Version: 1.0.0
 -- Description: Complete database schema for startup management and investor matching platform
 

@@ -20,7 +20,7 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(
-    title="StartupShow AI Backend",
+    title="Glowus AI Backend",
     description="Python AI Backend for Agent Execution",
     version="1.0.0",
     lifespan=lifespan,
@@ -43,7 +43,7 @@ app.include_router(youtube_router, prefix="/api/youtube", tags=["youtube"])
 
 @app.get("/")
 async def root():
-    return {"status": "ok", "message": "StartupShow AI Backend"}
+    return {"status": "ok", "message": "Glowus AI Backend"}
 
 
 @app.get("/health")

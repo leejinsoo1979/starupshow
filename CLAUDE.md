@@ -1,7 +1,7 @@
-# StartupShow - AI Development Guide
+# Glowus - AI Development Guide
 
 ## Project Overview
-**StartupShow**: 스타트업 운영 자동화 및 투자 매칭 플랫폼
+**Glowus**: 스타트업 운영 자동화 및 투자 매칭 플랫폼
 
 ### Core Philosophy
 > "자기 관리가 곧 자기 홍보가 된다" (Self-Management to Self-PR)

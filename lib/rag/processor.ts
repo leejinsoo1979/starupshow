@@ -252,7 +252,7 @@ export async function fetchUrlContent(url: string): Promise<{ content: string; t
   try {
     const res = await fetch(url, {
       headers: {
-        'User-Agent': 'Mozilla/5.0 (compatible; StartupShowBot/1.0)',
+        'User-Agent': 'Mozilla/5.0 (compatible; GlowusBot/1.0)',
       },
     })
 

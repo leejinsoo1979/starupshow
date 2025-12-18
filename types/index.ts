@@ -1,4 +1,4 @@
-// Database types for StartupShow
+// Database types for Glowus
 // Auto-generate with: npx supabase gen types typescript --local > types/database.ts
 
 // Re-export database types

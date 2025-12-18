@@ -34,10 +34,10 @@ export async function POST(request: NextRequest) {
         const pptx = new PptxGenJS()
 
         // Set presentation properties
-        pptx.author = 'StartupShow AI'
+        pptx.author = 'Glowus AI'
         pptx.title = title || '사업계획서'
         pptx.subject = 'AI Generated Business Plan'
-        pptx.company = 'StartupShow'
+        pptx.company = 'Glowus'
 
         // Define slide master
         pptx.defineSlideMaster({
@@ -52,7 +52,7 @@ export async function POST(request: NextRequest) {
                 },
                 {
                     text: {
-                        text: 'StartupShow',
+                        text: 'Glowus',
                         options: {
                             x: 0.3, y: 5.2, w: 2, h: 0.3,
                             fontSize: 10, color: COLORS.muted

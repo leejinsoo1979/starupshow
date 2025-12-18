@@ -1,5 +1,5 @@
 // Database types based on Supabase schema
-// Auto-generated types for StartupShow
+// Auto-generated types for Glowus
 
 export type UserRole = 'FOUNDER' | 'TEAM_MEMBER' | 'INVESTOR' | 'ADMIN'
 export type AccessStatus = 'PENDING' | 'APPROVED' | 'DENIED' | 'REVOKED'

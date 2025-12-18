@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# StartupShow AI Backend Runner
+# Glowus AI Backend Runner
 
 # Check if virtual environment exists
 if [ ! -d "venv" ]; then
