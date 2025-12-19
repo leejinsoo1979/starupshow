@@ -792,24 +792,65 @@ export default function MessengerPage() {
         </div>
 
         <div className="flex flex-1 overflow-hidden">
-          {/* Shared Viewer Panel - 공유 화면이 활성화되면 왼쪽에 표시 */}
-          {showSharedViewer && isViewerActive && (
-            <div className={`w-1/2 border-r flex-shrink-0 ${
-              isDark ? 'border-zinc-800/50' : 'border-zinc-200'
+          {/* Shared Viewer Panel - 회의/토론/발표 모드이거나 공유 화면이 활성화되면 왼쪽에 표시 */}
+          {(roomMode !== 'chat' || meetingStatus?.is_meeting_active || (showSharedViewer && isViewerActive)) && (
+            <div className={`w-1/2 border-r flex-shrink-0 flex flex-col ${
+              isDark ? 'border-zinc-800/50 bg-zinc-950' : 'border-zinc-200 bg-zinc-50'
             }`}>
-              <SharedViewer
-                roomId={activeRoomId!}
-                onClose={() => {
-                  setShowSharedViewer(false)
-                  stopSharing()
-                }}
-                accentColor={currentAccent.color}
-              />
+              {isViewerActive ? (
+                <SharedViewer
+                  roomId={activeRoomId!}
+                  onClose={() => {
+                    setShowSharedViewer(false)
+                    stopSharing()
+                  }}
+                  accentColor={currentAccent.color}
+                />
+              ) : (
+                /* 파일 없을 때 Placeholder UI */
+                <div className="flex-1 flex flex-col items-center justify-center p-8">
+                  <div className={`w-24 h-24 rounded-2xl flex items-center justify-center mb-6 ${
+                    isDark ? 'bg-zinc-800/50' : 'bg-zinc-200/50'
+                  }`}>
+                    <MonitorPlay className={`w-12 h-12 ${isDark ? 'text-zinc-600' : 'text-zinc-400'}`} />
+                  </div>
+                  <h3 className={`text-lg font-medium mb-2 ${isDark ? 'text-zinc-300' : 'text-zinc-700'}`}>
+                    자료 공유 대기중
+                  </h3>
+                  <p className={`text-sm text-center mb-6 max-w-xs ${isDark ? 'text-zinc-500' : 'text-zinc-500'}`}>
+                    PDF, 이미지, 비디오 파일을 공유하여 회의 참가자들과 함께 볼 수 있습니다
+                  </p>
+                  <Button
+                    onClick={() => shareInputRef.current?.click()}
+                    disabled={uploading}
+                    className="gap-2"
+                    style={{ backgroundColor: currentAccent.color }}
+                  >
+                    {uploading ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <Share2 className="w-4 h-4" />
+                    )}
+                    {uploading ? '업로드 중...' : '파일 공유하기'}
+                  </Button>
+                  <div className={`mt-6 flex items-center gap-4 text-xs ${isDark ? 'text-zinc-600' : 'text-zinc-400'}`}>
+                    <span className="flex items-center gap-1">
+                      <FileText className="w-3 h-3" /> PDF
+                    </span>
+                    <span className="flex items-center gap-1">
+                      <ImageIcon className="w-3 h-3" /> 이미지
+                    </span>
+                    <span className="flex items-center gap-1">
+                      <Film className="w-3 h-3" /> 비디오
+                    </span>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
           {/* Main Content Column */}
-          <div className={`flex-1 flex flex-col min-w-0 ${showSharedViewer && isViewerActive ? 'w-1/2' : ''}`}>
+          <div className={`flex-1 flex flex-col min-w-0 ${(roomMode !== 'chat' || meetingStatus?.is_meeting_active || (showSharedViewer && isViewerActive)) ? 'w-1/2' : ''}`}>
             {/* Meeting Status Bar - Enterprise Style */}
             {meetingStatus?.is_meeting_active && (() => {
               // 진행자 정보 찾기
