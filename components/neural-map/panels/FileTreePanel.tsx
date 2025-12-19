@@ -68,9 +68,16 @@ export function FileTreePanel({ mapId }: FileTreePanelProps) {
   const removeFile = useNeuralMapStore((s) => s.removeFile)
   const currentTheme = useNeuralMapStore((s) => s.currentTheme)
   const graph = useNeuralMapStore((s) => s.graph)
+  const setSelectedNodes = useNeuralMapStore((s) => s.setSelectedNodes)
+  const focusOnNode = useNeuralMapStore((s) => s.focusOnNode)
 
   // API hook
   const { uploadFile, deleteFile, createNode, createEdge } = useNeuralMapApi(mapId)
+
+  // 파일에 해당하는 노드 찾기
+  const findNodeByFileName = (fileName: string) => {
+    return graph?.nodes.find(n => n.title === fileName)
+  }
 
   // 파일 업로드 핸들러
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -130,10 +137,19 @@ export function FileTreePanel({ mapId }: FileTreePanelProps) {
     }
   }
 
-  // 파일 열기 핸들러
+  // 파일 열기 핸들러 (외부 링크)
   const handleOpenFile = (file: NeuralFile) => {
     if (file.url) {
       window.open(file.url, '_blank')
+    }
+  }
+
+  // 파일 클릭 핸들러 - 해당 노드 선택 및 포커스
+  const handleFileClick = (file: NeuralFile) => {
+    const node = findNodeByFileName(file.name)
+    if (node) {
+      setSelectedNodes([node.id])
+      focusOnNode(node.id)
     }
   }
 
@@ -276,42 +292,50 @@ export function FileTreePanel({ mapId }: FileTreePanelProps) {
                     transition={{ duration: 0.15 }}
                     className="overflow-hidden"
                   >
-                    {group.files.map((file) => (
-                      <div
-                        key={file.id}
-                        className={cn(
-                          'group flex items-center gap-2 px-2 py-1.5 rounded-lg transition-colors text-sm ml-4',
-                          isDark
-                            ? 'hover:bg-zinc-800 text-zinc-400'
-                            : 'hover:bg-zinc-100 text-zinc-600'
-                        )}
-                      >
-                        <FileIcon type={file.type} />
-                        <span className="flex-1 text-left truncate">{file.name}</span>
-                        <div className="opacity-0 group-hover:opacity-100 flex items-center gap-1">
-                          <button
-                            onClick={() => handleOpenFile(file)}
-                            className={cn(
-                              'p-1 rounded transition-colors',
-                              isDark ? 'hover:bg-zinc-700' : 'hover:bg-zinc-200'
-                            )}
-                            title="파일 열기"
-                          >
-                            <ExternalLink className="w-3 h-3" />
-                          </button>
-                          <button
-                            onClick={() => handleDeleteFile(file.id)}
-                            className={cn(
-                              'p-1 rounded transition-colors text-red-400',
-                              isDark ? 'hover:bg-zinc-700' : 'hover:bg-zinc-200'
-                            )}
-                            title="파일 삭제"
-                          >
-                            <Trash2 className="w-3 h-3" />
-                          </button>
+                    {group.files.map((file) => {
+                      const hasNode = !!findNodeByFileName(file.name)
+                      return (
+                        <div
+                          key={file.id}
+                          onClick={() => handleFileClick(file)}
+                          className={cn(
+                            'group flex items-center gap-2 px-2 py-1.5 rounded-lg transition-colors text-sm ml-4 cursor-pointer',
+                            isDark
+                              ? 'hover:bg-zinc-800 text-zinc-400'
+                              : 'hover:bg-zinc-100 text-zinc-600',
+                            hasNode && (isDark ? 'border-l-2 border-blue-500' : 'border-l-2 border-blue-500')
+                          )}
+                        >
+                          <FileIcon type={file.type} />
+                          <span className="flex-1 text-left truncate">{file.name}</span>
+                          {hasNode && (
+                            <span className="w-2 h-2 rounded-full bg-blue-500" title="노드 연결됨" />
+                          )}
+                          <div className="opacity-0 group-hover:opacity-100 flex items-center gap-1">
+                            <button
+                              onClick={(e) => { e.stopPropagation(); handleOpenFile(file) }}
+                              className={cn(
+                                'p-1 rounded transition-colors',
+                                isDark ? 'hover:bg-zinc-700' : 'hover:bg-zinc-200'
+                              )}
+                              title="파일 열기"
+                            >
+                              <ExternalLink className="w-3 h-3" />
+                            </button>
+                            <button
+                              onClick={(e) => { e.stopPropagation(); handleDeleteFile(file.id) }}
+                              className={cn(
+                                'p-1 rounded transition-colors text-red-400',
+                                isDark ? 'hover:bg-zinc-700' : 'hover:bg-zinc-200'
+                              )}
+                              title="파일 삭제"
+                            >
+                              <Trash2 className="w-3 h-3" />
+                            </button>
+                          </div>
                         </div>
-                      </div>
-                    ))}
+                      )
+                    })}
                   </motion.div>
                 )}
               </AnimatePresence>
