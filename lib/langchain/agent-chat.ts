@@ -436,9 +436,13 @@ ${formattedHistory}
       })
     }
 
-    // deepseek-r1 모델의 <think> 태그 제거
-    const cleanResponse = response.replace(/<think>[\s\S]*?<\/think>\s*/g, '').trim()
-    return cleanResponse || response
+    // 모든 thinking 태그 및 라벨 제거
+    let cleanResponse = response
+    cleanResponse = cleanResponse.replace(/<think>[\s\S]*?<\/think>\s*/g, '')
+    cleanResponse = cleanResponse.replace(/<thinking>[\s\S]*?<\/thinking>\s*/g, '')
+    cleanResponse = cleanResponse.replace(/\[(FACT|ASSUMPTION|ESTIMATE|제안|반박|근거|리스크|질문|결정|태그)\]/gi, '')
+    cleanResponse = cleanResponse.replace(/\((FACT|ASSUMPTION|ESTIMATE|RISK)\)/gi, '')
+    return cleanResponse.trim() || response
   } catch (error: any) {
     console.error(`[AgentChat] Error with ${provider}/${model}:`)
     console.error('Error name:', error?.name)
@@ -573,9 +577,13 @@ ${att.content.substring(0, 5000)}${att.content.length > 5000 ? '\n... (내용 �
       discussion: formatChatHistory(previousMessages),
     })
 
-    // deepseek-r1 모델의 <think> 태그 제거
-    const cleanResponse = response.replace(/<think>[\s\S]*?<\/think>\s*/g, '').trim()
-    return cleanResponse || response
+    // 모든 thinking 태그 및 라벨 제거
+    let cleanResponse = response
+    cleanResponse = cleanResponse.replace(/<think>[\s\S]*?<\/think>\s*/g, '')
+    cleanResponse = cleanResponse.replace(/<thinking>[\s\S]*?<\/thinking>\s*/g, '')
+    cleanResponse = cleanResponse.replace(/\[(FACT|ASSUMPTION|ESTIMATE|제안|반박|근거|리스크|질문|결정|태그)\]/gi, '')
+    cleanResponse = cleanResponse.replace(/\((FACT|ASSUMPTION|ESTIMATE|RISK)\)/gi, '')
+    return cleanResponse.trim() || response
   } catch (error) {
     console.error(`[AgentMeeting] Error with ${provider}/${model}:`, error)
     throw error

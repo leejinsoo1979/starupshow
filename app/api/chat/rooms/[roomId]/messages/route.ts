@@ -305,7 +305,7 @@ async function triggerAgentResponse(
       // 멘션된 에이전트만 필터링 (부분 일치, 대소문자 무시)
       const targetAgent = agents.find(
         (a: any) => a.name.toLowerCase().includes(targetAgentName.toLowerCase()) ||
-                    targetAgentName.toLowerCase().includes(a.name.toLowerCase())
+          targetAgentName.toLowerCase().includes(a.name.toLowerCase())
       )
       if (targetAgent) {
         agents = [targetAgent]
@@ -451,9 +451,29 @@ async function triggerMultiAgentResponse(
   }
 }
 
-// 응답에서 에이전트 이름 접두어 제거
+// 응답에서 에이전트 이름 접두어 및 Thinking 블록 제거
 function cleanAgentResponse(response: string, agents: any[]): string {
   let cleaned = response
+
+  // 1. <thinking> 블록 제거 (줄바꿈 포함 모든 문자 매칭)
+  cleaned = cleaned.replace(/<thinking>[\s\S]*?<\/thinking>/gi, '')
+  // 혹시 모를 대괄호 태그 잔재 제거 (안전장치)
+  cleaned = cleaned.replace(/\[(FACT|ASSUMPTION|ESTIMATE|근거|논리)\].*?(\n|$)/gi, '')
+  cleaned = cleaned.replace(/<think>[\s\S]*?<\/think>/gi, '')
+  cleaned = cleaned.replace(/\[thinking\][\s\S]*?\[\/thinking\]/gi, '')
+
+  // 1.5. 지문(*행동*) 제거 (강제)
+  cleaned = cleaned.replace(/\*[^*]+\*/g, '')
+
+  // 1.6. 번호 매기기 제거 (1. 2. 또는 1) 2) 등) - 문장 시작 부분이나 줄바꿈 후
+  cleaned = cleaned.replace(/(^|\n)\s*\d+[.)]\s*/g, '$1')
+
+  // 2. 태그 패턴 제거 [제안], [반박], [근거], [리스크], [질문], [결정], [태그]
+  cleaned = cleaned.replace(/\[(제안|반박|근거|리스크|질문|결정|태그)\]/g, '')
+
+  // 3. (FACT), (ASSUMPTION), (ESTIMATE), (RISK) 라벨 제거
+  cleaned = cleaned.replace(/\((FACT|ASSUMPTION|ESTIMATE|RISK)\)/gi, '')
+
   const allAgentNames = agents.map(a => a.name.trim())
 
   for (let i = 0; i < 3; i++) {
@@ -816,64 +836,32 @@ async function processAgentResponsesRelay(
         facilitatorPrompt = `${historyText}
 
 ---
-👑 당신: ${facilitatorAgent.name} (회의 진행자)${topicInstruction}${facilTimeStatus.hint ? `\n${facilTimeStatus.hint}` : ''}
+👑 ${facilitatorAgent.name} (진행자)${topicInstruction}${facilTimeStatus.hint ? ` ${facilTimeStatus.hint}` : ''}
 
-지금까지 대화를 듣고, **${agentToAsk.name}**님에게 의견을 물어보세요.
-
-예시:
-- "어 ${agentToAsk.name}님은 어떻게 생각해요?"
-- "${agentToAsk.name}님 의견도 들어볼까요?"
-- "근데 ${agentToAsk.name}님은?"
-
-🗣️ 말투: 실제 회의처럼 자연스럽게
-- 1-2문장`
+${agentToAsk.name}님에게 의견을 물어봐.`
       } else if (facilitatorRole === 'control') {
         facilitatorPrompt = `${historyText}
 
 ---
-👑 당신: ${facilitatorAgent.name} (회의 진행자)${topicInstruction}
+👑 ${facilitatorAgent.name} (진행자)${topicInstruction}
 
-대화가 좀 샜네요. 본론으로 끌어오세요.
-
-예시:
-- "어 잠깐, 다시 본론으로 가면"
-- "아 그건 그렇고, 원래 주제로 돌아가면"
-- "ㅋㅋ 그건 나중에 하고 일단"
-
-🗣️ 말투: 부드럽게 끊기
-- 1-2문장`
+본론으로 끌어와.`
       } else if (facilitatorRole === 'summarize') {
         facilitatorPrompt = `${historyText}
 
 ---
-👑 당신: ${facilitatorAgent.name} (회의 진행자)${topicInstruction}${facilTimeStatus.hint ? `\n${facilTimeStatus.hint}` : ''}
+👑 ${facilitatorAgent.name} (진행자)${topicInstruction}${facilTimeStatus.hint ? ` ${facilTimeStatus.hint}` : ''}
 
-지금까지 나온 의견을 간단히 정리하고, 다음으로 넘어가세요.
-
-예시:
-- "음 정리하면, A는 ~하고, B는 ~한다는 거죠?"
-- "자 그러면 여기까지 정리하고 다음 포인트로"
-- "오케이 여기까지 들었고요, 그럼 다음은..."
-
-🗣️ 말투: 자연스럽게 정리
-- 2-3문장`
+지금까지 의견 정리하고 다음으로 넘어가.`
       } else {
         // push_conclusion
         facilitatorPrompt = `${historyText}
 
 ---
-👑 당신: ${facilitatorAgent.name} (회의 진행자)${topicInstruction}
-⏰ ${facilTimeStatus.hint || '시간이 거의 다 됐어요!'}
+👑 ${facilitatorAgent.name} (진행자)${topicInstruction}
+⏰ ${facilTimeStatus.hint || '시간 끝!'}
 
-결론을 이끌어내세요. 지금까지 나온 의견 중 합의점을 찾거나, 다수 의견을 정리하세요.
-
-예시:
-- "자 시간이 없으니까 정리하면, 결론은 ~로 가는 게 맞죠?"
-- "오케이 마무리하면, 일단 ~하기로 하고, 나머지는 다음에?"
-- "됐어요 정리할게요. ~로 결정하죠?"
-
-🗣️ 말투: 단호하지만 자연스럽게
-- 2-3문장`
+결론 내려. 합의점 찾거나 다수 의견으로 결정해.`
       }
 
       let facilitatorResponse = await generateSingleAgentResponse(supabase, facilitatorAgent, facilitatorPrompt, roomContext, images, userId)
@@ -911,7 +899,7 @@ async function processAgentResponsesRelay(
       }
 
       await supabase.from('chat_participants').update({ is_typing: false }).eq('room_id', roomId).eq('agent_id', facilitatorAgent.id)
-      await new Promise(resolve => setTimeout(resolve, 1500))
+      await new Promise(resolve => setTimeout(resolve, 150))
 
       // --- 2. 지목받은 에이전트 또는 다른 에이전트들 반응 ---
       // 진행자가 질문했으면 지목된 에이전트가 답변
@@ -934,38 +922,26 @@ async function processAgentResponsesRelay(
           agentPrompt = `${updatedHistoryText}
 
 ---
-당신: ${respondingAgent.name}${topicInstruction}
-(👑 진행자 ${facilitatorAgent.name}님이 당신에게 질문했습니다)
+${respondingAgent.name}${topicInstruction}
+(진행자가 질문함)
 
-질문에 성실하게 답변하세요.
-
-🗣️ 말투: 실제 회의처럼
-예시: "어 제 생각엔~", "음... 저는 ~라고 봐요", "아 그게 말이죠~"
-- 2-3문장`
+질문에 답변해.`
         } else if (facilitatorRole === 'push_conclusion') {
           agentPrompt = `${updatedHistoryText}
 
 ---
-당신: ${respondingAgent.name}${topicInstruction}
-(👑 진행자가 결론을 내리려고 합니다)
+${respondingAgent.name}${topicInstruction}
+(진행자가 결론 내림)
 
-진행자 정리에 동의하거나, 마지막 한마디를 하세요.
-
-🗣️ 말투: 짧게
-예시: "네 그렇게 하죠", "오케이 저도 동의", "아 근데 마지막으로 ~만"
-- 1-2문장`
+동의하거나 마지막 한마디.`
         } else {
           agentPrompt = `${updatedHistoryText}
 
 ---
-당신: ${respondingAgent.name}${topicInstruction}
-(👑 진행자가 정리/통제 중입니다)
+${respondingAgent.name}${topicInstruction}
+(진행자 정리중)
 
-진행자 말에 짧게 반응하세요.
-
-🗣️ 말투: 짧게 동의/반응
-예시: "네네", "오 그러네요", "맞아요", "아 ㅋㅋ"
-- 1문장`
+짧게 반응.`
         }
 
         let agentResponse = await generateSingleAgentResponse(supabase, respondingAgent, agentPrompt, roomContext, images, userId)
@@ -1003,7 +979,7 @@ async function processAgentResponsesRelay(
         }
 
         await supabase.from('chat_participants').update({ is_typing: false }).eq('room_id', roomId).eq('agent_id', respondingAgent.id)
-        await new Promise(resolve => setTimeout(resolve, 1500))
+        await new Promise(resolve => setTimeout(resolve, 150))
       }
 
       // --- 3. 자유 토론 (다른 에이전트들 추가 반응, 선택적) ---
@@ -1022,13 +998,9 @@ async function processAgentResponsesRelay(
           const reactorPrompt = `${latestHistoryText}
 
 ---
-당신: ${reactor.name}${topicInstruction}
+${reactor.name}${topicInstruction}
 
-방금 ${agentToAsk.name}님 의견에 반응하세요. 동의/반박/추가 의견 뭐든 OK.
-
-🗣️ 말투: 자연스럽게
-예시: "어 맞아 저도~", "아 근데 그건~", "오 그 포인트 좋네"
-- 1-2문장`
+${agentToAsk.name}님 의견에 반응해. 동의/반박/추가 뭐든.`
 
           let reactorResponse = await generateSingleAgentResponse(supabase, reactor, reactorPrompt, roomContext, images, userId)
 
@@ -1124,10 +1096,10 @@ async function processAgentResponsesRelay(
           ? `\n🎯 토론 주제: "${roomContext.meetingTopic}"`
           : ''
 
-        // 마지막 발언자 이름 (응답 대상 명시)
-        const lastSpeaker = filteredHistory.length > 0
-          ? filteredHistory[filteredHistory.length - 1].name
-          : '사용자'
+        // 마지막 발언자 정보 (직전 발언 인용용)
+        const lastMessage = filteredHistory.length > 0 ? filteredHistory[filteredHistory.length - 1] : null
+        const lastSpeaker = lastMessage?.name || '사용자'
+        const lastSpeakerContent = lastMessage?.content || ''
 
         // 🔥 회의 설정 기반 지시사항
         const purposeInstructions: Record<string, string> = {
@@ -1207,58 +1179,34 @@ async function processAgentResponsesRelay(
         console.log(`  - Agent Provider: ${agent.llm_provider}`)
         console.log(`  - Round: ${round}, isFacilitator: ${isFacilitator}`)
 
-        const isFirstGreeting = round === 0  // 첫 인사
-        const isSmallTalk = round === 1  // 가벼운 대화
+        // 🔥 인사 단계 최소화: round 0에서 첫 에이전트만 인사 + 바로 본론
+        const isFirstGreeting = round === 0 && agentIndex === 0  // 첫 에이전트만 인사
+        const isSmallTalk = false  // 스몰토크 스킵
         // 진행자가 있으면 진행자가 회의 시작, 없으면 첫 번째 에이전트
-        const isMeetingStart = round === 2 && (facilitatorId ? agent.id === facilitatorId : agentIndex === 0)
-        const isDiscussion = round >= 2 && !isMeetingStart  // 본격 토론
+        const isMeetingStart = round === 0 && agentIndex > 0  // 나머지는 바로 본론
+        const isDiscussion = round >= 1  // round 1부터 본격 토론
 
         let contextMessage: string
 
         if (isFirstGreeting) {
-          // Phase 0: 첫 인사 (자연스럽게)
-          contextMessage = `회의실 입장.
+          // Phase 0: 첫 에이전트만 간단 인사 + 본론 시작
+          contextMessage = `회의실 입장. 참여자: ${uniqueAgents.map(a => a.name).join(', ')}
+당신: ${agent.name}${topicInstruction}
 
-참여자: ${uniqueAgents.map(a => a.name).join(', ')}
-당신: ${agent.name}
-
-${filteredHistory.length > 0 ? `[먼저 온 사람들]\n${historyText}\n\n` : ''}👋 가볍게 인사해
-예: "어 안녕~", "왔어요?", "오 다들 왔네", "하이하이"
-- 1문장, 격식 차리지 말고`
+한 문장으로 인사하고 바로 주제에 대한 첫 의견을 말해.`
 
         } else if (isSmallTalk) {
-          // Phase 1: 인사 응답
+          // 스킵됨
+          contextMessage = ''
+
+        } else if (isMeetingStart) {
+          // 나머지 에이전트: 바로 본론
           contextMessage = `${historyText}
 
 ---
 당신: ${agent.name}${topicInstruction}
 
-인사 받고 가볍게 대꾸해. 바로 시작하자고 해도 됨.
-예: "ㅇㅇ 왔어요~", "오 시작하죠", "네네 준비 됐어요"
-- 1문장`
-
-        } else if (isMeetingStart) {
-          // Phase 2: 회의 시작
-          if (isFacilitator) {
-            contextMessage = `${historyText}
-
----
-당신: ${agent.name} (👑 진행자)${topicInstruction}
-
-자연스럽게 회의 시작해.
-예: "자 그럼 시작할까요?", "오케이 바로 들어가죠", "그럼 본론으로~"
-${topicInstruction ? '주제 언급하고 질문 던져' : ''}
-- 1-2문장`
-          } else {
-            contextMessage = `${historyText}
-
----
-당신: ${agent.name}${topicInstruction}
-
-회의 시작하자고 해. ${topicInstruction ? '주제에 대해 한마디 해도 됨' : ''}
-예: "슬슬 시작하죠", "오케이 들어가볼까요"
-- 1-2문장`
-          }
+주제에 대한 의견을 바로 말해. 인사 불필요.`
 
         } else {
           // Phase 3+: 본격 토론 (구조화된 회의 모드)
@@ -1303,6 +1251,8 @@ ${topicInstruction ? '주제 언급하고 질문 던져' : ''}
             meetingContext: meetingCtx,
             conversationHistory: historyText,
             otherParticipants: uniqueAgents.filter(a => a.id !== agent.id).map(a => a.name),
+            lastSpeaker: lastSpeaker !== agent.name ? lastSpeaker : undefined, // 자기 발언은 제외
+            lastSpeakerContent: lastSpeaker !== agent.name ? lastSpeakerContent : undefined,
           }
 
           const agentSystemPrompt = generateAgentSystemPrompt(agentPromptCtx)
@@ -1337,14 +1287,14 @@ ${historyText}
 
 ---
 ${agentSystemPrompt}
+${configInstruction ? `\n${configInstruction}` : ''}
 
 [현재 단계: ${effectiveStep}]
 ${facilitatorStepInstruction}
 ${timeStatus.hint ? `\n⏰ ${timeStatus.hint}` : ''}
 
 [발언 형식]
-1) 결론(1문장) → 2) 근거(최대3) → 3) 리스크(1) → 4) 질문/액션(1)
-※ 6문장 이내`
+(위의 [대화 규칙]을 엄격히 준수할 것)`
           } else {
             // 일반 참여자 프롬프트 (구조화)
             const facilitatorNote = facilitatorName ? `\n(👑 진행자: ${facilitatorName})` : ''
@@ -1354,17 +1304,13 @@ ${historyText}
 
 ---
 ${agentSystemPrompt}${facilitatorNote}
+${configInstruction ? `\n${configInstruction}` : ''}
 
 [현재 단계: ${effectiveStep}. ${effectiveStepHint}]
 ${timeStatus.hint ? `⏰ ${timeStatus.hint}` : ''}
 
-[발언 형식(강제)]
-1) 결론(1문장) - "~해야 합니다" 또는 "~가 맞습니다"
-2) 근거(최대 3개) - "왜냐하면 1) 2) 3)"
-3) 리스크/반례(1개) - "단, ~하면 문제" 또는 "반대로 ~"
-4) 질문/다음 액션(1개)
-
-※ 6문장 이내, 같은 말 반복 금지, 빈말(좋네요/재밌네요) 금지`
+[발언 형식]
+(위의 [대화 규칙]을 엄격히 준수할 것)`
           }
         }
 
@@ -1456,8 +1402,8 @@ ${timeStatus.hint ? `⏰ ${timeStatus.hint}` : ''}
           .eq('agent_id', agent.id)
       }
 
-      // 다음 응답 전 딜레이 (자연스러운 대화 속도)
-      await new Promise(resolve => setTimeout(resolve, 2500))
+      // 다음 응답 전 딜레이 (속도 최적화: 0.8s → 0.2s)
+      await new Promise(resolve => setTimeout(resolve, 200))
     }
   }
 

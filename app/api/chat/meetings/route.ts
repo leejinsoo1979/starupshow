@@ -104,33 +104,85 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Room not found' }, { status: 404 })
     }
 
-    // 회의 시작 시간부터 지금까지의 메시지 수 조회
+    // 회의 시작 시간부터 지금까지의 메시지 조회 (전체 내용 저장용)
     const meetingStartedAt = room.meeting_started_at || new Date(Date.now() - 60 * 60 * 1000).toISOString()
 
-    const { data: messages, error: msgError } = await (adminClient as any)
+    const { data: messages } = await (adminClient as any)
       .from('chat_messages')
-      .select('id, sender_type')
+      .select(`
+        id,
+        content,
+        message_type,
+        sender_type,
+        sender_user_id,
+        sender_agent_id,
+        metadata,
+        created_at
+      `)
       .eq('room_id', room_id)
       .gte('created_at', meetingStartedAt)
+      .order('created_at', { ascending: true })
 
     const messageCount = messages?.length || 0
-    const agentMessages = messages?.filter((m: any) => m.sender_type === 'agent')?.length || 0
 
-    // 참여자 수 조회
-    const { data: participants, error: partError } = await (adminClient as any)
+    // 참여자 정보 조회 (상세 정보 포함)
+    const { data: participants } = await (adminClient as any)
       .from('chat_participants')
-      .select('id, participant_type')
+      .select(`
+        id,
+        participant_type,
+        user_id,
+        agent_id,
+        users:user_id (id, name, email),
+        deployed_agents:agent_id (id, name, persona, job_title)
+      `)
       .eq('room_id', room_id)
 
-    const participantCount = participants?.filter((p: any) => p.participant_type === 'user')?.length || 0
-    const agentCount = participants?.filter((p: any) => p.participant_type === 'agent')?.length || 0
+    const userParticipants = participants?.filter((p: any) => p.participant_type === 'user') || []
+    const agentParticipants = participants?.filter((p: any) => p.participant_type === 'agent') || []
+
+    const participantCount = userParticipants.length
+    const agentCount = agentParticipants.length
+
+    // 참여자 정보 정리
+    const participantsData = [
+      ...userParticipants.map((p: any) => ({
+        type: 'user',
+        id: p.user_id,
+        name: p.users?.name || '사용자',
+        email: p.users?.email,
+      })),
+      ...agentParticipants.map((p: any) => ({
+        type: 'agent',
+        id: p.agent_id,
+        name: p.deployed_agents?.name || 'AI 에이전트',
+        persona: p.deployed_agents?.persona,
+        job_title: p.deployed_agents?.job_title,
+      })),
+    ]
+
+    // 메시지 정보 정리 (발신자 이름 포함)
+    const messagesData = (messages || []).map((m: any) => {
+      const sender = m.sender_type === 'user'
+        ? participantsData.find(p => p.type === 'user' && p.id === m.sender_user_id)
+        : participantsData.find(p => p.type === 'agent' && p.id === m.sender_agent_id)
+
+      return {
+        id: m.id,
+        content: m.content,
+        sender_type: m.sender_type,
+        sender_name: sender?.name || (m.sender_type === 'user' ? '사용자' : 'AI 에이전트'),
+        sender_id: m.sender_type === 'user' ? m.sender_user_id : m.sender_agent_id,
+        created_at: m.created_at,
+      }
+    })
 
     // 회의 시간 계산
     const startedAt = new Date(meetingStartedAt)
     const endedAt = new Date()
     const durationMinutes = Math.round((endedAt.getTime() - startedAt.getTime()) / (1000 * 60))
 
-    // 회의록 생성
+    // 회의록 생성 (meeting_config, 메시지, 참여자 정보 포함)
     const { data: record, error: insertError } = await (adminClient as any)
       .from('meeting_records')
       .insert({
@@ -144,6 +196,9 @@ export async function POST(request: NextRequest) {
         agent_count: agentCount,
         message_count: messageCount,
         facilitator_id: room.meeting_facilitator_id,
+        meeting_config: room.meeting_config || {},
+        messages: messagesData,
+        participants: participantsData,
         created_by: user.id,
       })
       .select()
