@@ -280,13 +280,25 @@ export function BrainMapLayout({ agentId, isDark = true }: BrainMapLayoutProps) 
       {/* 사이드바 */}
       <div
         className={cn(
-          'h-full border-r flex flex-col transition-all duration-300',
+          'relative h-full border-r flex flex-col transition-all duration-300',
           isDark ? 'bg-zinc-900 border-zinc-800' : 'bg-zinc-50 border-zinc-200',
-          sidebarOpen ? 'w-80' : 'w-0 overflow-hidden'
+          sidebarOpen ? 'w-80' : 'w-12'
         )}
       >
+        {/* 사이드바 토글 버튼 */}
+        <button
+          onClick={() => setSidebarOpen(!sidebarOpen)}
+          className={cn(
+            'absolute -right-3 top-20 z-20 p-1 rounded-full border shadow-md transition-colors',
+            isDark
+              ? 'bg-zinc-800 hover:bg-zinc-700 border-zinc-700 text-zinc-400'
+              : 'bg-white hover:bg-zinc-100 border-zinc-200 text-zinc-600'
+          )}
+        >
+          {sidebarOpen ? <ChevronLeft className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+        </button>
         {/* 탭 헤더 */}
-        <div className={cn('p-4 border-b', isDark ? 'border-zinc-800' : 'border-zinc-200')}>
+        <div className={cn('p-4 border-b', isDark ? 'border-zinc-800' : 'border-zinc-200', !sidebarOpen && 'hidden')}>
           <div className="flex gap-1">
             {TABS.map((tab) => {
               const Icon = tab.icon
@@ -295,7 +307,7 @@ export function BrainMapLayout({ agentId, isDark = true }: BrainMapLayoutProps) 
                   key={tab.id}
                   onClick={() => setActiveTab(tab.id)}
                   className={cn(
-                    'flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition-colors',
+                    'flex-1 flex items-center justify-center gap-1.5 px-2 py-2 rounded-lg text-xs font-medium transition-colors whitespace-nowrap',
                     activeTab === tab.id
                       ? 'text-white'
                       : isDark
@@ -304,8 +316,8 @@ export function BrainMapLayout({ agentId, isDark = true }: BrainMapLayoutProps) 
                   )}
                   style={activeTab === tab.id ? { backgroundColor: userAccentHex } : undefined}
                 >
-                  <Icon className="w-4 h-4" />
-                  <span className="hidden lg:inline">{tab.label}</span>
+                  <Icon className="w-4 h-4 flex-shrink-0" />
+                  <span>{tab.label}</span>
                 </button>
               )
             })}
@@ -313,7 +325,7 @@ export function BrainMapLayout({ agentId, isDark = true }: BrainMapLayoutProps) 
         </div>
 
         {/* 탭 컨텐츠 */}
-        <div className="flex-1 overflow-y-auto p-4">
+        <div className={cn('flex-1 overflow-y-auto p-4', !sidebarOpen && 'hidden')}>
           {/* 패스파인더 */}
           {activeTab === 'pathfinder' && (
             <div className="space-y-4">
@@ -575,7 +587,7 @@ export function BrainMapLayout({ agentId, isDark = true }: BrainMapLayoutProps) 
         </div>
 
         {/* 하단 액션 */}
-        <div className={cn('p-4 border-t', isDark ? 'border-zinc-800' : 'border-zinc-200')}>
+        <div className={cn('p-4 border-t', isDark ? 'border-zinc-800' : 'border-zinc-200', !sidebarOpen && 'hidden')}>
           <button
             className={cn(
               'w-full flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-medium transition-colors',
@@ -590,17 +602,6 @@ export function BrainMapLayout({ agentId, isDark = true }: BrainMapLayoutProps) 
         </div>
       </div>
 
-      {/* 사이드바 토글 버튼 */}
-      <button
-        onClick={() => setSidebarOpen(!sidebarOpen)}
-        className={cn(
-          'absolute left-0 top-1/2 -translate-y-1/2 z-10 p-1.5 rounded-r-lg transition-all',
-          isDark ? 'bg-zinc-800 hover:bg-zinc-700 text-zinc-400' : 'bg-zinc-200 hover:bg-zinc-300 text-zinc-600',
-          sidebarOpen ? 'ml-80' : 'ml-0'
-        )}
-      >
-        {sidebarOpen ? <ChevronLeft className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
-      </button>
 
       {/* 메인 뷰 - 탭에 따라 다른 뷰 렌더링 */}
       <div className="flex-1 relative">

@@ -7,6 +7,7 @@ export const dynamic = 'force-dynamic'
 
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { isDevMode, DEV_USER } from '@/lib/dev-user'
 import { SharedMediaType } from '@/types/chat'
 
@@ -18,6 +19,7 @@ export async function GET(
   try {
     const { roomId } = await params
     const supabase = await createClient()
+    const adminSupabase = createAdminClient()
 
     let user: any = isDevMode() ? DEV_USER : null
     if (!user) {
@@ -29,7 +31,7 @@ export async function GET(
       return NextResponse.json({ error: '인증이 필요합니다' }, { status: 401 })
     }
 
-    const { data, error } = await (supabase as any)
+    const { data, error } = await adminSupabase
       .from('shared_viewer_state')
       .select('*')
       .eq('room_id', roomId)
@@ -58,6 +60,7 @@ export async function POST(
   try {
     const { roomId } = await params
     const supabase = await createClient()
+    const adminSupabase = createAdminClient()
 
     let user: any = isDevMode() ? DEV_USER : null
     if (!user) {
@@ -86,12 +89,12 @@ export async function POST(
     }
 
     // 기존 뷰어 상태 삭제 후 새로 생성
-    await (supabase as any)
+    await adminSupabase
       .from('shared_viewer_state')
       .delete()
       .eq('room_id', roomId)
 
-    const { data, error } = await (supabase as any)
+    const { data, error } = await adminSupabase
       .from('shared_viewer_state')
       .insert({
         room_id: roomId,
@@ -133,6 +136,7 @@ export async function PATCH(
   try {
     const { roomId } = await params
     const supabase = await createClient()
+    const adminSupabase = createAdminClient()
 
     let user: any = isDevMode() ? DEV_USER : null
     if (!user) {
@@ -153,7 +157,7 @@ export async function PATCH(
     }
 
     // 현재 상태 조회
-    const { data: current } = await (supabase as any)
+    const { data: current } = await adminSupabase
       .from('shared_viewer_state')
       .select('*')
       .eq('room_id', roomId)
@@ -206,7 +210,7 @@ export async function PATCH(
         return NextResponse.json({ error: '알 수 없는 액션입니다' }, { status: 400 })
     }
 
-    const { data, error } = await (supabase as any)
+    const { data, error } = await adminSupabase
       .from('shared_viewer_state')
       .update(updates)
       .eq('room_id', roomId)
@@ -236,6 +240,7 @@ export async function DELETE(
   try {
     const { roomId } = await params
     const supabase = await createClient()
+    const adminSupabase = createAdminClient()
 
     let user: any = isDevMode() ? DEV_USER : null
     if (!user) {
@@ -247,7 +252,7 @@ export async function DELETE(
       return NextResponse.json({ error: '인증이 필요합니다' }, { status: 401 })
     }
 
-    const { error } = await (supabase as any)
+    const { error } = await adminSupabase
       .from('shared_viewer_state')
       .delete()
       .eq('room_id', roomId)
