@@ -14,6 +14,7 @@ import { Logo } from '@/components/ui'
 import { TeamCreateModal, TeamFormData } from '@/components/team/TeamCreateModal'
 import { CreateWorkModal } from '@/app/dashboard-group/works/create-modal'
 import { EmailSidebarChat } from '@/components/email/EmailSidebarChat'
+import { FileTreePanel } from '@/components/neural-map/panels/FileTreePanel'
 import type { EmailAccount, EmailMessage } from '@/types/email'
 import { useTeamStore } from '@/stores/teamStore'
 import { CgMenuGridO } from 'react-icons/cg'
@@ -1379,7 +1380,25 @@ export function TwoLevelSidebar() {
       {/* Level 2: 서브메뉴 사이드바 */}
       {!pathname?.includes('/works/new') && (
         <AnimatePresence>
-          {sidebarOpen && activeItems.length > 0 && currentCategory !== 'email' && (
+          {/* Neural Map File Tree Panel */}
+          {sidebarOpen && currentCategory === 'neural-map' && pathname?.includes('/neural-map') && (
+            <motion.aside
+              initial={{ width: 0, opacity: 0 }}
+              animate={{ width: 280, opacity: 1 }}
+              exit={{ width: 0, opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              className={cn(
+                'h-full border-r overflow-hidden',
+                isDark ? 'bg-zinc-900 border-zinc-800' : 'bg-white border-zinc-200'
+              )}
+            >
+              <div className="h-full" style={{ width: 280 }}>
+                <FileTreePanel />
+              </div>
+            </motion.aside>
+          )}
+          {/* Regular menus (not email, not neural-map page) */}
+          {sidebarOpen && activeItems.length > 0 && currentCategory !== 'email' && !(currentCategory === 'neural-map' && pathname?.includes('/neural-map')) && (
             <motion.aside
               initial={{ width: 0, opacity: 0 }}
               animate={{ width: 240, opacity: 1 }}

@@ -18,9 +18,10 @@ interface NodeMeshProps {
   onNodeDragEnd?: (nodeId: string) => void
 }
 
-// Node geometry sizes by type
+// Node geometry sizes by type (Self is 1.5x of base size 2)
+const BASE_NODE_SIZE = 2
 const NODE_SIZES: Record<NodeType, number> = {
-  self: 3,
+  self: BASE_NODE_SIZE * 1.5,  // 3 = 1.5배
   concept: 1.5,
   project: 2,
   doc: 1.2,
@@ -31,6 +32,9 @@ const NODE_SIZES: Record<NodeType, number> = {
   person: 1.8,
   insight: 1.6,
 }
+
+// Self 노드 골드 색상
+const SELF_NODE_COLOR = '#FFD700'
 
 // Create shared geometries
 const sphereGeometry = new THREE.SphereGeometry(1, 32, 32)
@@ -218,21 +222,37 @@ function IndividualNode({
   getLODGeometry,
 }: IndividualNodeProps) {
   const meshRef = useRef<THREE.Mesh>(null)
+  const ringRef = useRef<THREE.Mesh>(null)
   const { camera } = useThree()
   const isDragging = useRef(false)
+
+  const isSelf = node.type === 'self'
 
   // Calculate size based on type and importance
   const size = useMemo(() => {
     return NODE_SIZES[node.type] * (1 + node.importance / 200)
   }, [node.type, node.importance])
 
-  // Calculate color
+  // Calculate color - Self 노드는 골드
   const color = useMemo(() => {
     if (isSelected) return '#ffffff'
+    if (isSelf) {
+      const baseColor = new THREE.Color(SELF_NODE_COLOR)
+      if (isHovered) baseColor.multiplyScalar(1.3)
+      return baseColor
+    }
     const baseColor = new THREE.Color(NODE_COLORS[node.type])
     if (isHovered) baseColor.multiplyScalar(1.5)
     return baseColor
-  }, [node.type, isSelected, isHovered])
+  }, [node.type, isSelected, isHovered, isSelf])
+
+  // Ring rotation animation for Self node
+  useFrame((state) => {
+    if (ringRef.current && isSelf) {
+      ringRef.current.rotation.x = Math.sin(state.clock.elapsedTime * 0.5) * 0.2
+      ringRef.current.rotation.y += 0.01
+    }
+  })
 
   // Update LOD based on distance to camera
   useFrame(() => {
@@ -293,26 +313,64 @@ function IndividualNode({
   )
 
   return (
-    <mesh
-      ref={meshRef}
-      position={[node.x, node.y, node.z]}
-      scale={size}
-      onClick={handleClick}
-      onPointerOver={() => onHover?.(node.id)}
-      onPointerOut={() => onHover?.(null)}
-      onPointerDown={handlePointerDown}
-      onPointerMove={handlePointerMove}
-      onPointerUp={handlePointerUp}
-    >
-      <sphereGeometry args={[1, 32, 32]} />
-      <meshStandardMaterial
-        color={color}
-        metalness={0.3}
-        roughness={0.7}
-        emissive={isSelected || isHovered ? color : '#000000'}
-        emissiveIntensity={isSelected ? 0.5 : isHovered ? 0.3 : 0}
-      />
-    </mesh>
+    <group position={[node.x, node.y, node.z]}>
+      {/* Main node sphere */}
+      <mesh
+        ref={meshRef}
+        scale={size}
+        onClick={handleClick}
+        onPointerOver={() => onHover?.(node.id)}
+        onPointerOut={() => onHover?.(null)}
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={handlePointerUp}
+      >
+        <sphereGeometry args={[1, 32, 32]} />
+        <meshStandardMaterial
+          color={color}
+          metalness={isSelf ? 0.6 : 0.3}
+          roughness={isSelf ? 0.3 : 0.7}
+          emissive={isSelf ? SELF_NODE_COLOR : (isSelected || isHovered ? color : '#000000')}
+          emissiveIntensity={isSelf ? 0.4 : (isSelected ? 0.5 : isHovered ? 0.3 : 0)}
+        />
+      </mesh>
+
+      {/* Self 노드 전용: 링 오브젝트 */}
+      {isSelf && (
+        <mesh ref={ringRef} scale={size * 1.5}>
+          <torusGeometry args={[1, 0.05, 16, 64]} />
+          <meshStandardMaterial
+            color={SELF_NODE_COLOR}
+            metalness={0.8}
+            roughness={0.2}
+            emissive={SELF_NODE_COLOR}
+            emissiveIntensity={0.6}
+            transparent
+            opacity={0.8}
+          />
+        </mesh>
+      )}
+
+      {/* Self 노드 전용: 외곽 글로우 */}
+      {isSelf && (
+        <mesh scale={size * 1.2}>
+          <sphereGeometry args={[1, 32, 32]} />
+          <meshBasicMaterial
+            color={SELF_NODE_COLOR}
+            transparent
+            opacity={0.15}
+          />
+        </mesh>
+      )}
+
+      {/* Selection indicator ring */}
+      {isSelected && !isSelf && (
+        <mesh scale={size * 1.3}>
+          <torusGeometry args={[1, 0.03, 16, 32]} />
+          <meshBasicMaterial color="#ffffff" transparent opacity={0.8} />
+        </mesh>
+      )}
+    </group>
   )
 }
 

@@ -10,7 +10,6 @@ import { PANEL_SIZES, THEME_PRESETS } from '@/lib/neural-map/constants'
 import type { NeuralGraph, NeuralNode, ViewTab } from '@/lib/neural-map/types'
 
 // Panels
-import { FileTreePanel } from '@/components/neural-map/panels/FileTreePanel'
 import { InspectorPanel } from '@/components/neural-map/panels/InspectorPanel'
 
 // Controls
@@ -20,8 +19,6 @@ import { StatusBar } from '@/components/neural-map/controls/StatusBar'
 
 // Lucide Icons
 import {
-  PanelLeftClose,
-  PanelLeftOpen,
   PanelRightClose,
   PanelRightOpen,
   Loader2,
@@ -64,12 +61,8 @@ export default function NeuralMapPage() {
     graph,
     isLoading,
     error,
-    leftPanelWidth,
     rightPanelWidth,
-    leftPanelCollapsed,
     rightPanelCollapsed,
-    activeTab,
-    toggleLeftPanel,
     toggleRightPanel,
     setGraph,
     setLoading,
@@ -144,56 +137,19 @@ export default function NeuralMapPage() {
   }
 
   return (
-    <div className={cn('h-screen flex flex-col overflow-hidden', isDark ? 'bg-zinc-950' : 'bg-zinc-50')}>
+    <div className={cn('h-full flex flex-col overflow-hidden', isDark ? 'bg-zinc-950' : 'bg-zinc-50')}>
       {/* Toolbar */}
       <Toolbar />
 
-      {/* Main Content - 3 Panel Layout */}
-      <div className="flex-1 flex overflow-hidden">
-        {/* Left Panel - File Tree */}
-        <AnimatePresence initial={false}>
-          {!leftPanelCollapsed && (
-            <motion.div
-              initial={{ width: 0, opacity: 0 }}
-              animate={{ width: leftPanelWidth, opacity: 1 }}
-              exit={{ width: 0, opacity: 0 }}
-              transition={{ duration: 0.2 }}
-              className={cn(
-                'h-full border-r flex-shrink-0 overflow-hidden',
-                isDark ? 'bg-zinc-900/95 border-zinc-800' : 'bg-white border-zinc-200'
-              )}
-            >
-              <FileTreePanel />
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-        {/* Left Panel Toggle */}
-        <button
-          onClick={toggleLeftPanel}
-          className={cn(
-            'absolute left-0 top-1/2 -translate-y-1/2 z-10 p-1.5 rounded-r-lg transition-all',
-            isDark
-              ? 'bg-zinc-800 hover:bg-zinc-700 text-zinc-400'
-              : 'bg-zinc-100 hover:bg-zinc-200 text-zinc-600',
-            !leftPanelCollapsed && `left-[${leftPanelWidth}px]`
-          )}
-          style={{ left: leftPanelCollapsed ? 0 : leftPanelWidth }}
-        >
-          {leftPanelCollapsed ? (
-            <PanelLeftOpen className="w-4 h-4" />
-          ) : (
-            <PanelLeftClose className="w-4 h-4" />
-          )}
-        </button>
-
+      {/* Main Content - 2 Panel Layout (Left sidebar is in TwoLevelSidebar) */}
+      <div className="flex-1 flex overflow-hidden relative">
         {/* Center - 3D Canvas */}
-        <div className="flex-1 flex flex-col overflow-hidden relative">
+        <div className="flex-1 flex flex-col overflow-hidden">
           {/* View Tabs */}
           <ViewTabs />
 
           {/* Canvas Area */}
-          <div className="flex-1 relative overflow-hidden">
+          <div className="flex-1 relative">
             {isLoading ? (
               <div className="absolute inset-0 flex items-center justify-center">
                 <Loader2 className="w-8 h-8 animate-spin text-zinc-500" />
@@ -216,24 +172,6 @@ export default function NeuralMapPage() {
           </div>
         </div>
 
-        {/* Right Panel Toggle */}
-        <button
-          onClick={toggleRightPanel}
-          className={cn(
-            'absolute right-0 top-1/2 -translate-y-1/2 z-10 p-1.5 rounded-l-lg transition-all',
-            isDark
-              ? 'bg-zinc-800 hover:bg-zinc-700 text-zinc-400'
-              : 'bg-zinc-100 hover:bg-zinc-200 text-zinc-600'
-          )}
-          style={{ right: rightPanelCollapsed ? 0 : rightPanelWidth }}
-        >
-          {rightPanelCollapsed ? (
-            <PanelRightOpen className="w-4 h-4" />
-          ) : (
-            <PanelRightClose className="w-4 h-4" />
-          )}
-        </button>
-
         {/* Right Panel - Inspector/Actions/Chat */}
         <AnimatePresence initial={false}>
           {!rightPanelCollapsed && (
@@ -251,6 +189,24 @@ export default function NeuralMapPage() {
             </motion.div>
           )}
         </AnimatePresence>
+
+        {/* Right Panel Toggle Button */}
+        <button
+          onClick={toggleRightPanel}
+          className={cn(
+            'absolute top-1/2 -translate-y-1/2 z-20 p-1.5 rounded-l-lg transition-all',
+            isDark
+              ? 'bg-zinc-800 hover:bg-zinc-700 text-zinc-400'
+              : 'bg-zinc-100 hover:bg-zinc-200 text-zinc-600'
+          )}
+          style={{ right: rightPanelCollapsed ? 0 : rightPanelWidth }}
+        >
+          {rightPanelCollapsed ? (
+            <PanelRightOpen className="w-4 h-4" />
+          ) : (
+            <PanelRightClose className="w-4 h-4" />
+          )}
+        </button>
       </div>
 
       {/* Status Bar */}

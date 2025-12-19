@@ -174,10 +174,9 @@ function SceneContent() {
   return (
     <>
       {/* Lighting */}
-      <ambientLight intensity={0.4} />
-      <directionalLight position={[50, 50, 50]} intensity={0.8} />
-      <directionalLight position={[-50, -50, -50]} intensity={0.3} />
-      <pointLight position={[0, 0, 0]} intensity={0.5} color="#6366f1" />
+      <ambientLight intensity={0.5} />
+      <directionalLight position={[50, 50, 50]} intensity={0.6} />
+      <directionalLight position={[-50, -50, -50]} intensity={0.2} />
 
       {/* Background */}
       <BackgroundGradient colors={theme.background.gradient} />

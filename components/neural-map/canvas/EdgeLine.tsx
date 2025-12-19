@@ -238,10 +238,15 @@ function IndividualEdge({
     return [sourcePos, targetPos]
   }, [sourcePos, targetPos])
 
+  // Get edge color based on type
+  const edgeColor = useMemo(() => {
+    return EDGE_COLORS[link.type] || '#6366f1'
+  }, [link.type])
+
   return (
     <Line
       points={points}
-      color={isHighlighted ? '#ffffff' : '#6366f1'}
+      color={isHighlighted ? '#ffffff' : edgeColor}
       lineWidth={lineWidth}
       transparent
       opacity={opacity}
