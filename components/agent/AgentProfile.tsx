@@ -51,14 +51,16 @@ export interface AgentProfileData {
     totalMeetings: number
   }
 
-  // 능력치
+  // 능력치 (6종)
   abilities: {
     level: number
     experience_points: number
-    analysis: number
-    communication: number
-    creativity: number
-    leadership: number
+    analysis: number      // 분석력
+    communication: number // 소통력
+    creativity: number    // 창의력
+    leadership: number    // 리더십
+    execution: number     // 실행력
+    adaptability: number  // 적응력
   }
 
   // 최근 성과
@@ -77,6 +79,85 @@ interface AgentProfileProps {
   isDark?: boolean
   compact?: boolean
   className?: string
+}
+
+// ============================================
+// Mock Data for Demo
+// ============================================
+
+const MOCK_PROFILE_DATA: AgentProfileData = {
+  id: 'demo-agent',
+  name: 'AI 어시스턴트',
+  role: 'GlowUS 프로젝트 매니저',
+  description: '스타트업 운영 자동화 및 팀 협업을 지원하는 AI 에이전트입니다. 일정 관리, 업무 분배, 진행 상황 모니터링 등 다양한 업무를 수행합니다.',
+  avatar_url: undefined,
+  status: 'ACTIVE',
+  created_at: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString(), // 30일 전
+
+  stats: {
+    daysSinceCreation: 30,
+    trustScore: 85,
+    successRate: 92,
+    avgResponseTime: 1.2,
+    totalCost: 12.45,
+    totalConversations: 156,
+    totalTasksCompleted: 78,
+    totalMeetings: 23,
+  },
+
+  abilities: {
+    level: 5,
+    experience_points: 4250,
+    analysis: 78,
+    communication: 85,
+    creativity: 72,
+    leadership: 68,
+    execution: 82,
+    adaptability: 75,
+  },
+
+  recentAchievements: [
+    {
+      id: '1',
+      type: 'task_complete',
+      title: '주간 보고서 자동 생성',
+      description: '팀 활동 요약 및 KPI 분석',
+      date: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
+      value: 50,
+    },
+    {
+      id: '2',
+      type: 'milestone',
+      title: '100회 대화 달성',
+      description: '누적 대화 마일스톤',
+      date: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(),
+      value: 100,
+    },
+    {
+      id: '3',
+      type: 'level_up',
+      title: '레벨 5 달성',
+      description: '경험치 4000 XP 돌파',
+      date: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(),
+      value: 200,
+    },
+    {
+      id: '4',
+      type: 'streak',
+      title: '7일 연속 활동',
+      description: '매일 업무 지원 수행',
+      date: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString(),
+      value: 75,
+    },
+    {
+      id: '5',
+      type: 'feedback',
+      title: '긍정적 피드백 수신',
+      description: '팀원으로부터 높은 평가',
+      date: new Date(Date.now() - 12 * 24 * 60 * 60 * 1000).toISOString(),
+      value: 30,
+    },
+  ],
 }
 
 // ============================================
@@ -304,18 +385,26 @@ export function AgentProfile({
 }: AgentProfileProps) {
   const [data, setData] = useState<AgentProfileData | null>(null)
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+  const [isUsingMockData, setIsUsingMockData] = useState(false)
 
   useEffect(() => {
     const fetchProfile = async () => {
       try {
         setLoading(true)
         const res = await fetch(`/api/agents/${agentId}/profile`)
-        if (!res.ok) throw new Error('프로필 로드 실패')
+        if (!res.ok) {
+          console.warn('[AgentProfile] API 오류, 데모 데이터 사용')
+          setData(MOCK_PROFILE_DATA)
+          setIsUsingMockData(true)
+          return
+        }
         const result = await res.json()
         setData(result)
+        setIsUsingMockData(false)
       } catch (err: any) {
-        setError(err.message)
+        console.warn('[AgentProfile] 네트워크 오류, 데모 데이터 사용:', err.message)
+        setData(MOCK_PROFILE_DATA)
+        setIsUsingMockData(true)
       } finally {
         setLoading(false)
       }
@@ -332,10 +421,10 @@ export function AgentProfile({
     )
   }
 
-  if (error || !data) {
+  if (!data) {
     return (
       <div className={cn('text-center py-12', isDark ? 'text-zinc-400' : 'text-zinc-500', className)}>
-        {error || '프로필을 불러올 수 없습니다'}
+        프로필을 불러올 수 없습니다
       </div>
     )
   }
@@ -344,6 +433,17 @@ export function AgentProfile({
 
   return (
     <div className={cn('space-y-6', className)}>
+      {/* 데모 데이터 배지 */}
+      {isUsingMockData && (
+        <div className={cn(
+          'flex items-center justify-center gap-2 py-2 px-4 rounded-lg text-sm',
+          isDark ? 'bg-amber-500/20 text-amber-400' : 'bg-amber-100 text-amber-700'
+        )}>
+          <Sparkles className="w-4 h-4" />
+          <span>데모 데이터를 표시하고 있습니다</span>
+        </div>
+      )}
+
       {/* 헤더: 기본 정보 */}
       <div
         className={cn(
@@ -521,30 +621,48 @@ export function AgentProfile({
                 능력치
               </h3>
             </div>
-            <div className="flex justify-around">
+            <div className="grid grid-cols-3 gap-4 justify-items-center">
               <ProgressRing
                 value={data.abilities.analysis}
                 color="#3b82f6"
                 label="분석력"
                 isDark={isDark}
+                size={64}
               />
               <ProgressRing
                 value={data.abilities.communication}
                 color="#22c55e"
                 label="소통력"
                 isDark={isDark}
+                size={64}
               />
               <ProgressRing
                 value={data.abilities.creativity}
                 color="#8b5cf6"
                 label="창의력"
                 isDark={isDark}
+                size={64}
               />
               <ProgressRing
                 value={data.abilities.leadership}
                 color="#f59e0b"
                 label="리더십"
                 isDark={isDark}
+                size={64}
+              />
+              <ProgressRing
+                value={data.abilities.execution}
+                color="#ef4444"
+                label="실행력"
+                isDark={isDark}
+                size={64}
+              />
+              <ProgressRing
+                value={data.abilities.adaptability}
+                color="#06b6d4"
+                label="적응력"
+                isDark={isDark}
+                size={64}
               />
             </div>
           </div>
