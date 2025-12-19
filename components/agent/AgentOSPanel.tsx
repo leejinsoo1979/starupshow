@@ -18,6 +18,7 @@ import {
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { StatsRadar, StatsRadarSummary } from './StatsRadar'
+import { KnowledgeGraphPanel } from './KnowledgeGraph'
 
 interface AgentRelationship {
   id: string
@@ -523,6 +524,9 @@ export function AgentOSPanel({ agentId, isDark }: AgentOSPanelProps) {
           </div>
         </div>
       )}
+
+      {/* 지식 그래프 */}
+      <KnowledgeGraphPanel agentId={agentId} isDark={isDark} />
 
       {/* 데이터가 전혀 없는 경우 */}
       {!stats && !relationship && learnings.length === 0 && (
