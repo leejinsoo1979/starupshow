@@ -59,6 +59,51 @@ export {
   type StyleTransformResult,
 } from './agent-style-adapter'
 
+// Agent Experience Collector (Phase 4.2)
+export {
+  collectExperience,
+  getAgentLearnings,
+  getPersonLearnings,
+  getDomainLearnings,
+  formatLearningsForPrompt,
+  getLearningStats,
+  type LearningCategory,
+  type AgentLearning,
+  type ExperienceEvent,
+  type ExtractedInsight,
+  type ExperienceAnalysis,
+} from './agent-experience-collector'
+
+// Agent Behavior Modifier (Phase 4.4)
+export {
+  generateBehaviorProfile,
+  generateBehaviorModification,
+  buildBehaviorSystemPrompt,
+  buildQuickBehaviorPrompt,
+  type BehaviorProfile,
+  type BehaviorContext,
+  type BehaviorModification,
+} from './agent-behavior-modifier'
+
+// Agent Knowledge Service (Phase 5)
+export {
+  uploadDocument,
+  uploadFromUrl,
+  searchKnowledge,
+  getFullDocument,
+  listKnowledgeDocuments,
+  deleteDocument,
+  getKnowledgeStats,
+  buildKnowledgeContext,
+  formatKnowledgeForPrompt,
+  type AccessLevel,
+  type KnowledgeDocument,
+  type UploadDocumentParams,
+  type UploadResult,
+  type KnowledgeSearchParams as KnowledgeUploadSearchParams,
+  type KnowledgeSearchResult as KnowledgeUploadSearchResult,
+} from './agent-knowledge-service'
+
 // ============================================
 // Legacy: Immutable Memory System
 // ============================================
