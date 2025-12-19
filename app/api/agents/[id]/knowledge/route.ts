@@ -39,7 +39,7 @@ export async function GET(request: NextRequest, { params }: Params) {
       .from('deployed_agents')
       .select('id, owner_id')
       .eq('id', agentId)
-      .single()
+      .single() as { data: { id: string; owner_id: string } | null }
 
     if (!agent) {
       return NextResponse.json({ error: 'Agent not found' }, { status: 404 })
@@ -107,7 +107,7 @@ export async function POST(request: NextRequest, { params }: Params) {
       .from('deployed_agents')
       .select('id, owner_id')
       .eq('id', agentId)
-      .single()
+      .single() as { data: { id: string; owner_id: string } | null }
 
     if (!agent) {
       return NextResponse.json({ error: 'Agent not found' }, { status: 404 })
@@ -190,7 +190,7 @@ export async function DELETE(request: NextRequest, { params }: Params) {
       .from('deployed_agents')
       .select('id, owner_id')
       .eq('id', agentId)
-      .single()
+      .single() as { data: { id: string; owner_id: string } | null }
 
     if (!agent) {
       return NextResponse.json({ error: 'Agent not found' }, { status: 404 })

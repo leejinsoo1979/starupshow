@@ -10,7 +10,7 @@
 
 import { createAdminClient } from '@/lib/supabase/admin'
 import { OpenAIEmbeddings } from '@langchain/openai'
-import { RecursiveCharacterTextSplitter } from 'langchain/text_splitter'
+import { RecursiveCharacterTextSplitter } from '@langchain/textsplitters'
 
 // ============================================
 // Types
@@ -178,7 +178,7 @@ export async function uploadDocument(
 
     // 나머지 청크 저장
     if (chunks.length > 1) {
-      const childDocs = chunks.slice(1).map((chunk, index) => ({
+      const childDocs = chunks.slice(1).map((chunk: string, index: number) => ({
         agent_id: params.agentId,
         title: `${params.title} (${index + 2}/${totalChunks})`,
         content: chunk,
@@ -511,19 +511,19 @@ export async function getKnowledgeStats(agentId: string): Promise<{
       }
     }
 
-    const parentDocs = data.filter((d: any) => !d.parent_doc_id)
-    const byCategory = parentDocs.reduce<Record<string, number>>((acc, d: any) => {
+    const parentDocs = (data as any[]).filter((d) => !d.parent_doc_id)
+    const byCategory = parentDocs.reduce((acc: Record<string, number>, d) => {
       const cat = d.category || 'uncategorized'
       acc[cat] = (acc[cat] || 0) + 1
       return acc
-    }, {})
+    }, {} as Record<string, number>)
 
-    const byAccessLevel = parentDocs.reduce<Record<AccessLevel, number>>(
-      (acc, d: any) => {
+    const byAccessLevel = parentDocs.reduce(
+      (acc: Record<AccessLevel, number>, d) => {
         acc[d.access_level as AccessLevel] = (acc[d.access_level as AccessLevel] || 0) + 1
         return acc
       },
-      { private: 0, team: 0, public: 0 }
+      { private: 0, team: 0, public: 0 } as Record<AccessLevel, number>
     )
 
     return {

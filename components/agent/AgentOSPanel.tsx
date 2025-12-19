@@ -13,8 +13,11 @@ import {
   Users,
   Target,
   Sparkles,
+  BarChart3,
+  Radar,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { StatsRadar, StatsRadarSummary } from './StatsRadar'
 
 interface AgentRelationship {
   id: string
@@ -171,6 +174,7 @@ export function AgentOSPanel({ agentId, isDark }: AgentOSPanelProps) {
   const [data, setData] = useState<AgentOSData | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [statsView, setStatsView] = useState<'radar' | 'bar'>('radar')
 
   useEffect(() => {
     const fetchData = async () => {
@@ -237,34 +241,93 @@ export function AgentOSPanel({ agentId, isDark }: AgentOSPanelProps) {
                 경험치 {stats.experience_points} XP
               </p>
             </div>
-            <Sparkles className="w-5 h-5 text-yellow-500" />
+            {/* 레이더/바 토글 */}
+            <div className={cn('flex rounded-lg p-0.5', isDark ? 'bg-zinc-700' : 'bg-zinc-200')}>
+              <button
+                onClick={() => setStatsView('radar')}
+                className={cn(
+                  'p-1.5 rounded-md transition-all',
+                  statsView === 'radar'
+                    ? isDark
+                      ? 'bg-zinc-600 text-white'
+                      : 'bg-white text-zinc-900 shadow-sm'
+                    : isDark
+                    ? 'text-zinc-400 hover:text-zinc-300'
+                    : 'text-zinc-500 hover:text-zinc-700'
+                )}
+                title="레이더 차트"
+              >
+                <Radar className="w-4 h-4" />
+              </button>
+              <button
+                onClick={() => setStatsView('bar')}
+                className={cn(
+                  'p-1.5 rounded-md transition-all',
+                  statsView === 'bar'
+                    ? isDark
+                      ? 'bg-zinc-600 text-white'
+                      : 'bg-white text-zinc-900 shadow-sm'
+                    : isDark
+                    ? 'text-zinc-400 hover:text-zinc-300'
+                    : 'text-zinc-500 hover:text-zinc-700'
+                )}
+                title="바 차트"
+              >
+                <BarChart3 className="w-4 h-4" />
+              </button>
+            </div>
           </div>
 
-          {/* 스탯 바 */}
-          <div className="grid grid-cols-2 gap-4">
-            <StatBar label="분석력" value={stats.analysis} color="#3b82f6" icon={Brain} isDark={isDark} />
-            <StatBar
-              label="커뮤니케이션"
-              value={stats.communication}
-              color="#22c55e"
-              icon={MessageSquare}
-              isDark={isDark}
-            />
-            <StatBar
-              label="창의력"
-              value={stats.creativity}
-              color="#8b5cf6"
-              icon={Lightbulb}
-              isDark={isDark}
-            />
-            <StatBar
-              label="리더십"
-              value={stats.leadership}
-              color="#f59e0b"
-              icon={Users}
-              isDark={isDark}
-            />
-          </div>
+          {/* 스탯 차트 (레이더 or 바) */}
+          {statsView === 'radar' ? (
+            <div>
+              <StatsRadar
+                stats={{
+                  analysis: stats.analysis,
+                  communication: stats.communication,
+                  creativity: stats.creativity,
+                  leadership: stats.leadership,
+                  level: stats.level,
+                }}
+                isDark={isDark}
+                size="md"
+              />
+              <StatsRadarSummary
+                stats={{
+                  analysis: stats.analysis,
+                  communication: stats.communication,
+                  creativity: stats.creativity,
+                  leadership: stats.leadership,
+                }}
+                isDark={isDark}
+              />
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 gap-4">
+              <StatBar label="분석력" value={stats.analysis} color="#3b82f6" icon={Brain} isDark={isDark} />
+              <StatBar
+                label="커뮤니케이션"
+                value={stats.communication}
+                color="#22c55e"
+                icon={MessageSquare}
+                isDark={isDark}
+              />
+              <StatBar
+                label="창의력"
+                value={stats.creativity}
+                color="#8b5cf6"
+                icon={Lightbulb}
+                isDark={isDark}
+              />
+              <StatBar
+                label="리더십"
+                value={stats.leadership}
+                color="#f59e0b"
+                icon={Users}
+                isDark={isDark}
+              />
+            </div>
+          )}
 
           {/* 활동 통계 */}
           <div

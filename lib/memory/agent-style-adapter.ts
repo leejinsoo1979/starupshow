@@ -43,7 +43,7 @@ export interface StyleTransformResult {
 // Style Definitions
 // ============================================
 
-const STYLE_GUIDELINES: Record<CommunicationStyle, {
+export const STYLE_GUIDELINES: Record<CommunicationStyle, {
   description: string
   endings: string[]
   openers: string[]

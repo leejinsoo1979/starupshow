@@ -114,7 +114,7 @@ export async function collectExperience(
       analysis.insights = insights
 
       // 도메인 추출
-      analysis.domains = [...new Set(insights.map(i => i.tags).flat())]
+      analysis.domains = Array.from(new Set(insights.map(i => i.tags).flat()))
     }
 
     // 3. 능력치 성장 계산
@@ -538,26 +538,26 @@ export async function getLearningStats(agentId: string): Promise<{
     }
 
     // 카테고리별 카운트
-    const byCategory = learnings.reduce<Record<string, number>>((acc, l: any) => {
+    const byCategory = (learnings as any[]).reduce((acc: Record<string, number>, l: any) => {
       acc[l.category] = (acc[l.category] || 0) + 1
       return acc
-    }, {})
+    }, {} as Record<string, number>)
 
     // 평균 신뢰도
     const avgConfidence = Math.round(
-      learnings.reduce((sum: number, l: any) => sum + l.confidence, 0) / learnings.length
+      (learnings as any[]).reduce((sum: number, l: any) => sum + l.confidence, 0) / learnings.length
     )
 
     // 상위 주제
-    const subjectCounts = learnings.reduce<Record<string, number>>((acc, l: any) => {
+    const subjectCounts = (learnings as any[]).reduce((acc: Record<string, number>, l: any) => {
       acc[l.subject] = (acc[l.subject] || 0) + 1
       return acc
     }, {})
 
     const topSubjects = Object.entries(subjectCounts)
-      .sort((a, b) => b[1] - a[1])
+      .sort((a, b) => (b[1] as number) - (a[1] as number))
       .slice(0, 5)
-      .map(([subject, count]) => ({ subject, count }))
+      .map(([subject, count]) => ({ subject, count: count as number }))
 
     return {
       totalLearnings: learnings.length,
