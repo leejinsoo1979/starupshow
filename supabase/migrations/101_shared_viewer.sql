@@ -15,7 +15,7 @@ CREATE TABLE IF NOT EXISTS shared_viewer_state (
   total_pages INTEGER,
 
   -- 비디오 상태
-  current_time DECIMAL DEFAULT 0,
+  playback_time DECIMAL DEFAULT 0,
   duration DECIMAL,
   is_playing BOOLEAN DEFAULT false,
 

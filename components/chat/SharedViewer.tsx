@@ -61,11 +61,11 @@ export function SharedViewer({ roomId, onClose, accentColor = '#3B82F6' }: Share
     if (!viewerState || viewerState.media_type !== 'video' || !videoRef.current) return
 
     const video = videoRef.current
-    const timeDiff = Math.abs((video.currentTime || 0) - (viewerState.current_time || 0))
+    const timeDiff = Math.abs((video.currentTime || 0) - (viewerState.playback_time || 0))
 
     // 2초 이상 차이나면 시간 점프
     if (timeDiff > 2) {
-      video.currentTime = viewerState.current_time || 0
+      video.currentTime = viewerState.playback_time || 0
     }
 
     // 재생 상태 동기화
@@ -285,7 +285,7 @@ export function SharedViewer({ roomId, onClose, accentColor = '#3B82F6' }: Share
                   // 발표자인 경우에만 시간 동기화
                   if (isPresenter) {
                     const time = Math.floor(e.currentTarget.currentTime)
-                    if (time !== viewerState.current_time) {
+                    if (time !== viewerState.playback_time) {
                       // 디바운스 필요시 추가
                     }
                   }
@@ -360,12 +360,12 @@ export function SharedViewer({ roomId, onClose, accentColor = '#3B82F6' }: Share
                 </button>
 
                 <div className="flex items-center gap-2 text-sm text-zinc-400">
-                  <span>{formatTime(viewerState.current_time || 0)}</span>
+                  <span>{formatTime(viewerState.playback_time || 0)}</span>
                   <div className="w-32 h-1 bg-zinc-700 rounded-full overflow-hidden">
                     <div
                       className="h-full rounded-full transition-all"
                       style={{
-                        width: `${((viewerState.current_time || 0) / (viewerState.duration || 1)) * 100}%`,
+                        width: `${((viewerState.playback_time || 0) / (viewerState.duration || 1)) * 100}%`,
                         backgroundColor: accentColor,
                       }}
                     />

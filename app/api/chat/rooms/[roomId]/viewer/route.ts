@@ -101,7 +101,7 @@ export async function POST(
         total_pages: total_pages || null,
         duration: duration || null,
         current_page: 1,
-        current_time: 0,
+        playback_time: 0,
         is_playing: false,
         zoom_level: 1.0,
         presenter_id: user.id,
@@ -174,7 +174,7 @@ export async function PATCH(
 
       case 'seek':
         if (time !== undefined) {
-          updates.current_time = Math.max(0, Math.min(time, current.duration || time))
+          updates.playback_time = Math.max(0, Math.min(time, current.duration || time))
         }
         break
 

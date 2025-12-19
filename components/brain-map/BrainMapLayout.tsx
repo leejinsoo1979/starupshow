@@ -1,629 +1,681 @@
 'use client'
 
-import { useState, useCallback, useMemo, useEffect } from 'react'
+/**
+ * BrainMapLayout - 에이전트 지식 그래프 레이아웃
+ * 탭: 패스파인더, 클러스터, 로드맵
+ */
+
+import { useCallback, useEffect, useState } from 'react'
 import dynamic from 'next/dynamic'
 import { cn } from '@/lib/utils'
-import { useThemeStore, accentColors } from '@/stores/themeStore'
 import {
   Search,
   Filter,
-  Calendar,
-  Loader2,
+  Download,
+  Maximize2,
+  RefreshCw,
   ChevronLeft,
   ChevronRight,
+  Sparkles,
   Route,
-  Boxes,
   GitBranch,
-  Circle,
+  Network,
+  Brain,
+  Users,
   FileText,
+  Lightbulb,
+  Target,
   X,
-  Maximize2,
-  Minimize2,
+  ZoomIn,
+  ZoomOut,
 } from 'lucide-react'
+import type { BrainNode, BrainCluster, BrainInsight, NodeType } from '@/types/brain-map'
 
-// Dynamic import for Three.js (no SSR)
-const GraphRenderer = dynamic(() => import('./GraphRenderer'), { ssr: false })
-import type {
-  BrainMapTab,
-  BrainMapState,
-  BrainNode,
-  BrainEdge,
-  NodeType,
-} from '@/types/brain-map'
+// BrainMap3D를 동적 import (SSR 비활성화)
+const BrainMap3D = dynamic(() => import('./BrainMap3D'), {
+  ssr: false,
+  loading: () => (
+    <div className="w-full h-full flex items-center justify-center bg-zinc-950">
+      <div className="flex flex-col items-center gap-4">
+        <div className="w-12 h-12 border-4 border-cyan-500 border-t-transparent rounded-full animate-spin" />
+        <span className="text-zinc-400 text-sm">3D 그래프 초기화 중...</span>
+      </div>
+    </div>
+  ),
+})
 
-// ============================================
-// Types
-// ============================================
+type TabType = 'pathfinder' | 'clusters' | 'roadmap'
+
+const TABS = [
+  { id: 'pathfinder' as TabType, label: '패스파인더', icon: Route },
+  { id: 'clusters' as TabType, label: '클러스터', icon: Network },
+  { id: 'roadmap' as TabType, label: '로드맵', icon: GitBranch },
+]
+
+// 클러스터 라벨 (A ~ L)
+const CLUSTER_LABELS = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L']
+
+// 클러스터 색상
+const CLUSTER_COLORS = [
+  '#FF6B9D', '#00D9FF', '#7C3AED', '#10B981', '#F59E0B', '#6366F1',
+  '#EC4899', '#14B8A6', '#8B5CF6', '#F97316', '#06B6D4', '#84CC16',
+]
 
 interface BrainMapLayoutProps {
   agentId: string
-  isDark: boolean
+  isDark?: boolean
 }
 
-interface TabConfig {
-  id: BrainMapTab
-  label: string
-  icon: React.ElementType
-  description: string
-}
-
-// ============================================
-// Constants
-// ============================================
-
-const TABS: TabConfig[] = [
-  { id: 'pathfinder', label: 'Pathfinder', icon: Route, description: '경로 탐색' },
-  { id: 'clusters', label: 'Clusters', icon: Boxes, description: '주제 군집' },
-  { id: 'roadmap', label: 'Roadmap', icon: GitBranch, description: '흐름 로드뷰' },
-  { id: 'radial', label: 'Radial Map', icon: Circle, description: '방사형 연관' },
-  { id: 'insights', label: 'Insights', icon: FileText, description: '분석 리포트' },
-]
-
-const NODE_TYPE_OPTIONS: { value: NodeType; label: string }[] = [
-  { value: 'memory', label: '메모리' },
-  { value: 'concept', label: '개념' },
-  { value: 'person', label: '인물' },
-  { value: 'doc', label: '문서' },
-  { value: 'task', label: '태스크' },
-  { value: 'decision', label: '결정' },
-  { value: 'meeting', label: '회의' },
-  { value: 'tool', label: '도구' },
-  { value: 'skill', label: '스킬' },
-]
-
-// ============================================
-// Color Utilities
-// ============================================
-
-function useThemeColors() {
-  const { accentColor } = useThemeStore()
-  return useMemo(() => {
-    const accent = accentColors.find(c => c.id === accentColor) || accentColors[0]
-    return {
-      accent: accent.color,
-      accentHover: accent.hoverColor,
-      accentRgb: accent.rgb,
-    }
-  }, [accentColor])
-}
-
-// ============================================
-// Filter Panel Component
-// ============================================
-
-function FilterPanel({
-  state,
-  onStateChange,
-  isDark,
-  onClose,
-}: {
-  state: BrainMapState
-  onStateChange: (state: Partial<BrainMapState>) => void
-  isDark: boolean
-  onClose: () => void
-}) {
-  const colors = useThemeColors()
-
-  const toggleNodeType = (type: NodeType) => {
-    const current = state.filters.nodeTypes || []
-    const updated = current.includes(type)
-      ? current.filter(t => t !== type)
-      : [...current, type]
-    onStateChange({
-      filters: { ...state.filters, nodeTypes: updated.length > 0 ? updated : undefined },
-    })
-  }
-
-  return (
-    <div
-      className={cn(
-        'absolute top-16 right-4 w-72 p-4 rounded-xl border shadow-2xl z-30 backdrop-blur-lg',
-        isDark ? 'bg-zinc-900/95 border-zinc-700' : 'bg-white/95 border-zinc-200'
-      )}
-    >
-      <div className="flex items-center justify-between mb-4">
-        <div className="flex items-center gap-2">
-          <Filter className="w-4 h-4" style={{ color: colors.accent }} />
-          <span className={cn('font-semibold', isDark ? 'text-white' : 'text-zinc-900')}>
-            필터
-          </span>
-        </div>
-        <button
-          onClick={onClose}
-          className={cn(
-            'p-1 rounded-lg transition-colors',
-            isDark ? 'hover:bg-zinc-800' : 'hover:bg-zinc-100'
-          )}
-        >
-          <X className="w-4 h-4" />
-        </button>
-      </div>
-
-      {/* 노드 타입 필터 */}
-      <div className="mb-4">
-        <label className={cn('text-xs font-medium mb-2 block', isDark ? 'text-zinc-400' : 'text-zinc-500')}>
-          노드 타입
-        </label>
-        <div className="flex flex-wrap gap-1.5">
-          {NODE_TYPE_OPTIONS.map(opt => {
-            const isActive = state.filters.nodeTypes?.includes(opt.value)
-            return (
-              <button
-                key={opt.value}
-                onClick={() => toggleNodeType(opt.value)}
-                className={cn(
-                  'px-2 py-1 rounded-lg text-xs font-medium transition-all',
-                  isActive
-                    ? 'text-white'
-                    : isDark
-                      ? 'bg-zinc-800 text-zinc-400'
-                      : 'bg-zinc-100 text-zinc-600'
-                )}
-                style={isActive ? { backgroundColor: colors.accent } : {}}
-              >
-                {opt.label}
-              </button>
-            )
-          })}
-        </div>
-      </div>
-
-      {/* 기간 필터 */}
-      <div>
-        <label className={cn('text-xs font-medium mb-2 block', isDark ? 'text-zinc-400' : 'text-zinc-500')}>
-          <Calendar className="w-3 h-3 inline mr-1" />
-          기간
-        </label>
-        <div className="grid grid-cols-4 gap-1">
-          {[
-            { days: 0, label: '전체' },
-            { days: 7, label: '7일' },
-            { days: 30, label: '30일' },
-            { days: 90, label: '90일' },
-          ].map(opt => {
-            const isActive = !state.filters.dateRange && opt.days === 0 ||
-              (state.filters.dateRange &&
-               Date.now() - state.filters.dateRange.from <= opt.days * 86400000 + 1000)
-            return (
-              <button
-                key={opt.days}
-                onClick={() => {
-                  if (opt.days === 0) {
-                    onStateChange({ filters: { ...state.filters, dateRange: undefined } })
-                  } else {
-                    onStateChange({
-                      filters: {
-                        ...state.filters,
-                        dateRange: { from: Date.now() - opt.days * 86400000, to: Date.now() },
-                      },
-                    })
-                  }
-                }}
-                className={cn(
-                  'px-2 py-1.5 rounded-lg text-xs font-medium transition-all',
-                  isActive
-                    ? 'text-white'
-                    : isDark
-                      ? 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700'
-                      : 'bg-zinc-100 text-zinc-600 hover:bg-zinc-200'
-                )}
-                style={isActive ? { backgroundColor: colors.accent } : {}}
-              >
-                {opt.label}
-              </button>
-            )
-          })}
-        </div>
-      </div>
-    </div>
-  )
-}
-
-// ============================================
-// Inspector Panel Component
-// ============================================
-
-function InspectorPanel({
-  selectedNode,
-  selectedEdge,
-  isDark,
-  onClose,
-}: {
-  selectedNode: BrainNode | null
-  selectedEdge: BrainEdge | null
-  isDark: boolean
-  onClose: () => void
-}) {
-  const colors = useThemeColors()
-
-  if (!selectedNode && !selectedEdge) {
-    return (
-      <div
-        className={cn(
-          'h-full flex flex-col items-center justify-center p-6',
-          isDark ? 'text-zinc-500' : 'text-zinc-400'
-        )}
-      >
-        <Circle className="w-12 h-12 mb-4 opacity-30" />
-        <p className="text-sm text-center">노드나 엣지를 선택하면<br />상세 정보가 표시됩니다</p>
-      </div>
-    )
-  }
-
-  if (selectedNode) {
-    return (
-      <div className="p-4 space-y-4">
-        <div className="flex items-center justify-between">
-          <h3 className={cn('font-semibold', isDark ? 'text-white' : 'text-zinc-900')}>
-            노드 상세
-          </h3>
-          <button
-            onClick={onClose}
-            className={cn(
-              'p-1 rounded-lg transition-colors',
-              isDark ? 'hover:bg-zinc-800' : 'hover:bg-zinc-100'
-            )}
-          >
-            <X className="w-4 h-4" />
-          </button>
-        </div>
-
-        <div className="space-y-3">
-          <div>
-            <span
-              className="text-xs px-2 py-0.5 rounded-full"
-              style={{ backgroundColor: `${colors.accent}20`, color: colors.accent }}
-            >
-              {selectedNode.type}
-            </span>
-          </div>
-
-          <div>
-            <label className={cn('text-xs', isDark ? 'text-zinc-500' : 'text-zinc-400')}>제목</label>
-            <p className={cn('font-medium', isDark ? 'text-white' : 'text-zinc-900')}>
-              {selectedNode.title}
-            </p>
-          </div>
-
-          {selectedNode.summary && (
-            <div>
-              <label className={cn('text-xs', isDark ? 'text-zinc-500' : 'text-zinc-400')}>요약</label>
-              <p className={cn('text-sm', isDark ? 'text-zinc-300' : 'text-zinc-700')}>
-                {selectedNode.summary}
-              </p>
-            </div>
-          )}
-
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className={cn('text-xs', isDark ? 'text-zinc-500' : 'text-zinc-400')}>중요도</label>
-              <div className="flex items-center gap-1 mt-1">
-                {Array.from({ length: 10 }).map((_, i) => (
-                  <div
-                    key={i}
-                    className={cn('w-2 h-2 rounded-full')}
-                    style={{
-                      backgroundColor: i < selectedNode.importance ? colors.accent : (isDark ? '#3f3f46' : '#e4e4e7'),
-                    }}
-                  />
-                ))}
-              </div>
-            </div>
-            {selectedNode.confidence !== undefined && (
-              <div>
-                <label className={cn('text-xs', isDark ? 'text-zinc-500' : 'text-zinc-400')}>신뢰도</label>
-                <p className={cn('font-medium', isDark ? 'text-white' : 'text-zinc-900')}>
-                  {Math.round(selectedNode.confidence * 100)}%
-                </p>
-              </div>
-            )}
-          </div>
-
-          {selectedNode.tags && selectedNode.tags.length > 0 && (
-            <div>
-              <label className={cn('text-xs', isDark ? 'text-zinc-500' : 'text-zinc-400')}>태그</label>
-              <div className="flex flex-wrap gap-1 mt-1">
-                {selectedNode.tags.map(tag => (
-                  <span
-                    key={tag}
-                    className={cn(
-                      'px-2 py-0.5 rounded-full text-xs',
-                      isDark ? 'bg-zinc-800 text-zinc-300' : 'bg-zinc-100 text-zinc-600'
-                    )}
-                  >
-                    {tag}
-                  </span>
-                ))}
-              </div>
-            </div>
-          )}
-
-          <div>
-            <label className={cn('text-xs', isDark ? 'text-zinc-500' : 'text-zinc-400')}>생성일</label>
-            <p className={cn('text-sm', isDark ? 'text-zinc-300' : 'text-zinc-700')}>
-              {new Date(selectedNode.createdAt).toLocaleString('ko-KR')}
-            </p>
-          </div>
-        </div>
-      </div>
-    )
-  }
-
-  return null
-}
-
-// ============================================
-// Status Bar Component
-// ============================================
-
-function StatusBar({
-  nodeCount,
-  edgeCount,
-  isLoading,
-  fps,
-  isDark,
-}: {
-  nodeCount: number
-  edgeCount: number
-  isLoading: boolean
-  fps: number
-  isDark: boolean
-}) {
-  const colors = useThemeColors()
-
-  return (
-    <div
-      className={cn(
-        'h-8 px-4 flex items-center justify-between text-xs border-t',
-        isDark ? 'bg-zinc-900/80 border-zinc-800 text-zinc-400' : 'bg-white/80 border-zinc-200 text-zinc-500'
-      )}
-    >
-      <div className="flex items-center gap-4">
-        <span>노드: <strong style={{ color: colors.accent }}>{nodeCount.toLocaleString()}</strong></span>
-        <span>엣지: <strong style={{ color: colors.accent }}>{edgeCount.toLocaleString()}</strong></span>
-      </div>
-      <div className="flex items-center gap-4">
-        {isLoading && (
-          <span className="flex items-center gap-1">
-            <Loader2 className="w-3 h-3 animate-spin" />
-            Loading...
-          </span>
-        )}
-        <span>FPS: <strong className={fps < 30 ? 'text-red-500' : ''}>{fps}</strong></span>
-      </div>
-    </div>
-  )
-}
-
-// ============================================
-// Main Layout Component
-// ============================================
-
-export function BrainMapLayout({ agentId, isDark }: BrainMapLayoutProps) {
-  const colors = useThemeColors()
-  const [showFilter, setShowFilter] = useState(false)
-  const [showInspector, setShowInspector] = useState(true)
+export function BrainMapLayout({ agentId, isDark = true }: BrainMapLayoutProps) {
+  // State
+  const [activeTab, setActiveTab] = useState<TabType>('pathfinder')
+  const [sidebarOpen, setSidebarOpen] = useState(true)
   const [searchQuery, setSearchQuery] = useState('')
-  const [isFullscreen, setIsFullscreen] = useState(false)
+  const [selectedNode, setSelectedNode] = useState<BrainNode | null>(null)
+  const [hoveredNode, setHoveredNode] = useState<BrainNode | null>(null)
 
-  const [state, setState] = useState<BrainMapState>({
-    activeTab: 'clusters',
-    selectedNodeId: null,
-    selectedEdgeId: null,
-    hoveredNodeId: null,
-    isLoading: false,
-    expandingNodeId: null,
-    anchorNodeId: null,
-    radialDepth: 2,
-    filters: {},
-  })
+  // Pathfinder state
+  const [startNode, setStartNode] = useState('')
+  const [endNode, setEndNode] = useState('')
+  const [pathResults, setPathResults] = useState<any[]>([])
 
-  // 그래프 데이터
-  const [nodes, setNodes] = useState<BrainNode[]>([])
-  const [edges, setEdges] = useState<BrainEdge[]>([])
-  const [fps, setFps] = useState(60)
+  // Cluster state
+  const [clusters, setClusters] = useState<BrainCluster[]>([])
+  const [selectedCluster, setSelectedCluster] = useState<string | null>(null)
+  const [resolution, setResolution] = useState(50)
 
-  // Callbacks (useEffect 전에 정의)
-  const handleStateChange = useCallback((partial: Partial<BrainMapState>) => {
-    setState(prev => ({ ...prev, ...partial }))
-  }, [])
+  // Insights state
+  const [insights, setInsights] = useState<BrainInsight[]>([])
+  const [showAnalysis, setShowAnalysis] = useState(false)
 
-  // API에서 데이터 로드
+  // 노드 타입 필터
+  const [nodeTypeFilters, setNodeTypeFilters] = useState<Set<NodeType>>(new Set())
+
+  // 하이라이트할 노드 ID들
+  const [highlightNodes, setHighlightNodes] = useState<Set<string>>(new Set())
+
+  // 클러스터 데이터 로드
   useEffect(() => {
-    const fetchGraph = async () => {
-      setState(prev => ({ ...prev, isLoading: true }))
+    const fetchClusters = async () => {
       try {
-        const res = await fetch(`/api/agents/${agentId}/brain/graph?limit=100`)
+        const res = await fetch(`/api/agents/${agentId}/brain/clusters`)
         if (res.ok) {
           const data = await res.json()
-          setNodes(data.nodes || [])
-          setEdges(data.edges || [])
+          setClusters(data.clusters || [])
         }
-      } catch (err) {
-        console.error('[BrainMapLayout] Failed to load graph:', err)
-      } finally {
-        setState(prev => ({ ...prev, isLoading: false }))
+      } catch (error) {
+        console.error('Failed to fetch clusters:', error)
       }
     }
-    fetchGraph()
+    fetchClusters()
   }, [agentId])
 
-  const selectedNode = useMemo(() => {
-    return nodes.find(n => n.id === state.selectedNodeId) || null
-  }, [nodes, state.selectedNodeId])
+  // Insights 로드
+  useEffect(() => {
+    const fetchInsights = async () => {
+      try {
+        const res = await fetch(`/api/agents/${agentId}/brain/insights`)
+        if (res.ok) {
+          const data = await res.json()
+          setInsights(data.insightItems || [])
+        }
+      } catch (error) {
+        console.error('Failed to fetch insights:', error)
+      }
+    }
+    fetchInsights()
+  }, [agentId])
 
-  const selectedEdge = useMemo(() => {
-    return edges.find(e => e.id === state.selectedEdgeId) || null
-  }, [edges, state.selectedEdgeId])
+  // 패스파인더 검색
+  const handlePathSearch = async () => {
+    if (!startNode || !endNode) return
 
-  const handleSearch = useCallback((e: React.FormEvent) => {
-    e.preventDefault()
-    handleStateChange({ filters: { ...state.filters, searchQuery } })
-  }, [searchQuery, state.filters, handleStateChange])
+    try {
+      const res = await fetch(`/api/agents/${agentId}/brain/pathfinder?from=${startNode}&to=${endNode}`)
+      if (res.ok) {
+        const data = await res.json()
+        if (data.found && data.trace) {
+          setPathResults(data.trace.steps || [])
+          // 경로의 노드들 하이라이트
+          const nodeIds = new Set<string>()
+          data.trace.steps.forEach((step: any) => {
+            step.usedNodeIds?.forEach((id: string) => nodeIds.add(id))
+          })
+          setHighlightNodes(nodeIds)
+        }
+      }
+    } catch (error) {
+      console.error('Path search failed:', error)
+    }
+  }
+
+  // 클러스터 선택
+  const handleClusterSelect = (clusterId: string) => {
+    if (selectedCluster === clusterId) {
+      setSelectedCluster(null)
+      setHighlightNodes(new Set())
+    } else {
+      setSelectedCluster(clusterId)
+      const cluster = clusters.find(c => c.clusterId === clusterId)
+      if (cluster) {
+        setHighlightNodes(new Set(cluster.centralNodeIds))
+      }
+    }
+  }
+
+  // 노드 클릭 핸들러
+  const handleNodeClick = useCallback((node: BrainNode) => {
+    setSelectedNode(node)
+  }, [])
+
+  // 노드 호버 핸들러
+  const handleNodeHover = useCallback((node: BrainNode | null) => {
+    setHoveredNode(node)
+  }, [])
+
+  // 노드 타입 필터 토글
+  const toggleNodeTypeFilter = (type: NodeType) => {
+    const newFilters = new Set(nodeTypeFilters)
+    if (newFilters.has(type)) {
+      newFilters.delete(type)
+    } else {
+      newFilters.add(type)
+    }
+    setNodeTypeFilters(newFilters)
+  }
 
   return (
-    <div
-      className={cn(
-        'flex flex-col h-full rounded-xl border overflow-hidden',
-        isDark ? 'bg-zinc-900 border-zinc-800' : 'bg-white border-zinc-200'
-      )}
-    >
-      {/* 상단 탭 + 필터 */}
+    <div className={cn('w-full h-full flex', isDark ? 'bg-zinc-950' : 'bg-white')}>
+      {/* 사이드바 */}
       <div
         className={cn(
-          'flex items-center justify-between px-4 py-2 border-b',
-          isDark ? 'bg-zinc-900/80 border-zinc-800' : 'bg-white/80 border-zinc-200'
+          'h-full border-r flex flex-col transition-all duration-300',
+          isDark ? 'bg-zinc-900 border-zinc-800' : 'bg-zinc-50 border-zinc-200',
+          sidebarOpen ? 'w-80' : 'w-0 overflow-hidden'
         )}
       >
-        {/* 탭 */}
-        <div className="flex items-center gap-1">
-          {TABS.map(tab => {
-            const Icon = tab.icon
-            const isActive = state.activeTab === tab.id
-            return (
+        {/* 탭 헤더 */}
+        <div className={cn('p-4 border-b', isDark ? 'border-zinc-800' : 'border-zinc-200')}>
+          <div className="flex gap-1">
+            {TABS.map((tab) => {
+              const Icon = tab.icon
+              return (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id)}
+                  className={cn(
+                    'flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition-colors',
+                    activeTab === tab.id
+                      ? 'bg-cyan-500 text-white'
+                      : isDark
+                        ? 'text-zinc-400 hover:bg-zinc-800 hover:text-white'
+                        : 'text-zinc-600 hover:bg-zinc-200 hover:text-zinc-900'
+                  )}
+                >
+                  <Icon className="w-4 h-4" />
+                  <span className="hidden lg:inline">{tab.label}</span>
+                </button>
+              )
+            })}
+          </div>
+        </div>
+
+        {/* 탭 컨텐츠 */}
+        <div className="flex-1 overflow-y-auto p-4">
+          {/* 패스파인더 */}
+          {activeTab === 'pathfinder' && (
+            <div className="space-y-4">
+              {/* 시작/종료 지점 */}
+              <div className="space-y-2">
+                <label className={cn('text-xs font-medium', isDark ? 'text-zinc-400' : 'text-zinc-600')}>
+                  시작 지점
+                </label>
+                <div className="relative">
+                  <input
+                    type="text"
+                    value={startNode}
+                    onChange={(e) => setStartNode(e.target.value)}
+                    placeholder="노드 검색..."
+                    className={cn(
+                      'w-full px-3 py-2 rounded-lg text-sm',
+                      isDark
+                        ? 'bg-zinc-800 border-zinc-700 text-white placeholder-zinc-500'
+                        : 'bg-white border-zinc-300 text-zinc-900 placeholder-zinc-400',
+                      'border focus:outline-none focus:ring-2 focus:ring-cyan-500'
+                    )}
+                  />
+                  <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <label className={cn('text-xs font-medium', isDark ? 'text-zinc-400' : 'text-zinc-600')}>
+                  종료 지점
+                </label>
+                <div className="relative">
+                  <input
+                    type="text"
+                    value={endNode}
+                    onChange={(e) => setEndNode(e.target.value)}
+                    placeholder="노드 검색..."
+                    className={cn(
+                      'w-full px-3 py-2 rounded-lg text-sm',
+                      isDark
+                        ? 'bg-zinc-800 border-zinc-700 text-white placeholder-zinc-500'
+                        : 'bg-white border-zinc-300 text-zinc-900 placeholder-zinc-400',
+                      'border focus:outline-none focus:ring-2 focus:ring-cyan-500'
+                    )}
+                  />
+                  <Target className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
+                </div>
+              </div>
+
               <button
-                key={tab.id}
-                onClick={() => handleStateChange({ activeTab: tab.id })}
+                onClick={handlePathSearch}
+                disabled={!startNode || !endNode}
                 className={cn(
-                  'flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-all',
-                  isActive
-                    ? 'text-white'
+                  'w-full py-2 rounded-lg font-medium text-sm transition-colors',
+                  startNode && endNode
+                    ? 'bg-cyan-500 hover:bg-cyan-600 text-white'
                     : isDark
-                      ? 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800'
-                      : 'text-zinc-500 hover:text-zinc-700 hover:bg-zinc-100'
+                      ? 'bg-zinc-800 text-zinc-500 cursor-not-allowed'
+                      : 'bg-zinc-200 text-zinc-400 cursor-not-allowed'
                 )}
-                style={isActive ? { backgroundColor: colors.accent } : {}}
-                title={tab.description}
               >
-                <Icon className="w-4 h-4" />
-                <span className="hidden md:inline">{tab.label}</span>
+                경로 탐색
               </button>
-            )
-          })}
-        </div>
 
-        {/* 검색 + 필터 + 전체화면 */}
-        <div className="flex items-center gap-2">
-          <form onSubmit={handleSearch} className="relative">
-            <Search className={cn(
-              'absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4',
-              isDark ? 'text-zinc-500' : 'text-zinc-400'
-            )} />
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={e => setSearchQuery(e.target.value)}
-              placeholder="노드 검색..."
-              className={cn(
-                'w-48 pl-9 pr-3 py-1.5 rounded-lg text-sm border',
-                isDark
-                  ? 'bg-zinc-800 border-zinc-700 text-white placeholder:text-zinc-500'
-                  : 'bg-zinc-50 border-zinc-200 text-zinc-900 placeholder:text-zinc-400'
+              {/* 경로 결과 */}
+              {pathResults.length > 0 && (
+                <div className="mt-4 space-y-2">
+                  <h4 className={cn('text-sm font-semibold', isDark ? 'text-white' : 'text-zinc-900')}>
+                    경로 ({pathResults.length}단계)
+                  </h4>
+                  <div className="space-y-1">
+                    {pathResults.map((step, idx) => (
+                      <div
+                        key={idx}
+                        className={cn(
+                          'flex items-center gap-2 p-2 rounded-lg text-xs',
+                          isDark ? 'bg-zinc-800' : 'bg-white border border-zinc-200'
+                        )}
+                      >
+                        <span className={cn(
+                          'w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold',
+                          'bg-cyan-500 text-white'
+                        )}>
+                          {idx + 1}
+                        </span>
+                        <span className={isDark ? 'text-zinc-300' : 'text-zinc-700'}>
+                          {step.output || step.stepType}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
               )}
-            />
-          </form>
-
-          <button
-            onClick={() => setShowFilter(!showFilter)}
-            className={cn(
-              'p-2 rounded-lg transition-all',
-              showFilter
-                ? 'text-white'
-                : isDark
-                  ? 'text-zinc-400 hover:bg-zinc-800'
-                  : 'text-zinc-500 hover:bg-zinc-100'
-            )}
-            style={showFilter ? { backgroundColor: colors.accent } : {}}
-          >
-            <Filter className="w-4 h-4" />
-          </button>
-
-          <button
-            onClick={() => setShowInspector(!showInspector)}
-            className={cn(
-              'p-2 rounded-lg transition-all',
-              isDark
-                ? 'text-zinc-400 hover:bg-zinc-800'
-                : 'text-zinc-500 hover:bg-zinc-100'
-            )}
-          >
-            {showInspector ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
-          </button>
-
-          <button
-            onClick={() => setIsFullscreen(!isFullscreen)}
-            className={cn(
-              'p-2 rounded-lg transition-all',
-              isDark
-                ? 'text-zinc-400 hover:bg-zinc-800'
-                : 'text-zinc-500 hover:bg-zinc-100'
-            )}
-          >
-            {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
-          </button>
-        </div>
-      </div>
-
-      {/* 메인 콘텐츠 */}
-      <div className="flex-1 flex relative overflow-hidden">
-        {/* 좌측: 3D 뷰포트 */}
-        <div className="flex-1 relative">
-          {/* 3D 렌더러 */}
-          <GraphRenderer
-            nodes={nodes}
-            edges={edges}
-            selectedNodeId={state.selectedNodeId}
-            hoveredNodeId={state.hoveredNodeId}
-            isDark={isDark}
-            onNodeClick={(nodeId) => handleStateChange({ selectedNodeId: nodeId, selectedEdgeId: null })}
-            onNodeHover={(nodeId) => handleStateChange({ hoveredNodeId: nodeId })}
-            onFpsUpdate={setFps}
-          />
-
-          {/* 로딩 표시 */}
-          {state.isLoading && (
-            <div className="absolute inset-0 flex items-center justify-center bg-black/40 backdrop-blur-sm">
-              <Loader2 className="w-8 h-8 animate-spin" style={{ color: colors.accent }} />
             </div>
           )}
 
-          {/* 필터 패널 */}
-          {showFilter && (
-            <FilterPanel
-              state={state}
-              onStateChange={handleStateChange}
-              isDark={isDark}
-              onClose={() => setShowFilter(false)}
-            />
+          {/* 클러스터 */}
+          {activeTab === 'clusters' && (
+            <div className="space-y-4">
+              {/* 해상도 슬라이더 */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className={cn('text-xs font-medium', isDark ? 'text-zinc-400' : 'text-zinc-600')}>
+                    해상도
+                  </label>
+                  <span className={cn('text-xs', isDark ? 'text-zinc-500' : 'text-zinc-400')}>
+                    {resolution}%
+                  </span>
+                </div>
+                <input
+                  type="range"
+                  min="10"
+                  max="100"
+                  value={resolution}
+                  onChange={(e) => setResolution(Number(e.target.value))}
+                  className="w-full accent-cyan-500"
+                />
+              </div>
+
+              {/* 클러스터 버튼 그리드 */}
+              <div>
+                <h4 className={cn('text-xs font-medium mb-2', isDark ? 'text-zinc-400' : 'text-zinc-600')}>
+                  클러스터
+                </h4>
+                <div className="grid grid-cols-4 gap-2">
+                  {CLUSTER_LABELS.map((label, idx) => {
+                    const cluster = clusters[idx]
+                    const isSelected = selectedCluster === cluster?.clusterId
+                    const color = CLUSTER_COLORS[idx % CLUSTER_COLORS.length]
+
+                    return (
+                      <button
+                        key={label}
+                        onClick={() => cluster && handleClusterSelect(cluster.clusterId)}
+                        disabled={!cluster}
+                        className={cn(
+                          'aspect-square rounded-lg flex flex-col items-center justify-center text-xs font-bold transition-all',
+                          isSelected
+                            ? 'ring-2 ring-white scale-110'
+                            : 'hover:scale-105',
+                          !cluster && 'opacity-30 cursor-not-allowed'
+                        )}
+                        style={{
+                          backgroundColor: cluster ? `${color}30` : undefined,
+                          color: cluster ? color : undefined,
+                          borderColor: color,
+                        }}
+                      >
+                        <span>{label}</span>
+                        {cluster && (
+                          <span className="text-[10px] opacity-70">{cluster.nodeCount}개</span>
+                        )}
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+
+              {/* 선택된 클러스터 정보 */}
+              {selectedCluster && (
+                <div className={cn(
+                  'p-3 rounded-lg',
+                  isDark ? 'bg-zinc-800' : 'bg-white border border-zinc-200'
+                )}>
+                  {(() => {
+                    const cluster = clusters.find(c => c.clusterId === selectedCluster)
+                    if (!cluster) return null
+                    const idx = clusters.indexOf(cluster)
+                    const color = CLUSTER_COLORS[idx % CLUSTER_COLORS.length]
+
+                    return (
+                      <>
+                        <div className="flex items-center gap-2 mb-2">
+                          <div
+                            className="w-3 h-3 rounded-full"
+                            style={{ backgroundColor: color }}
+                          />
+                          <span className={cn('font-semibold text-sm', isDark ? 'text-white' : 'text-zinc-900')}>
+                            {cluster.label}
+                          </span>
+                        </div>
+                        <div className="flex flex-wrap gap-1">
+                          {cluster.topKeywords?.map((keyword, i) => (
+                            <span
+                              key={i}
+                              className={cn(
+                                'px-2 py-0.5 rounded text-xs',
+                                isDark ? 'bg-zinc-700 text-zinc-300' : 'bg-zinc-100 text-zinc-600'
+                              )}
+                            >
+                              {keyword}
+                            </span>
+                          ))}
+                        </div>
+                        <div className={cn('text-xs mt-2', isDark ? 'text-zinc-500' : 'text-zinc-400')}>
+                          응집도: {Math.round((cluster.cohesionScore || 0) * 100)}%
+                        </div>
+                      </>
+                    )
+                  })()}
+                </div>
+              )}
+
+              {/* AI 분석 버튼 */}
+              <button
+                onClick={() => setShowAnalysis(true)}
+                className={cn(
+                  'w-full flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-medium transition-colors',
+                  'bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white'
+                )}
+              >
+                <Sparkles className="w-4 h-4" />
+                AI 분석
+              </button>
+            </div>
+          )}
+
+          {/* 로드맵 */}
+          {activeTab === 'roadmap' && (
+            <div className="space-y-4">
+              <p className={cn('text-sm', isDark ? 'text-zinc-400' : 'text-zinc-600')}>
+                시간 순서에 따른 기억/이벤트 흐름을 트리 구조로 시각화합니다.
+              </p>
+
+              {/* 필터 */}
+              <div className="space-y-2">
+                <label className={cn('text-xs font-medium', isDark ? 'text-zinc-400' : 'text-zinc-600')}>
+                  노드 타입 필터
+                </label>
+                <div className="flex flex-wrap gap-1">
+                  {(['memory', 'meeting', 'decision', 'task'] as NodeType[]).map((type) => (
+                    <button
+                      key={type}
+                      onClick={() => toggleNodeTypeFilter(type)}
+                      className={cn(
+                        'px-2 py-1 rounded text-xs transition-colors',
+                        nodeTypeFilters.has(type)
+                          ? 'bg-cyan-500 text-white'
+                          : isDark
+                            ? 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700'
+                            : 'bg-zinc-100 text-zinc-600 hover:bg-zinc-200'
+                      )}
+                    >
+                      {type}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
           )}
         </div>
 
-        {/* 우측: 인스펙터 패널 */}
-        {showInspector && (
-          <div
+        {/* 하단 액션 */}
+        <div className={cn('p-4 border-t', isDark ? 'border-zinc-800' : 'border-zinc-200')}>
+          <button
             className={cn(
-              'w-80 border-l overflow-y-auto',
-              isDark ? 'bg-zinc-900/50 border-zinc-800' : 'bg-white/50 border-zinc-200'
+              'w-full flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-medium transition-colors',
+              isDark
+                ? 'bg-zinc-800 hover:bg-zinc-700 text-zinc-300'
+                : 'bg-zinc-200 hover:bg-zinc-300 text-zinc-700'
             )}
           >
-            <InspectorPanel
-              selectedNode={selectedNode}
-              selectedEdge={selectedEdge}
-              isDark={isDark}
-              onClose={() => handleStateChange({ selectedNodeId: null, selectedEdgeId: null })}
-            />
-          </div>
-        )}
+            <Download className="w-4 h-4" />
+            데이터 다운로드
+          </button>
+        </div>
       </div>
 
-      {/* 하단 상태바 */}
-      <StatusBar
-        nodeCount={nodes.length}
-        edgeCount={edges.length}
-        isLoading={state.isLoading}
-        fps={fps}
-        isDark={isDark}
-      />
+      {/* 사이드바 토글 버튼 */}
+      <button
+        onClick={() => setSidebarOpen(!sidebarOpen)}
+        className={cn(
+          'absolute left-0 top-1/2 -translate-y-1/2 z-10 p-1.5 rounded-r-lg transition-all',
+          isDark ? 'bg-zinc-800 hover:bg-zinc-700 text-zinc-400' : 'bg-zinc-200 hover:bg-zinc-300 text-zinc-600',
+          sidebarOpen ? 'ml-80' : 'ml-0'
+        )}
+      >
+        {sidebarOpen ? <ChevronLeft className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+      </button>
+
+      {/* 메인 3D 뷰 */}
+      <div className="flex-1 relative">
+        <BrainMap3D
+          agentId={agentId}
+          isDark={isDark}
+          onNodeClick={handleNodeClick}
+          onNodeHover={handleNodeHover}
+          highlightNodes={highlightNodes}
+          showLabels={true}
+          bloomStrength={1.5}
+        />
+
+        {/* 줌 컨트롤 */}
+        <div className={cn(
+          'absolute top-4 left-4 flex flex-col gap-1',
+        )}>
+          <button
+            className={cn(
+              'p-2 rounded-lg transition-colors',
+              isDark ? 'bg-zinc-800 hover:bg-zinc-700 text-zinc-400' : 'bg-white hover:bg-zinc-100 text-zinc-600',
+              'border',
+              isDark ? 'border-zinc-700' : 'border-zinc-200'
+            )}
+          >
+            <ZoomIn className="w-4 h-4" />
+          </button>
+          <button
+            className={cn(
+              'p-2 rounded-lg transition-colors',
+              isDark ? 'bg-zinc-800 hover:bg-zinc-700 text-zinc-400' : 'bg-white hover:bg-zinc-100 text-zinc-600',
+              'border',
+              isDark ? 'border-zinc-700' : 'border-zinc-200'
+            )}
+          >
+            <ZoomOut className="w-4 h-4" />
+          </button>
+          <button
+            className={cn(
+              'p-2 rounded-lg transition-colors',
+              isDark ? 'bg-zinc-800 hover:bg-zinc-700 text-zinc-400' : 'bg-white hover:bg-zinc-100 text-zinc-600',
+              'border',
+              isDark ? 'border-zinc-700' : 'border-zinc-200'
+            )}
+          >
+            <Maximize2 className="w-4 h-4" />
+          </button>
+        </div>
+      </div>
+
+      {/* AI 분석 모달 */}
+      {showAnalysis && (
+        <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className={cn(
+            'w-full max-w-lg max-h-[80vh] rounded-2xl overflow-hidden',
+            isDark ? 'bg-zinc-900' : 'bg-white'
+          )}>
+            <div className={cn(
+              'flex items-center justify-between p-4 border-b',
+              isDark ? 'border-zinc-800' : 'border-zinc-200'
+            )}>
+              <h3 className={cn('font-semibold', isDark ? 'text-white' : 'text-zinc-900')}>
+                AI 분석 결과
+              </h3>
+              <button
+                onClick={() => setShowAnalysis(false)}
+                className={cn(
+                  'p-1 rounded-lg transition-colors',
+                  isDark ? 'hover:bg-zinc-800 text-zinc-400' : 'hover:bg-zinc-100 text-zinc-600'
+                )}
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="p-4 overflow-y-auto max-h-[60vh] space-y-4">
+              {insights.length > 0 ? (
+                insights.map((insight, idx) => (
+                  <div
+                    key={idx}
+                    className={cn(
+                      'p-3 rounded-lg',
+                      isDark ? 'bg-zinc-800' : 'bg-zinc-50 border border-zinc-200'
+                    )}
+                  >
+                    <div className="flex items-start gap-2">
+                      <Lightbulb className="w-4 h-4 text-yellow-500 mt-0.5 flex-shrink-0" />
+                      <div>
+                        <h4 className={cn('font-medium text-sm', isDark ? 'text-white' : 'text-zinc-900')}>
+                          {insight.title}
+                        </h4>
+                        <p className={cn('text-xs mt-1', isDark ? 'text-zinc-400' : 'text-zinc-600')}>
+                          {insight.content}
+                        </p>
+                        <div className="flex items-center gap-2 mt-2">
+                          <span className={cn(
+                            'px-2 py-0.5 rounded text-xs',
+                            isDark ? 'bg-zinc-700 text-zinc-400' : 'bg-zinc-200 text-zinc-500'
+                          )}>
+                            {insight.category}
+                          </span>
+                          <span className={cn('text-xs', isDark ? 'text-zinc-500' : 'text-zinc-400')}>
+                            신뢰도 {Math.round(insight.confidence * 100)}%
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <p className={cn('text-sm text-center py-8', isDark ? 'text-zinc-500' : 'text-zinc-400')}>
+                  분석 중...
+                </p>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 선택된 노드 상세 팝업 */}
+      {selectedNode && (
+        <div className={cn(
+          'absolute bottom-4 left-1/2 -translate-x-1/2 z-20',
+          'w-full max-w-md p-4 rounded-2xl',
+          isDark ? 'bg-zinc-900/95 border border-zinc-800' : 'bg-white/95 border border-zinc-200',
+          'shadow-2xl backdrop-blur-sm'
+        )}>
+          <div className="flex items-start justify-between">
+            <div className="flex items-center gap-3">
+              <div className={cn(
+                'w-10 h-10 rounded-xl flex items-center justify-center',
+                'bg-gradient-to-br from-cyan-500 to-blue-600'
+              )}>
+                <Brain className="w-5 h-5 text-white" />
+              </div>
+              <div>
+                <h4 className={cn('font-semibold', isDark ? 'text-white' : 'text-zinc-900')}>
+                  {selectedNode.title}
+                </h4>
+                <span className={cn('text-xs', isDark ? 'text-zinc-500' : 'text-zinc-400')}>
+                  {selectedNode.type}
+                </span>
+              </div>
+            </div>
+            <button
+              onClick={() => setSelectedNode(null)}
+              className={cn(
+                'p-1 rounded-lg transition-colors',
+                isDark ? 'hover:bg-zinc-800 text-zinc-400' : 'hover:bg-zinc-100 text-zinc-600'
+              )}
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+          {selectedNode.summary && (
+            <p className={cn('text-sm mt-3', isDark ? 'text-zinc-400' : 'text-zinc-600')}>
+              {selectedNode.summary}
+            </p>
+          )}
+          <div className="flex gap-2 mt-4">
+            <button className={cn(
+              'flex-1 py-2 rounded-lg text-xs font-medium transition-colors',
+              isDark
+                ? 'bg-zinc-800 hover:bg-zinc-700 text-zinc-300'
+                : 'bg-zinc-100 hover:bg-zinc-200 text-zinc-700'
+            )}>
+              패스파인더 탐색
+            </button>
+            <button className={cn(
+              'flex-1 py-2 rounded-lg text-xs font-medium transition-colors',
+              'bg-cyan-500 hover:bg-cyan-600 text-white'
+            )}>
+              로드맵 탐색
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

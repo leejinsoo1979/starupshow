@@ -201,7 +201,7 @@ export interface SharedViewerState {
   media_name: string
   current_page?: number      // PDF 현재 페이지
   total_pages?: number       // PDF 총 페이지
-  current_time?: number      // 비디오 현재 시간 (초)
+  playback_time?: number     // 비디오 현재 시간 (초)
   duration?: number          // 비디오 총 길이 (초)
   is_playing?: boolean       // 비디오 재생 중 여부
   zoom_level?: number        // 확대 레벨
