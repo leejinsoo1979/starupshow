@@ -657,7 +657,7 @@ const categories: Category[] = [
           { name: '리포트', href: '/dashboard-group/messenger/presentations', icon: FileText },
         ]
       },
-      { name: '자유채팅', href: '/dashboard-group/messenger/session/new?mode=free', icon: TbBrandWechat },
+      { name: '자유채팅', href: '/dashboard-group/messenger', icon: TbBrandWechat },
     ]
   },
   // 팀 - 클릭 시 사이드바 열림

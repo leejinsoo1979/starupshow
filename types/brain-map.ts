@@ -110,6 +110,7 @@ export interface BrainCluster {
   nodeCount: number
   cohesionScore: number // 0..1
   centralNodeIds: string[]
+  color?: string // hex color for visualization
 }
 
 // ============================================

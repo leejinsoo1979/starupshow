@@ -105,32 +105,117 @@ export async function GET(
     let nodes: BrainNode[] = []
     let edges: BrainEdge[] = []
 
-    // agent_memories에서 노드 생성 시도
-    const { data: memories } = await supabase
-      .from('agent_memories')
+    // 1. agent_work_logs에서 노드 생성 (대화, 작업, 의사결정 등)
+    const { data: workLogs } = await supabase
+      .from('agent_work_logs')
       .select('*')
       .eq('agent_id', agentId)
       .order('created_at', { ascending: false })
-      .limit(limit)
+      .limit(Math.floor(limit * 0.5))
 
-    if (memories && memories.length > 0) {
-      // 실제 메모리 데이터를 노드로 변환
-      nodes = memories.map((mem: any, idx: number) => ({
-        id: mem.id,
-        type: (mem.memory_type || 'memory') as NodeType,
-        title: mem.title || mem.content?.substring(0, 50) || `메모리 #${idx}`,
-        summary: mem.content?.substring(0, 200),
-        createdAt: new Date(mem.created_at).getTime(),
-        importance: mem.importance || 5,
-        confidence: mem.confidence || 0.8,
-        tags: mem.tags || [],
-        source: {
-          kind: mem.source_type || 'chat',
-          ref: mem.source_ref,
-        },
-      }))
+    if (workLogs && workLogs.length > 0) {
+      const logTypeToNodeType: Record<string, NodeType> = {
+        'conversation': 'memory',
+        'task_work': 'task',
+        'decision': 'decision',
+        'analysis': 'concept',
+        'learning': 'skill',
+        'collaboration': 'meeting',
+        'error': 'memory',
+        'milestone': 'decision',
+      }
 
-      // 간단한 연관 엣지 생성 (같은 태그를 가진 노드 연결)
+      workLogs.forEach((log: any) => {
+        nodes.push({
+          id: log.id,
+          type: logTypeToNodeType[log.log_type] || 'memory',
+          title: log.title || `${log.log_type} 로그`,
+          summary: log.summary || log.content?.substring(0, 200),
+          createdAt: new Date(log.created_at).getTime(),
+          importance: log.importance || 5,
+          confidence: 0.9,
+          tags: log.tags || [],
+          clusterId: log.project_id ? `project-${log.project_id}` : undefined,
+          source: {
+            kind: log.room_id ? 'chat' : 'tool',
+            ref: log.room_id || log.task_id,
+          },
+        })
+      })
+    }
+
+    // 2. agent_knowledge에서 노드 생성 (지식 베이스)
+    const { data: knowledge } = await supabase
+      .from('agent_knowledge')
+      .select('*')
+      .eq('agent_id', agentId)
+      .order('use_count', { ascending: false })
+      .limit(Math.floor(limit * 0.3))
+
+    if (knowledge && knowledge.length > 0) {
+      const knowledgeTypeToNodeType: Record<string, NodeType> = {
+        'project': 'doc',
+        'team': 'person',
+        'domain': 'concept',
+        'preference': 'skill',
+        'procedure': 'tool',
+        'decision_rule': 'decision',
+        'lesson_learned': 'memory',
+      }
+
+      knowledge.forEach((k: any) => {
+        nodes.push({
+          id: k.id,
+          type: knowledgeTypeToNodeType[k.knowledge_type] || 'concept',
+          title: k.subject,
+          summary: k.content?.substring(0, 200),
+          createdAt: new Date(k.created_at).getTime(),
+          updatedAt: k.updated_at ? new Date(k.updated_at).getTime() : undefined,
+          importance: Math.min(10, Math.floor(k.use_count / 5) + 5),
+          confidence: k.confidence || 0.8,
+          tags: k.tags || [],
+          clusterId: k.project_id ? `project-${k.project_id}` : `knowledge-${k.knowledge_type}`,
+          source: {
+            kind: 'tool',
+            ref: k.id,
+          },
+        })
+      })
+    }
+
+    // 3. agent_commits에서 노드 생성 (업무 요약)
+    const { data: commits } = await supabase
+      .from('agent_commits')
+      .select('*')
+      .eq('agent_id', agentId)
+      .order('period_end', { ascending: false })
+      .limit(Math.floor(limit * 0.2))
+
+    if (commits && commits.length > 0) {
+      commits.forEach((c: any) => {
+        nodes.push({
+          id: c.id,
+          type: 'meeting' as NodeType,
+          title: c.title,
+          summary: c.summary?.substring(0, 200),
+          createdAt: new Date(c.created_at).getTime(),
+          importance: c.commit_type === 'milestone' ? 10 : (c.commit_type === 'weekly' ? 7 : 5),
+          confidence: 1.0,
+          tags: c.stats?.key_topics || [],
+          clusterId: `commit-${c.commit_type}`,
+          source: {
+            kind: 'tool',
+            ref: c.id,
+          },
+        })
+      })
+    }
+
+    // 4. 엣지 생성 - 같은 태그/클러스터/시간대 기반 연결
+    if (nodes.length > 0) {
+      let edgeId = 0
+
+      // 태그 기반 연결
       const tagMap = new Map<string, string[]>()
       nodes.forEach(node => {
         node.tags?.forEach(tag => {
@@ -139,25 +224,62 @@ export async function GET(
         })
       })
 
-      let edgeId = 0
       tagMap.forEach((nodeIds) => {
         for (let i = 0; i < nodeIds.length - 1; i++) {
           for (let j = i + 1; j < Math.min(i + 3, nodeIds.length); j++) {
             edges.push({
-              id: `edge-${edgeId++}`,
+              id: `edge-tag-${edgeId++}`,
               source: nodeIds[i],
               target: nodeIds[j],
               type: 'related',
-              weight: 0.5,
+              weight: 0.6,
               createdAt: Date.now(),
             })
           }
         }
       })
+
+      // 클러스터 기반 연결
+      const clusterMap = new Map<string, string[]>()
+      nodes.forEach(node => {
+        if (node.clusterId) {
+          if (!clusterMap.has(node.clusterId)) clusterMap.set(node.clusterId, [])
+          clusterMap.get(node.clusterId)!.push(node.id)
+        }
+      })
+
+      clusterMap.forEach((nodeIds) => {
+        for (let i = 0; i < nodeIds.length - 1; i++) {
+          edges.push({
+            id: `edge-cluster-${edgeId++}`,
+            source: nodeIds[i],
+            target: nodeIds[i + 1],
+            type: 'part_of',
+            weight: 0.8,
+            createdAt: Date.now(),
+          })
+        }
+      })
+
+      // 시간순 연결 (follows)
+      const sortedNodes = [...nodes].sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0))
+      for (let i = 0; i < sortedNodes.length - 1; i++) {
+        if (Math.random() > 0.7) { // 일부만 연결
+          edges.push({
+            id: `edge-time-${edgeId++}`,
+            source: sortedNodes[i].id,
+            target: sortedNodes[i + 1].id,
+            type: 'follows',
+            weight: 0.4,
+            createdAt: Date.now(),
+          })
+        }
+      }
     }
 
     // 데이터가 없으면 Mock 데이터 사용
-    if (nodes.length === 0) {
+    const isMockData = nodes.length === 0
+    if (isMockData) {
       const mockNodeCount = Math.min(limit, 50)
       nodes = generateMockNodes(mockNodeCount)
       edges = generateMockEdges(nodes, mockNodeCount * 2)
@@ -169,7 +291,7 @@ export async function GET(
       meta: {
         totalNodes: nodes.length,
         totalEdges: edges.length,
-        isMockData: memories?.length === 0,
+        isMockData,
       },
     })
   } catch (error) {

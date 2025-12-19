@@ -9,9 +9,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import dynamic from 'next/dynamic'
 import * as THREE from 'three'
-import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass'
 import { cn } from '@/lib/utils'
 import type { BrainNode, BrainEdge, NodeType, EdgeType } from '@/types/brain-map'
+
+// @ts-ignore - three.js examples JSM modules don't have proper type declarations
+import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js'
 
 // SSR 비활성화 - react-force-graph-3d는 클라이언트에서만 작동
 const ForceGraph3D = dynamic(() => import('react-force-graph-3d'), {
@@ -212,7 +214,8 @@ export function BrainMap3D({
   }, [focusNodeId, graphData.nodes])
 
   // 노드 렌더링 (3D 오브젝트)
-  const nodeThreeObject = useCallback((node: GraphNode) => {
+  const nodeThreeObject = useCallback((nodeObj: any) => {
+    const node = nodeObj as GraphNode
     const isHighlighted = highlightNodes?.has(node.id) || hoveredNode?.id === node.id || selectedNode?.id === node.id
     const baseSize = Math.max(3, Math.min(12, node.importance || 5))
     const size = isHighlighted ? baseSize * 1.5 : baseSize
@@ -270,7 +273,8 @@ export function BrainMap3D({
   }, [hoveredNode, selectedNode, highlightNodes, showLabels])
 
   // 링크 렌더링
-  const linkColor = useCallback((link: GraphLink) => {
+  const linkColor = useCallback((linkObj: any) => {
+    const link = linkObj as GraphLink
     const isConnectedToHovered = hoveredNode &&
       (link.source === hoveredNode.id || link.target === hoveredNode.id ||
        (typeof link.source === 'object' && (link.source as any).id === hoveredNode.id) ||
@@ -282,7 +286,8 @@ export function BrainMap3D({
     return `${link.color || '#666666'}40` // 40% opacity
   }, [hoveredNode])
 
-  const linkWidth = useCallback((link: GraphLink) => {
+  const linkWidth = useCallback((linkObj: any) => {
+    const link = linkObj as GraphLink
     const isConnectedToHovered = hoveredNode &&
       (link.source === hoveredNode.id || link.target === hoveredNode.id ||
        (typeof link.source === 'object' && (link.source as any).id === hoveredNode.id) ||
@@ -292,7 +297,8 @@ export function BrainMap3D({
   }, [hoveredNode])
 
   // 이벤트 핸들러
-  const handleNodeClick = useCallback((node: GraphNode) => {
+  const handleNodeClick = useCallback((nodeObj: any) => {
+    const node = nodeObj as GraphNode
     setSelectedNode(node)
     onNodeClick?.(node)
 
@@ -306,7 +312,8 @@ export function BrainMap3D({
     }
   }, [onNodeClick])
 
-  const handleNodeHover = useCallback((node: GraphNode | null) => {
+  const handleNodeHover = useCallback((nodeObj: any) => {
+    const node = nodeObj ? (nodeObj as GraphNode) : null
     setHoveredNode(node)
     onNodeHover?.(node)
 
@@ -345,13 +352,16 @@ export function BrainMap3D({
         height={dimensions.height}
         graphData={graphData}
         nodeId="id"
-        nodeLabel={(node: GraphNode) => `
+        nodeLabel={(node) => {
+          const n = node as GraphNode
+          return `
           <div style="background: rgba(0,0,0,0.8); padding: 8px 12px; border-radius: 8px; color: white;">
-            <div style="font-weight: bold; margin-bottom: 4px;">${node.title}</div>
-            <div style="font-size: 12px; color: ${node.color};">${NODE_TYPE_LABELS[node.type] || node.type}</div>
-            ${node.summary ? `<div style="font-size: 11px; color: #aaa; margin-top: 4px; max-width: 200px;">${node.summary}</div>` : ''}
+            <div style="font-weight: bold; margin-bottom: 4px;">${n.title || 'Unknown'}</div>
+            <div style="font-size: 12px; color: ${n.color || '#fff'};">${n.type ? (NODE_TYPE_LABELS[n.type] || n.type) : 'node'}</div>
+            ${n.summary ? `<div style="font-size: 11px; color: #aaa; margin-top: 4px; max-width: 200px;">${n.summary}</div>` : ''}
           </div>
-        `}
+        `
+        }}
         nodeThreeObject={nodeThreeObject}
         nodeThreeObjectExtend={false}
         linkColor={linkColor}
@@ -360,7 +370,7 @@ export function BrainMap3D({
         linkDirectionalParticles={2}
         linkDirectionalParticleWidth={2}
         linkDirectionalParticleSpeed={0.005}
-        linkDirectionalParticleColor={(link: GraphLink) => link.color || '#ffffff'}
+        linkDirectionalParticleColor={(link) => (link as GraphLink).color || '#ffffff'}
         onNodeClick={handleNodeClick}
         onNodeHover={handleNodeHover}
         onBackgroundClick={handleBackgroundClick}

@@ -3,9 +3,14 @@
 /**
  * BrainMapLayout - 에이전트 지식 그래프 레이아웃
  * 탭: 패스파인더, 클러스터, 로드맵
+ *
+ * 실제 기능:
+ * - 패스파인더: BFS 경로 탐색 + 노드 자동완성
+ * - 클러스터: DB 기반 클러스터링 + 3D 필터링
+ * - 로드맵: 시간순 트리 구조 시각화
  */
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useState, useRef } from 'react'
 import dynamic from 'next/dynamic'
 import { cn } from '@/lib/utils'
 import {
@@ -28,8 +33,17 @@ import {
   X,
   ZoomIn,
   ZoomOut,
+  Loader2,
 } from 'lucide-react'
 import type { BrainNode, BrainCluster, BrainInsight, NodeType } from '@/types/brain-map'
+
+// 검색 결과 타입
+interface SearchResult {
+  id: string
+  title: string
+  type: string
+  source: string
+}
 
 // BrainMap3D를 동적 import (SSR 비활성화)
 const BrainMap3D = dynamic(() => import('./BrainMap3D'), {
@@ -77,7 +91,23 @@ export function BrainMapLayout({ agentId, isDark = true }: BrainMapLayoutProps) 
   // Pathfinder state
   const [startNode, setStartNode] = useState('')
   const [endNode, setEndNode] = useState('')
+  const [startNodeId, setStartNodeId] = useState<string | null>(null)
+  const [endNodeId, setEndNodeId] = useState<string | null>(null)
   const [pathResults, setPathResults] = useState<any[]>([])
+  const [pathNodes, setPathNodes] = useState<any[]>([])
+  const [isSearching, setIsSearching] = useState(false)
+  const [pathError, setPathError] = useState<string | null>(null)
+
+  // Autocomplete state
+  const [startSuggestions, setStartSuggestions] = useState<SearchResult[]>([])
+  const [endSuggestions, setEndSuggestions] = useState<SearchResult[]>([])
+  const [showStartSuggestions, setShowStartSuggestions] = useState(false)
+  const [showEndSuggestions, setShowEndSuggestions] = useState(false)
+  const [isLoadingStart, setIsLoadingStart] = useState(false)
+  const [isLoadingEnd, setIsLoadingEnd] = useState(false)
+  const startInputRef = useRef<HTMLInputElement>(null)
+  const endInputRef = useRef<HTMLInputElement>(null)
+  const debounceTimerRef = useRef<NodeJS.Timeout | null>(null)
 
   // Cluster state
   const [clusters, setClusters] = useState<BrainCluster[]>([])
@@ -126,27 +156,117 @@ export function BrainMapLayout({ agentId, isDark = true }: BrainMapLayoutProps) 
     fetchInsights()
   }, [agentId])
 
+  // 노드 검색 (자동완성)
+  const searchNodes = useCallback(async (query: string, type: 'start' | 'end') => {
+    if (query.length < 1) {
+      if (type === 'start') setStartSuggestions([])
+      else setEndSuggestions([])
+      return
+    }
+
+    if (type === 'start') setIsLoadingStart(true)
+    else setIsLoadingEnd(true)
+
+    try {
+      const res = await fetch(`/api/agents/${agentId}/brain/nodes/search?q=${encodeURIComponent(query)}&limit=8`)
+      if (res.ok) {
+        const data = await res.json()
+        if (type === 'start') {
+          setStartSuggestions(data.nodes || [])
+          setShowStartSuggestions(true)
+        } else {
+          setEndSuggestions(data.nodes || [])
+          setShowEndSuggestions(true)
+        }
+      }
+    } catch (error) {
+      console.error('Node search failed:', error)
+    } finally {
+      if (type === 'start') setIsLoadingStart(false)
+      else setIsLoadingEnd(false)
+    }
+  }, [agentId])
+
+  // 디바운스 검색
+  const handleInputChange = useCallback((value: string, type: 'start' | 'end') => {
+    if (type === 'start') {
+      setStartNode(value)
+      setStartNodeId(null)
+    } else {
+      setEndNode(value)
+      setEndNodeId(null)
+    }
+
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current)
+    }
+
+    debounceTimerRef.current = setTimeout(() => {
+      searchNodes(value, type)
+    }, 300)
+  }, [searchNodes])
+
+  // 자동완성 선택
+  const handleSuggestionSelect = (node: SearchResult, type: 'start' | 'end') => {
+    if (type === 'start') {
+      setStartNode(node.title)
+      setStartNodeId(node.id)
+      setShowStartSuggestions(false)
+    } else {
+      setEndNode(node.title)
+      setEndNodeId(node.id)
+      setShowEndSuggestions(false)
+    }
+  }
+
   // 패스파인더 검색
   const handlePathSearch = async () => {
     if (!startNode || !endNode) return
 
+    setIsSearching(true)
+    setPathError(null)
+    setPathResults([])
+    setPathNodes([])
+
     try {
-      const res = await fetch(`/api/agents/${agentId}/brain/pathfinder?from=${startNode}&to=${endNode}`)
+      const fromParam = startNodeId || startNode
+      const toParam = endNodeId || endNode
+      const res = await fetch(`/api/agents/${agentId}/brain/pathfinder?from=${encodeURIComponent(fromParam)}&to=${encodeURIComponent(toParam)}`)
+
       if (res.ok) {
         const data = await res.json()
         if (data.found && data.trace) {
           setPathResults(data.trace.steps || [])
+          setPathNodes(data.pathNodes || [])
           // 경로의 노드들 하이라이트
           const nodeIds = new Set<string>()
-          data.trace.steps.forEach((step: any) => {
-            step.usedNodeIds?.forEach((id: string) => nodeIds.add(id))
-          })
+          data.path?.forEach((id: string) => nodeIds.add(id))
           setHighlightNodes(nodeIds)
+        } else {
+          setPathError(data.message || '경로를 찾을 수 없습니다.')
         }
+      } else {
+        const errData = await res.json()
+        setPathError(errData.error || '경로 탐색 실패')
       }
     } catch (error) {
       console.error('Path search failed:', error)
+      setPathError('경로 탐색 중 오류가 발생했습니다.')
+    } finally {
+      setIsSearching(false)
     }
+  }
+
+  // 경로 초기화
+  const handleClearPath = () => {
+    setStartNode('')
+    setEndNode('')
+    setStartNodeId(null)
+    setEndNodeId(null)
+    setPathResults([])
+    setPathNodes([])
+    setPathError(null)
+    setHighlightNodes(new Set())
   }
 
   // 클러스터 선택
@@ -225,90 +345,208 @@ export function BrainMapLayout({ agentId, isDark = true }: BrainMapLayoutProps) 
           {/* 패스파인더 */}
           {activeTab === 'pathfinder' && (
             <div className="space-y-4">
-              {/* 시작/종료 지점 */}
+              {/* 시작 지점 */}
               <div className="space-y-2">
                 <label className={cn('text-xs font-medium', isDark ? 'text-zinc-400' : 'text-zinc-600')}>
                   시작 지점
                 </label>
                 <div className="relative">
                   <input
+                    ref={startInputRef}
                     type="text"
                     value={startNode}
-                    onChange={(e) => setStartNode(e.target.value)}
+                    onChange={(e) => handleInputChange(e.target.value, 'start')}
+                    onFocus={() => startSuggestions.length > 0 && setShowStartSuggestions(true)}
+                    onBlur={() => setTimeout(() => setShowStartSuggestions(false), 200)}
                     placeholder="노드 검색..."
                     className={cn(
                       'w-full px-3 py-2 rounded-lg text-sm',
                       isDark
                         ? 'bg-zinc-800 border-zinc-700 text-white placeholder-zinc-500'
                         : 'bg-white border-zinc-300 text-zinc-900 placeholder-zinc-400',
-                      'border focus:outline-none focus:ring-2 focus:ring-cyan-500'
+                      'border focus:outline-none focus:ring-2 focus:ring-cyan-500',
+                      startNodeId && 'border-cyan-500'
                     )}
                   />
-                  <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
+                  {isLoadingStart ? (
+                    <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-cyan-500 animate-spin" />
+                  ) : (
+                    <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
+                  )}
+
+                  {/* 시작 노드 자동완성 드롭다운 */}
+                  {showStartSuggestions && startSuggestions.length > 0 && (
+                    <div className={cn(
+                      'absolute z-50 w-full mt-1 py-1 rounded-lg shadow-lg max-h-48 overflow-y-auto',
+                      isDark ? 'bg-zinc-800 border border-zinc-700' : 'bg-white border border-zinc-200'
+                    )}>
+                      {startSuggestions.map((node) => (
+                        <button
+                          key={node.id}
+                          onClick={() => handleSuggestionSelect(node, 'start')}
+                          className={cn(
+                            'w-full text-left px-3 py-2 text-sm transition-colors',
+                            isDark ? 'hover:bg-zinc-700 text-zinc-200' : 'hover:bg-zinc-100 text-zinc-800'
+                          )}
+                        >
+                          <div className="flex items-center gap-2">
+                            <span className={cn(
+                              'px-1.5 py-0.5 rounded text-[10px] font-medium',
+                              isDark ? 'bg-zinc-700 text-zinc-400' : 'bg-zinc-200 text-zinc-500'
+                            )}>
+                              {node.type}
+                            </span>
+                            <span className="truncate">{node.title}</span>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
 
+              {/* 종료 지점 */}
               <div className="space-y-2">
                 <label className={cn('text-xs font-medium', isDark ? 'text-zinc-400' : 'text-zinc-600')}>
                   종료 지점
                 </label>
                 <div className="relative">
                   <input
+                    ref={endInputRef}
                     type="text"
                     value={endNode}
-                    onChange={(e) => setEndNode(e.target.value)}
+                    onChange={(e) => handleInputChange(e.target.value, 'end')}
+                    onFocus={() => endSuggestions.length > 0 && setShowEndSuggestions(true)}
+                    onBlur={() => setTimeout(() => setShowEndSuggestions(false), 200)}
                     placeholder="노드 검색..."
                     className={cn(
                       'w-full px-3 py-2 rounded-lg text-sm',
                       isDark
                         ? 'bg-zinc-800 border-zinc-700 text-white placeholder-zinc-500'
                         : 'bg-white border-zinc-300 text-zinc-900 placeholder-zinc-400',
-                      'border focus:outline-none focus:ring-2 focus:ring-cyan-500'
+                      'border focus:outline-none focus:ring-2 focus:ring-cyan-500',
+                      endNodeId && 'border-cyan-500'
                     )}
                   />
-                  <Target className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
+                  {isLoadingEnd ? (
+                    <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-cyan-500 animate-spin" />
+                  ) : (
+                    <Target className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
+                  )}
+
+                  {/* 종료 노드 자동완성 드롭다운 */}
+                  {showEndSuggestions && endSuggestions.length > 0 && (
+                    <div className={cn(
+                      'absolute z-50 w-full mt-1 py-1 rounded-lg shadow-lg max-h-48 overflow-y-auto',
+                      isDark ? 'bg-zinc-800 border border-zinc-700' : 'bg-white border border-zinc-200'
+                    )}>
+                      {endSuggestions.map((node) => (
+                        <button
+                          key={node.id}
+                          onClick={() => handleSuggestionSelect(node, 'end')}
+                          className={cn(
+                            'w-full text-left px-3 py-2 text-sm transition-colors',
+                            isDark ? 'hover:bg-zinc-700 text-zinc-200' : 'hover:bg-zinc-100 text-zinc-800'
+                          )}
+                        >
+                          <div className="flex items-center gap-2">
+                            <span className={cn(
+                              'px-1.5 py-0.5 rounded text-[10px] font-medium',
+                              isDark ? 'bg-zinc-700 text-zinc-400' : 'bg-zinc-200 text-zinc-500'
+                            )}>
+                              {node.type}
+                            </span>
+                            <span className="truncate">{node.title}</span>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
 
-              <button
-                onClick={handlePathSearch}
-                disabled={!startNode || !endNode}
-                className={cn(
-                  'w-full py-2 rounded-lg font-medium text-sm transition-colors',
-                  startNode && endNode
-                    ? 'bg-cyan-500 hover:bg-cyan-600 text-white'
-                    : isDark
-                      ? 'bg-zinc-800 text-zinc-500 cursor-not-allowed'
-                      : 'bg-zinc-200 text-zinc-400 cursor-not-allowed'
+              {/* 검색/초기화 버튼 */}
+              <div className="flex gap-2">
+                <button
+                  onClick={handlePathSearch}
+                  disabled={!startNode || !endNode || isSearching}
+                  className={cn(
+                    'flex-1 py-2 rounded-lg font-medium text-sm transition-colors flex items-center justify-center gap-2',
+                    startNode && endNode && !isSearching
+                      ? 'bg-cyan-500 hover:bg-cyan-600 text-white'
+                      : isDark
+                        ? 'bg-zinc-800 text-zinc-500 cursor-not-allowed'
+                        : 'bg-zinc-200 text-zinc-400 cursor-not-allowed'
+                  )}
+                >
+                  {isSearching ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      탐색 중...
+                    </>
+                  ) : (
+                    '경로 탐색'
+                  )}
+                </button>
+                {(pathResults.length > 0 || pathError) && (
+                  <button
+                    onClick={handleClearPath}
+                    className={cn(
+                      'px-3 py-2 rounded-lg text-sm transition-colors',
+                      isDark ? 'bg-zinc-800 hover:bg-zinc-700 text-zinc-400' : 'bg-zinc-200 hover:bg-zinc-300 text-zinc-600'
+                    )}
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
                 )}
-              >
-                경로 탐색
-              </button>
+              </div>
+
+              {/* 에러 메시지 */}
+              {pathError && (
+                <div className={cn(
+                  'p-3 rounded-lg text-sm',
+                  isDark ? 'bg-red-900/30 text-red-400' : 'bg-red-50 text-red-600'
+                )}>
+                  {pathError}
+                </div>
+              )}
 
               {/* 경로 결과 */}
-              {pathResults.length > 0 && (
+              {pathNodes.length > 0 && (
                 <div className="mt-4 space-y-2">
-                  <h4 className={cn('text-sm font-semibold', isDark ? 'text-white' : 'text-zinc-900')}>
-                    경로 ({pathResults.length}단계)
+                  <h4 className={cn('text-sm font-semibold flex items-center gap-2', isDark ? 'text-white' : 'text-zinc-900')}>
+                    <Route className="w-4 h-4 text-cyan-500" />
+                    경로 ({pathNodes.length - 1}단계)
                   </h4>
                   <div className="space-y-1">
-                    {pathResults.map((step, idx) => (
+                    {pathNodes.map((node: any, idx: number) => (
                       <div
                         key={idx}
                         className={cn(
                           'flex items-center gap-2 p-2 rounded-lg text-xs',
-                          isDark ? 'bg-zinc-800' : 'bg-white border border-zinc-200'
+                          isDark ? 'bg-zinc-800' : 'bg-white border border-zinc-200',
+                          idx === 0 && 'border-l-2 border-l-green-500',
+                          idx === pathNodes.length - 1 && 'border-l-2 border-l-cyan-500'
                         )}
                       >
                         <span className={cn(
-                          'w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold',
-                          'bg-cyan-500 text-white'
+                          'w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0',
+                          idx === 0 ? 'bg-green-500 text-white' :
+                          idx === pathNodes.length - 1 ? 'bg-cyan-500 text-white' :
+                          'bg-zinc-600 text-white'
                         )}>
                           {idx + 1}
                         </span>
-                        <span className={isDark ? 'text-zinc-300' : 'text-zinc-700'}>
-                          {step.output || step.stepType}
-                        </span>
+                        <div className="flex-1 min-w-0">
+                          <span className={cn('truncate block', isDark ? 'text-zinc-200' : 'text-zinc-700')}>
+                            {node.title || node.id}
+                          </span>
+                          {node.type && (
+                            <span className={cn('text-[10px]', isDark ? 'text-zinc-500' : 'text-zinc-400')}>
+                              {node.type}
+                            </span>
+                          )}
+                        </div>
                       </div>
                     ))}
                   </div>
