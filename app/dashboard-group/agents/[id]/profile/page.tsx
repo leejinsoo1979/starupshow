@@ -23,7 +23,7 @@ import {
 import { Button } from '@/components/ui/Button'
 import { AgentProfile, type AgentProfileData } from '@/components/agent/AgentProfile'
 import { StatsRadar, StatsRadarPanel, type AgentStatsData } from '@/components/agent/StatsRadar'
-import { KnowledgeGraphPanel } from '@/components/agent/KnowledgeGraph'
+import { KnowledgeGraph3DPanel } from '@/components/agent/KnowledgeGraph3D'
 import { createClient } from '@/lib/supabase/client'
 
 // ============================================
@@ -544,9 +544,11 @@ function StatsTab({
         <div className="space-y-4">
           {[
             { key: 'analysis', label: '분석력', color: '#3b82f6' },
-            { key: 'communication', label: '커뮤니케이션', color: '#22c55e' },
+            { key: 'communication', label: '소통력', color: '#22c55e' },
             { key: 'creativity', label: '창의력', color: '#8b5cf6' },
             { key: 'leadership', label: '리더십', color: '#f59e0b' },
+            { key: 'execution', label: '실행력', color: '#ef4444' },
+            { key: 'adaptability', label: '적응력', color: '#06b6d4' },
           ].map((stat) => (
             <div key={stat.key}>
               <div className="flex items-center justify-between mb-2">
@@ -757,7 +759,7 @@ export default function AgentProfilePage() {
 
         {activeTab === 'brain' && (
           <div className="space-y-6">
-            <KnowledgeGraphPanel
+            <KnowledgeGraph3DPanel
               agentId={agentId}
               isDark={isDark}
             />

@@ -44,7 +44,7 @@ export async function GET(request: NextRequest, { params }: Params) {
       return NextResponse.json({ error: 'Agent not found' }, { status: 404 })
     }
 
-    // 에이전트 스탯 조회
+    // 에이전트 스탯 조회 (6종 능력치)
     const { data: stats } = await supabase
       .from('agent_stats')
       .select('*')
@@ -57,6 +57,8 @@ export async function GET(request: NextRequest, { params }: Params) {
         communication?: number
         creativity?: number
         leadership?: number
+        execution?: number
+        adaptability?: number
       } | null }
 
     // 최근 성과 조회 (agent_learnings에서)
@@ -149,6 +151,8 @@ export async function GET(request: NextRequest, { params }: Params) {
         communication: stats?.communication || 50,
         creativity: stats?.creativity || 50,
         leadership: stats?.leadership || 50,
+        execution: stats?.execution || 50,
+        adaptability: stats?.adaptability || 50,
       },
 
       recentAchievements,

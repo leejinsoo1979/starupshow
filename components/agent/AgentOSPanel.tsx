@@ -37,6 +37,8 @@ interface AgentStats {
   communication: number
   creativity: number
   leadership: number
+  execution: number
+  adaptability: number
   expertise: Record<string, { level: string; experience: number }>
   total_conversations: number
   total_tasks_completed: number
@@ -288,6 +290,8 @@ export function AgentOSPanel({ agentId, isDark }: AgentOSPanelProps) {
                   communication: stats.communication,
                   creativity: stats.creativity,
                   leadership: stats.leadership,
+                  execution: stats.execution,
+                  adaptability: stats.adaptability,
                   level: stats.level,
                 }}
                 isDark={isDark}
@@ -299,6 +303,8 @@ export function AgentOSPanel({ agentId, isDark }: AgentOSPanelProps) {
                   communication: stats.communication,
                   creativity: stats.creativity,
                   leadership: stats.leadership,
+                  execution: stats.execution,
+                  adaptability: stats.adaptability,
                 }}
                 isDark={isDark}
               />
@@ -307,7 +313,7 @@ export function AgentOSPanel({ agentId, isDark }: AgentOSPanelProps) {
             <div className="grid grid-cols-2 gap-4">
               <StatBar label="분석력" value={stats.analysis} color="#3b82f6" icon={Brain} isDark={isDark} />
               <StatBar
-                label="커뮤니케이션"
+                label="소통력"
                 value={stats.communication}
                 color="#22c55e"
                 icon={MessageSquare}
@@ -325,6 +331,20 @@ export function AgentOSPanel({ agentId, isDark }: AgentOSPanelProps) {
                 value={stats.leadership}
                 color="#f59e0b"
                 icon={Users}
+                isDark={isDark}
+              />
+              <StatBar
+                label="실행력"
+                value={stats.execution}
+                color="#ef4444"
+                icon={Target}
+                isDark={isDark}
+              />
+              <StatBar
+                label="적응력"
+                value={stats.adaptability}
+                color="#06b6d4"
+                icon={Zap}
                 isDark={isDark}
               />
             </div>
