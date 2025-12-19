@@ -67,9 +67,10 @@ export function FileTreePanel({ mapId }: FileTreePanelProps) {
   const addFile = useNeuralMapStore((s) => s.addFile)
   const removeFile = useNeuralMapStore((s) => s.removeFile)
   const currentTheme = useNeuralMapStore((s) => s.currentTheme)
+  const graph = useNeuralMapStore((s) => s.graph)
 
   // API hook
-  const { uploadFile, deleteFile } = useNeuralMapApi(mapId)
+  const { uploadFile, deleteFile, createNode, createEdge } = useNeuralMapApi(mapId)
 
   // 파일 업로드 핸들러
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -78,9 +79,37 @@ export function FileTreePanel({ mapId }: FileTreePanelProps) {
 
     setIsUploading(true)
     try {
+      // 1. 파일 업로드
       const result = await uploadFile(selectedFile)
       if (result) {
         addFile(result)
+
+        // 2. 파일에 대한 노드 생성
+        const nodeType = result.type === 'pdf' ? 'doc' :
+                        result.type === 'markdown' ? 'doc' :
+                        result.type === 'image' ? 'memory' :
+                        result.type === 'video' ? 'memory' : 'doc'
+
+        const newNode = await createNode({
+          type: nodeType as any,
+          title: result.name,
+          summary: `${result.type} 파일`,
+          tags: [result.type],
+          importance: 5,
+        })
+
+        // 3. Self 노드 찾아서 엣지 생성
+        if (newNode && graph?.nodes) {
+          const selfNode = graph.nodes.find(n => n.type === 'self')
+          if (selfNode) {
+            await createEdge({
+              sourceId: selfNode.id,
+              targetId: newNode.id,
+              type: 'parent_child',
+              weight: 0.7,
+            })
+          }
+        }
       }
     } catch (error) {
       console.error('File upload error:', error)
