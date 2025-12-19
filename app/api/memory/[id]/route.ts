@@ -1,3 +1,4 @@
+export const dynamic = 'force-dynamic'
 /**
  * Memory ID API - 개별 메모리 조회 및 관련 작업 엔드포인트
  *

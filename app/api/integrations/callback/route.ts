@@ -1,3 +1,4 @@
+export const dynamic = 'force-dynamic'
 /**
  * OAuth Callback Handler
  * 외부 앱 OAuth 인증 콜백 처리

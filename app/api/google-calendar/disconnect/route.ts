@@ -1,3 +1,4 @@
+export const dynamic = 'force-dynamic'
 /**
  * Google Calendar Disconnect
  * POST /api/google-calendar/disconnect

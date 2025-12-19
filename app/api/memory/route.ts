@@ -1,3 +1,4 @@
+export const dynamic = 'force-dynamic'
 /**
  * Memory API - 메모리 CRUD 엔드포인트
  *

@@ -1,19 +1,67 @@
 /**
- * Memory Services - 불변 메모리 시스템 모듈
+ * Memory Services - AI 에이전트 메모리 시스템 모듈
  *
- * 이 모듈은 AI 에이전트를 위한 불변 장기 메모리 시스템을 제공합니다.
+ * 이 모듈은 AI 에이전트를 위한 메모리 시스템을 제공합니다.
  *
- * 핵심 원칙:
- * 1. 불변성: 원본 데이터는 절대 수정/삭제되지 않음
- * 2. 모델 독립성: LLM 모델 변경 시에도 메모리는 영구 보존
- * 3. 재생성 가능: 임베딩과 분석은 모델별로 재생성 가능
+ * === Agent OS v2.0 (신규) ===
+ * PRD v2.0 기반 메모리 & 성장 시스템
+ * - 5가지 메모리 타입 (Private, Meeting, Team, Injected, Execution)
+ * - 관계 관리 (친밀도, 신뢰도, 소통 스타일)
+ * - 학습 시스템 (인사이트 추출, 패턴 학습)
+ * - 능력치 시스템 (분석력, 소통력, 창의성, 리더십)
  *
- * 구조:
+ * === Legacy System ===
+ * 불변 장기 메모리 시스템 (immutable_memory 테이블 사용)
  * - ImmutableMemoryService: 원본 메모리 저장/조회 (Append-Only)
  * - MemoryEmbeddingService: 모델별 임베딩 관리 (Regeneratable)
  * - MemoryAnalysisService: 모델별 분석 관리 (Regeneratable)
  */
 
+// ============================================
+// Agent OS v2.0 (신규)
+// ============================================
+export * from './agent-os'
+
+// Agent Memory Search Service (Phase 2.3)
+export {
+  searchMemories,
+  hybridSearch,
+  fulltextSearch,
+  filterByPermission,
+  getAccessibleMemories,
+  searchKnowledgeBase,
+  getLinkedMemories,
+  getMemoryGraphData,
+  buildConversationContext,
+  formatMemoriesForContext,
+  type VectorSearchParams,
+  type HybridSearchParams,
+  type SearchResultWithScores,
+  type PermissionCheckResult,
+  type MemoryGraphData,
+  type KnowledgeSearchParams,
+  type KnowledgeSearchResult,
+} from './agent-memory-search-service'
+
+// Agent Style Adapter (Phase 3.2)
+export {
+  createStyleConfigFromRelationship,
+  adaptStyleRuleBased,
+  adaptStyleWithLLM,
+  adaptStyle,
+  generateContextualGreeting,
+  generateContextualClosing,
+  detectStyle,
+  checkStyleConsistency,
+  STYLE_GUIDELINES,
+  type StyleConfig,
+  type AgentPersonality,
+  type StyleTransformResult,
+} from './agent-style-adapter'
+
+// ============================================
+// Legacy: Immutable Memory System
+// ============================================
 export {
   ImmutableMemoryService,
   createImmutableMemoryService,

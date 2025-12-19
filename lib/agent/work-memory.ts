@@ -7,9 +7,38 @@
  * - 피드백 및 학습
  * - 협업 이력
  * - 의사결정 근거
+ *
+ * v2.0: Agent OS 통합
+ * - Relationship (친밀도, 신뢰도)
+ * - Stats/Growth (능력치, 경험치)
+ * - Learnings (학습 인사이트)
  */
 
 import { createAdminClient } from '@/lib/supabase/admin'
+
+// Agent OS v2.0 imports
+import {
+  getOrCreateRelationship,
+  buildRelationshipContext,
+  recordInteraction,
+  type AgentRelationship,
+} from '@/lib/memory/agent-relationship-service'
+import {
+  getOrCreateStats,
+  formatStatsForPrompt,
+  onConversationComplete,
+  type AgentStats,
+} from '@/lib/memory/agent-stats-service'
+import {
+  buildLearningContext,
+  learnFromConversation,
+} from '@/lib/memory/agent-learning-service'
+import {
+  savePrivateMemory,
+} from '@/lib/memory/agent-memory-service'
+import {
+  triggerAgentCompression,
+} from '@/lib/memory/agent-compression-scheduler'
 
 export type WorkMemoryType =
   | 'task'           // 업무 수행 기록
@@ -55,6 +84,19 @@ export interface ActiveContext {
   communication_style?: string
 }
 
+// ============================================
+// Agent OS v2.0 Types
+// ============================================
+
+export interface AgentOSContext {
+  relationship: AgentRelationship | null
+  stats: AgentStats | null
+  relationshipContext: string
+  statsContext: string
+  learningsContext: string
+  greeting: string | null
+}
+
 interface SaveWorkMemoryParams {
   agentId: string
   userId: string
@@ -79,6 +121,155 @@ const getSupabase = () => {
     _supabase = createAdminClient()
   }
   return _supabase
+}
+
+// ============================================
+// Agent OS v2.0 Functions
+// ============================================
+
+/**
+ * Agent OS 컨텍스트 로드
+ * 관계, 능력치, 학습 인사이트 로드
+ */
+export async function loadAgentOSContext(
+  agentId: string,
+  userId: string,
+  options?: {
+    relevantTopics?: string[]
+  }
+): Promise<AgentOSContext> {
+  const context: AgentOSContext = {
+    relationship: null,
+    stats: null,
+    relationshipContext: '',
+    statsContext: '',
+    learningsContext: '',
+    greeting: null,
+  }
+
+  try {
+    // 1. 관계 로드 (없으면 생성)
+    const relationship = await getOrCreateRelationship(agentId, 'user', userId)
+    if (relationship) {
+      context.relationship = relationship
+      context.relationshipContext = buildRelationshipContext(relationship)
+
+      // 친밀도 기반 인사말
+      const { generateGreeting } = await import('@/lib/memory/agent-relationship-service')
+      context.greeting = generateGreeting(relationship)
+    }
+
+    // 2. 능력치 로드 (없으면 생성)
+    const stats = await getOrCreateStats(agentId)
+    if (stats) {
+      context.stats = stats
+      context.statsContext = formatStatsForPrompt(stats)
+    }
+
+    // 3. 학습 인사이트 로드
+    context.learningsContext = await buildLearningContext(
+      agentId,
+      options?.relevantTopics
+    )
+
+    console.log(`[AgentOS] Context loaded for agent ${agentId}:`, {
+      hasRelationship: !!context.relationship,
+      rapport: context.relationship?.rapport,
+      hasStats: !!context.stats,
+      level: context.stats?.level,
+      learningsLength: context.learningsContext.length,
+    })
+
+    return context
+  } catch (error) {
+    console.error('[AgentOS] Context load error:', error)
+    return context
+  }
+}
+
+/**
+ * 대화 완료 후 Agent OS 처리
+ * 관계 업데이트, 성장, 학습 추출
+ */
+export async function processAgentConversation(params: {
+  agentId: string
+  userId: string
+  messages: Array<{ role: 'user' | 'assistant'; content: string }>
+  wasHelpful?: boolean
+  topicDomain?: string
+  relationshipId?: string
+}): Promise<{
+  memoryIds: string[]
+  relationshipUpdated: boolean
+  learnings: number
+  statsUpdated: boolean
+}> {
+  const result = {
+    memoryIds: [] as string[],
+    relationshipUpdated: false,
+    learnings: 0,
+    statsUpdated: false,
+  }
+
+  try {
+    // 1. 관계 조회 및 상호작용 기록
+    let relationshipId = params.relationshipId
+    if (!relationshipId) {
+      const relationship = await getOrCreateRelationship(
+        params.agentId,
+        'user',
+        params.userId
+      )
+      relationshipId = relationship?.id
+    }
+
+    if (relationshipId) {
+      await recordInteraction(relationshipId)
+      result.relationshipUpdated = true
+    }
+
+    // 2. 메모리 저장 (Agent OS 형식)
+    for (const msg of params.messages) {
+      const { success, id } = await savePrivateMemory({
+        agentId: params.agentId,
+        relationshipId: relationshipId || '',
+        content: `[${msg.role}] ${msg.content}`,
+        importance: msg.role === 'user' ? 6 : 5,
+      })
+
+      if (success && id) {
+        result.memoryIds.push(id)
+      }
+    }
+
+    // 3. 성장 처리
+    await onConversationComplete(params.agentId, {
+      wasHelpful: params.wasHelpful,
+      topicDomain: params.topicDomain,
+    })
+    result.statsUpdated = true
+
+    // 4. 학습 추출 (메모리 3개 이상일 때만)
+    if (result.memoryIds.length >= 3) {
+      const { saved } = await learnFromConversation(
+        params.agentId,
+        result.memoryIds
+      )
+      result.learnings = saved
+    }
+
+    // 5. 비동기 메모리 압축 트리거 (10개 이상 미압축 메모리 있을 때)
+    triggerAgentCompression(params.agentId, {
+      minCount: 10,
+      maxBatch: 20,
+    }).catch(err => console.error('[AgentOS] Compression trigger error:', err))
+
+    console.log(`[AgentOS] Conversation processed:`, result)
+    return result
+  } catch (error) {
+    console.error('[AgentOS] Process conversation error:', error)
+    return result
+  }
 }
 
 /**
@@ -501,6 +692,8 @@ async function updateAgentRelationship(agentId: string, relatedAgentId: string, 
 /**
  * 에이전트 업무 컨텍스트 로드 (채팅 시 사용)
  * 에이전트가 대화 시작 전에 알아야 할 모든 맥락을 로드
+ *
+ * v2.0: Agent OS 컨텍스트 통합
  */
 export async function loadAgentWorkContext(agentId: string, userId: string): Promise<{
   activeContext: ActiveContext | null
@@ -508,6 +701,7 @@ export async function loadAgentWorkContext(agentId: string, userId: string): Pro
   importantMemories: WorkMemory[]
   pendingTasks: any[]
   meetingHistory: any[]
+  agentOS: AgentOSContext | null
 }> {
   // 1. 활성 컨텍스트
   const activeContext = await getActiveContext(agentId, userId)
@@ -602,17 +796,28 @@ export async function loadAgentWorkContext(agentId: string, userId: string): Pro
     console.error('[WorkMemory] Meeting history load error:', meetingError)
   }
 
+  // 6. Agent OS v2.0 컨텍스트 로드
+  let agentOS: AgentOSContext | null = null
+  try {
+    agentOS = await loadAgentOSContext(agentId, userId)
+  } catch (agentOSError) {
+    console.error('[WorkMemory] Agent OS context load error:', agentOSError)
+  }
+
   return {
     activeContext,
     recentMemories: recentMemories || [],
     importantMemories: importantMemories || [],
     pendingTasks: pendingTasks || [],
     meetingHistory,
+    agentOS,
   }
 }
 
 /**
  * 컨텍스트를 프롬프트용 텍스트로 변환
+ *
+ * v2.0: Agent OS 컨텍스트 통합
  */
 export function formatContextForPrompt(context: {
   activeContext: ActiveContext | null
@@ -620,8 +825,31 @@ export function formatContextForPrompt(context: {
   importantMemories: WorkMemory[]
   pendingTasks: any[]
   meetingHistory?: any[]
+  agentOS?: AgentOSContext | null
 }): string {
   const parts: string[] = []
+
+  // ============================================
+  // Agent OS v2.0 컨텍스트 (가장 먼저 - 관계와 성장 정보)
+  // ============================================
+  if (context.agentOS) {
+    const os = context.agentOS
+
+    // 관계 컨텍스트 (친밀도, 신뢰도, 소통 스타일)
+    if (os.relationshipContext) {
+      parts.push(os.relationshipContext)
+    }
+
+    // 능력치 컨텍스트 (레벨, 스탯, 전문성)
+    if (os.statsContext) {
+      parts.push(os.statsContext)
+    }
+
+    // 학습 인사이트
+    if (os.learningsContext) {
+      parts.push(os.learningsContext)
+    }
+  }
 
   // 회의실 대화 기록 (가장 먼저 - 중요한 컨텍스트)
   if (context.meetingHistory && context.meetingHistory.length > 0) {
@@ -709,6 +937,7 @@ export async function searchRelevantMemories(
 }
 
 export default {
+  // 기존 Work Memory
   saveWorkMemory,
   saveInstruction,
   saveTaskExecution,
@@ -723,4 +952,7 @@ export default {
   loadAgentWorkContext,
   formatContextForPrompt,
   searchRelevantMemories,
+  // Agent OS v2.0
+  loadAgentOSContext,
+  processAgentConversation,
 }

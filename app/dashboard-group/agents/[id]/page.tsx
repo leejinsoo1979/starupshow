@@ -65,6 +65,7 @@ import { PROVIDER_INFO, LLMProvider, AVAILABLE_MODELS } from '@/lib/llm/models'
 import { createClient } from '@/lib/supabase/client'
 import type { DeployedAgent, AgentStatus } from '@/types/database'
 import { getAppLogo } from '@/components/icons/app-logos'
+import { AgentOSPanel } from '@/components/agent/AgentOSPanel'
 
 type TabType = 'about' | 'chat' | 'history' | 'workspace' | 'memory' | 'knowledge' | 'integrations' | 'apis' | 'workflow' | 'settings'
 
@@ -5871,6 +5872,9 @@ export default function AgentProfilePage() {
                 </h2>
                 <div className="w-10 h-1 bg-accent rounded-full mb-6" />
               </div>
+
+              {/* Agent OS v2.0 Panel */}
+              <AgentOSPanel agentId={agent.id} isDark={isDark} />
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 {/* Work Logs */}

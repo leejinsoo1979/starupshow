@@ -1,3 +1,4 @@
+export const dynamic = 'force-dynamic'
 /**
  * Google Calendar Events API
  * GET /api/google-calendar/events

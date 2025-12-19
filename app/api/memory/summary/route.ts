@@ -1,3 +1,4 @@
+export const dynamic = 'force-dynamic'
 /**
  * Memory Summary API - 일간/주간/월간 요약 엔드포인트
  *

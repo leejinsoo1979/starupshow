@@ -1,3 +1,4 @@
+export const dynamic = 'force-dynamic'
 import { NextRequest, NextResponse } from 'next/server'
 
 const SYSTEM_PROMPT = `당신은 Google Sheets 전문 AI 어시스턴트입니다. 사용자의 자연어 명령을 분석하여 실무에서 바로 사용할 수 있는 수준의 스프레드시트를 만듭니다.

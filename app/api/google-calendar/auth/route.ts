@@ -1,3 +1,4 @@
+export const dynamic = 'force-dynamic'
 /**
  * Google Calendar OAuth - Initiate Auth Flow
  * GET /api/google-calendar/auth

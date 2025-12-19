@@ -1,3 +1,4 @@
+export const dynamic = 'force-dynamic'
 /**
  * Agent Integrations API
  * 에이전트의 앱 연동 관리

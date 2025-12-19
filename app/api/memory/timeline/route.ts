@@ -1,3 +1,4 @@
+export const dynamic = 'force-dynamic'
 /**
  * Memory Timeline API - 타임라인 및 통계 엔드포인트
  *

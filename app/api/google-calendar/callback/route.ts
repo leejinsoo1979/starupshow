@@ -1,3 +1,4 @@
+export const dynamic = 'force-dynamic'
 /**
  * Google Calendar OAuth - Callback Handler
  * GET /api/google-calendar/callback

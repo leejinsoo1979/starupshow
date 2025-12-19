@@ -1,3 +1,4 @@
+export const dynamic = 'force-dynamic'
 /**
  * Google Calendar Connection Status
  * GET /api/google-calendar/status

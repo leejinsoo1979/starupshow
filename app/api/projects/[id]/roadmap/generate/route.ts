@@ -1,3 +1,4 @@
+export const dynamic = 'force-dynamic'
 import { createClientForApi, getAuthUser, DEV_USER } from '@/lib/supabase/server'
 import { NextRequest, NextResponse } from 'next/server'
 import { generateRoadmap, calculateNodePositions } from '@/lib/langchain/roadmap-generator'

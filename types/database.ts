@@ -1013,6 +1013,262 @@ export interface ExecuteNodeInput {
 }
 
 // ============================================
+// Agent OS v2.0 Types
+// ============================================
+
+// Agent Memory System Types
+export type AgentMemoryType = 'private' | 'meeting' | 'team' | 'injected' | 'execution'
+
+export type AgentLearningCategory =
+  | 'person'         // 특정 사람에 대한 학습
+  | 'project'        // 프로젝트 관련 학습
+  | 'domain'         // 도메인 지식
+  | 'workflow'       // 업무 패턴
+  | 'preference'     // 선호도
+  | 'decision_rule'  // 의사결정 규칙
+  | 'lesson'         // 경험에서 배운 교훈
+
+export type AgentCommunicationStyle = 'formal' | 'polite' | 'casual' | 'friendly'
+
+export type AgentPartnerType = 'user' | 'agent'
+
+export type AgentKnowledgeAccessLevel = 'private' | 'team' | 'public'
+
+// Agent Relationship: 에이전트-사용자/에이전트 관계
+export interface AgentRelationship {
+  id: string
+  agent_id: string
+  partner_type: AgentPartnerType
+  partner_user_id: string | null
+  partner_agent_id: string | null
+
+  // 관계 수치 (0-100)
+  rapport: number          // 친밀도
+  trust: number            // 신뢰도
+  familiarity: number      // 친숙도
+
+  // 소통 스타일
+  communication_style: AgentCommunicationStyle
+
+  // 관계 경계 및 선호도
+  boundaries: AgentRelationshipBoundaries
+
+  // 상호작용 통계
+  interaction_count: number
+  last_interaction_at: string | null
+  first_interaction_at: string
+
+  // 마일스톤 기록
+  milestones: AgentRelationshipMilestone[]
+
+  // 메타데이터
+  metadata: Record<string, unknown>
+
+  created_at: string
+  updated_at: string
+}
+
+export interface AgentRelationshipBoundaries {
+  preferred_topics?: string[]
+  avoided_topics?: string[]
+  preferred_time?: string
+  response_style?: 'brief' | 'detailed' | 'balanced'
+}
+
+export interface AgentRelationshipMilestone {
+  type: string
+  date: string
+  note?: string
+  data?: Record<string, unknown>
+}
+
+// Agent Memory: 5가지 메모리 타입
+export interface AgentMemory {
+  id: string
+  agent_id: string
+  memory_type: AgentMemoryType
+
+  // 접근 범위
+  relationship_id: string | null
+  meeting_id: string | null
+  room_id: string | null
+  team_id: string | null
+  workflow_run_id: string | null
+
+  // 메모리 내용
+  raw_content: string
+  summary: string | null
+
+  // 중요도 및 접근
+  importance: number  // 1-10
+  access_count: number
+  last_accessed_at: string | null
+
+  // 연결된 메모리
+  linked_memory_ids: string[]
+
+  // 임베딩 (벡터)
+  embedding: number[] | null
+
+  // 메타데이터
+  tags: string[]
+  metadata: Record<string, unknown>
+
+  created_at: string
+}
+
+// Agent Learning: 학습된 인사이트
+export interface AgentLearning {
+  id: string
+  agent_id: string
+
+  // 학습 카테고리
+  category: AgentLearningCategory
+
+  // 학습 대상
+  subject: string
+  subject_id: string | null
+
+  // 인사이트 내용
+  insight: string
+
+  // 신뢰도 및 검증
+  confidence: number  // 0-100
+  evidence_count: number
+
+  // 출처
+  source_memory_ids: string[]
+  source_workflow_run_ids: string[]
+
+  // 메타데이터
+  tags: string[]
+  metadata: Record<string, unknown>
+
+  created_at: string
+  updated_at: string
+}
+
+// Agent Stats: 능력치 시스템
+export interface AgentStats {
+  id: string
+  agent_id: string
+
+  // 기본 능력치 (0-100)
+  analysis: number       // 분석력
+  communication: number  // 소통력
+  creativity: number     // 창의성
+  leadership: number     // 리더십
+
+  // 도메인 전문성
+  expertise: Record<string, AgentExpertiseLevel>
+
+  // 전체 통계
+  total_interactions: number
+  total_meetings: number
+  total_workflow_executions: number
+  total_tasks_completed: number
+
+  // 성과 지표
+  success_rate: number | null
+  avg_response_time_seconds: number | null
+  total_cost: number
+
+  // 신뢰도 점수
+  trust_score: number  // 0-100
+
+  // 성장 기록
+  growth_log: AgentGrowthLogEntry[]
+
+  // 레벨 및 경험치
+  level: number
+  experience_points: number
+
+  created_at: string
+  updated_at: string
+}
+
+export interface AgentExpertiseLevel {
+  level: number           // 0-100
+  experience_count: number
+}
+
+export interface AgentGrowthLogEntry {
+  date: string
+  stat: 'analysis' | 'communication' | 'creativity' | 'leadership' | 'expertise'
+  domain?: string         // expertise인 경우
+  change: number
+  reason?: string
+}
+
+// Agent Knowledge Base: 주입된 지식
+export interface AgentKnowledgeBase {
+  id: string
+  agent_id: string
+
+  // 문서 정보
+  title: string
+  content: string
+  file_url: string | null
+  file_type: string | null
+
+  // 청크 정보
+  chunk_index: number
+  total_chunks: number
+  parent_doc_id: string | null
+
+  // 분류
+  category: string | null
+  tags: string[]
+
+  // 접근 레벨
+  access_level: AgentKnowledgeAccessLevel
+
+  // 임베딩
+  embedding: number[] | null
+
+  // 메타데이터
+  metadata: Record<string, unknown>
+
+  created_at: string
+  updated_at: string
+}
+
+// Input Types for Agent OS
+export interface CreateAgentMemoryInput {
+  agent_id: string
+  memory_type: AgentMemoryType
+  raw_content: string
+  relationship_id?: string
+  meeting_id?: string
+  room_id?: string
+  team_id?: string
+  workflow_run_id?: string
+  importance?: number
+  tags?: string[]
+  metadata?: Record<string, unknown>
+}
+
+export interface CreateAgentLearningInput {
+  agent_id: string
+  category: AgentLearningCategory
+  subject: string
+  subject_id?: string
+  insight: string
+  confidence?: number
+  source_memory_ids?: string[]
+  tags?: string[]
+  metadata?: Record<string, unknown>
+}
+
+export interface UpdateAgentRelationshipInput {
+  rapport_change?: number
+  trust_change?: number
+  familiarity_change?: number
+  milestone?: AgentRelationshipMilestone
+  boundaries?: Partial<AgentRelationshipBoundaries>
+}
+
+// ============================================
 // Supabase Database Type
 // ============================================
 
@@ -1393,6 +1649,220 @@ export interface Database {
           }
         ]
       }
+      // Agent OS v2.0 Tables
+      agent_relationships: {
+        Row: AgentRelationship
+        Insert: {
+          id?: string
+          agent_id: string
+          partner_type: AgentPartnerType
+          partner_user_id?: string | null
+          partner_agent_id?: string | null
+          rapport?: number
+          trust?: number
+          familiarity?: number
+          communication_style?: AgentCommunicationStyle
+          boundaries?: AgentRelationshipBoundaries
+          interaction_count?: number
+          last_interaction_at?: string | null
+          first_interaction_at?: string
+          milestones?: AgentRelationshipMilestone[]
+          metadata?: Record<string, unknown>
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          rapport?: number
+          trust?: number
+          familiarity?: number
+          communication_style?: AgentCommunicationStyle
+          boundaries?: AgentRelationshipBoundaries
+          interaction_count?: number
+          last_interaction_at?: string | null
+          milestones?: AgentRelationshipMilestone[]
+          metadata?: Record<string, unknown>
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "agent_relationships_agent_id_fkey"
+            columns: ["agent_id"]
+            referencedRelation: "deployed_agents"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
+      agent_memories: {
+        Row: AgentMemory
+        Insert: {
+          id?: string
+          agent_id: string
+          memory_type: AgentMemoryType
+          relationship_id?: string | null
+          meeting_id?: string | null
+          room_id?: string | null
+          team_id?: string | null
+          workflow_run_id?: string | null
+          raw_content: string
+          summary?: string | null
+          importance?: number
+          access_count?: number
+          last_accessed_at?: string | null
+          linked_memory_ids?: string[]
+          embedding?: number[] | null
+          tags?: string[]
+          metadata?: Record<string, unknown>
+          created_at?: string
+        }
+        Update: {
+          summary?: string | null
+          importance?: number
+          access_count?: number
+          last_accessed_at?: string | null
+          linked_memory_ids?: string[]
+          embedding?: number[] | null
+          tags?: string[]
+          metadata?: Record<string, unknown>
+        }
+        Relationships: [
+          {
+            foreignKeyName: "agent_memories_agent_id_fkey"
+            columns: ["agent_id"]
+            referencedRelation: "deployed_agents"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
+      agent_learnings: {
+        Row: AgentLearning
+        Insert: {
+          id?: string
+          agent_id: string
+          category: AgentLearningCategory
+          subject: string
+          subject_id?: string | null
+          insight: string
+          confidence?: number
+          evidence_count?: number
+          source_memory_ids?: string[]
+          source_workflow_run_ids?: string[]
+          tags?: string[]
+          metadata?: Record<string, unknown>
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          insight?: string
+          confidence?: number
+          evidence_count?: number
+          source_memory_ids?: string[]
+          source_workflow_run_ids?: string[]
+          tags?: string[]
+          metadata?: Record<string, unknown>
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "agent_learnings_agent_id_fkey"
+            columns: ["agent_id"]
+            referencedRelation: "deployed_agents"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
+      agent_stats: {
+        Row: AgentStats
+        Insert: {
+          id?: string
+          agent_id: string
+          analysis?: number
+          communication?: number
+          creativity?: number
+          leadership?: number
+          expertise?: Record<string, AgentExpertiseLevel>
+          total_interactions?: number
+          total_meetings?: number
+          total_workflow_executions?: number
+          total_tasks_completed?: number
+          success_rate?: number | null
+          avg_response_time_seconds?: number | null
+          total_cost?: number
+          trust_score?: number
+          growth_log?: AgentGrowthLogEntry[]
+          level?: number
+          experience_points?: number
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          analysis?: number
+          communication?: number
+          creativity?: number
+          leadership?: number
+          expertise?: Record<string, AgentExpertiseLevel>
+          total_interactions?: number
+          total_meetings?: number
+          total_workflow_executions?: number
+          total_tasks_completed?: number
+          success_rate?: number | null
+          avg_response_time_seconds?: number | null
+          total_cost?: number
+          trust_score?: number
+          growth_log?: AgentGrowthLogEntry[]
+          level?: number
+          experience_points?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "agent_stats_agent_id_fkey"
+            columns: ["agent_id"]
+            referencedRelation: "deployed_agents"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
+      agent_knowledge_base: {
+        Row: AgentKnowledgeBase
+        Insert: {
+          id?: string
+          agent_id: string
+          title: string
+          content: string
+          file_url?: string | null
+          file_type?: string | null
+          chunk_index?: number
+          total_chunks?: number
+          parent_doc_id?: string | null
+          category?: string | null
+          tags?: string[]
+          access_level?: AgentKnowledgeAccessLevel
+          embedding?: number[] | null
+          metadata?: Record<string, unknown>
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          title?: string
+          content?: string
+          file_url?: string | null
+          file_type?: string | null
+          category?: string | null
+          tags?: string[]
+          access_level?: AgentKnowledgeAccessLevel
+          embedding?: number[] | null
+          metadata?: Record<string, unknown>
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "agent_knowledge_base_agent_id_fkey"
+            columns: ["agent_id"]
+            referencedRelation: "deployed_agents"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
     }
     Views: {
       startup_summary: {
@@ -1420,6 +1890,12 @@ export interface Database {
       task_status: TaskStatus
       task_priority: TaskPriority
       startup_stage: StartupStage
+      // Agent OS v2.0 Enums
+      agent_memory_type: AgentMemoryType
+      agent_learning_category: AgentLearningCategory
+      agent_communication_style: AgentCommunicationStyle
+      agent_partner_type: AgentPartnerType
+      agent_knowledge_access_level: AgentKnowledgeAccessLevel
     }
     CompositeTypes: Record<string, never>
   }

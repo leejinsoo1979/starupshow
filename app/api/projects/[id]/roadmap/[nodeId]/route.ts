@@ -1,3 +1,4 @@
+export const dynamic = 'force-dynamic'
 import { createClientForApi, getAuthUser } from '@/lib/supabase/server'
 import { NextRequest, NextResponse } from 'next/server'
 import type { UpdateRoadmapNodeInput } from '@/types/database'

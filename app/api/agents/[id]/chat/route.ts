@@ -1,3 +1,4 @@
+export const dynamic = 'force-dynamic'
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { isDevMode, DEV_USER } from '@/lib/dev-user'
@@ -8,6 +9,7 @@ import {
   formatContextForPrompt,
   saveInstruction,
   updateActiveContext,
+  processAgentConversation,
 } from '@/lib/agent/work-memory'
 import { getLLMConfigForAgent } from '@/lib/llm/user-keys'
 
@@ -279,6 +281,21 @@ export async function POST(
       console.error('Work log error:', logError)
       // 로그 실패해도 응답은 반환
     }
+
+    // ========================================
+    // Agent OS v2.0 처리 (비동기 - 응답 지연 방지)
+    // 관계 업데이트, 메모리 저장, 성장, 학습
+    // ========================================
+    processAgentConversation({
+      agentId,
+      userId: user.id,
+      messages: [
+        { role: 'user', content: message },
+        { role: 'assistant', content: response },
+      ],
+      wasHelpful: true, // TODO: 피드백 시스템으로 결정
+      topicDomain: 'general',
+    }).catch(err => console.error('[AgentOS] Process error:', err))
 
     return NextResponse.json({ response })
   } catch (error) {

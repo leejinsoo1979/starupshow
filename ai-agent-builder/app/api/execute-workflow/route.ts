@@ -1,3 +1,4 @@
+export const dynamic = 'force-dynamic'
 import { generateText } from "ai"
 import { google } from "@ai-sdk/google"
 import type { Node, Edge } from "reactflow"

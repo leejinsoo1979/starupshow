@@ -1,3 +1,4 @@
+export const dynamic = 'force-dynamic'
 /**
  * Memory Search API - 하이브리드 검색 엔드포인트
  *
