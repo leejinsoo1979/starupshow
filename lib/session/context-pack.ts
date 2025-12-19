@@ -93,19 +93,28 @@ export async function buildContextPack(
   // 타입별 처리
   if (artifact.type === 'pdf') {
     // PDF: 현재 페이지 이미지 캡처
-    pack.images.current = artifact.url // 실제로는 페이지 이미지 URL
-    pack.meta.totalPages = undefined // TODO: PDF에서 추출
+    pack.images.current = artifact.url
 
     if (extractText) {
-      // TODO: PDF 텍스트 추출 API 호출
-      pack.text.current = `[PDF Page ${focus.page || 1} content]`
+      try {
+        const pdfData = await extractPdfText(artifact.url, focus.page || 1, contextPageCount)
+        pack.text.current = pdfData.currentPage.text
+        pack.meta.totalPages = pdfData.totalPages
+
+        if (includeContextPages && pdfData.contextPages.length > 0) {
+          pack.text.context = pdfData.contextPages.map(p => p.text)
+        }
+      } catch (error) {
+        console.warn('[ContextPack] PDF extraction failed:', error)
+        pack.text.current = `[PDF Page ${focus.page || 1} - 텍스트 추출 실패]`
+      }
     }
   } else if (artifact.type === 'image') {
     pack.images.current = artifact.url
   } else if (artifact.type === 'video') {
     // 비디오: 현재 타임스탬프 프레임
-    pack.images.current = artifact.url // 실제로는 프레임 캡처 URL
-    pack.meta.duration = undefined // TODO: 비디오에서 추출
+    pack.images.current = artifact.url
+    pack.meta.duration = undefined
   }
 
   return pack
@@ -307,4 +316,33 @@ export function validateAgentResponse(
     isValid: warnings.length === 0,
     warnings
   }
+}
+
+/**
+ * PDF 텍스트 추출 API 호출
+ */
+async function extractPdfText(
+  url: string,
+  page: number,
+  contextPageCount: number
+): Promise<{
+  currentPage: { page: number; text: string }
+  contextPages: { page: number; text: string }[]
+  totalPages: number
+}> {
+  const formData = new FormData()
+  formData.append('url', url)
+  formData.append('page', page.toString())
+  formData.append('contextPages', contextPageCount.toString())
+
+  const response = await fetch('/api/session/extract-pdf', {
+    method: 'POST',
+    body: formData
+  })
+
+  if (!response.ok) {
+    throw new Error(`PDF extraction failed: ${response.status}`)
+  }
+
+  return response.json()
 }

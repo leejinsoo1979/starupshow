@@ -260,9 +260,13 @@ export default function SessionRoomPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           content: enrichedPrompt,
-          mode,
-          contextPack,
-          forceConclusion: protocolResult.forceConclusion
+          message_type: 'text',
+          metadata: {
+            session_mode: mode,
+            context_pack: contextPack,
+            force_conclusion: protocolResult.forceConclusion,
+            is_session_room: true
+          }
         })
       })
 
@@ -358,9 +362,13 @@ export default function SessionRoomPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           content: conclusionPrompt,
-          mode,
-          contextPack,
-          isConclusion: true
+          message_type: 'text',
+          metadata: {
+            session_mode: mode,
+            context_pack: contextPack,
+            is_conclusion: true,
+            is_session_room: true
+          }
         })
       })
 
