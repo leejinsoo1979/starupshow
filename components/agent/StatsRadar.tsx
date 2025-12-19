@@ -1,7 +1,8 @@
 'use client'
 
-import { useMemo, useState, useEffect, useRef } from 'react'
+import { useMemo, useState, useEffect } from 'react'
 import { cn } from '@/lib/utils'
+import { useThemeStore, accentColors } from '@/stores/themeStore'
 import {
   Brain,
   MessageSquare,
@@ -11,11 +12,6 @@ import {
   Zap,
   TrendingUp,
   TrendingDown,
-  Code,
-  FileText,
-  Database,
-  Globe,
-  Palette,
 } from 'lucide-react'
 
 // ============================================
@@ -33,33 +29,12 @@ export interface AgentStatsData {
   experience_points?: number
 }
 
-export interface DomainExpertise {
-  domain: string
-  label: string
-  score: number
-  icon: React.ElementType
-  color: string
-}
-
-export interface StatsHistory {
-  date: string
-  analysis: number
-  communication: number
-  creativity: number
-  leadership: number
-  execution: number
-  adaptability: number
-}
-
 interface StatsRadarProps {
   stats: AgentStatsData
   previousStats?: AgentStatsData
-  domainExpertise?: DomainExpertise[]
-  statsHistory?: StatsHistory[]
   isDark?: boolean
   size?: 'sm' | 'md' | 'lg'
   showLabels?: boolean
-  showTooltip?: boolean
   showOverlay?: boolean
   animated?: boolean
   className?: string
@@ -69,63 +44,91 @@ interface StatsRadarProps {
 // Constants
 // ============================================
 
-const STAT_CONFIG = {
-  analysis: {
-    label: '분석력',
-    fullName: '분석력',
-    icon: Brain,
-    color: '#60a5fa',
-    glowColor: '#3b82f6',
-  },
-  communication: {
-    label: '소통력',
-    fullName: '소통력',
-    icon: MessageSquare,
-    color: '#4ade80',
-    glowColor: '#22c55e',
-  },
-  creativity: {
-    label: '창의력',
-    fullName: '창의력',
-    icon: Lightbulb,
-    color: '#a78bfa',
-    glowColor: '#8b5cf6',
-  },
-  leadership: {
-    label: '리더십',
-    fullName: '리더십',
-    icon: Users,
-    color: '#fbbf24',
-    glowColor: '#f59e0b',
-  },
-  execution: {
-    label: '실행력',
-    fullName: '실행력',
-    icon: Target,
-    color: '#f87171',
-    glowColor: '#ef4444',
-  },
-  adaptability: {
-    label: '적응력',
-    fullName: '적응력',
-    icon: Zap,
-    color: '#22d3ee',
-    glowColor: '#06b6d4',
-  },
-} as const
+const STAT_KEYS = ['analysis', 'communication', 'creativity', 'leadership', 'execution', 'adaptability'] as const
 
-const DEFAULT_DOMAIN_EXPERTISE: DomainExpertise[] = [
-  { domain: 'development', label: '개발', score: 0, icon: Code, color: '#3b82f6' },
-  { domain: 'documentation', label: '문서화', score: 0, icon: FileText, color: '#22c55e' },
-  { domain: 'data', label: '데이터', score: 0, icon: Database, color: '#8b5cf6' },
-  { domain: 'web', label: '웹/API', score: 0, icon: Globe, color: '#f59e0b' },
-  { domain: 'design', label: '디자인', score: 0, icon: Palette, color: '#ec4899' },
-]
+const STAT_LABELS: Record<string, { label: string; icon: React.ElementType }> = {
+  analysis: { label: '분석력', icon: Brain },
+  communication: { label: '소통력', icon: MessageSquare },
+  creativity: { label: '창의력', icon: Lightbulb },
+  leadership: { label: '리더십', icon: Users },
+  execution: { label: '실행력', icon: Target },
+  adaptability: { label: '적응력', icon: Zap },
+}
 
 const SIZE_CONFIG = {
   sm: { size: 240, labelOffset: 25 },
   md: { size: 340, labelOffset: 35 },
   lg: { size: 440, labelOffset: 45 },
+}
+
+// ============================================
+// Color Utility - 단일 색상에서 팔레트 생성
+// ============================================
+
+function hexToHsl(hex: string): { h: number; s: number; l: number } {
+  const r = parseInt(hex.slice(1, 3), 16) / 255
+  const g = parseInt(hex.slice(3, 5), 16) / 255
+  const b = parseInt(hex.slice(5, 7), 16) / 255
+
+  const max = Math.max(r, g, b)
+  const min = Math.min(r, g, b)
+  let h = 0
+  let s = 0
+  const l = (max + min) / 2
+
+  if (max !== min) {
+    const d = max - min
+    s = l > 0.5 ? d / (2 - max - min) : d / (max + min)
+    switch (max) {
+      case r: h = ((g - b) / d + (g < b ? 6 : 0)) / 6; break
+      case g: h = ((b - r) / d + 2) / 6; break
+      case b: h = ((r - g) / d + 4) / 6; break
+    }
+  }
+
+  return { h: h * 360, s: s * 100, l: l * 100 }
+}
+
+function hslToHex(h: number, s: number, l: number): string {
+  s /= 100
+  l /= 100
+  const a = s * Math.min(l, 1 - l)
+  const f = (n: number) => {
+    const k = (n + h / 30) % 12
+    const color = l - a * Math.max(Math.min(k - 3, 9 - k, 1), -1)
+    return Math.round(255 * color).toString(16).padStart(2, '0')
+  }
+  return `#${f(0)}${f(8)}${f(4)}`
+}
+
+function createMonochromaticPalette(baseColor: string) {
+  const hsl = hexToHsl(baseColor)
+
+  return {
+    base: baseColor,
+    light: hslToHex(hsl.h, Math.max(hsl.s - 10, 20), Math.min(hsl.l + 15, 85)),
+    lighter: hslToHex(hsl.h, Math.max(hsl.s - 20, 15), Math.min(hsl.l + 25, 90)),
+    dark: hslToHex(hsl.h, Math.min(hsl.s + 10, 100), Math.max(hsl.l - 15, 25)),
+    darker: hslToHex(hsl.h, Math.min(hsl.s + 15, 100), Math.max(hsl.l - 25, 15)),
+    muted: hslToHex(hsl.h, Math.max(hsl.s - 30, 10), hsl.l),
+    glow: `${baseColor}60`,
+    glowStrong: `${baseColor}90`,
+    bg: `${baseColor}15`,
+    bgHover: `${baseColor}25`,
+  }
+}
+
+// ============================================
+// Hook: 테마 색상 가져오기
+// ============================================
+
+function useThemeColors() {
+  const { accentColor } = useThemeStore()
+
+  return useMemo(() => {
+    const accent = accentColors.find(c => c.id === accentColor) || accentColors[0]
+    return createMonochromaticPalette(accent.color)
+  }, [accentColor])
 }
 
 // ============================================
@@ -142,6 +145,7 @@ export function StatsRadar({
   animated = true,
   className,
 }: StatsRadarProps) {
+  const colors = useThemeColors()
   const config = SIZE_CONFIG[size]
   const svgSize = config.size
   const center = svgSize / 2
@@ -159,7 +163,6 @@ export function StatsRadar({
     const animate = (now: number) => {
       const elapsed = now - start
       const progress = Math.min(elapsed / duration, 1)
-      // Ease out cubic
       const eased = 1 - Math.pow(1 - progress, 3)
       setAnimationProgress(eased)
       if (progress < 1) requestAnimationFrame(animate)
@@ -168,12 +171,9 @@ export function StatsRadar({
     requestAnimationFrame(animate)
   }, [animated])
 
-  // 스탯 키와 값
-  const statKeys = ['analysis', 'communication', 'creativity', 'leadership', 'execution', 'adaptability'] as const
-
   // 각 꼭지점 좌표 계산 (6각형)
   const getPoint = (index: number, value: number): { x: number; y: number } => {
-    const angle = (Math.PI * 2 * index) / 6 - Math.PI / 2 // 12시 방향 시작
+    const angle = (Math.PI * 2 * index) / 6 - Math.PI / 2
     const radius = (value / 100) * maxRadius
     return {
       x: center + radius * Math.cos(angle),
@@ -191,21 +191,16 @@ export function StatsRadar({
       .join(' ')
   }
 
-  // 현재 스탯 값
-  const currentValues = statKeys.map(key => stats[key] || 0)
-  const previousValues = previousStats ? statKeys.map(key => previousStats[key] || 0) : null
+  const currentValues = STAT_KEYS.map(key => stats[key] || 0)
+  const previousValues = previousStats ? STAT_KEYS.map(key => previousStats[key] || 0) : null
 
-  // 평균값
   const average = Math.round(currentValues.reduce((a, b) => a + b, 0) / currentValues.length)
   const previousAverage = previousValues
     ? Math.round(previousValues.reduce((a, b) => a + b, 0) / previousValues.length)
     : null
   const averageChange = previousAverage !== null ? average - previousAverage : null
 
-  // 그리드 레벨 (20, 40, 60, 80, 100)
   const gridLevels = [20, 40, 60, 80, 100]
-
-  // 고유 ID 생성 (gradient용)
   const id = useMemo(() => Math.random().toString(36).substr(2, 9), [])
 
   return (
@@ -217,17 +212,17 @@ export function StatsRadar({
         className="overflow-visible"
       >
         <defs>
-          {/* 메인 그라데이션 */}
+          {/* 단일 색상 그라데이션 */}
           <linearGradient id={`mainGrad-${id}`} x1="0%" y1="0%" x2="100%" y2="100%">
-            <stop offset="0%" stopColor="#8b5cf6" stopOpacity={0.8} />
-            <stop offset="50%" stopColor="#3b82f6" stopOpacity={0.6} />
-            <stop offset="100%" stopColor="#06b6d4" stopOpacity={0.7} />
+            <stop offset="0%" stopColor={colors.light} stopOpacity={0.8} />
+            <stop offset="50%" stopColor={colors.base} stopOpacity={0.6} />
+            <stop offset="100%" stopColor={colors.dark} stopOpacity={0.7} />
           </linearGradient>
 
-          {/* 이전 스탯 그라데이션 */}
+          {/* 이전 스탯 (회색/뮤트) */}
           <linearGradient id={`prevGrad-${id}`} x1="0%" y1="0%" x2="100%" y2="100%">
-            <stop offset="0%" stopColor="#f59e0b" stopOpacity={0.3} />
-            <stop offset="100%" stopColor="#ef4444" stopOpacity={0.2} />
+            <stop offset="0%" stopColor={colors.muted} stopOpacity={0.3} />
+            <stop offset="100%" stopColor={colors.muted} stopOpacity={0.15} />
           </linearGradient>
 
           {/* 글로우 필터 */}
@@ -239,7 +234,6 @@ export function StatsRadar({
             </feMerge>
           </filter>
 
-          {/* 강한 글로우 (호버용) */}
           <filter id={`glowStrong-${id}`} x="-100%" y="-100%" width="300%" height="300%">
             <feGaussianBlur stdDeviation="8" result="coloredBlur" />
             <feMerge>
@@ -249,7 +243,7 @@ export function StatsRadar({
           </filter>
         </defs>
 
-        {/* 배경 원형 글로우 */}
+        {/* 배경 */}
         <circle
           cx={center}
           cy={center}
@@ -259,8 +253,8 @@ export function StatsRadar({
           strokeWidth={1}
         />
 
-        {/* 그리드 - 육각형 레벨들 */}
-        {gridLevels.map((level, levelIndex) => {
+        {/* 그리드 - 육각형 */}
+        {gridLevels.map((level) => {
           const points = Array.from({ length: 6 }, (_, i) => {
             const point = getPoint(i, level)
             return `${point.x},${point.y}`
@@ -278,8 +272,8 @@ export function StatsRadar({
           )
         })}
 
-        {/* 축선 (중심에서 각 꼭지점) */}
-        {statKeys.map((_, index) => {
+        {/* 축선 */}
+        {STAT_KEYS.map((_, index) => {
           const endPoint = getPoint(index, 100)
           return (
             <line
@@ -295,15 +289,15 @@ export function StatsRadar({
           )
         })}
 
-        {/* 30일 전 스탯 (오버레이) */}
+        {/* 30일 전 스탯 */}
         {showOverlay && previousValues && animationProgress > 0 && (
           <polygon
             points={createPolygonPoints(previousValues)}
             fill={`url(#prevGrad-${id})`}
-            stroke={isDark ? '#fbbf24' : '#d97706'}
+            stroke={colors.muted}
             strokeWidth={1.5}
             strokeDasharray="6 4"
-            opacity={0.6 * animationProgress}
+            opacity={0.5 * animationProgress}
           />
         )}
 
@@ -316,48 +310,42 @@ export function StatsRadar({
           opacity={animationProgress}
         />
 
-        {/* 현재 스탯 테두리 (네온 효과) */}
+        {/* 현재 스탯 테두리 */}
         <polygon
           points={createPolygonPoints(currentValues)}
           fill="none"
-          stroke={isDark ? '#a78bfa' : '#8b5cf6'}
+          stroke={colors.base}
           strokeWidth={2.5}
           strokeLinejoin="round"
           filter={`url(#glow-${id})`}
           opacity={animationProgress}
         />
 
-        {/* 각 꼭지점 - 인터랙티브 포인트 */}
-        {statKeys.map((key, index) => {
-          const config = STAT_CONFIG[key]
+        {/* 꼭지점 */}
+        {STAT_KEYS.map((key, index) => {
           const value = currentValues[index]
           const point = getPoint(index, value * animationProgress)
           const isHovered = hoveredStat === key
 
           return (
             <g key={key}>
-              {/* 포인트 글로우 */}
               <circle
                 cx={point.x}
                 cy={point.y}
                 r={isHovered ? 12 : 8}
-                fill={config.glowColor}
+                fill={colors.base}
                 opacity={isHovered ? 0.4 : 0.2}
                 filter={isHovered ? `url(#glowStrong-${id})` : `url(#glow-${id})`}
                 style={{ transition: 'all 0.3s ease' }}
               />
-              {/* 포인트 */}
               <circle
                 cx={point.x}
                 cy={point.y}
                 r={isHovered ? 6 : 4}
-                fill={config.color}
+                fill={colors.base}
                 stroke={isDark ? '#18181b' : '#ffffff'}
                 strokeWidth={2}
-                style={{
-                  cursor: 'pointer',
-                  transition: 'all 0.3s ease',
-                }}
+                style={{ cursor: 'pointer', transition: 'all 0.3s ease' }}
                 onMouseEnter={() => setHoveredStat(key)}
                 onMouseLeave={() => setHoveredStat(null)}
               />
@@ -366,25 +354,20 @@ export function StatsRadar({
         })}
 
         {/* 라벨 */}
-        {showLabels && statKeys.map((key, index) => {
-          const config = STAT_CONFIG[key]
-          const labelPoint = getPoint(index, 115) // 라벨은 더 바깥에
+        {showLabels && STAT_KEYS.map((key, index) => {
+          const labelInfo = STAT_LABELS[key]
+          const labelPoint = getPoint(index, 115)
           const value = currentValues[index]
-          const Icon = config.icon
           const isHovered = hoveredStat === key
 
-          // 라벨 위치 조정
-          const isTop = index === 0
-          const isBottom = index === 3
           const isLeft = index === 4 || index === 5
           const isRight = index === 1 || index === 2
+          const isTop = index === 0
+          const isBottom = index === 3
 
-          let textAnchor: 'start' | 'middle' | 'end' = 'middle'
-          let dx = 0
-          let dy = 0
-
-          if (isLeft) { textAnchor = 'end'; dx = -8 }
-          if (isRight) { textAnchor = 'start'; dx = 8 }
+          let dx = 0, dy = 0
+          if (isLeft) dx = -8
+          if (isRight) dx = 8
           if (isTop) dy = -8
           if (isBottom) dy = 8
 
@@ -399,7 +382,6 @@ export function StatsRadar({
               onMouseEnter={() => setHoveredStat(key)}
               onMouseLeave={() => setHoveredStat(null)}
             >
-              {/* 아이콘 + 라벨 배경 */}
               <foreignObject
                 x={labelPoint.x - 40 + dx}
                 y={labelPoint.y - 12 + dy}
@@ -409,34 +391,25 @@ export function StatsRadar({
                 <div
                   className={cn(
                     'flex items-center justify-center gap-1 px-2 py-0.5 rounded-full transition-all',
-                    isHovered
-                      ? 'scale-110'
-                      : ''
+                    isHovered ? 'scale-110' : ''
                   )}
                   style={{
-                    background: isHovered
-                      ? isDark ? `${config.glowColor}30` : `${config.glowColor}20`
-                      : 'transparent',
+                    background: isHovered ? colors.bg : 'transparent',
                   }}
                 >
-                  <Icon
-                    className="w-3 h-3"
-                    style={{ color: config.color }}
-                  />
                   <span
                     className="text-[11px] font-medium"
                     style={{
                       color: isHovered
-                        ? config.color
+                        ? colors.base
                         : isDark ? '#a1a1aa' : '#71717a',
                     }}
                   >
-                    {config.label}
+                    {labelInfo.label}
                   </span>
                 </div>
               </foreignObject>
 
-              {/* 값 표시 (호버시) */}
               {isHovered && (
                 <foreignObject
                   x={labelPoint.x - 20 + dx}
@@ -447,7 +420,7 @@ export function StatsRadar({
                   <div className="flex items-center justify-center">
                     <span
                       className="text-xs font-bold"
-                      style={{ color: config.color }}
+                      style={{ color: colors.base }}
                     >
                       {value}
                     </span>
@@ -459,24 +432,16 @@ export function StatsRadar({
         })}
       </svg>
 
-      {/* 중앙 평균값 표시 */}
+      {/* 중앙 평균값 */}
       <div
         className={cn(
           'absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2',
-          'flex flex-col items-center justify-center',
-          'pointer-events-none'
+          'flex flex-col items-center justify-center pointer-events-none'
         )}
       >
         <span
-          className={cn(
-            'text-3xl font-bold tabular-nums',
-            isDark ? 'text-white' : 'text-zinc-900'
-          )}
-          style={{
-            textShadow: isDark
-              ? '0 0 20px rgba(139, 92, 246, 0.5)'
-              : '0 0 20px rgba(139, 92, 246, 0.3)',
-          }}
+          className={cn('text-3xl font-bold tabular-nums', isDark ? 'text-white' : 'text-zinc-900')}
+          style={{ textShadow: `0 0 20px ${colors.glow}` }}
         >
           {Math.round(average * animationProgress)}
         </span>
@@ -484,30 +449,20 @@ export function StatsRadar({
           <div
             className={cn(
               'flex items-center gap-0.5 text-xs font-semibold mt-0.5 px-2 py-0.5 rounded-full',
-              averageChange > 0
-                ? 'text-emerald-400 bg-emerald-500/10'
-                : 'text-rose-400 bg-rose-500/10'
+              averageChange > 0 ? 'bg-emerald-500/10' : 'bg-rose-500/10'
             )}
+            style={{ color: averageChange > 0 ? '#10b981' : '#f43f5e' }}
           >
-            {averageChange > 0 ? (
-              <TrendingUp className="w-3 h-3" />
-            ) : (
-              <TrendingDown className="w-3 h-3" />
-            )}
+            {averageChange > 0 ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
             {averageChange > 0 ? '+' : ''}{averageChange}
           </div>
         )}
-        <span
-          className={cn(
-            'text-[10px] mt-0.5 uppercase tracking-wider',
-            isDark ? 'text-zinc-500' : 'text-zinc-400'
-          )}
-        >
+        <span className={cn('text-[10px] mt-0.5 uppercase tracking-wider', isDark ? 'text-zinc-500' : 'text-zinc-400')}>
           평균
         </span>
       </div>
 
-      {/* 범례 (30일 전 오버레이 있을 때) */}
+      {/* 범례 */}
       {showOverlay && previousStats && (
         <div
           className={cn(
@@ -517,14 +472,15 @@ export function StatsRadar({
           )}
         >
           <div className="flex items-center gap-1.5">
-            <div className="w-3 h-0.5 rounded-full bg-gradient-to-r from-violet-500 to-cyan-500" />
+            <div className="w-3 h-0.5 rounded-full" style={{ backgroundColor: colors.base }} />
             <span>현재</span>
           </div>
           <div className="flex items-center gap-1.5">
             <div
-              className="w-3 h-0.5 rounded-full bg-amber-500"
+              className="w-3 h-0.5 rounded-full"
               style={{
-                backgroundImage: 'repeating-linear-gradient(90deg, #fbbf24 0px, #fbbf24 4px, transparent 4px, transparent 8px)',
+                backgroundColor: colors.muted,
+                backgroundImage: `repeating-linear-gradient(90deg, ${colors.muted} 0px, ${colors.muted} 4px, transparent 4px, transparent 8px)`,
               }}
             />
             <span>30일 전</span>
@@ -536,344 +492,66 @@ export function StatsRadar({
 }
 
 // ============================================
-// Domain Expertise Panel
+// Stats Radar Panel (단순화)
 // ============================================
-
-export function DomainExpertisePanel({
-  expertise = DEFAULT_DOMAIN_EXPERTISE,
-  isDark = false,
-  className,
-}: {
-  expertise?: DomainExpertise[]
-  isDark?: boolean
-  className?: string
-}) {
-  return (
-    <div className={cn('space-y-4', className)}>
-      {expertise.map((domain) => {
-        const Icon = domain.icon
-        return (
-          <div key={domain.domain} className="group">
-            <div className="flex items-center justify-between mb-2">
-              <div className="flex items-center gap-2.5">
-                <div
-                  className={cn(
-                    'p-2 rounded-xl transition-all group-hover:scale-110',
-                    isDark ? 'bg-zinc-800' : 'bg-zinc-100'
-                  )}
-                  style={{
-                    boxShadow: `0 0 0 1px ${domain.color}20`,
-                  }}
-                >
-                  <Icon
-                    className="w-4 h-4 transition-all"
-                    style={{ color: domain.color }}
-                  />
-                </div>
-                <span className={cn(
-                  'text-sm font-medium',
-                  isDark ? 'text-zinc-300' : 'text-zinc-700'
-                )}>
-                  {domain.label}
-                </span>
-              </div>
-              <span
-                className="text-sm font-bold tabular-nums"
-                style={{ color: domain.color }}
-              >
-                {domain.score}%
-              </span>
-            </div>
-            <div className={cn(
-              'h-2 rounded-full overflow-hidden',
-              isDark ? 'bg-zinc-800' : 'bg-zinc-200'
-            )}>
-              <div
-                className="h-full rounded-full transition-all duration-700 group-hover:brightness-110"
-                style={{
-                  width: `${domain.score}%`,
-                  background: `linear-gradient(90deg, ${domain.color}cc, ${domain.color})`,
-                  boxShadow: `0 0 10px ${domain.color}40`,
-                }}
-              />
-            </div>
-          </div>
-        )
-      })}
-    </div>
-  )
-}
-
-// ============================================
-// Stats Change Overview
-// ============================================
-
-export function StatsChangeOverview({
-  stats,
-  previousStats,
-  isDark = false,
-}: {
-  stats: AgentStatsData
-  previousStats: AgentStatsData
-  isDark?: boolean
-}) {
-  const changes = useMemo(() => {
-    const statKeys: (keyof typeof STAT_CONFIG)[] = [
-      'analysis', 'communication', 'creativity',
-      'leadership', 'execution', 'adaptability'
-    ]
-
-    return statKeys.map(key => {
-      const current = stats[key] || 0
-      const previous = previousStats[key] || 0
-      const change = current - previous
-      return {
-        key,
-        ...STAT_CONFIG[key],
-        current,
-        previous,
-        change,
-      }
-    }).sort((a, b) => Math.abs(b.change) - Math.abs(a.change))
-  }, [stats, previousStats])
-
-  const improved = changes.filter(c => c.change > 0)
-  const declined = changes.filter(c => c.change < 0)
-
-  return (
-    <div className="grid grid-cols-2 gap-4">
-      {/* 상승 */}
-      <div className={cn(
-        'p-4 rounded-xl border',
-        isDark
-          ? 'bg-emerald-950/30 border-emerald-900/50'
-          : 'bg-emerald-50 border-emerald-200'
-      )}>
-        <div className="flex items-center gap-2 mb-4">
-          <div className={cn(
-            'p-1.5 rounded-lg',
-            isDark ? 'bg-emerald-900/50' : 'bg-emerald-100'
-          )}>
-            <TrendingUp className="w-4 h-4 text-emerald-500" />
-          </div>
-          <span className={cn(
-            'text-sm font-semibold',
-            isDark ? 'text-emerald-400' : 'text-emerald-700'
-          )}>
-            성장
-          </span>
-        </div>
-        {improved.length > 0 ? (
-          <div className="space-y-3">
-            {improved.slice(0, 3).map(item => {
-              const Icon = item.icon
-              return (
-                <div key={item.key} className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <Icon className="w-4 h-4" style={{ color: item.color }} />
-                    <span className={cn(
-                      'text-sm',
-                      isDark ? 'text-zinc-300' : 'text-zinc-700'
-                    )}>
-                      {item.label}
-                    </span>
-                  </div>
-                  <span className="text-sm font-bold text-emerald-500">
-                    +{item.change}
-                  </span>
-                </div>
-              )
-            })}
-          </div>
-        ) : (
-          <p className={cn('text-xs', isDark ? 'text-zinc-500' : 'text-zinc-400')}>
-            변화 없음
-          </p>
-        )}
-      </div>
-
-      {/* 하락 */}
-      <div className={cn(
-        'p-4 rounded-xl border',
-        isDark
-          ? 'bg-rose-950/30 border-rose-900/50'
-          : 'bg-rose-50 border-rose-200'
-      )}>
-        <div className="flex items-center gap-2 mb-4">
-          <div className={cn(
-            'p-1.5 rounded-lg',
-            isDark ? 'bg-rose-900/50' : 'bg-rose-100'
-          )}>
-            <TrendingDown className="w-4 h-4 text-rose-500" />
-          </div>
-          <span className={cn(
-            'text-sm font-semibold',
-            isDark ? 'text-rose-400' : 'text-rose-700'
-          )}>
-            하락
-          </span>
-        </div>
-        {declined.length > 0 ? (
-          <div className="space-y-3">
-            {declined.slice(0, 3).map(item => {
-              const Icon = item.icon
-              return (
-                <div key={item.key} className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <Icon className="w-4 h-4" style={{ color: item.color }} />
-                    <span className={cn(
-                      'text-sm',
-                      isDark ? 'text-zinc-300' : 'text-zinc-700'
-                    )}>
-                      {item.label}
-                    </span>
-                  </div>
-                  <span className="text-sm font-bold text-rose-500">
-                    {item.change}
-                  </span>
-                </div>
-              )
-            })}
-          </div>
-        ) : (
-          <p className={cn('text-xs', isDark ? 'text-zinc-500' : 'text-zinc-400')}>
-            변화 없음
-          </p>
-        )}
-      </div>
-    </div>
-  )
-}
-
-// ============================================
-// Stats Radar Panel (with tabs)
-// ============================================
-
-type TabType = 'radar' | 'domain' | 'changes'
 
 export function StatsRadarPanel({
   stats,
   previousStats,
-  domainExpertise,
   isDark = false,
   title = '능력치 분석',
   className,
 }: {
   stats: AgentStatsData
   previousStats?: AgentStatsData
-  domainExpertise?: DomainExpertise[]
   isDark?: boolean
   title?: string
   className?: string
 }) {
-  const [activeTab, setActiveTab] = useState<TabType>('radar')
-
-  const tabs = [
-    { id: 'radar' as const, label: '레이더' },
-    { id: 'domain' as const, label: '도메인 전문성' },
-    ...(previousStats ? [{ id: 'changes' as const, label: '30일 변화' }] : []),
-  ]
+  const colors = useThemeColors()
 
   return (
     <div
       className={cn(
         'p-5 md:p-6 rounded-2xl border backdrop-blur-sm',
-        isDark
-          ? 'bg-zinc-900/50 border-zinc-800'
-          : 'bg-white/80 border-zinc-200',
+        isDark ? 'bg-zinc-900/50 border-zinc-800' : 'bg-white/80 border-zinc-200',
         className
       )}
     >
-      {/* 헤더 */}
-      <div className="flex items-center justify-between mb-5">
-        <div className="flex items-center gap-2.5">
-          <div className={cn(
-            'p-2 rounded-xl',
-            isDark ? 'bg-violet-500/20' : 'bg-violet-100'
-          )}>
-            <Brain className="w-5 h-5 text-violet-500" />
-          </div>
-          <div>
-            <h4 className={cn(
-              'font-semibold',
-              isDark ? 'text-white' : 'text-zinc-900'
-            )}>
-              {title}
-            </h4>
-            {stats.level && (
-              <span className={cn(
-                'text-xs',
-                isDark ? 'text-violet-400' : 'text-violet-600'
-              )}>
-                Level {stats.level}
-              </span>
-            )}
-          </div>
+      <div className="flex items-center gap-2.5 mb-5">
+        <div
+          className="p-2 rounded-xl"
+          style={{ backgroundColor: colors.bg }}
+        >
+          <Brain className="w-5 h-5" style={{ color: colors.base }} />
+        </div>
+        <div>
+          <h4 className={cn('font-semibold', isDark ? 'text-white' : 'text-zinc-900')}>
+            {title}
+          </h4>
+          {stats.level && (
+            <span className="text-xs" style={{ color: colors.base }}>
+              Level {stats.level}
+            </span>
+          )}
         </div>
       </div>
 
-      {/* 탭 */}
-      <div className={cn(
-        'flex gap-1 p-1 rounded-xl mb-5',
-        isDark ? 'bg-zinc-800/50' : 'bg-zinc-100'
-      )}>
-        {tabs.map(tab => (
-          <button
-            key={tab.id}
-            onClick={() => setActiveTab(tab.id)}
-            className={cn(
-              'flex-1 px-4 py-2 text-xs font-medium rounded-lg transition-all',
-              activeTab === tab.id
-                ? isDark
-                  ? 'bg-zinc-700 text-white shadow-lg'
-                  : 'bg-white text-zinc-900 shadow-md'
-                : isDark
-                  ? 'text-zinc-400 hover:text-zinc-200'
-                  : 'text-zinc-500 hover:text-zinc-700'
-            )}
-          >
-            {tab.label}
-          </button>
-        ))}
-      </div>
-
-      {/* 탭 콘텐츠 */}
       <div className="flex items-center justify-center min-h-[340px]">
-        {activeTab === 'radar' && (
-          <StatsRadar
-            stats={stats}
-            previousStats={previousStats}
-            isDark={isDark}
-            size="md"
-            showOverlay={!!previousStats}
-          />
-        )}
-
-        {activeTab === 'domain' && (
-          <div className="w-full">
-            <DomainExpertisePanel
-              expertise={domainExpertise || DEFAULT_DOMAIN_EXPERTISE}
-              isDark={isDark}
-            />
-          </div>
-        )}
-
-        {activeTab === 'changes' && previousStats && (
-          <div className="w-full">
-            <StatsChangeOverview
-              stats={stats}
-              previousStats={previousStats}
-              isDark={isDark}
-            />
-          </div>
-        )}
+        <StatsRadar
+          stats={stats}
+          previousStats={previousStats}
+          isDark={isDark}
+          size="md"
+          showOverlay={!!previousStats}
+        />
       </div>
     </div>
   )
 }
 
 // ============================================
-// Stats Radar Summary (legacy compatibility)
+// Stats Summary (미니 버전)
 // ============================================
 
 export function StatsRadarSummary({
@@ -885,47 +563,37 @@ export function StatsRadarSummary({
   isDark?: boolean
   className?: string
 }) {
-  const statItems = [
-    { key: 'analysis', label: '분석력', color: '#60a5fa' },
-    { key: 'communication', label: '소통력', color: '#4ade80' },
-    { key: 'creativity', label: '창의력', color: '#a78bfa' },
-    { key: 'leadership', label: '리더십', color: '#fbbf24' },
-    { key: 'execution', label: '실행력', color: '#f87171' },
-    { key: 'adaptability', label: '적응력', color: '#22d3ee' },
-  ]
+  const colors = useThemeColors()
 
   return (
     <div className={cn('grid grid-cols-3 gap-2 mt-4', className)}>
-      {statItems.map((item) => {
-        const value = (stats as any)[item.key] || 0
+      {STAT_KEYS.map((key) => {
+        const value = (stats as any)[key] || 0
+        const label = STAT_LABELS[key].label
+
         return (
           <div
-            key={item.key}
+            key={key}
             className={cn(
               'flex items-center gap-2 px-3 py-2 rounded-xl transition-all hover:scale-105',
               isDark ? 'bg-zinc-800/50' : 'bg-zinc-50'
             )}
-            style={{
-              boxShadow: `inset 0 0 0 1px ${item.color}20`,
-            }}
+            style={{ boxShadow: `inset 0 0 0 1px ${colors.bg}` }}
           >
             <div
               className="w-2 h-2 rounded-full"
               style={{
-                backgroundColor: item.color,
-                boxShadow: `0 0 8px ${item.color}60`,
+                backgroundColor: colors.base,
+                boxShadow: `0 0 8px ${colors.glow}`,
               }}
             />
             <div className="flex-1 min-w-0">
-              <span className={cn(
-                'text-[10px]',
-                isDark ? 'text-zinc-400' : 'text-zinc-500'
-              )}>
-                {item.label}
+              <span className={cn('text-[10px]', isDark ? 'text-zinc-400' : 'text-zinc-500')}>
+                {label}
               </span>
               <span
                 className="text-xs font-bold ml-1 tabular-nums"
-                style={{ color: item.color }}
+                style={{ color: colors.base }}
               >
                 {value}
               </span>

@@ -1,7 +1,8 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 import { cn } from '@/lib/utils'
+import { useThemeStore, accentColors } from '@/stores/themeStore'
 import {
   Bot,
   Calendar,
@@ -10,7 +11,6 @@ import {
   TrendingUp,
   Target,
   CheckCircle,
-  XCircle,
   Zap,
   DollarSign,
   Star,
@@ -20,10 +20,28 @@ import {
   BarChart3,
   Users,
   MessageSquare,
-  Brain,
-  FileText,
   Loader2,
 } from 'lucide-react'
+
+// ============================================
+// Theme Color Hook
+// ============================================
+
+function useThemeColors() {
+  const { accentColor } = useThemeStore()
+
+  return useMemo(() => {
+    const accent = accentColors.find(c => c.id === accentColor) || accentColors[0]
+    return {
+      base: accent.color,
+      hover: accent.hoverColor,
+      rgb: accent.rgb,
+      bg: `rgba(${accent.rgb}, 0.15)`,
+      bgHover: `rgba(${accent.rgb}, 0.25)`,
+      glow: `rgba(${accent.rgb}, 0.4)`,
+    }
+  }, [accentColor])
+}
 
 // ============================================
 // Types
@@ -269,6 +287,7 @@ function AchievementItem({
   achievement: AgentProfileData['recentAchievements'][0]
   isDark: boolean
 }) {
+  const colors = useThemeColors()
   const config = achievementConfig[achievement.type]
   const Icon = config.icon
 
@@ -281,9 +300,9 @@ function AchievementItem({
     >
       <div
         className="p-2 rounded-lg shrink-0"
-        style={{ backgroundColor: `${config.color}20` }}
+        style={{ backgroundColor: colors.bg }}
       >
-        <Icon className="w-4 h-4" style={{ color: config.color }} />
+        <Icon className="w-4 h-4" style={{ color: colors.base }} />
       </div>
       <div className="flex-1 min-w-0">
         <p className={cn('text-sm font-medium truncate', isDark ? 'text-zinc-200' : 'text-zinc-800')}>
@@ -300,7 +319,7 @@ function AchievementItem({
           {formatDate(achievement.date)}
         </p>
         {achievement.value !== undefined && (
-          <p className="text-xs font-medium" style={{ color: config.color }}>
+          <p className="text-xs font-medium" style={{ color: colors.base }}>
             +{achievement.value}
           </p>
         )}
@@ -374,6 +393,76 @@ function ProgressRing({
 }
 
 // ============================================
+// Abilities Grid (테마 색상 사용)
+// ============================================
+
+const ABILITY_LABELS = ['분석력', '소통력', '창의력', '리더십', '실행력', '적응력'] as const
+const ABILITY_KEYS = ['analysis', 'communication', 'creativity', 'leadership', 'execution', 'adaptability'] as const
+
+function AbilitiesGrid({
+  abilities,
+  isDark,
+}: {
+  abilities: AgentProfileData['abilities']
+  isDark: boolean
+}) {
+  const colors = useThemeColors()
+
+  return (
+    <div className="grid grid-cols-3 gap-4 justify-items-center">
+      {ABILITY_KEYS.map((key, index) => {
+        const value = abilities[key] || 0
+        const label = ABILITY_LABELS[index]
+        const size = 64
+        const strokeWidth = 6
+        const radius = (size - strokeWidth) / 2
+        const circumference = radius * 2 * Math.PI
+        const progress = Math.min(value / 100, 1)
+        const strokeDashoffset = circumference - progress * circumference
+
+        return (
+          <div key={key} className="flex flex-col items-center">
+            <div className="relative" style={{ width: size, height: size }}>
+              <svg className="transform -rotate-90" width={size} height={size}>
+                <circle
+                  cx={size / 2}
+                  cy={size / 2}
+                  r={radius}
+                  fill="none"
+                  stroke={isDark ? '#3f3f46' : '#e4e4e7'}
+                  strokeWidth={strokeWidth}
+                />
+                <circle
+                  cx={size / 2}
+                  cy={size / 2}
+                  r={radius}
+                  fill="none"
+                  stroke={colors.base}
+                  strokeWidth={strokeWidth}
+                  strokeLinecap="round"
+                  strokeDasharray={circumference}
+                  strokeDashoffset={strokeDashoffset}
+                  className="transition-all duration-500"
+                  style={{ filter: `drop-shadow(0 0 4px ${colors.glow})` }}
+                />
+              </svg>
+              <div className="absolute inset-0 flex items-center justify-center">
+                <span className={cn('text-lg font-bold', isDark ? 'text-white' : 'text-zinc-900')}>
+                  {Math.round(value)}
+                </span>
+              </div>
+            </div>
+            <span className={cn('text-xs mt-2', isDark ? 'text-zinc-400' : 'text-zinc-500')}>
+              {label}
+            </span>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+// ============================================
 // Main Component
 // ============================================
 
@@ -383,6 +472,7 @@ export function AgentProfile({
   compact = false,
   className,
 }: AgentProfileProps) {
+  const colors = useThemeColors()
   const [data, setData] = useState<AgentProfileData | null>(null)
   const [loading, setLoading] = useState(true)
   const [isUsingMockData, setIsUsingMockData] = useState(false)
@@ -499,7 +589,7 @@ export function AgentProfile({
                 isDark ? 'bg-zinc-900' : 'bg-zinc-100'
               )}
             >
-              <Calendar className="w-4 h-4 text-violet-500" />
+              <Calendar className="w-4 h-4" style={{ color: colors.base }} />
               <span className={cn('text-2xl font-bold', isDark ? 'text-white' : 'text-zinc-900')}>
                 Day {data.stats.daysSinceCreation}
               </span>
@@ -514,7 +604,7 @@ export function AgentProfile({
         <div className="mt-4 pt-4 border-t border-zinc-200 dark:border-zinc-700">
           <div className="flex items-center justify-between mb-2">
             <div className="flex items-center gap-2">
-              <Award className="w-5 h-5 text-amber-500" />
+              <Award className="w-5 h-5" style={{ color: colors.base }} />
               <span className={cn('font-semibold', isDark ? 'text-white' : 'text-zinc-900')}>
                 Lv.{data.abilities.level}
               </span>
@@ -525,8 +615,12 @@ export function AgentProfile({
           </div>
           <div className={cn('h-2 rounded-full overflow-hidden', isDark ? 'bg-zinc-700' : 'bg-zinc-200')}>
             <div
-              className="h-full rounded-full bg-gradient-to-r from-amber-400 to-orange-500 transition-all duration-500"
-              style={{ width: `${(data.abilities.experience_points % 1000) / 10}%` }}
+              className="h-full rounded-full transition-all duration-500"
+              style={{
+                width: `${(data.abilities.experience_points % 1000) / 10}%`,
+                background: `linear-gradient(90deg, ${colors.base}, ${colors.hover})`,
+                boxShadow: `0 0 10px ${colors.glow}`,
+              }}
             />
           </div>
         </div>
@@ -539,7 +633,7 @@ export function AgentProfile({
             icon={Trophy}
             label="신뢰도"
             value={`${data.stats.trustScore}%`}
-            color="#f59e0b"
+            color={colors.base}
             isDark={isDark}
           />
           <StatCard
@@ -547,21 +641,21 @@ export function AgentProfile({
             label="성공률"
             value={`${data.stats.successRate}%`}
             subValue={`${data.stats.totalTasksCompleted} 완료`}
-            color="#22c55e"
+            color={colors.base}
             isDark={isDark}
           />
           <StatCard
             icon={Clock}
             label="평균 응답"
             value={formatTime(data.stats.avgResponseTime)}
-            color="#3b82f6"
+            color={colors.base}
             isDark={isDark}
           />
           <StatCard
             icon={DollarSign}
             label="총 비용"
             value={formatCurrency(data.stats.totalCost)}
-            color="#8b5cf6"
+            color={colors.base}
             isDark={isDark}
           />
         </div>
@@ -578,7 +672,7 @@ export function AgentProfile({
             )}
           >
             <div className="flex items-center gap-2 mb-4">
-              <Activity className="w-5 h-5 text-blue-500" />
+              <Activity className="w-5 h-5" style={{ color: colors.base }} />
               <h3 className={cn('font-semibold', isDark ? 'text-white' : 'text-zinc-900')}>
                 활동 요약
               </h3>
@@ -616,55 +710,12 @@ export function AgentProfile({
             )}
           >
             <div className="flex items-center gap-2 mb-4">
-              <BarChart3 className="w-5 h-5 text-violet-500" />
+              <BarChart3 className="w-5 h-5" style={{ color: colors.base }} />
               <h3 className={cn('font-semibold', isDark ? 'text-white' : 'text-zinc-900')}>
                 능력치
               </h3>
             </div>
-            <div className="grid grid-cols-3 gap-4 justify-items-center">
-              <ProgressRing
-                value={data.abilities.analysis}
-                color="#3b82f6"
-                label="분석력"
-                isDark={isDark}
-                size={64}
-              />
-              <ProgressRing
-                value={data.abilities.communication}
-                color="#22c55e"
-                label="소통력"
-                isDark={isDark}
-                size={64}
-              />
-              <ProgressRing
-                value={data.abilities.creativity}
-                color="#8b5cf6"
-                label="창의력"
-                isDark={isDark}
-                size={64}
-              />
-              <ProgressRing
-                value={data.abilities.leadership}
-                color="#f59e0b"
-                label="리더십"
-                isDark={isDark}
-                size={64}
-              />
-              <ProgressRing
-                value={data.abilities.execution}
-                color="#ef4444"
-                label="실행력"
-                isDark={isDark}
-                size={64}
-              />
-              <ProgressRing
-                value={data.abilities.adaptability}
-                color="#06b6d4"
-                label="적응력"
-                isDark={isDark}
-                size={64}
-              />
-            </div>
+            <AbilitiesGrid abilities={data.abilities} isDark={isDark} />
           </div>
         </div>
       )}
@@ -678,7 +729,7 @@ export function AgentProfile({
           )}
         >
           <div className="flex items-center gap-2 mb-4">
-            <Trophy className="w-5 h-5 text-amber-500" />
+            <Trophy className="w-5 h-5" style={{ color: colors.base }} />
             <h3 className={cn('font-semibold', isDark ? 'text-white' : 'text-zinc-900')}>
               최근 성과
             </h3>
