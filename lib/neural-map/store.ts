@@ -97,6 +97,10 @@ interface NeuralMapState {
   // Editor
   editorOpen: boolean
   editorCollapsed: boolean
+
+  // Code Preview
+  codePreviewFile: NeuralFile | null
+  codePreviewOpen: boolean
 }
 
 // ============================================
@@ -194,6 +198,10 @@ interface NeuralMapActions {
   closeEditor: () => void
   toggleEditorCollapse: () => void
 
+  // Code Preview
+  openCodePreview: (file: NeuralFile) => void
+  closeCodePreview: () => void
+
   // Demo
   loadMockProjectData: () => void
 
@@ -254,6 +262,10 @@ const initialState: NeuralMapState = {
 
   editorOpen: false,
   editorCollapsed: false,
+
+  // Code Preview
+  codePreviewFile: null,
+  codePreviewOpen: false,
 }
 
 // ============================================
@@ -679,6 +691,18 @@ export const useNeuralMapStore = create<NeuralMapState & NeuralMapActions>()(
         toggleEditorCollapse: () =>
           set((state) => {
             state.editorCollapsed = !state.editorCollapsed
+          }),
+
+        // ========== Code Preview ==========
+        openCodePreview: (file: NeuralFile) =>
+          set((state) => {
+            state.codePreviewFile = file
+            state.codePreviewOpen = true
+          }),
+        closeCodePreview: () =>
+          set((state) => {
+            state.codePreviewOpen = false
+            state.codePreviewFile = null
           }),
 
         // ========== Demo ==========

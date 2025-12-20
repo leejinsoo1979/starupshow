@@ -34,6 +34,7 @@ import {
   Check,
   Play,
   Eye,
+  Code,
 } from 'lucide-react'
 
 // 정렬 옵션 타입
@@ -178,6 +179,7 @@ export function FileTreePanel({ mapId }: FileTreePanelProps) {
   const openEditor = useNeuralMapStore((s) => s.openEditor)
   const loadMockProjectData = useNeuralMapStore((s) => s.loadMockProjectData)
   const buildGraphFromFiles = useNeuralMapStore((s) => s.buildGraphFromFiles)
+  const openCodePreview = useNeuralMapStore((s) => s.openCodePreview)
 
   // API
   const { uploadFile, deleteFile, createNode, createEdge, analyzeFile } = useNeuralMapApi(mapId)
@@ -756,6 +758,7 @@ export function FileTreePanel({ mapId }: FileTreePanelProps) {
                   onDeleteFile={handleDeleteFile}
                   onToggleFolder={toggleFolder}
                   findNodeByFileName={findNodeByFileName}
+                  onOpenCodePreview={openCodePreview}
                 />
               )}
             </motion.div>
@@ -818,6 +821,7 @@ interface TreeNodeListProps {
   onDeleteFile: (e: React.MouseEvent, fileId: string) => void
   onToggleFolder: (path: string) => void
   findNodeByFileName: (name: string) => unknown
+  onOpenCodePreview: (file: NeuralFile) => void
 }
 
 function TreeNodeList({
@@ -832,7 +836,8 @@ function TreeNodeList({
   onFileDoubleClick,
   onDeleteFile,
   onToggleFolder,
-  findNodeByFileName
+  findNodeByFileName,
+  onOpenCodePreview
 }: TreeNodeListProps) {
   return (
     <>
@@ -884,6 +889,7 @@ function TreeNodeList({
                       onDeleteFile={onDeleteFile}
                       onToggleFolder={onToggleFolder}
                       findNodeByFileName={findNodeByFileName}
+                      onOpenCodePreview={onOpenCodePreview}
                     />
                   </motion.div>
                 )}
@@ -925,6 +931,25 @@ function TreeNodeList({
                 title="노드 연결됨"
               />
             )}
+
+            {/* 코드 미리보기 버튼 - 호버 시 표시 */}
+            <button
+              onClick={(e) => {
+                e.stopPropagation()
+                onOpenCodePreview(file)
+              }}
+              className={cn(
+                'p-0.5 rounded opacity-0 group-hover:opacity-100 transition-opacity',
+                isSelected
+                  ? 'hover:bg-white/20'
+                  : isDark
+                    ? 'hover:bg-zinc-700'
+                    : 'hover:bg-zinc-300'
+              )}
+              title="코드 미리보기"
+            >
+              <Code className="w-3.5 h-3.5" />
+            </button>
 
             {/* 삭제 버튼 - 호버 시 표시 */}
             <button

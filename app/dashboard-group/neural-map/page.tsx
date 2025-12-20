@@ -12,6 +12,7 @@ import type { NeuralGraph, NeuralNode, ViewTab } from '@/lib/neural-map/types'
 // Panels
 import { InspectorPanel } from '@/components/neural-map/panels/InspectorPanel'
 import { MarkdownEditorPanel } from '@/components/neural-map/panels/MarkdownEditorPanel'
+import { CodePreviewPanel } from '@/components/neural-map/panels/CodePreviewPanel'
 
 // Controls
 import { Toolbar } from '@/components/neural-map/controls/Toolbar'
@@ -248,6 +249,9 @@ export default function NeuralMapPage() {
           isCollapsed={editorCollapsed}
           onToggleCollapse={toggleEditorCollapse}
         />
+
+        {/* Code Preview Panel */}
+        <CodePreviewPanel />
 
         {/* Right Panel - Inspector/Actions/Chat */}
         <AnimatePresence initial={false}>
