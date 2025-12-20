@@ -11,13 +11,16 @@ import {
   FileText,
   File,
   Settings,
-  ChevronDown,
-  ChevronRight,
   ZoomIn,
   ZoomOut,
   Maximize2,
   GitBranch,
+  ArrowDown,
+  ArrowRight,
 } from 'lucide-react'
+
+// Layout direction type
+type LayoutDirection = 'top-down' | 'left-right'
 
 interface TreeNode {
   id: string
@@ -35,10 +38,10 @@ interface TreeFlowChartProps {
 }
 
 // Node dimensions
-const NODE_WIDTH = 160
-const NODE_HEIGHT = 40
-const HORIZONTAL_GAP = 40
-const VERTICAL_GAP = 60
+const NODE_WIDTH = 180
+const NODE_HEIGHT = 44
+const HORIZONTAL_GAP = 50
+const VERTICAL_GAP = 70
 
 // Get icon for node type
 function getNodeIcon(node: NeuralNode) {
@@ -46,6 +49,7 @@ function getNodeIcon(node: NeuralNode) {
   const title = node.title?.toLowerCase() || ''
 
   if (type === 'folder') return Folder
+  if (type === 'self') return GitBranch
   if (type === 'code' || title.endsWith('.tsx') || title.endsWith('.ts') || title.endsWith('.jsx') || title.endsWith('.js')) return FileCode
   if (type === 'config' || title.endsWith('.json') || title.endsWith('.yaml') || title.endsWith('.yml')) return Settings
   if (type === 'doc' || title.endsWith('.md')) return FileText
@@ -59,43 +63,41 @@ function getNodeColor(node: NeuralNode, isDark: boolean) {
 
   if (type === 'self') {
     return isDark
-      ? { bg: '#1e40af', border: '#3b82f6', text: '#ffffff' }
-      : { bg: '#3b82f6', border: '#1d4ed8', text: '#ffffff' }
+      ? { bg: '#1e40af', border: '#3b82f6', text: '#ffffff', shadow: 'rgba(59, 130, 246, 0.4)' }
+      : { bg: '#3b82f6', border: '#1d4ed8', text: '#ffffff', shadow: 'rgba(59, 130, 246, 0.3)' }
   }
   if (type === 'folder') {
     return isDark
-      ? { bg: '#065f46', border: '#10b981', text: '#ffffff' }
-      : { bg: '#10b981', border: '#059669', text: '#ffffff' }
+      ? { bg: '#065f46', border: '#10b981', text: '#ffffff', shadow: 'rgba(16, 185, 129, 0.3)' }
+      : { bg: '#10b981', border: '#059669', text: '#ffffff', shadow: 'rgba(16, 185, 129, 0.2)' }
   }
   if (type === 'code' || title.endsWith('.tsx') || title.endsWith('.ts')) {
     return isDark
-      ? { bg: '#1e3a5f', border: '#38bdf8', text: '#ffffff' }
-      : { bg: '#e0f2fe', border: '#38bdf8', text: '#0c4a6e' }
+      ? { bg: '#1e3a5f', border: '#38bdf8', text: '#ffffff', shadow: 'rgba(56, 189, 248, 0.3)' }
+      : { bg: '#e0f2fe', border: '#38bdf8', text: '#0c4a6e', shadow: 'rgba(56, 189, 248, 0.2)' }
   }
   if (type === 'config') {
     return isDark
-      ? { bg: '#4a4a00', border: '#facc15', text: '#ffffff' }
-      : { bg: '#fef9c3', border: '#facc15', text: '#713f12' }
+      ? { bg: '#4a4a00', border: '#facc15', text: '#ffffff', shadow: 'rgba(250, 204, 21, 0.3)' }
+      : { bg: '#fef9c3', border: '#facc15', text: '#713f12', shadow: 'rgba(250, 204, 21, 0.2)' }
   }
   if (type === 'doc') {
     return isDark
-      ? { bg: '#4a1d6e', border: '#a855f7', text: '#ffffff' }
-      : { bg: '#f3e8ff', border: '#a855f7', text: '#581c87' }
+      ? { bg: '#4a1d6e', border: '#a855f7', text: '#ffffff', shadow: 'rgba(168, 85, 247, 0.3)' }
+      : { bg: '#f3e8ff', border: '#a855f7', text: '#581c87', shadow: 'rgba(168, 85, 247, 0.2)' }
   }
   return isDark
-    ? { bg: '#27272a', border: '#52525b', text: '#ffffff' }
-    : { bg: '#f4f4f5', border: '#a1a1aa', text: '#18181b' }
+    ? { bg: '#27272a', border: '#52525b', text: '#ffffff', shadow: 'rgba(82, 82, 91, 0.3)' }
+    : { bg: '#f4f4f5', border: '#a1a1aa', text: '#18181b', shadow: 'rgba(161, 161, 170, 0.2)' }
 }
 
 // Build tree structure from nodes and edges
 function buildTree(nodes: NeuralNode[], edges: NeuralEdge[]): TreeNode | null {
   if (nodes.length === 0) return null
 
-  // Find root node (self or first node without parent)
   const selfNode = nodes.find(n => n.type === 'self')
   const rootNode = selfNode || nodes[0]
 
-  // Build parent-child map from edges
   const childrenMap = new Map<string, string[]>()
   edges.forEach(edge => {
     if (edge.type === 'parent_child') {
@@ -105,7 +107,6 @@ function buildTree(nodes: NeuralNode[], edges: NeuralEdge[]): TreeNode | null {
     }
   })
 
-  // Recursively build tree
   function buildNode(nodeId: string, depth: number): TreeNode | null {
     const node = nodes.find(n => n.id === nodeId)
     if (!node) return null
@@ -131,51 +132,61 @@ function buildTree(nodes: NeuralNode[], edges: NeuralEdge[]): TreeNode | null {
 }
 
 // Calculate positions for tree layout
-function calculateLayout(root: TreeNode): { width: number; height: number } {
+function calculateLayout(root: TreeNode, direction: LayoutDirection): { width: number; height: number } {
   let minX = Infinity
   let maxX = 0
-  let maxHeight = 0
+  let maxY = 0
 
-  // First pass: calculate widths
   function calculateWidths(node: TreeNode): number {
     if (node.children.length === 0) {
-      return NODE_WIDTH
+      return direction === 'top-down' ? NODE_WIDTH : NODE_HEIGHT
     }
 
-    const childrenWidth = node.children.reduce((sum, child, i) => {
-      return sum + calculateWidths(child) + (i > 0 ? HORIZONTAL_GAP : 0)
+    const childrenSize = node.children.reduce((sum, child, i) => {
+      return sum + calculateWidths(child) + (i > 0 ? (direction === 'top-down' ? HORIZONTAL_GAP : VERTICAL_GAP) : 0)
     }, 0)
 
-    return Math.max(NODE_WIDTH, childrenWidth)
+    return Math.max(direction === 'top-down' ? NODE_WIDTH : NODE_HEIGHT, childrenSize)
   }
 
-  // Second pass: position nodes
-  function positionNodes(node: TreeNode, x: number, y: number, availableWidth: number): void {
-    node.y = y
-    node.x = x + (availableWidth - NODE_WIDTH) / 2
+  function positionNodes(node: TreeNode, x: number, y: number, availableSize: number): void {
+    if (direction === 'top-down') {
+      node.y = y
+      node.x = x + (availableSize - NODE_WIDTH) / 2
+    } else {
+      node.x = x
+      node.y = y + (availableSize - NODE_HEIGHT) / 2
+    }
 
     minX = Math.min(minX, node.x)
     maxX = Math.max(maxX, node.x + NODE_WIDTH)
-    maxHeight = Math.max(maxHeight, node.y + NODE_HEIGHT)
+    maxY = Math.max(maxY, node.y + NODE_HEIGHT)
 
     if (node.children.length === 0) return
 
-    // Calculate total children width
-    const childWidths = node.children.map(child => calculateWidths(child))
-    const totalChildrenWidth = childWidths.reduce((sum, w, i) => sum + w + (i > 0 ? HORIZONTAL_GAP : 0), 0)
+    const childSizes = node.children.map(child => calculateWidths(child))
+    const gap = direction === 'top-down' ? HORIZONTAL_GAP : VERTICAL_GAP
+    const totalChildrenSize = childSizes.reduce((sum, s, i) => sum + s + (i > 0 ? gap : 0), 0)
 
-    // Position children
-    let childX = x + (availableWidth - totalChildrenWidth) / 2
-    node.children.forEach((child, i) => {
-      positionNodes(child, childX, y + NODE_HEIGHT + VERTICAL_GAP, childWidths[i])
-      childX += childWidths[i] + HORIZONTAL_GAP
-    })
+    if (direction === 'top-down') {
+      let childX = x + (availableSize - totalChildrenSize) / 2
+      node.children.forEach((child, i) => {
+        positionNodes(child, childX, y + NODE_HEIGHT + VERTICAL_GAP, childSizes[i])
+        childX += childSizes[i] + HORIZONTAL_GAP
+      })
+    } else {
+      let childY = y + (availableSize - totalChildrenSize) / 2
+      node.children.forEach((child, i) => {
+        positionNodes(child, x + NODE_WIDTH + HORIZONTAL_GAP, childY, childSizes[i])
+        childY += childSizes[i] + VERTICAL_GAP
+      })
+    }
   }
 
-  const rootWidth = calculateWidths(root)
-  positionNodes(root, 0, 0, rootWidth)
+  const rootSize = calculateWidths(root)
+  positionNodes(root, 0, 0, rootSize)
 
-  // Normalize positions so minX becomes 0
+  // Normalize positions
   function normalizePositions(node: TreeNode): void {
     node.x -= minX
     node.children.forEach(normalizePositions)
@@ -184,10 +195,9 @@ function calculateLayout(root: TreeNode): { width: number; height: number } {
     normalizePositions(root)
   }
 
-  // Return actual content size (no extra margins - handled in centering)
   return {
     width: maxX - minX,
-    height: maxHeight
+    height: maxY
   }
 }
 
@@ -208,6 +218,7 @@ export function TreeFlowChart({ className }: TreeFlowChartProps) {
   const [transform, setTransform] = useState({ x: 0, y: 0, scale: 1 })
   const [isPanning, setIsPanning] = useState(false)
   const [lastMouse, setLastMouse] = useState({ x: 0, y: 0 })
+  const [layoutDirection, setLayoutDirection] = useState<LayoutDirection>('top-down')
 
   // Build tree from graph
   const { tree, dimensions, nodePositions } = useMemo(() => {
@@ -216,9 +227,8 @@ export function TreeFlowChart({ className }: TreeFlowChartProps) {
     const tree = buildTree(graph.nodes, graph.edges)
     if (!tree) return { tree: null, dimensions: { width: 0, height: 0 }, nodePositions: new Map() }
 
-    const dimensions = calculateLayout(tree)
+    const dimensions = calculateLayout(tree, layoutDirection)
 
-    // Collect all node positions for import edge rendering
     const nodePositions = new Map<string, { x: number; y: number }>()
     function collectPositions(node: TreeNode) {
       nodePositions.set(node.id, { x: node.x + NODE_WIDTH / 2, y: node.y + NODE_HEIGHT / 2 })
@@ -227,7 +237,7 @@ export function TreeFlowChart({ className }: TreeFlowChartProps) {
     collectPositions(tree)
 
     return { tree, dimensions, nodePositions }
-  }, [graph])
+  }, [graph, layoutDirection])
 
   // Import edges
   const importEdges = useMemo(() => {
@@ -235,7 +245,7 @@ export function TreeFlowChart({ className }: TreeFlowChartProps) {
     return getImportEdges(graph.edges, nodePositions)
   }, [graph, nodePositions])
 
-  // Center the tree on load and resize
+  // Container size tracking
   const [containerSize, setContainerSize] = useState({ width: 0, height: 0 })
 
   useEffect(() => {
@@ -249,39 +259,32 @@ export function TreeFlowChart({ className }: TreeFlowChartProps) {
       })
     }
 
-    // Initial size
     updateSize()
-
-    // Watch for resize
     const resizeObserver = new ResizeObserver(updateSize)
     resizeObserver.observe(container)
 
     return () => resizeObserver.disconnect()
   }, [])
 
+  // Center tree on layout change
   useEffect(() => {
     if (containerSize.width === 0 || dimensions.width === 0) return
 
-    // Add padding around content
-    const PADDING = 80
-
-    // Calculate scale to fit with padding
+    const PADDING = 100
     const availableWidth = containerSize.width - PADDING * 2
     const availableHeight = containerSize.height - PADDING * 2
 
     const scaleX = availableWidth / dimensions.width
     const scaleY = availableHeight / dimensions.height
-    // Use minimum of both scales, capped at 0.5 for readability
-    const scale = Math.min(scaleX, scaleY, 0.5)
+    const scale = Math.min(scaleX, scaleY, 0.8)
 
-    // Center the scaled content in the container
     const scaledWidth = dimensions.width * scale
     const scaledHeight = dimensions.height * scale
     const x = (containerSize.width - scaledWidth) / 2
     const y = (containerSize.height - scaledHeight) / 2
 
     setTransform({ x, y, scale })
-  }, [containerSize, dimensions])
+  }, [containerSize, dimensions, layoutDirection])
 
   // Pan handlers
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
@@ -309,7 +312,7 @@ export function TreeFlowChart({ className }: TreeFlowChartProps) {
     setIsPanning(false)
   }, [])
 
-  // Zoom handlers - use native event listener for non-passive wheel events
+  // Zoom with wheel
   useEffect(() => {
     const container = containerRef.current
     if (!container) return
@@ -320,8 +323,6 @@ export function TreeFlowChart({ className }: TreeFlowChartProps) {
 
       setTransform(prev => {
         const newScale = Math.max(0.1, Math.min(3, prev.scale * delta))
-
-        // Zoom towards mouse position
         const rect = container.getBoundingClientRect()
         const mouseX = e.clientX - rect.left
         const mouseY = e.clientY - rect.top
@@ -344,13 +345,13 @@ export function TreeFlowChart({ className }: TreeFlowChartProps) {
   const resetView = () => {
     if (containerSize.width === 0 || dimensions.width === 0) return
 
-    const PADDING = 80
+    const PADDING = 100
     const availableWidth = containerSize.width - PADDING * 2
     const availableHeight = containerSize.height - PADDING * 2
 
     const scaleX = availableWidth / dimensions.width
     const scaleY = availableHeight / dimensions.height
-    const scale = Math.min(scaleX, scaleY, 0.5)
+    const scale = Math.min(scaleX, scaleY, 0.8)
 
     const scaledWidth = dimensions.width * scale
     const scaledHeight = dimensions.height * scale
@@ -360,57 +361,131 @@ export function TreeFlowChart({ className }: TreeFlowChartProps) {
     setTransform({ x, y, scale })
   }
 
+  // Render orthogonal edge (elbow connector)
+  const renderEdge = (
+    startX: number,
+    startY: number,
+    endX: number,
+    endY: number,
+    key: string,
+    color: string = isDark ? '#4a9eff' : '#3b82f6'
+  ) => {
+    if (layoutDirection === 'top-down') {
+      // Vertical elbow: down, then horizontal, then down
+      const midY = startY + (endY - startY) / 2
+      return (
+        <path
+          key={key}
+          d={`M ${startX} ${startY}
+              L ${startX} ${midY}
+              L ${endX} ${midY}
+              L ${endX} ${endY}`}
+          fill="none"
+          stroke={color}
+          strokeWidth={2}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      )
+    } else {
+      // Horizontal elbow: right, then vertical, then right
+      const midX = startX + (endX - startX) / 2
+      return (
+        <path
+          key={key}
+          d={`M ${startX} ${startY}
+              L ${midX} ${startY}
+              L ${midX} ${endY}
+              L ${endX} ${endY}`}
+          fill="none"
+          stroke={color}
+          strokeWidth={2}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      )
+    }
+  }
+
   // Render tree node
   const renderNode = (treeNode: TreeNode): React.ReactNode => {
     const { node, children, x, y } = treeNode
     const Icon = getNodeIcon(node)
     const colors = getNodeColor(node, isDark)
     const isSelected = selectedNodeIds.includes(node.id)
+    const isRoot = node.type === 'self'
+
+    // Edge connection points
+    const getEdgePoints = (parentNode: TreeNode, childNode: TreeNode) => {
+      if (layoutDirection === 'top-down') {
+        return {
+          startX: parentNode.x + NODE_WIDTH / 2,
+          startY: parentNode.y + NODE_HEIGHT,
+          endX: childNode.x + NODE_WIDTH / 2,
+          endY: childNode.y
+        }
+      } else {
+        return {
+          startX: parentNode.x + NODE_WIDTH,
+          startY: parentNode.y + NODE_HEIGHT / 2,
+          endX: childNode.x,
+          endY: childNode.y + NODE_HEIGHT / 2
+        }
+      }
+    }
 
     return (
       <g key={node.id}>
-        {/* Edges to children (parent_child) */}
+        {/* Edges to children */}
         {children.map(child => {
-          const startX = x + NODE_WIDTH / 2
-          const startY = y + NODE_HEIGHT
-          const endX = child.x + NODE_WIDTH / 2
-          const endY = child.y
-          const midY = startY + (endY - startY) / 2
-
-          return (
-            <path
-              key={`edge-${node.id}-${child.id}`}
-              d={`M ${startX} ${startY}
-                  C ${startX} ${midY}, ${endX} ${midY}, ${endX} ${endY}`}
-              fill="none"
-              stroke={isDark ? '#4a9eff' : '#3b82f6'}
-              strokeWidth={2}
-              strokeOpacity={0.6}
-            />
-          )
+          const { startX, startY, endX, endY } = getEdgePoints(treeNode, child)
+          return renderEdge(startX, startY, endX, endY, `edge-${node.id}-${child.id}`)
         })}
 
-        {/* Node rectangle */}
+        {/* Node container */}
         <g
           transform={`translate(${x}, ${y})`}
           onClick={() => setSelectedNodes([node.id])}
           style={{ cursor: 'pointer' }}
         >
+          {/* Shadow */}
+          <rect
+            x={3}
+            y={3}
+            width={NODE_WIDTH}
+            height={NODE_HEIGHT}
+            rx={isRoot ? 12 : 8}
+            ry={isRoot ? 12 : 8}
+            fill={colors.shadow}
+            opacity={0.5}
+          />
+
+          {/* Main rect */}
           <rect
             width={NODE_WIDTH}
             height={NODE_HEIGHT}
-            rx={8}
-            ry={8}
+            rx={isRoot ? 12 : 8}
+            ry={isRoot ? 12 : 8}
             fill={colors.bg}
             stroke={isSelected ? '#f59e0b' : colors.border}
             strokeWidth={isSelected ? 3 : 2}
-            filter={isSelected ? 'drop-shadow(0 0 8px rgba(245, 158, 11, 0.5))' : undefined}
+          />
+
+          {/* Highlight line at top */}
+          <rect
+            x={1}
+            y={1}
+            width={NODE_WIDTH - 2}
+            height={3}
+            rx={isRoot ? 11 : 7}
+            fill={colors.border}
+            opacity={0.6}
           />
 
           {/* Icon */}
-          <foreignObject x={10} y={(NODE_HEIGHT - 18) / 2} width={18} height={18}>
+          <foreignObject x={12} y={(NODE_HEIGHT - 20) / 2} width={20} height={20}>
             <Icon
-              size={18}
+              size={20}
               color={colors.text}
               style={{ opacity: 0.9 }}
             />
@@ -418,26 +493,38 @@ export function TreeFlowChart({ className }: TreeFlowChartProps) {
 
           {/* Text */}
           <text
-            x={34}
+            x={40}
             y={NODE_HEIGHT / 2 + 5}
             fill={colors.text}
-            fontSize={12}
-            fontWeight={500}
-            style={{
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-            }}
+            fontSize={13}
+            fontWeight={isRoot ? 600 : 500}
+            fontFamily="system-ui, -apple-system, sans-serif"
           >
-            {node.title && node.title.length > 14
-              ? node.title.substring(0, 14) + '...'
+            {node.title && node.title.length > 16
+              ? node.title.substring(0, 16) + '...'
               : node.title}
           </text>
 
-          {/* Children indicator */}
+          {/* Children count badge */}
           {children.length > 0 && (
-            <foreignObject x={NODE_WIDTH - 24} y={(NODE_HEIGHT - 16) / 2} width={16} height={16}>
-              <ChevronDown size={16} color={colors.text} style={{ opacity: 0.6 }} />
-            </foreignObject>
+            <g transform={`translate(${NODE_WIDTH - 28}, ${(NODE_HEIGHT - 20) / 2})`}>
+              <rect
+                width={20}
+                height={20}
+                rx={10}
+                fill={isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)'}
+              />
+              <text
+                x={10}
+                y={14}
+                fill={colors.text}
+                fontSize={11}
+                fontWeight={500}
+                textAnchor="middle"
+              >
+                {children.length}
+              </text>
+            </g>
           )}
         </g>
 
@@ -447,29 +534,28 @@ export function TreeFlowChart({ className }: TreeFlowChartProps) {
     )
   }
 
-  // Render import edges (curved lines between files)
+  // Render import edges
   const renderImportEdges = () => {
     return importEdges.map(edge => {
       const source = nodePositions.get(edge.source)
       const target = nodePositions.get(edge.target)
       if (!source || !target) return null
 
-      // Curved path for import dependencies
       const dx = target.x - source.x
       const dy = target.y - source.y
-      const dr = Math.sqrt(dx * dx + dy * dy) * 0.8
+      const dist = Math.sqrt(dx * dx + dy * dy)
 
       return (
         <g key={`import-${edge.id}`}>
           <path
             d={`M ${source.x} ${source.y}
-                Q ${(source.x + target.x) / 2 + dr * 0.3} ${(source.y + target.y) / 2 - dr * 0.2},
+                Q ${source.x + dx * 0.5 + dy * 0.2} ${source.y + dy * 0.5 - dx * 0.2},
                   ${target.x} ${target.y}`}
             fill="none"
             stroke="#f59e0b"
             strokeWidth={1.5}
-            strokeOpacity={0.5}
-            strokeDasharray="4 2"
+            strokeOpacity={0.6}
+            strokeDasharray="6 3"
             markerEnd="url(#arrowhead)"
           />
         </g>
@@ -487,7 +573,7 @@ export function TreeFlowChart({ className }: TreeFlowChartProps) {
         <div className="text-center">
           <GitBranch className="w-12 h-12 mx-auto mb-3 opacity-50" />
           <p className="text-lg font-medium">트리 데이터가 없습니다</p>
-          <p className="text-sm mt-1">좌측 패널에서 데모 버튼을 눌러 샘플 프로젝트를 로드하세요</p>
+          <p className="text-sm mt-1">좌측 패널에서 파일을 업로드하고 시각화 버튼을 눌러주세요</p>
         </div>
       </div>
     )
@@ -507,6 +593,39 @@ export function TreeFlowChart({ className }: TreeFlowChartProps) {
       onMouseUp={handleMouseUp}
       onMouseLeave={handleMouseUp}
     >
+      {/* Layout toggle */}
+      <div className={cn(
+        'absolute top-4 left-4 z-10 flex gap-1 p-1 rounded-lg shadow-lg',
+        isDark ? 'bg-zinc-800/90 border border-zinc-700' : 'bg-white/90 border border-zinc-200'
+      )}>
+        <button
+          onClick={() => setLayoutDirection('top-down')}
+          className={cn(
+            'flex items-center gap-2 px-3 py-2 rounded text-sm font-medium transition-colors',
+            layoutDirection === 'top-down'
+              ? isDark ? 'bg-blue-600 text-white' : 'bg-blue-500 text-white'
+              : isDark ? 'hover:bg-zinc-700 text-zinc-300' : 'hover:bg-zinc-100 text-zinc-700'
+          )}
+          title="탑다운 레이아웃"
+        >
+          <ArrowDown size={16} />
+          <span>탑다운</span>
+        </button>
+        <button
+          onClick={() => setLayoutDirection('left-right')}
+          className={cn(
+            'flex items-center gap-2 px-3 py-2 rounded text-sm font-medium transition-colors',
+            layoutDirection === 'left-right'
+              ? isDark ? 'bg-blue-600 text-white' : 'bg-blue-500 text-white'
+              : isDark ? 'hover:bg-zinc-700 text-zinc-300' : 'hover:bg-zinc-100 text-zinc-700'
+          )}
+          title="마인드맵 레이아웃"
+        >
+          <ArrowRight size={16} />
+          <span>마인드맵</span>
+        </button>
+      </div>
+
       {/* Zoom controls */}
       <div className={cn(
         'absolute top-4 right-4 z-10 flex flex-col gap-1 p-1 rounded-lg shadow-lg',
@@ -551,29 +670,29 @@ export function TreeFlowChart({ className }: TreeFlowChartProps) {
       )}>
         <div className="font-medium mb-1">범례</div>
         <div className="flex items-center gap-2">
-          <div className="w-4 h-0.5 bg-blue-500" />
+          <div className="w-6 h-0.5 bg-blue-500 rounded" />
           <span>폴더 구조</span>
         </div>
         <div className="flex items-center gap-2">
-          <div className="w-4 h-0.5 bg-amber-500" style={{ borderStyle: 'dashed' }} />
-          <span>Import 종속성</span>
+          <div className="w-6 h-0.5 bg-amber-500 rounded" style={{ borderStyle: 'dashed' }} />
+          <span>Import 관계</span>
         </div>
       </div>
 
-      {/* Scale indicator */}
+      {/* Stats */}
       <div className={cn(
-        'absolute bottom-4 right-4 z-10 px-2 py-1 rounded text-xs font-mono',
-        isDark ? 'bg-zinc-800/90 text-zinc-400' : 'bg-white/90 text-zinc-600'
+        'absolute bottom-4 right-4 z-10 px-3 py-2 rounded-lg text-xs font-mono',
+        isDark ? 'bg-zinc-800/90 border border-zinc-700 text-zinc-400' : 'bg-white/90 border border-zinc-200 text-zinc-600'
       )}>
-        {Math.round(transform.scale * 100)}%
+        <div>{graph.nodes.length} nodes</div>
+        <div>{Math.round(transform.scale * 100)}%</div>
       </div>
 
-      {/* SVG Canvas - fills entire container */}
+      {/* SVG Canvas */}
       <svg
         className="absolute inset-0 w-full h-full"
         style={{ overflow: 'visible' }}
       >
-        {/* Defs for arrowhead */}
         <defs>
           <marker
             id="arrowhead"
@@ -586,25 +705,27 @@ export function TreeFlowChart({ className }: TreeFlowChartProps) {
             <polygon
               points="0 0, 10 3.5, 0 7"
               fill="#f59e0b"
-              fillOpacity={0.6}
+              fillOpacity={0.7}
             />
           </marker>
+
+          {/* Gradient for edges */}
+          <linearGradient id="edgeGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+            <stop offset="0%" stopColor={isDark ? '#4a9eff' : '#3b82f6'} stopOpacity="0.8" />
+            <stop offset="100%" stopColor={isDark ? '#4a9eff' : '#3b82f6'} stopOpacity="0.4" />
+          </linearGradient>
         </defs>
 
-        {/* Transform group - pan and zoom applied here */}
-        <g
-          transform={`translate(${transform.x}, ${transform.y}) scale(${transform.scale})`}
-        >
-          {/* Import dependency edges (behind nodes) */}
+        <g transform={`translate(${transform.x}, ${transform.y}) scale(${transform.scale})`}>
+          {/* Import edges (behind) */}
           <g className="import-edges">
             {renderImportEdges()}
           </g>
 
-          {/* Tree nodes and parent-child edges */}
+          {/* Tree structure */}
           {renderNode(tree)}
         </g>
       </svg>
     </div>
   )
 }
-
