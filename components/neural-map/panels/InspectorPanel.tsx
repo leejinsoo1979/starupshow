@@ -5,6 +5,7 @@ import { motion } from 'framer-motion'
 import { useTheme } from 'next-themes'
 import { cn } from '@/lib/utils'
 import { useNeuralMapStore, selectFirstSelectedNode } from '@/lib/neural-map/store'
+import { useThemeStore, accentColors } from '@/stores/themeStore'
 import { NODE_COLORS } from '@/lib/neural-map/constants'
 import type { RightPanelTab, NodeType } from '@/lib/neural-map/types'
 import {
@@ -44,7 +45,7 @@ const nodeTypes: { value: NodeType; label: string }[] = [
   { value: 'insight', label: '인사이트' },
 ]
 
-function InspectorTab({ isDark }: { isDark: boolean }) {
+function InspectorTab({ isDark, currentAccent }: { isDark: boolean; currentAccent: typeof accentColors[0] }) {
   const selectedNode = useNeuralMapStore(selectFirstSelectedNode)
   const updateNode = useNeuralMapStore((s) => s.updateNode)
   const deleteNode = useNeuralMapStore((s) => s.deleteNode)
@@ -295,10 +296,16 @@ function InspectorTab({ isDark }: { isDark: boolean }) {
           onClick={handleSave}
           disabled={isSaving}
           className={cn(
-            'flex-1 flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors',
-            'bg-blue-600 hover:bg-blue-500 text-white',
+            'flex-1 flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all text-white',
             isSaving && 'opacity-50 cursor-not-allowed'
           )}
+          style={{ backgroundColor: currentAccent.color }}
+          onMouseEnter={(e) => {
+            if (!isSaving) e.currentTarget.style.backgroundColor = currentAccent.hoverColor
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.backgroundColor = currentAccent.color
+          }}
         >
           {isSaving ? (
             <Loader2 className="w-4 h-4 animate-spin" />
@@ -383,7 +390,7 @@ function ActionsTab({ isDark }: { isDark: boolean }) {
   )
 }
 
-function ChatTab({ isDark }: { isDark: boolean }) {
+function ChatTab({ isDark, currentAccent }: { isDark: boolean; currentAccent: typeof accentColors[0] }) {
   const selectedNode = useNeuralMapStore(selectFirstSelectedNode)
   const [message, setMessage] = useState('')
 
@@ -441,10 +448,16 @@ function ChatTab({ isDark }: { isDark: boolean }) {
           <button
             disabled={!selectedNode || !message.trim()}
             className={cn(
-              'px-4 py-2 rounded-lg text-sm font-medium transition-colors',
-              'bg-blue-600 hover:bg-blue-500 text-white',
+              'px-4 py-2 rounded-lg text-sm font-medium transition-all text-white',
               (!selectedNode || !message.trim()) && 'opacity-50 cursor-not-allowed'
             )}
+            style={{ backgroundColor: currentAccent.color }}
+            onMouseEnter={(e) => {
+              if (selectedNode && message.trim()) e.currentTarget.style.backgroundColor = currentAccent.hoverColor
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.backgroundColor = currentAccent.color
+            }}
           >
             전송
           </button>
@@ -459,6 +472,10 @@ export function InspectorPanel() {
   const isDark = resolvedTheme === 'dark'
   const rightPanelTab = useNeuralMapStore((s) => s.rightPanelTab)
   const setRightPanelTab = useNeuralMapStore((s) => s.setRightPanelTab)
+
+  // 사용자 테마 색상 사용
+  const { accentColor } = useThemeStore()
+  const currentAccent = accentColors.find((c) => c.id === accentColor) || accentColors[0]
 
   return (
     <div className="h-full flex flex-col">
@@ -484,7 +501,8 @@ export function InspectorPanel() {
             {rightPanelTab === tab.id && (
               <motion.div
                 layoutId="activeTab"
-                className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-500"
+                className="absolute bottom-0 left-0 right-0 h-0.5"
+                style={{ backgroundColor: currentAccent.color }}
               />
             )}
           </button>
@@ -493,9 +511,9 @@ export function InspectorPanel() {
 
       {/* Content */}
       <div className="flex-1 overflow-hidden">
-        {rightPanelTab === 'inspector' && <InspectorTab isDark={isDark} />}
+        {rightPanelTab === 'inspector' && <InspectorTab isDark={isDark} currentAccent={currentAccent} />}
         {rightPanelTab === 'actions' && <ActionsTab isDark={isDark} />}
-        {rightPanelTab === 'chat' && <ChatTab isDark={isDark} />}
+        {rightPanelTab === 'chat' && <ChatTab isDark={isDark} currentAccent={currentAccent} />}
       </div>
     </div>
   )
