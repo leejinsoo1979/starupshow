@@ -239,9 +239,12 @@ export function FileTreePanel({ mapId }: FileTreePanelProps) {
     return graph?.nodes.find(n => n.title === fileName)
   }
 
-  // 파일 클릭 핸들러
+  // 파일 클릭 핸들러 - 코드 미리보기 열기
   const handleFileClick = (file: NeuralFile) => {
     setSelectedFileId(file.id)
+    // 파일 클릭 시 바로 코드 미리보기 열기
+    openCodePreview(file)
+
     const node = findNodeByFileName(file.name)
     if (node) {
       setSelectedNodes([node.id])

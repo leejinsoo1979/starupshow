@@ -14,6 +14,7 @@ import {
   Network,
   Sparkles,
   GitBranch,
+  Database,
 } from 'lucide-react'
 
 const viewTabs: { id: ViewTab; label: string; icon: typeof Circle; description: string }[] = [
@@ -21,6 +22,7 @@ const viewTabs: { id: ViewTab; label: string; icon: typeof Circle; description: 
   { id: 'graph2d', label: 'Graph', icon: Network, description: '2D 그래프 (Obsidian 스타일)' },
   { id: 'cosmic', label: 'Cosmic', icon: Sparkles, description: '우주 스타일 3D' },
   { id: 'tree', label: 'Tree', icon: GitBranch, description: '탑다운 트리 플로우차트' },
+  { id: 'schema', label: 'Schema', icon: Database, description: '데이터베이스 스키마 ERD' },
   { id: 'clusters', label: 'Clusters', icon: Layers, description: '주제 군집' },
   { id: 'pathfinder', label: 'Pathfinder', icon: Route, description: '경로 탐색' },
   { id: 'roadmap', label: 'Roadmap', icon: Map, description: '로드뷰' },

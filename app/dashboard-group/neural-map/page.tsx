@@ -65,6 +65,15 @@ const TreeFlowChart = dynamic(
   }
 )
 
+// Dynamically import Schema View (database ERD)
+const SchemaView = dynamic(
+  () => import('@/components/neural-map/canvas/SchemaView').then((mod) => mod.SchemaView),
+  {
+    ssr: false,
+    loading: () => <CanvasLoadingFallback />,
+  }
+)
+
 // Loading fallback for canvas
 function CanvasLoadingFallback() {
   const currentTheme = useNeuralMapStore((s) => s.currentTheme)
@@ -236,6 +245,8 @@ export default function NeuralMapPage() {
               <CosmicForceGraph className="absolute inset-0" />
             ) : activeTab === 'tree' ? (
               <TreeFlowChart className="absolute inset-0" />
+            ) : activeTab === 'schema' ? (
+              <SchemaView className="absolute inset-0" />
             ) : (
               <NeuralMapCanvas className="absolute inset-0" />
             )}
