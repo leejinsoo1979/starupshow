@@ -55,21 +55,21 @@ function FileIcon({ type, name }: { type: string; name?: string }) {
 
   // 확장자별 아이콘 매핑
   if (ext === 'pdf') return <FileText className="w-4 h-4 text-red-500 flex-shrink-0" />
-  if (ext === 'md' || ext === 'markdown') return <FileCode className="w-4 h-4 text-blue-400 flex-shrink-0" />
+  if (ext === 'md' || ext === 'markdown') return <FileCode className="w-4 h-4 text-sky-500 flex-shrink-0" /> // Blue -> Sky
   if (ext === 'txt') return <FileText className="w-4 h-4 text-zinc-400 flex-shrink-0" />
   if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg'].includes(ext || '')) {
-    return <Image className="w-4 h-4 text-emerald-400 flex-shrink-0" />
+    return <Image className="w-4 h-4 text-violet-500 flex-shrink-0" /> // Emerald -> Violet
   }
   if (['mp4', 'webm', 'mov', 'avi'].includes(ext || '')) {
-    return <Film className="w-4 h-4 text-purple-400 flex-shrink-0" />
+    return <Film className="w-4 h-4 text-pink-500 flex-shrink-0" /> // Purple -> Pink
   }
 
   // 타입별 폴백
   switch (type) {
     case 'pdf': return <FileText className="w-4 h-4 text-red-500 flex-shrink-0" />
-    case 'image': return <Image className="w-4 h-4 text-emerald-400 flex-shrink-0" />
-    case 'video': return <Film className="w-4 h-4 text-purple-400 flex-shrink-0" />
-    case 'markdown': return <FileCode className="w-4 h-4 text-blue-400 flex-shrink-0" />
+    case 'image': return <Image className="w-4 h-4 text-violet-500 flex-shrink-0" />
+    case 'video': return <Film className="w-4 h-4 text-pink-500 flex-shrink-0" />
+    case 'markdown': return <FileCode className="w-4 h-4 text-sky-500 flex-shrink-0" />
     default: return <File className="w-4 h-4 text-zinc-400 flex-shrink-0" />
   }
 }
@@ -995,7 +995,7 @@ function TreeNodeList({
                 ) : (
                   <ChevronRight className="w-4 h-4 flex-shrink-0" />
                 )}
-                <FolderClosed className="w-4 h-4 text-amber-500 flex-shrink-0" />
+                <FolderClosed className="w-4 h-4 text-blue-500 flex-shrink-0" />
                 <span className="truncate">{node.name}</span>
               </div>
               <AnimatePresence>
