@@ -185,6 +185,7 @@ export function FileTreePanel({ mapId }: FileTreePanelProps) {
   const expandedNodeIds = useNeuralMapStore((s) => s.expandedNodeIds)
   const toggleNodeExpansion = useNeuralMapStore((s) => s.toggleNodeExpansion)
   const setExpandedNodes = useNeuralMapStore((s) => s.setExpandedNodes)
+  const graphExpanded = useNeuralMapStore((s) => s.graphExpanded)
 
   // API
   const { uploadFile, deleteFile, createNode, createEdge, analyzeFile } = useNeuralMapApi(mapId)
@@ -254,7 +255,7 @@ export function FileTreePanel({ mapId }: FileTreePanelProps) {
     })
   }
 
-  // Effect: Store의 expandedNodeIds가 바뀌면 로컬 expandedFolders도 업데이트 (양방향 동기화)
+  // Effect: Store의 expandedNodeIds와 graphExpanded가 바뀌면 로컬 상태도 업데이트 (양방향 동기화)
   useEffect(() => {
     if (!graph?.nodes) return;
 
@@ -295,15 +296,11 @@ export function FileTreePanel({ mapId }: FileTreePanelProps) {
       }
     });
 
-    // self 노드가 확장되어 있으면 루트도 확장
-    const selfNode = graph.nodes.find(n => n.type === 'self');
-    if (selfNode && expandedNodeIds.has(selfNode.id)) {
-      setIsExpanded(true);
-    }
-
+    // graphExpanded 상태에 따라 루트 폴더 펼침/접힘 동기화
+    setIsExpanded(graphExpanded);
     setExpandedFolders(newExpandedFolders);
 
-  }, [expandedNodeIds, graph?.nodes, fileTree]);
+  }, [expandedNodeIds, graph?.nodes, fileTree, graphExpanded]);
 
   // 모든 폴더 접기
   const collapseAll = () => {
