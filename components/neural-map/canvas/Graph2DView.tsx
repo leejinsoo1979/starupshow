@@ -4,7 +4,6 @@ import { useCallback, useEffect, useRef, useMemo, useState } from 'react'
 import dynamic from 'next/dynamic'
 import { useTheme } from 'next-themes'
 import { useNeuralMapStore } from '@/lib/neural-map/store'
-import { useUIStore } from '@/stores/uiStore'
 import type { NeuralNode, NeuralEdge, NeuralFile } from '@/lib/neural-map/types'
 
 // Dynamic import for SSR compatibility
@@ -324,9 +323,7 @@ export function Graph2DView({ className }: Graph2DViewProps) {
   const setSelectedNodes = useNeuralMapStore((s) => s.setSelectedNodes)
   const openModal = useNeuralMapStore((s) => s.openModal)
   const radialDistance = useNeuralMapStore((s) => s.radialDistance)
-
-  // UI Store - 사이드바 상태와 그래프 연동
-  const sidebarOpen = useUIStore((s) => s.sidebarOpen)
+  const graphExpanded = useNeuralMapStore((s) => s.graphExpanded)
 
   // 컨테이너 크기 감지
   useEffect(() => {
@@ -545,35 +542,30 @@ export function Graph2DView({ className }: Graph2DViewProps) {
     }
   }, [graphData.nodes.length])
 
-  // radialDistance/sidebarOpen에 따른 effective 값 계산
-  const effectiveDistance = sidebarOpen ? radialDistance : radialDistance * 0.2
-  const effectiveStrength = sidebarOpen ? -radialDistance * 2 : -30
+  // radialDistance/graphExpanded에 따른 effective 값 계산
+  const effectiveDistance = graphExpanded ? radialDistance : radialDistance * 0.2
+  const effectiveStrength = graphExpanded ? -radialDistance * 2 : -30
 
-  // radialDistance/sidebarOpen 변경 시 force 설정 및 시뮬레이션 재시작
+  // radialDistance/graphExpanded 변경 시 force 설정 및 시뮬레이션 재시작
   useEffect(() => {
     if (!graphRef.current || graphData.nodes.length === 0) return
 
     const graph = graphRef.current
 
-    // 약간의 딜레이 후 force 설정 (그래프 초기화 완료 대기)
-    const timer = setTimeout(() => {
-      // d3Force 설정
-      const linkForce = graph.d3Force('link')
-      if (linkForce && typeof linkForce.distance === 'function') {
-        linkForce.distance(effectiveDistance)
-      }
+    // force 설정
+    const linkForce = graph.d3Force('link')
+    if (linkForce && typeof linkForce.distance === 'function') {
+      linkForce.distance(effectiveDistance)
+    }
 
-      const chargeForce = graph.d3Force('charge')
-      if (chargeForce && typeof chargeForce.strength === 'function') {
-        chargeForce.strength(effectiveStrength)
-      }
+    const chargeForce = graph.d3Force('charge')
+    if (chargeForce && typeof chargeForce.strength === 'function') {
+      chargeForce.strength(effectiveStrength)
+    }
 
-      // 시뮬레이션 재시작
-      graph.d3ReheatSimulation()
-    }, 100)
-
-    return () => clearTimeout(timer)
-  }, [radialDistance, sidebarOpen, effectiveDistance, effectiveStrength, graphData.nodes.length])
+    // 시뮬레이션 재시작 - alpha 값을 높게 설정하여 확실히 움직이게 함
+    graph.d3ReheatSimulation()
+  }, [radialDistance, graphExpanded, effectiveDistance, effectiveStrength, graphData.nodes.length])
 
   return (
     <div
@@ -586,7 +578,7 @@ export function Graph2DView({ className }: Graph2DViewProps) {
       }}
     >
       <ForceGraph2D
-        key={`graph-${sidebarOpen}-${radialDistance}`}
+        key={`graph-${graphExpanded}-${radialDistance}`}
         ref={graphRef}
         graphData={graphData}
         width={dimensions.width}

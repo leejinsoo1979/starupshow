@@ -6,7 +6,6 @@ import { useTheme } from 'next-themes'
 import { cn } from '@/lib/utils'
 import { useNeuralMapStore, selectFirstSelectedNode } from '@/lib/neural-map/store'
 import { useThemeStore, accentColors } from '@/stores/themeStore'
-import { useUIStore } from '@/stores/uiStore'
 import { NODE_COLORS } from '@/lib/neural-map/constants'
 import type { RightPanelTab, NodeType } from '@/lib/neural-map/types'
 import {
@@ -474,9 +473,9 @@ function ChatTab({ isDark, currentAccent }: { isDark: boolean; currentAccent: ty
 function SettingsTab({ isDark, currentAccent }: { isDark: boolean; currentAccent: typeof accentColors[0] }) {
   const radialDistance = useNeuralMapStore((s) => s.radialDistance)
   const setRadialDistance = useNeuralMapStore((s) => s.setRadialDistance)
-  // UIStore의 sidebarOpen과 연동 - 사이드바 열림/닫힘이 그래프 펼침/수축 제어
-  const sidebarOpen = useUIStore((s) => s.sidebarOpen)
-  const toggleSidebar = useUIStore((s) => s.toggleSidebar)
+  // graphExpanded - 노드 펼침/수축 (사이드바와 별개)
+  const graphExpanded = useNeuralMapStore((s) => s.graphExpanded)
+  const setGraphExpanded = useNeuralMapStore((s) => s.setGraphExpanded)
 
   return (
     <div className="h-full overflow-y-auto p-4 space-y-6">
@@ -522,36 +521,36 @@ function SettingsTab({ isDark, currentAccent }: { isDark: boolean; currentAccent
           </div>
         </div>
 
-        {/* Graph Expanded Toggle - 사이드바와 연동 */}
+        {/* Graph Expanded Toggle */}
         <div className="space-y-2">
           <div className="flex items-center justify-between">
             <label className={cn('text-xs', isDark ? 'text-zinc-500' : 'text-zinc-500')}>
-              노드 펼침 (사이드바 연동)
+              노드 펼침
             </label>
             <button
-              onClick={toggleSidebar}
+              onClick={() => setGraphExpanded(!graphExpanded)}
               className={cn(
                 'relative inline-flex h-5 w-9 items-center rounded-full transition-colors',
-                sidebarOpen
+                graphExpanded
                   ? ''
                   : isDark
                   ? 'bg-zinc-700'
                   : 'bg-zinc-300'
               )}
               style={{
-                backgroundColor: sidebarOpen ? currentAccent.color : undefined,
+                backgroundColor: graphExpanded ? currentAccent.color : undefined,
               }}
             >
               <span
                 className={cn(
                   'inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow-sm transition-transform',
-                  sidebarOpen ? 'translate-x-4' : 'translate-x-1'
+                  graphExpanded ? 'translate-x-4' : 'translate-x-1'
                 )}
               />
             </button>
           </div>
           <p className={cn('text-[10px]', isDark ? 'text-zinc-600' : 'text-zinc-400')}>
-            {sidebarOpen ? '사이드바 열림 → 노드 펼쳐짐' : '사이드바 닫힘 → 노드 수축됨'}
+            {graphExpanded ? '노드가 방사 거리만큼 펼쳐집니다' : '노드가 중심으로 수축됩니다'}
           </p>
         </div>
       </div>

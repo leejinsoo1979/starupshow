@@ -5,7 +5,6 @@ import { useEffect, useRef, useCallback, useState, useMemo } from 'react'
 import { useTheme } from 'next-themes'
 import { cn } from '@/lib/utils'
 import { useNeuralMapStore } from '@/lib/neural-map/store'
-import { useUIStore } from '@/stores/uiStore'
 import type { NeuralNode, NeuralEdge, NeuralFile } from '@/lib/neural-map/types'
 
 // 파일 타입별 색상
@@ -93,7 +92,7 @@ export function CosmicForceGraph({ className }: CosmicForceGraphProps) {
   const radialDistance = useNeuralMapStore((s) => s.radialDistance)
 
   // UI Store - 사이드바 상태와 그래프 연동
-  const sidebarOpen = useUIStore((s) => s.sidebarOpen)
+  const graphExpanded = useNeuralMapStore((s) => s.graphExpanded)
 
   // Theme
   const { resolvedTheme } = useTheme()
@@ -262,8 +261,8 @@ export function CosmicForceGraph({ className }: CosmicForceGraphProps) {
 
       // 이미 초기화된 경우 force만 업데이트
       if (graphRef.current) {
-        const currentEffectiveDistance = sidebarOpen ? radialDistance : radialDistance * 0.2
-        const currentEffectiveStrength = sidebarOpen ? -radialDistance * 1.5 : -30
+        const currentEffectiveDistance = graphExpanded ? radialDistance : radialDistance * 0.2
+        const currentEffectiveStrength = graphExpanded ? -radialDistance * 1.5 : -30
         graphRef.current.d3Force('charge')?.strength(currentEffectiveStrength)
         graphRef.current.d3Force('link')?.distance((l: any) => l.kind === 'parent' ? currentEffectiveDistance * 0.5 : currentEffectiveDistance)
         graphRef.current.d3ReheatSimulation()
@@ -654,9 +653,9 @@ export function CosmicForceGraph({ className }: CosmicForceGraphProps) {
       pointLight2.position.set(-100, -50, -100)
       scene.add(pointLight2)
 
-      // Force tuning - radialDistance와 sidebarOpen 연동
-      const effectiveDistance = sidebarOpen ? radialDistance : radialDistance * 0.2
-      const effectiveStrength = sidebarOpen ? -radialDistance * 1.5 : -30
+      // Force tuning - radialDistance와 graphExpanded 연동
+      const effectiveDistance = graphExpanded ? radialDistance : radialDistance * 0.2
+      const effectiveStrength = graphExpanded ? -radialDistance * 1.5 : -30
       Graph.d3Force('charge')?.strength(effectiveStrength)
       Graph.d3Force('link')?.distance((l: any) => l.kind === 'parent' ? effectiveDistance * 0.5 : effectiveDistance)
 
@@ -734,7 +733,7 @@ export function CosmicForceGraph({ className }: CosmicForceGraphProps) {
         }
       }
     })
-  }, [isClient, isDark, selectedNodeIds, sidebarOpen, radialDistance])
+  }, [isClient, isDark, selectedNodeIds, graphExpanded, radialDistance])
 
   // Update graph data when store changes
   useEffect(() => {
@@ -776,11 +775,11 @@ export function CosmicForceGraph({ className }: CosmicForceGraphProps) {
     graphRef.current.nodeThreeObject(graphRef.current.nodeThreeObject())
   }, [selectedNodeIds])
 
-  // radialDistance/sidebarOpen에 따른 effective 값 계산
-  const effectiveDistance = sidebarOpen ? radialDistance : radialDistance * 0.2
-  const effectiveStrength = sidebarOpen ? -radialDistance * 1.5 : -30
+  // radialDistance/graphExpanded에 따른 effective 값 계산
+  const effectiveDistance = graphExpanded ? radialDistance : radialDistance * 0.2
+  const effectiveStrength = graphExpanded ? -radialDistance * 1.5 : -30
 
-  // Update force settings when radialDistance or sidebarOpen changes
+  // Update force settings when radialDistance or graphExpanded changes
   useEffect(() => {
     if (!graphRef.current || !graph?.nodes?.length) return
 
@@ -802,7 +801,7 @@ export function CosmicForceGraph({ className }: CosmicForceGraphProps) {
     }, 100)
 
     return () => clearTimeout(timer)
-  }, [radialDistance, sidebarOpen, effectiveDistance, effectiveStrength, graph?.nodes?.length])
+  }, [radialDistance, graphExpanded, effectiveDistance, effectiveStrength, graph?.nodes?.length])
 
   if (!isClient) {
     return (
