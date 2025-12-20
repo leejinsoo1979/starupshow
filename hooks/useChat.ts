@@ -102,6 +102,8 @@ export function useChatRoom(roomId: string | null) {
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const hasAgentRef = useRef<boolean>(false)
   const lastMessageIdRef = useRef<string | null>(null)
+  const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null)
+  const typingPollingIntervalRef = useRef<NodeJS.Timeout | null>(null)
 
   // room 변경 시 에이전트 존재 여부 업데이트
   useEffect(() => {
@@ -156,27 +158,37 @@ export function useChatRoom(roomId: string | null) {
   // 초기 로드
   useEffect(() => {
     if (roomId) {
-      fetchRoom()
-      fetchMessages()
+      // 순차적으로 로드하여 동시 API 호출 최소화
+      setLoading(true)
+      fetchRoom().then(() => fetchMessages())
     } else {
       setLoading(false)
       setRoom(null)
       setMessages([])
     }
-  }, [roomId, fetchRoom, fetchMessages])
+  }, [roomId]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // 메시지 polling (5초마다, 로딩 표시 없음) - 3초→5초로 최적화
+  // 메시지 polling (5초마다, 로딩 표시 없음) - 초기 로드 완료 후 시작
   useEffect(() => {
     if (!roomId) return
 
-    const interval = setInterval(() => {
-      fetchMessages(undefined, false, false)  // showLoading = false, updateRead = false (polling 시 읽음 처리 스킵)
-    }, 5000)
+    // 초기 로드 후 2초 대기 후 polling 시작 (API 부하 분산)
+    const startPolling = setTimeout(() => {
+      pollingIntervalRef.current = setInterval(() => {
+        fetchMessages(undefined, false, false)  // showLoading = false, updateRead = false (polling 시 읽음 처리 스킵)
+      }, 5000)
+    }, 2000)
 
-    return () => clearInterval(interval)
+    return () => {
+      clearTimeout(startPolling)
+      if (pollingIntervalRef.current) {
+        clearInterval(pollingIntervalRef.current)
+        pollingIntervalRef.current = null
+      }
+    }
   }, [roomId, fetchMessages])
 
-  // 에이전트 타이핑 상태 polling (3초마다) - 경량 API 사용, 1초→3초로 최적화
+  // 에이전트 타이핑 상태 polling (3초마다) - 경량 API 사용, 초기 로드 후 지연 시작
   useEffect(() => {
     if (!roomId) return
 
@@ -198,21 +210,27 @@ export function useChatRoom(roomId: string | null) {
           setTypingUsers(typingAgents)
         } else {
           // 타이핑 중인 에이전트가 없으면 해제
-          if (agentTyping) {
-            setAgentTyping(false)
-            setTypingUsers([])
-          }
+          setAgentTyping(false)
+          setTypingUsers([])
         }
       } catch (err) {
         // 에러 무시
       }
     }
 
-    const interval = setInterval(checkTypingStatus, 3000)
-    checkTypingStatus() // 초기 체크
+    // 초기 로드 후 3초 대기 후 polling 시작 (API 부하 분산)
+    const startPolling = setTimeout(() => {
+      typingPollingIntervalRef.current = setInterval(checkTypingStatus, 3000)
+    }, 3000)
 
-    return () => clearInterval(interval)
-  }, [roomId, agentTyping])
+    return () => {
+      clearTimeout(startPolling)
+      if (typingPollingIntervalRef.current) {
+        clearInterval(typingPollingIntervalRef.current)
+        typingPollingIntervalRef.current = null
+      }
+    }
+  }, [roomId])
 
   // 새 에이전트 메시지 감지시 타이핑 해제
   useEffect(() => {

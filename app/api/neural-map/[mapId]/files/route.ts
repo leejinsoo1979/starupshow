@@ -159,17 +159,22 @@ export async function POST(request: Request, { params }: RouteParams) {
       .from('neural-files')
       .getPublicUrl(uploadData.path)
 
-    // DB에 메타데이터 저장
+    // DB에 메타데이터 저장 (path 컬럼이 없을 수 있으므로 조건부 추가)
+    const insertData: Record<string, unknown> = {
+      map_id: mapId,
+      name: file.name,
+      type: fileType,
+      url: urlData.publicUrl,
+      size: file.size,
+    }
+    // path가 있을 때만 추가 (DB에 컬럼이 없으면 에러 방지)
+    if (path) {
+      insertData.path = path
+    }
+
     const { data, error } = await adminSupabase
       .from('neural_files')
-      .insert({
-        map_id: mapId,
-        name: file.name,
-        path: path || null,
-        type: fileType,
-        url: urlData.publicUrl,
-        size: file.size,
-      } as unknown as never)
+      .insert(insertData as never)
       .select()
       .single()
 
