@@ -31,7 +31,7 @@ export default function DashboardLayout({
   const router = useRouter()
   const pathname = usePathname()
   const { setUser, setCurrentStartup, setIsLoading, isLoading } = useAuthStore()
-  const { sidebarOpen, emailSidebarWidth, isResizingEmail } = useUIStore()
+  const { sidebarOpen, emailSidebarWidth, isResizingEmail, workHistoryOpen, toggleWorkHistory } = useUIStore()
   const [mounted, setMounted] = useState(false)
   const isFullWidthPage = pathname?.includes('/messenger') || pathname?.includes('/agent-builder') || pathname?.includes('/email') || pathname?.match(/\/project\/[^/]+$/) || pathname?.includes('/works/new') || pathname?.includes('/apps/ai-slides') || pathname?.includes('/apps/ai-sheet') || pathname?.includes('/apps/ai-docs') || pathname?.includes('/apps/ai-summary') || pathname?.includes('/neural-map')
 
@@ -151,7 +151,7 @@ export default function DashboardLayout({
       <TwoLevelSidebar />
       <Header />
       <CommitModal />
-      <WorkHistorySidebar />
+      <WorkHistorySidebar isOpen={workHistoryOpen} onToggle={toggleWorkHistory} />
       <main
         className={cn(
           "transition-all duration-300",

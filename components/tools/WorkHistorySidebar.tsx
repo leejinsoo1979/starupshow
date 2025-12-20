@@ -3,8 +3,6 @@
 import React, { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import {
-    ChevronLeft,
-    ChevronRight,
     Search,
     RefreshCw,
     Minus,
@@ -140,24 +138,6 @@ export function WorkHistorySidebar({
 
     return (
         <>
-            {/* 토글 버튼 - 항상 표시 */}
-            <button
-                onClick={handleToggle}
-                className={cn(
-                    "fixed top-1/2 -translate-y-1/2 z-[100]",
-                    "w-8 h-20 bg-zinc-800 hover:bg-zinc-700 rounded-l-xl",
-                    "flex items-center justify-center transition-all duration-300",
-                    "border-l border-t border-b border-zinc-600 shadow-lg",
-                    isOpen ? "right-[320px]" : "right-0"
-                )}
-            >
-                {isOpen ? (
-                    <ChevronRight className="w-5 h-5 text-white" />
-                ) : (
-                    <ChevronLeft className="w-5 h-5 text-white" />
-                )}
-            </button>
-
             {/* 사이드바 패널 */}
             <div
                 className={cn(

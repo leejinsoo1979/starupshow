@@ -21,12 +21,14 @@ import {
   Command,
   Bot,
   MessageSquare,
+  PanelRightClose,
+  PanelRightOpen,
 } from 'lucide-react'
 
 export function Header() {
   const router = useRouter()
   const pathname = usePathname()
-  const { openCommitModal, sidebarOpen } = useUIStore()
+  const { openCommitModal, sidebarOpen, workHistoryOpen, toggleWorkHistory } = useUIStore()
   const { user, logout: clearAuth } = useAuthStore()
   const { resolvedTheme } = useTheme()
   const [showUserMenu, setShowUserMenu] = useState(false)
@@ -119,6 +121,24 @@ export function Header() {
             <Bell className="w-5 h-5" />
             <span className={`absolute top-1.5 right-1.5 w-2.5 h-2.5 bg-danger-500 rounded-full border-2 ${isDark ? 'border-zinc-900' : 'border-white'
               }`} />
+          </motion.button>
+
+          {/* Work History Panel Toggle */}
+          <motion.button
+            onClick={toggleWorkHistory}
+            className={`p-2.5 rounded-xl transition-colors ${isDark
+              ? 'hover:bg-zinc-800 text-zinc-400 hover:text-zinc-100'
+              : 'hover:bg-zinc-100 text-zinc-500 hover:text-zinc-900'
+              }`}
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            title={workHistoryOpen ? '작업 목록 닫기' : '작업 목록 열기'}
+          >
+            {workHistoryOpen ? (
+              <PanelRightClose className="w-5 h-5" />
+            ) : (
+              <PanelRightOpen className="w-5 h-5" />
+            )}
           </motion.button>
 
           {/* User Menu */}
