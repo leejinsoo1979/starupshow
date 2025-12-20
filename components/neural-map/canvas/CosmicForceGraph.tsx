@@ -771,18 +771,33 @@ export function CosmicForceGraph({ className }: CosmicForceGraphProps) {
     graphRef.current.nodeThreeObject(graphRef.current.nodeThreeObject())
   }, [selectedNodeIds])
 
+  // radialDistance/sidebarOpen에 따른 effective 값 계산
+  const effectiveDistance = sidebarOpen ? radialDistance : radialDistance * 0.2
+  const effectiveStrength = sidebarOpen ? -radialDistance * 1.5 : -30
+
   // Update force settings when radialDistance or sidebarOpen changes
   useEffect(() => {
-    if (!graphRef.current) return
+    if (!graphRef.current || !graph?.nodes?.length) return
 
-    // 사이드바 열림 = 노드 펼침, 사이드바 닫힘 = 노드 수축
-    const effectiveDistance = sidebarOpen ? radialDistance : radialDistance * 0.2
-    const effectiveStrength = sidebarOpen ? -radialDistance * 1.5 : -30
+    const graphInstance = graphRef.current
 
-    graphRef.current.d3Force('charge')?.strength(effectiveStrength)
-    graphRef.current.d3Force('link')?.distance((l: any) => l.kind === 'parent' ? effectiveDistance * 0.5 : effectiveDistance)
-    graphRef.current.d3ReheatSimulation()
-  }, [radialDistance, sidebarOpen])
+    // 약간의 딜레이 후 force 설정 (그래프 초기화 완료 대기)
+    const timer = setTimeout(() => {
+      const chargeForce = graphInstance.d3Force('charge')
+      if (chargeForce && typeof chargeForce.strength === 'function') {
+        chargeForce.strength(effectiveStrength)
+      }
+
+      const linkForce = graphInstance.d3Force('link')
+      if (linkForce && typeof linkForce.distance === 'function') {
+        linkForce.distance((l: any) => l.kind === 'parent' ? effectiveDistance * 0.5 : effectiveDistance)
+      }
+
+      graphInstance.d3ReheatSimulation()
+    }, 100)
+
+    return () => clearTimeout(timer)
+  }, [radialDistance, sidebarOpen, effectiveDistance, effectiveStrength, graph?.nodes?.length])
 
   if (!isClient) {
     return (

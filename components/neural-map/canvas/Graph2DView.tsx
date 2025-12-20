@@ -545,28 +545,35 @@ export function Graph2DView({ className }: Graph2DViewProps) {
     }
   }, [graphData.nodes.length])
 
+  // radialDistance/sidebarOpen에 따른 effective 값 계산
+  const effectiveDistance = sidebarOpen ? radialDistance : radialDistance * 0.2
+  const effectiveStrength = sidebarOpen ? -radialDistance * 2 : -30
+
   // radialDistance/sidebarOpen 변경 시 force 설정 및 시뮬레이션 재시작
   useEffect(() => {
-    if (!graphRef.current) return
+    if (!graphRef.current || graphData.nodes.length === 0) return
 
     const graph = graphRef.current
-    // 사이드바 열림 = 노드 펼침, 사이드바 닫힘 = 노드 수축
-    const effectiveDistance = sidebarOpen ? radialDistance : radialDistance * 0.2
-    const effectiveStrength = sidebarOpen ? -radialDistance * 2 : -30
 
-    // d3Force 설정
-    const linkForce = graph.d3Force('link')
-    if (linkForce) {
-      linkForce.distance(() => effectiveDistance)
-    }
+    // 약간의 딜레이 후 force 설정 (그래프 초기화 완료 대기)
+    const timer = setTimeout(() => {
+      // d3Force 설정
+      const linkForce = graph.d3Force('link')
+      if (linkForce && typeof linkForce.distance === 'function') {
+        linkForce.distance(effectiveDistance)
+      }
 
-    const chargeForce = graph.d3Force('charge')
-    if (chargeForce) {
-      chargeForce.strength(effectiveStrength)
-    }
+      const chargeForce = graph.d3Force('charge')
+      if (chargeForce && typeof chargeForce.strength === 'function') {
+        chargeForce.strength(effectiveStrength)
+      }
 
-    graph.d3ReheatSimulation()
-  }, [radialDistance, sidebarOpen])
+      // 시뮬레이션 재시작
+      graph.d3ReheatSimulation()
+    }, 100)
+
+    return () => clearTimeout(timer)
+  }, [radialDistance, sidebarOpen, effectiveDistance, effectiveStrength, graphData.nodes.length])
 
   return (
     <div
