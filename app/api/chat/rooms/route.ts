@@ -100,50 +100,50 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // 각 방의 마지막 메시지와 안읽은 메시지 수 조회
-    const roomsWithDetails = await Promise.all(
-      (rooms || []).map(async (room: any) => {
-        // 마지막 메시지
-        const { data: lastMessage } = await (adminClient as any)
-          .from('chat_messages')
-          .select('*')
-          .eq('room_id', room.id)
-          .order('created_at', { ascending: false })
-          .limit(1)
-          .single()
+    // 모든 방의 마지막 메시지를 한 번에 조회 (N+1 쿼리 최적화)
+    // Supabase에서 각 room_id별 최신 메시지를 가져오기 위해 rpc 또는 distinct 사용
+    const { data: allMessages } = await (adminClient as any)
+      .from('chat_messages')
+      .select('*')
+      .in('room_id', myRoomIds)
+      .order('created_at', { ascending: false })
 
-        // 안읽은 메시지 수
-        const participant = room.participants?.find(
-          (p: any) => p.user_id === user.id
-        )
+    // room_id별 마지막 메시지 매핑
+    const lastMessageMap: Record<string, any> = {}
+    for (const msg of allMessages || []) {
+      if (!lastMessageMap[msg.room_id]) {
+        lastMessageMap[msg.room_id] = msg
+      }
+    }
 
-        let unreadCount = 0
-        if (participant) {
-          const { count } = await (adminClient as any)
-            .from('chat_messages')
-            .select('*', { count: 'exact', head: true })
-            .eq('room_id', room.id)
-            .gt('created_at', participant.last_read_at || '1970-01-01')
-            .neq('sender_user_id', user.id)
+    // 각 방의 참여자 정보에서 last_read_at 추출하여 unread 계산
+    const roomsWithDetails = (rooms || []).map((room: any) => {
+      const participant = room.participants?.find(
+        (p: any) => p.user_id === user.id
+      )
+      const lastReadAt = participant?.last_read_at || '1970-01-01'
 
-          unreadCount = count || 0
-        }
+      // allMessages에서 해당 room의 메시지 중 안읽은 메시지 수 계산
+      const unreadCount = (allMessages || []).filter((msg: any) =>
+        msg.room_id === room.id &&
+        msg.created_at > lastReadAt &&
+        msg.sender_user_id !== user.id
+      ).length
 
-        // 참여자에 user/agent 정보 추가
-        const participantsWithDetails = (room.participants || []).map((p: any) => ({
-          ...p,
-          user: p.user_id ? usersMap[p.user_id] : null,
-          agent: p.agent_id ? agentsMap[p.agent_id] : null,
-        }))
+      // 참여자에 user/agent 정보 추가
+      const participantsWithDetails = (room.participants || []).map((p: any) => ({
+        ...p,
+        user: p.user_id ? usersMap[p.user_id] : null,
+        agent: p.agent_id ? agentsMap[p.agent_id] : null,
+      }))
 
-        return {
-          ...room,
-          participants: participantsWithDetails,
-          last_message: lastMessage,
-          unread_count: unreadCount,
-        }
-      })
-    )
+      return {
+        ...room,
+        participants: participantsWithDetails,
+        last_message: lastMessageMap[room.id] || null,
+        unread_count: unreadCount,
+      }
+    })
 
     return NextResponse.json(roomsWithDetails)
   } catch (error) {

@@ -64,6 +64,7 @@ export async function GET(
     const { searchParams } = new URL(request.url)
     const limit = parseInt(searchParams.get('limit') || '50')
     const before = searchParams.get('before') // cursor for pagination
+    const updateReadReceipt = searchParams.get('updateRead') !== 'false' // 기본값 true, polling 시 false로 설정
 
     // 참여자인지 확인
     const { data: participant } = await (adminClient as any)
@@ -137,12 +138,14 @@ export async function GET(
       sender_agent: msg.sender_agent_id ? agentsMap[msg.sender_agent_id] : null,
     }))
 
-    // 읽음 처리 - last_read_at 업데이트
-    await (adminClient as any)
-      .from('chat_participants')
-      .update({ last_read_at: new Date().toISOString() })
-      .eq('room_id', roomId)
-      .eq('user_id', user.id)
+    // 읽음 처리 - last_read_at 업데이트 (polling 시에는 스킵하여 성능 최적화)
+    if (updateReadReceipt) {
+      await (adminClient as any)
+        .from('chat_participants')
+        .update({ last_read_at: new Date().toISOString() })
+        .eq('room_id', roomId)
+        .eq('user_id', user.id)
+    }
 
     // 역순으로 정렬하여 반환 (오래된 순)
     return NextResponse.json(messagesWithSenders?.reverse() || [])

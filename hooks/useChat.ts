@@ -56,11 +56,11 @@ export function useChatRooms() {
 
   // 실시간 업데이트 구독 - 비활성화 (무한 루프 방지)
   // Realtime subscription이 fetchRooms()를 반복 호출하여 무한 로딩 발생
-  // 대신 polling 방식으로 5초마다 업데이트 (로딩 표시 없이)
+  // 대신 polling 방식으로 10초마다 업데이트 (로딩 표시 없이) - 5초→10초로 최적화
   useEffect(() => {
     const interval = setInterval(() => {
       fetchRooms(false)  // showLoading = false, 로딩 스피너 표시 안 함
-    }, 5000)
+    }, 10000)
 
     return () => clearInterval(interval)
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
@@ -126,14 +126,16 @@ export function useChatRoom(roomId: string | null) {
     }
   }, [roomId])
 
-  // 메시지 조회 (showLoading: 로딩 표시 여부)
-  const fetchMessages = useCallback(async (before?: string, showLoading = true) => {
+  // 메시지 조회 (showLoading: 로딩 표시 여부, updateRead: 읽음 처리 여부)
+  const fetchMessages = useCallback(async (before?: string, showLoading = true, updateRead = true) => {
     if (!roomId) return
     try {
       if (showLoading) setLoading(true)
-      const url = before
-        ? `/api/chat/rooms/${roomId}/messages?before=${before}`
-        : `/api/chat/rooms/${roomId}/messages`
+      const params = new URLSearchParams()
+      if (before) params.set('before', before)
+      if (!updateRead) params.set('updateRead', 'false')
+      const queryString = params.toString()
+      const url = `/api/chat/rooms/${roomId}/messages${queryString ? `?${queryString}` : ''}`
       const res = await fetch(url)
       if (!res.ok) throw new Error('Failed to fetch messages')
       const data = await res.json()
@@ -163,31 +165,32 @@ export function useChatRoom(roomId: string | null) {
     }
   }, [roomId, fetchRoom, fetchMessages])
 
-  // 메시지 polling (3초마다, 로딩 표시 없음)
+  // 메시지 polling (5초마다, 로딩 표시 없음) - 3초→5초로 최적화
   useEffect(() => {
     if (!roomId) return
 
     const interval = setInterval(() => {
-      fetchMessages(undefined, false)  // showLoading = false
-    }, 3000)
+      fetchMessages(undefined, false, false)  // showLoading = false, updateRead = false (polling 시 읽음 처리 스킵)
+    }, 5000)
 
     return () => clearInterval(interval)
   }, [roomId, fetchMessages])
 
-  // 에이전트 타이핑 상태 polling (1초마다)
+  // 에이전트 타이핑 상태 polling (3초마다) - 경량 API 사용, 1초→3초로 최적화
   useEffect(() => {
     if (!roomId) return
 
     const checkTypingStatus = async () => {
       try {
-        const res = await fetch(`/api/chat/rooms/${roomId}`)
+        // 경량 타이핑 상태 API 사용 (전체 room 정보 대신 타이핑 중인 참여자만 조회)
+        const res = await fetch(`/api/chat/rooms/${roomId}/typing`)
         if (!res.ok) return
-        const data = await res.json()
+        const typingParticipants = await res.json()
 
         // 에이전트 참여자 중 타이핑 중인 에이전트 확인
-        const typingAgents = data.participants?.filter((p: any) =>
-          p.participant_type === 'agent' && p.is_typing
-        ) || []
+        const typingAgents = (typingParticipants || []).filter((p: any) =>
+          p.participant_type === 'agent'
+        )
 
         if (typingAgents.length > 0) {
           setAgentTyping(true)
@@ -205,7 +208,7 @@ export function useChatRoom(roomId: string | null) {
       }
     }
 
-    const interval = setInterval(checkTypingStatus, 1000)
+    const interval = setInterval(checkTypingStatus, 3000)
     checkTypingStatus() // 초기 체크
 
     return () => clearInterval(interval)
@@ -416,13 +419,13 @@ export function useMeeting(roomId: string | null) {
     }
   }, [roomId, fetchMeetingStatus])
 
-  // 회의 중일 때 1초마다 상태 업데이트
+  // 회의 중일 때 3초마다 상태 업데이트 - 1초→3초로 최적화
   useEffect(() => {
     if (!roomId || !meetingStatus?.is_meeting_active) return
 
     const interval = setInterval(() => {
       fetchMeetingStatus()
-    }, 1000)
+    }, 3000)
 
     return () => clearInterval(interval)
   }, [roomId, meetingStatus?.is_meeting_active, fetchMeetingStatus])
