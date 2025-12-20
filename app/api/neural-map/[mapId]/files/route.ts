@@ -63,6 +63,7 @@ export async function GET(request: Request, { params }: RouteParams) {
       id: string
       map_id: string
       name: string
+      path: string | null
       type: string
       url: string
       size: number
@@ -71,6 +72,7 @@ export async function GET(request: Request, { params }: RouteParams) {
       id: file.id,
       mapId: file.map_id,
       name: file.name,
+      path: file.path || undefined,
       type: file.type,
       url: file.url,
       size: file.size,
@@ -116,6 +118,7 @@ export async function POST(request: Request, { params }: RouteParams) {
 
     const formData = await request.formData()
     const file = formData.get('file') as File
+    const path = formData.get('path') as string | null
 
     if (!file) {
       return NextResponse.json({ error: 'No file provided' }, { status: 400 })
@@ -162,6 +165,7 @@ export async function POST(request: Request, { params }: RouteParams) {
       .insert({
         map_id: mapId,
         name: file.name,
+        path: path || null,
         type: fileType,
         url: urlData.publicUrl,
         size: file.size,
@@ -181,6 +185,7 @@ export async function POST(request: Request, { params }: RouteParams) {
       id: string
       map_id: string
       name: string
+      path: string | null
       type: string
       url: string
       size: number
@@ -190,6 +195,7 @@ export async function POST(request: Request, { params }: RouteParams) {
       id: fileData.id,
       mapId: fileData.map_id,
       name: fileData.name,
+      path: fileData.path || undefined,
       type: fileData.type,
       url: fileData.url,
       size: fileData.size,

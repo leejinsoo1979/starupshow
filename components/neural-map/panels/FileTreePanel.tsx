@@ -20,10 +20,12 @@ import {
   Trash2,
   Loader2,
   MoreHorizontal,
-  Plus,
+  FilePlus,
+  FolderPlus,
   RefreshCw,
   FolderClosed,
   Upload,
+  Sparkles,
 } from 'lucide-react'
 
 // VS Code 스타일 파일 아이콘
@@ -61,7 +63,9 @@ export function FileTreePanel({ mapId }: FileTreePanelProps) {
   const [isExpanded, setIsExpanded] = useState(true)
   const [selectedFileId, setSelectedFileId] = useState<string | null>(null)
   const [isUploading, setIsUploading] = useState(false)
+  const [uploadingCount, setUploadingCount] = useState(0)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const folderInputRef = useRef<HTMLInputElement>(null)
 
   // Store
   const files = useNeuralMapStore((s) => s.files)
@@ -72,7 +76,8 @@ export function FileTreePanel({ mapId }: FileTreePanelProps) {
   const focusOnNode = useNeuralMapStore((s) => s.focusOnNode)
 
   // API
-  const { uploadFile, deleteFile, createNode, createEdge } = useNeuralMapApi(mapId)
+  const { uploadFile, deleteFile, createNode, createEdge, analyzeFile } = useNeuralMapApi(mapId)
+  const [isAnalyzing, setIsAnalyzing] = useState(false)
 
   // 사용자 테마
   const { accentColor: userAccentColor } = useThemeStore()
@@ -115,52 +120,129 @@ export function FileTreePanel({ mapId }: FileTreePanelProps) {
     }
   }
 
-  // 파일 업로드
+  // 단일 파일 업로드 처리
+  const processFileUpload = async (file: File) => {
+    const result = await uploadFile(file)
+    if (result) {
+      addFile(result)
+
+      const nodeType = result.type === 'pdf' ? 'doc' :
+                      result.type === 'markdown' ? 'doc' :
+                      result.type === 'image' ? 'memory' :
+                      result.type === 'video' ? 'memory' : 'doc'
+
+      const newNode = await createNode({
+        type: nodeType as any,
+        title: result.name,
+        summary: `${result.type} 파일 - AI 분석 중...`,
+        tags: [result.type],
+        importance: 5,
+      })
+
+      if (newNode && graph?.nodes) {
+        const selfNode = graph.nodes.find(n => n.type === 'self')
+        if (selfNode) {
+          await createEdge({
+            sourceId: selfNode.id,
+            targetId: newNode.id,
+            type: 'parent_child',
+            weight: 0.7,
+          })
+        }
+      }
+
+      // AI 분석으로 하위 노드 자동 생성 (옵시디언 스타일 방사형)
+      // PDF, 마크다운 파일만 분석 (이미지/비디오는 내용 추출 불가)
+      if (result.type === 'pdf' || result.type === 'markdown') {
+        setIsAnalyzing(true)
+        try {
+          const analysisResult = await analyzeFile(result.id)
+          if (analysisResult?.nodes && analysisResult.nodes.length > 0) {
+            console.log(`AI 분석 완료: ${analysisResult.nodes.length}개 노드 생성`)
+          }
+        } catch (err) {
+          console.error('AI 분석 실패:', err)
+        } finally {
+          setIsAnalyzing(false)
+        }
+      }
+
+      return result
+    }
+    return null
+  }
+
+  // 파일 업로드 (단일/다중)
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const selectedFile = e.target.files?.[0]
-    if (!selectedFile || !mapId) return
+    const selectedFiles = e.target.files
+    if (!selectedFiles || selectedFiles.length === 0 || !mapId) return
 
     setIsUploading(true)
+    setUploadingCount(selectedFiles.length)
+    setIsExpanded(true)
+
     try {
-      const result = await uploadFile(selectedFile)
-      if (result) {
-        addFile(result)
+      let lastResult = null
+      for (let i = 0; i < selectedFiles.length; i++) {
+        setUploadingCount(selectedFiles.length - i)
+        const result = await processFileUpload(selectedFiles[i])
+        if (result) lastResult = result
+      }
 
-        // 파일 업로드 후 트리 자동 펼침 + 새 파일 선택
-        setIsExpanded(true)
-        setSelectedFileId(result.id)
-
-        const nodeType = result.type === 'pdf' ? 'doc' :
-                        result.type === 'markdown' ? 'doc' :
-                        result.type === 'image' ? 'memory' :
-                        result.type === 'video' ? 'memory' : 'doc'
-
-        const newNode = await createNode({
-          type: nodeType as any,
-          title: result.name,
-          summary: `${result.type} 파일`,
-          tags: [result.type],
-          importance: 5,
-        })
-
-        if (newNode && graph?.nodes) {
-          const selfNode = graph.nodes.find(n => n.type === 'self')
-          if (selfNode) {
-            await createEdge({
-              sourceId: selfNode.id,
-              targetId: newNode.id,
-              type: 'parent_child',
-              weight: 0.7,
-            })
-          }
-        }
+      // 마지막 업로드 파일 선택
+      if (lastResult) {
+        setSelectedFileId(lastResult.id)
       }
     } catch (error) {
       console.error('File upload error:', error)
     } finally {
       setIsUploading(false)
+      setUploadingCount(0)
       if (fileInputRef.current) {
         fileInputRef.current.value = ''
+      }
+    }
+  }
+
+  // 폴더 업로드
+  const handleFolderUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const selectedFiles = e.target.files
+    if (!selectedFiles || selectedFiles.length === 0 || !mapId) return
+
+    // 지원되는 파일만 필터링
+    const supportedExtensions = ['.pdf', '.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg', '.mp4', '.webm', '.mov', '.avi', '.md', '.markdown', '.txt']
+    const validFiles = Array.from(selectedFiles).filter(file => {
+      const ext = '.' + file.name.split('.').pop()?.toLowerCase()
+      return supportedExtensions.includes(ext)
+    })
+
+    if (validFiles.length === 0) {
+      alert('지원되는 파일이 없습니다. (PDF, 이미지, 비디오, 마크다운, 텍스트)')
+      return
+    }
+
+    setIsUploading(true)
+    setUploadingCount(validFiles.length)
+    setIsExpanded(true)
+
+    try {
+      let lastResult = null
+      for (let i = 0; i < validFiles.length; i++) {
+        setUploadingCount(validFiles.length - i)
+        const result = await processFileUpload(validFiles[i])
+        if (result) lastResult = result
+      }
+
+      if (lastResult) {
+        setSelectedFileId(lastResult.id)
+      }
+    } catch (error) {
+      console.error('Folder upload error:', error)
+    } finally {
+      setIsUploading(false)
+      setUploadingCount(0)
+      if (folderInputRef.current) {
+        folderInputRef.current.value = ''
       }
     }
   }
@@ -174,26 +256,48 @@ export function FileTreePanel({ mapId }: FileTreePanelProps) {
       )}>
         <span className="text-[11px] font-semibold tracking-wider uppercase">탐색기</span>
         <div className="flex items-center gap-0.5">
-          <button
-            onClick={() => fileInputRef.current?.click()}
-            disabled={isUploading || !mapId}
-            className={cn(
-              'p-1 rounded hover:bg-white/10 transition-colors',
-              (isUploading || !mapId) && 'opacity-50 cursor-not-allowed'
-            )}
-            title="새 파일"
-          >
-            {isUploading ? (
-              <Loader2 className="w-4 h-4 animate-spin" />
-            ) : (
-              <Plus className="w-4 h-4" />
-            )}
-          </button>
+          {isUploading || isAnalyzing ? (
+            <div className="flex items-center gap-1 px-2">
+              {isAnalyzing ? (
+                <>
+                  <Sparkles className="w-4 h-4 animate-pulse text-amber-400" />
+                  <span className="text-[10px] text-amber-400">AI 분석중</span>
+                </>
+              ) : (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span className="text-[10px]">{uploadingCount}</span>
+                </>
+              )}
+            </div>
+          ) : (
+            <>
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                disabled={!mapId}
+                className={cn(
+                  'p-1 rounded hover:bg-white/10 transition-colors',
+                  !mapId && 'opacity-50 cursor-not-allowed'
+                )}
+                title="파일 업로드"
+              >
+                <FilePlus className="w-4 h-4" />
+              </button>
+              <button
+                onClick={() => folderInputRef.current?.click()}
+                disabled={!mapId}
+                className={cn(
+                  'p-1 rounded hover:bg-white/10 transition-colors',
+                  !mapId && 'opacity-50 cursor-not-allowed'
+                )}
+                title="폴더 업로드"
+              >
+                <FolderPlus className="w-4 h-4" />
+              </button>
+            </>
+          )}
           <button className="p-1 rounded hover:bg-white/10 transition-colors" title="새로고침">
             <RefreshCw className="w-4 h-4" />
-          </button>
-          <button className="p-1 rounded hover:bg-white/10 transition-colors" title="더보기">
-            <MoreHorizontal className="w-4 h-4" />
           </button>
         </div>
       </div>
@@ -315,8 +419,20 @@ export function FileTreePanel({ mapId }: FileTreePanelProps) {
       <input
         ref={fileInputRef}
         type="file"
+        multiple
         onChange={handleFileUpload}
         accept=".pdf,.jpg,.jpeg,.png,.gif,.webp,.svg,.mp4,.webm,.mov,.avi,.md,.markdown,.txt"
+        className="hidden"
+      />
+      {/* 숨겨진 폴더 입력 */}
+      <input
+        ref={folderInputRef}
+        type="file"
+        // @ts-ignore - webkitdirectory is not in the types
+        webkitdirectory=""
+        directory=""
+        multiple
+        onChange={handleFolderUpload}
         className="hidden"
       />
     </div>

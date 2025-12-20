@@ -177,6 +177,7 @@ export interface NeuralFile {
   id: string
   mapId: string
   name: string
+  path?: string  // 폴더 내 상대 경로 (예: "docs/images/logo.png")
   type: NeuralFileType
   url: string
   size: number

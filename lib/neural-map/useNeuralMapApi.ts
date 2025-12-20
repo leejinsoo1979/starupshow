@@ -27,6 +27,20 @@ interface CreateEdgeParams {
   bidirectional?: boolean
 }
 
+interface AnalyzeResult {
+  success: boolean
+  concepts: Array<{
+    title: string
+    summary: string
+    type: string
+    tags: string[]
+    importance: number
+  }>
+  nodes: NeuralNode[]
+  edges: NeuralEdge[]
+  message?: string
+}
+
 export function useNeuralMapApi(mapId: string | null) {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const { addNode, updateNode, deleteNode, addEdge, deleteEdge, addFile, removeFile } = useNeuralMapStore()
@@ -165,14 +179,17 @@ export function useNeuralMapApi(mapId: string | null) {
     }
   }, [mapId, deleteEdge])
 
-  // 파일 업로드
-  const uploadFile = useCallback(async (file: File): Promise<NeuralFile | null> => {
+  // 파일 업로드 (path: 폴더 내 상대 경로)
+  const uploadFile = useCallback(async (file: File, path?: string): Promise<NeuralFile | null> => {
     if (!mapId) return null
 
     setIsSubmitting(true)
     try {
       const formData = new FormData()
       formData.append('file', file)
+      if (path) {
+        formData.append('path', path)
+      }
 
       const res = await fetch(`/api/neural-map/${mapId}/files`, {
         method: 'POST',
@@ -238,6 +255,44 @@ export function useNeuralMapApi(mapId: string | null) {
     }
   }, [mapId])
 
+  // 파일 분석 및 노드 자동 생성 (옵시디언 스타일)
+  const analyzeFile = useCallback(async (fileId: string): Promise<AnalyzeResult | null> => {
+    if (!mapId) return null
+
+    setIsSubmitting(true)
+    try {
+      const res = await fetch(`/api/neural-map/${mapId}/analyze`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fileId }),
+      })
+
+      if (!res.ok) {
+        const error = await res.json()
+        throw new Error(error.error || 'Failed to analyze file')
+      }
+
+      const result: AnalyzeResult = await res.json()
+
+      // 생성된 노드들을 스토어에 추가
+      if (result.nodes) {
+        result.nodes.forEach(node => addNode(node))
+      }
+
+      // 생성된 엣지들을 스토어에 추가
+      if (result.edges) {
+        result.edges.forEach(edge => addEdge(edge))
+      }
+
+      return result
+    } catch (err) {
+      console.error('Analyze file error:', err)
+      return null
+    } finally {
+      setIsSubmitting(false)
+    }
+  }, [mapId, addNode, addEdge])
+
   return {
     isSubmitting,
     createNode,
@@ -248,5 +303,6 @@ export function useNeuralMapApi(mapId: string | null) {
     uploadFile,
     deleteFile,
     saveMapState,
+    analyzeFile,
   }
 }
