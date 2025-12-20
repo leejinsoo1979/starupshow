@@ -289,28 +289,62 @@ export function CosmicForceGraph({ className }: CosmicForceGraphProps) {
       pointLight2.position.set(-100, -50, -100)
       scene.add(pointLight2)
 
-      // Force tuning - ensure nodes are centered around origin
-      Graph.d3Force('charge')?.strength(-180)
-      Graph.d3Force('link')?.distance((l: any) => l.kind === 'parent' ? 80 : 120)
-      Graph.d3Force('center', null) // Remove default center if exists
+      // Force tuning
+      Graph.d3Force('charge')?.strength(-150)
+      Graph.d3Force('link')?.distance((l: any) => l.kind === 'parent' ? 60 : 100)
 
-      // Add explicit center force to keep graph centered at origin
-      import('d3-force-3d').then(d3Force => {
+      // Keep simulation running longer for smooth animation
+      Graph.cooldownTicks(300)
+      Graph.warmupTicks(100)
+
+      // Continuous animation - reheat simulation periodically
+      const animationInterval = setInterval(() => {
         if (graphRef.current) {
-          graphRef.current.d3Force('center', d3Force.forceCenter(0, 0, 0))
+          // Add slight random movement to keep nodes alive
+          const graphData = graphRef.current.graphData()
+          if (graphData.nodes && graphData.nodes.length > 0) {
+            graphData.nodes.forEach((node: any) => {
+              if (node.vx !== undefined) {
+                node.vx += (Math.random() - 0.5) * 0.5
+                node.vy += (Math.random() - 0.5) * 0.5
+                node.vz += (Math.random() - 0.5) * 0.5
+              }
+            })
+            graphRef.current.d3ReheatSimulation()
+          }
         }
-      })
+      }, 3000)
 
-      // Initial camera position - wait for force simulation to settle, then center
-      setTimeout(() => {
-        // Center the camera at origin with smooth transition
-        Graph.cameraPosition({ x: 0, y: 0, z: 400 }, { x: 0, y: 0, z: 0 }, 500)
-      }, 800)
+      // Initial camera - center on graph after simulation settles
+      const centerCamera = () => {
+        if (!graphRef.current) return
+        const graphData = graphRef.current.graphData()
+        if (!graphData.nodes || graphData.nodes.length === 0) return
 
-      // After camera centered, zoom to fit all nodes
-      setTimeout(() => {
-        Graph.zoomToFit(600, 250)
-      }, 1500)
+        // Calculate centroid of all nodes
+        let cx = 0, cy = 0, cz = 0
+        graphData.nodes.forEach((n: any) => {
+          cx += n.x || 0
+          cy += n.y || 0
+          cz += n.z || 0
+        })
+        cx /= graphData.nodes.length
+        cy /= graphData.nodes.length
+        cz /= graphData.nodes.length
+
+        // Position camera looking at centroid
+        Graph.cameraPosition(
+          { x: cx, y: cy - 50, z: cz + 350 },
+          { x: cx, y: cy, z: cz },
+          1000
+        )
+      }
+
+      // Wait for initial simulation to settle, then center
+      setTimeout(centerCamera, 1500)
+
+      // Store interval for cleanup
+      ;(Graph as any).__animationInterval = animationInterval
 
       graphRef.current = Graph
 
@@ -327,6 +361,10 @@ export function CosmicForceGraph({ className }: CosmicForceGraphProps) {
 
       return () => {
         window.removeEventListener('resize', handleResize)
+        // Clean up animation interval
+        if ((Graph as any).__animationInterval) {
+          clearInterval((Graph as any).__animationInterval)
+        }
       }
     })
   }, [isClient, isDark, selectedNodeIds])
@@ -338,16 +376,30 @@ export function CosmicForceGraph({ className }: CosmicForceGraphProps) {
     const { nodes, links } = convertToGraphData()
     graphRef.current.graphData({ nodes, links })
 
-    // Re-center after update - wait for force simulation to settle
+    // Re-center after update - wait for simulation to settle
     setTimeout(() => {
-      // First center the camera
-      graphRef.current?.cameraPosition({ x: 0, y: 0, z: 400 }, { x: 0, y: 0, z: 0 }, 400)
-    }, 500)
+      if (!graphRef.current) return
+      const graphData = graphRef.current.graphData()
+      if (!graphData.nodes || graphData.nodes.length === 0) return
 
-    // Then zoom to fit all nodes
-    setTimeout(() => {
-      graphRef.current?.zoomToFit(500, 250)
-    }, 1000)
+      // Calculate centroid
+      let cx = 0, cy = 0, cz = 0
+      graphData.nodes.forEach((n: any) => {
+        cx += n.x || 0
+        cy += n.y || 0
+        cz += n.z || 0
+      })
+      cx /= graphData.nodes.length
+      cy /= graphData.nodes.length
+      cz /= graphData.nodes.length
+
+      // Center camera on centroid
+      graphRef.current.cameraPosition(
+        { x: cx, y: cy - 50, z: cz + 350 },
+        { x: cx, y: cy, z: cz },
+        800
+      )
+    }, 1200)
   }, [graph, convertToGraphData])
 
   // Update selection

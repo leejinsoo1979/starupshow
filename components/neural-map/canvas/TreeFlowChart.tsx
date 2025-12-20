@@ -184,11 +184,10 @@ function calculateLayout(root: TreeNode): { width: number; height: number } {
     normalizePositions(root)
   }
 
-  // Add generous margins to ensure nothing is clipped
-  const MARGIN = 100
+  // Return actual content size (no extra margins - handled in centering)
   return {
-    width: (maxX - minX) + MARGIN * 2,
-    height: maxHeight + MARGIN * 2
+    width: maxX - minX,
+    height: maxHeight
   }
 }
 
@@ -236,29 +235,53 @@ export function TreeFlowChart({ className }: TreeFlowChartProps) {
     return getImportEdges(graph.edges, nodePositions)
   }, [graph, nodePositions])
 
-  // Center the tree on load
+  // Center the tree on load and resize
+  const [containerSize, setContainerSize] = useState({ width: 0, height: 0 })
+
   useEffect(() => {
-    if (containerRef.current && dimensions.width > 0) {
-      const containerWidth = containerRef.current.clientWidth
-      const containerHeight = containerRef.current.clientHeight
+    const container = containerRef.current
+    if (!container) return
 
-      // Calculate scale to fit entire tree - be more aggressive with scaling
-      const scaleX = containerWidth / dimensions.width
-      const scaleY = containerHeight / dimensions.height
-      // Use a lower max scale (0.35) to ensure everything fits with room to spare
-      const scale = Math.min(scaleX, scaleY, 0.35)
-
-      // Center the tree in the available space with offset for margin
-      const MARGIN = 100 // Same as in calculateLayout
-      const scaledWidth = dimensions.width * scale
-      const scaledHeight = dimensions.height * scale
-      // Offset by scaled margin to center the actual content
-      const x = (containerWidth - scaledWidth) / 2 + (MARGIN * scale)
-      const y = (containerHeight - scaledHeight) / 2 + (MARGIN * scale)
-
-      setTransform({ x, y, scale })
+    const updateSize = () => {
+      setContainerSize({
+        width: container.clientWidth,
+        height: container.clientHeight
+      })
     }
-  }, [dimensions])
+
+    // Initial size
+    updateSize()
+
+    // Watch for resize
+    const resizeObserver = new ResizeObserver(updateSize)
+    resizeObserver.observe(container)
+
+    return () => resizeObserver.disconnect()
+  }, [])
+
+  useEffect(() => {
+    if (containerSize.width === 0 || dimensions.width === 0) return
+
+    // Add padding around content
+    const PADDING = 80
+
+    // Calculate scale to fit with padding
+    const availableWidth = containerSize.width - PADDING * 2
+    const availableHeight = containerSize.height - PADDING * 2
+
+    const scaleX = availableWidth / dimensions.width
+    const scaleY = availableHeight / dimensions.height
+    // Use minimum of both scales, capped at 0.5 for readability
+    const scale = Math.min(scaleX, scaleY, 0.5)
+
+    // Center the scaled content in the container
+    const scaledWidth = dimensions.width * scale
+    const scaledHeight = dimensions.height * scale
+    const x = (containerSize.width - scaledWidth) / 2
+    const y = (containerSize.height - scaledHeight) / 2
+
+    setTransform({ x, y, scale })
+  }, [containerSize, dimensions])
 
   // Pan handlers
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
@@ -319,22 +342,22 @@ export function TreeFlowChart({ className }: TreeFlowChartProps) {
   const zoomIn = () => setTransform(prev => ({ ...prev, scale: Math.min(3, prev.scale * 1.2) }))
   const zoomOut = () => setTransform(prev => ({ ...prev, scale: Math.max(0.1, prev.scale / 1.2) }))
   const resetView = () => {
-    if (containerRef.current && dimensions.width > 0) {
-      const containerWidth = containerRef.current.clientWidth
-      const containerHeight = containerRef.current.clientHeight
+    if (containerSize.width === 0 || dimensions.width === 0) return
 
-      const scaleX = containerWidth / dimensions.width
-      const scaleY = containerHeight / dimensions.height
-      const scale = Math.min(scaleX, scaleY, 0.35)
+    const PADDING = 80
+    const availableWidth = containerSize.width - PADDING * 2
+    const availableHeight = containerSize.height - PADDING * 2
 
-      const MARGIN = 100
-      const scaledWidth = dimensions.width * scale
-      const scaledHeight = dimensions.height * scale
-      const x = (containerWidth - scaledWidth) / 2 + (MARGIN * scale)
-      const y = (containerHeight - scaledHeight) / 2 + (MARGIN * scale)
+    const scaleX = availableWidth / dimensions.width
+    const scaleY = availableHeight / dimensions.height
+    const scale = Math.min(scaleX, scaleY, 0.5)
 
-      setTransform({ x, y, scale })
-    }
+    const scaledWidth = dimensions.width * scale
+    const scaledHeight = dimensions.height * scale
+    const x = (containerSize.width - scaledWidth) / 2
+    const y = (containerSize.height - scaledHeight) / 2
+
+    setTransform({ x, y, scale })
   }
 
   // Render tree node
