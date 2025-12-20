@@ -101,6 +101,10 @@ interface NeuralMapState {
   // Code Preview
   codePreviewFile: NeuralFile | null
   codePreviewOpen: boolean
+
+  // Graph Settings
+  radialDistance: number // 방사 거리 (50~300)
+  graphExpanded: boolean // 그래프 펼침 상태 (트리 접힘과 연동)
 }
 
 // ============================================
@@ -202,6 +206,10 @@ interface NeuralMapActions {
   openCodePreview: (file: NeuralFile) => void
   closeCodePreview: () => void
 
+  // Graph Settings
+  setRadialDistance: (distance: number) => void
+  setGraphExpanded: (expanded: boolean) => void
+
   // Demo
   loadMockProjectData: () => void
 
@@ -266,6 +274,10 @@ const initialState: NeuralMapState = {
   // Code Preview
   codePreviewFile: null,
   codePreviewOpen: false,
+
+  // Graph Settings
+  radialDistance: 150, // 기본 방사 거리
+  graphExpanded: true, // 기본 펼침 상태
 }
 
 // ============================================
@@ -473,6 +485,8 @@ export const useNeuralMapStore = create<NeuralMapState & NeuralMapActions>()(
         toggleLeftPanel: () =>
           set((state) => {
             state.leftPanelCollapsed = !state.leftPanelCollapsed
+            // 그래프 펼침 상태도 연동 (패널 열림 = 그래프 펼침)
+            state.graphExpanded = !state.leftPanelCollapsed
           }),
 
         toggleRightPanel: () =>
@@ -703,6 +717,16 @@ export const useNeuralMapStore = create<NeuralMapState & NeuralMapActions>()(
           set((state) => {
             state.codePreviewOpen = false
             state.codePreviewFile = null
+          }),
+
+        // ========== Graph Settings ==========
+        setRadialDistance: (distance) =>
+          set((state) => {
+            state.radialDistance = Math.max(50, Math.min(300, distance))
+          }),
+        setGraphExpanded: (expanded) =>
+          set((state) => {
+            state.graphExpanded = expanded
           }),
 
         // ========== Demo ==========
@@ -1258,6 +1282,7 @@ export const useNeuralMapStore = create<NeuralMapState & NeuralMapActions>()(
           rightPanelWidth: state.rightPanelWidth,
           leftPanelCollapsed: state.leftPanelCollapsed,
           rightPanelCollapsed: state.rightPanelCollapsed,
+          radialDistance: state.radialDistance,
         }),
       }
     ),

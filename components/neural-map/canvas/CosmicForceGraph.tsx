@@ -1,11 +1,55 @@
 // @ts-nocheck
 'use client'
 
-import { useEffect, useRef, useCallback, useState } from 'react'
+import { useEffect, useRef, useCallback, useState, useMemo } from 'react'
 import { useTheme } from 'next-themes'
 import { cn } from '@/lib/utils'
 import { useNeuralMapStore } from '@/lib/neural-map/store'
-import type { NeuralNode, NeuralEdge } from '@/lib/neural-map/types'
+import { useUIStore } from '@/stores/uiStore'
+import type { NeuralNode, NeuralEdge, NeuralFile } from '@/lib/neural-map/types'
+
+// 파일 타입별 색상
+const FILE_TYPE_COLORS: Record<string, number> = {
+  tsx: 0x3b82f6,     // Blue - React TypeScript
+  ts: 0x3b82f6,      // Blue - TypeScript
+  jsx: 0x61dafb,     // Cyan - React
+  js: 0xf7df1e,      // Yellow - JavaScript
+  css: 0xa855f7,     // Purple - CSS
+  scss: 0xcc6699,    // Pink - SCSS
+  json: 0x6b7280,    // Gray - JSON
+  md: 0x22c55e,      // Green - Markdown
+  markdown: 0x22c55e,
+  html: 0xef4444,    // Red - HTML
+  svg: 0xf97316,     // Orange - SVG
+  png: 0x10b981,     // Emerald - Image
+  jpg: 0x10b981,
+  jpeg: 0x10b981,
+  gif: 0x10b981,
+  webp: 0x10b981,
+  mp4: 0x8b5cf6,     // Violet - Video
+  webm: 0x8b5cf6,
+  pdf: 0xef4444,     // Red - PDF
+  txt: 0x6b7280,     // Gray - Text
+  yaml: 0xf59e0b,    // Amber - Config
+  yml: 0xf59e0b,
+  env: 0xf59e0b,
+}
+
+// 파일 확장자 추출
+function getExtension(fileName: string): string {
+  return fileName.split('.').pop()?.toLowerCase() || ''
+}
+
+// 파일 크기 → 노드 크기 변환 (8~14 범위, 균일하게)
+function fileSizeToNodeSize(size: number, minSize: number, maxSize: number): number {
+  if (maxSize === minSize) return 10
+  // 로그 스케일로 극단적인 크기 차이 완화
+  const logSize = Math.log(size + 1)
+  const logMin = Math.log(minSize + 1)
+  const logMax = Math.log(maxSize + 1)
+  const normalized = (logSize - logMin) / (logMax - logMin)
+  return 8 + normalized * 6 // 8~14 범위 (더 균일하게)
+}
 
 // Types for 3d-force-graph
 interface GraphNode {
@@ -14,6 +58,9 @@ interface GraphNode {
   type: string
   depth: number
   expanded: boolean
+  fileType?: string   // 파일 확장자
+  fileSize?: number   // 파일 크기
+  nodeSize?: number   // 계산된 노드 크기
   x?: number
   y?: number
   z?: number
@@ -43,6 +90,10 @@ export function CosmicForceGraph({ className }: CosmicForceGraphProps) {
   const selectedNodeIds = useNeuralMapStore((s) => s.selectedNodeIds)
   const setSelectedNodes = useNeuralMapStore((s) => s.setSelectedNodes)
   const focusOnNode = useNeuralMapStore((s) => s.focusOnNode)
+  const radialDistance = useNeuralMapStore((s) => s.radialDistance)
+
+  // UI Store - 사이드바 상태와 그래프 연동
+  const sidebarOpen = useUIStore((s) => s.sidebarOpen)
 
   // Theme
   const { resolvedTheme } = useTheme()
@@ -52,6 +103,27 @@ export function CosmicForceGraph({ className }: CosmicForceGraphProps) {
   useEffect(() => {
     setIsClient(true)
   }, [])
+
+  // 파일 이름으로 파일 찾기
+  const fileMap = useMemo(() => {
+    const map = new Map<string, NeuralFile>()
+    files.forEach(file => {
+      map.set(file.name, file)
+      map.set(file.id, file)
+    })
+    return map
+  }, [files])
+
+  // 파일 크기 범위 계산
+  const fileSizeRange = useMemo(() => {
+    if (files.length === 0) return { min: 0, max: 1000 }
+    const sizes = files.map(f => f.size || 0).filter(s => s > 0)
+    if (sizes.length === 0) return { min: 0, max: 1000 }
+    return {
+      min: Math.min(...sizes),
+      max: Math.max(...sizes),
+    }
+  }, [files])
 
   // Convert graph data to force-graph format
   const convertToGraphData = useCallback(() => {
@@ -69,12 +141,29 @@ export function CosmicForceGraph({ className }: CosmicForceGraphProps) {
       const depth = node.type === 'self' ? 0 :
                     node.parentId ? 2 : 1
 
+      // 파일 매칭
+      const matchedFile = fileMap.get(node.title) || fileMap.get(node.id)
+      const ext = getExtension(node.title)
+
+      // 노드 크기 계산 (더 균일하게)
+      let nodeSize = 10 // 기본 크기
+      if (node.type === 'self') {
+        nodeSize = 14 // Self 노드
+      } else if (matchedFile?.size) {
+        nodeSize = fileSizeToNodeSize(matchedFile.size, fileSizeRange.min, fileSizeRange.max)
+      } else {
+        nodeSize = 9 + Math.min((node.importance || 0), 3) // 9~12 범위
+      }
+
       const graphNode: GraphNode = {
         id: node.id,
         label: node.title,
         type: node.type,
         depth,
         expanded: true,
+        fileType: ext || undefined,
+        fileSize: matchedFile?.size,
+        nodeSize,
         __node: node,
       }
 
@@ -97,7 +186,7 @@ export function CosmicForceGraph({ className }: CosmicForceGraphProps) {
     })
 
     return { nodes, links }
-  }, [graph])
+  }, [graph, fileMap, fileSizeRange])
 
   // Add stars to scene
   const addStars = useCallback((scene: any, THREE: any, count = 1500) => {
@@ -133,10 +222,16 @@ export function CosmicForceGraph({ className }: CosmicForceGraphProps) {
     return stars
   }, [])
 
-  // Get node color based on type
-  const getNodeColor = useCallback((type: string, isSelected: boolean) => {
+  // Get node color based on type and file extension
+  const getNodeColor = useCallback((node: any, isSelected: boolean) => {
     if (isSelected) return 0x8b5cf6 // Purple for selected
 
+    // 파일 타입 색상 우선
+    if (node.fileType && FILE_TYPE_COLORS[node.fileType]) {
+      return FILE_TYPE_COLORS[node.fileType]
+    }
+
+    // 노드 타입별 색상
     const colors: Record<string, number> = {
       self: 0xffd700,      // Gold
       concept: 0x3b82f6,   // Blue
@@ -151,7 +246,7 @@ export function CosmicForceGraph({ className }: CosmicForceGraphProps) {
       folder: 0x6b7280,    // Gray
     }
 
-    return colors[type] || 0x6b7280
+    return colors[node.type] || 0x6b7280
   }, [])
 
   // Initialize graph
@@ -189,20 +284,20 @@ export function CosmicForceGraph({ className }: CosmicForceGraphProps) {
         `)
         .nodeThreeObject((n: any) => {
           const isSelected = selectedNodeIds.includes(n.id)
-          const baseSize = n.type === 'self' ? 12 :
-                          n.type === 'folder' ? 8 :
-                          n.depth === 1 ? 7 : 5
+          // 파일 크기 기반 노드 크기 사용
+          const baseSize = n.nodeSize || (n.type === 'self' ? 16 :
+                          n.depth === 1 ? 9 : 6)
 
           // Create sphere
           const geom = new THREE.SphereGeometry(baseSize, 24, 24)
-          const color = getNodeColor(n.type, isSelected)
+          const color = getNodeColor(n, isSelected)
 
           const mat = new THREE.MeshStandardMaterial({
             color,
             metalness: 0.3,
             roughness: 0.5,
             emissive: new THREE.Color(color),
-            emissiveIntensity: n.type === 'self' ? 0.8 : 0.4,
+            emissiveIntensity: n.type === 'self' ? 0.8 : 0.5,
           })
 
           const mesh = new THREE.Mesh(geom, mat)
@@ -218,6 +313,228 @@ export function CosmicForceGraph({ className }: CosmicForceGraphProps) {
           ring.rotation.x = Math.PI / 2
           mesh.add(ring)
 
+          // 파일 타입 표시 (스프라이트) - 얇고 세련된 아이콘
+          if (n.fileType) {
+            const canvas = document.createElement('canvas')
+            const ctx = canvas.getContext('2d')
+            canvas.width = 64
+            canvas.height = 64
+
+            if (ctx) {
+              const cx = 32, cy = 32
+              // 조화로운 색상 팔레트
+              const colors: Record<string, string> = {
+                react: '#8eb8e5',    // 부드러운 파란색
+                ts: '#7ba7d4',       // 차분한 파란색
+                js: '#d4c87b',       // 부드러운 노란색
+                css: '#b794c7',      // 연한 보라색
+                html: '#c98a8a',     // 연한 빨간색
+                json: '#9ca3af',     // 회색
+                md: '#8bc49a',       // 연한 초록색
+                image: '#7bc4b8',    // 청록색
+                pdf: '#c98a8a',      // 연한 빨간색
+                config: '#c4a87b',   // 연한 황갈색
+                default: '#9ca3af',  // 회색
+              }
+
+              ctx.lineCap = 'round'
+              ctx.lineJoin = 'round'
+
+              switch (n.fileType) {
+                case 'tsx':
+                case 'jsx':
+                  // React 아이콘 - 얇은 원자 궤도
+                  ctx.strokeStyle = colors.react
+                  ctx.lineWidth = 1.5
+                  ctx.beginPath()
+                  ctx.ellipse(cx, cy, 18, 7, 0, 0, Math.PI * 2)
+                  ctx.stroke()
+                  ctx.beginPath()
+                  ctx.ellipse(cx, cy, 18, 7, Math.PI / 3, 0, Math.PI * 2)
+                  ctx.stroke()
+                  ctx.beginPath()
+                  ctx.ellipse(cx, cy, 18, 7, -Math.PI / 3, 0, Math.PI * 2)
+                  ctx.stroke()
+                  ctx.beginPath()
+                  ctx.arc(cx, cy, 3, 0, Math.PI * 2)
+                  ctx.fillStyle = colors.react
+                  ctx.fill()
+                  break
+                case 'ts':
+                  // TypeScript - 얇은 테두리 + T
+                  ctx.strokeStyle = colors.ts
+                  ctx.lineWidth = 1.5
+                  ctx.strokeRect(12, 12, 40, 40)
+                  ctx.beginPath()
+                  ctx.moveTo(22, 24)
+                  ctx.lineTo(42, 24)
+                  ctx.moveTo(32, 24)
+                  ctx.lineTo(32, 44)
+                  ctx.stroke()
+                  break
+                case 'js':
+                  // JavaScript - 얇은 테두리 + J
+                  ctx.strokeStyle = colors.js
+                  ctx.lineWidth = 1.5
+                  ctx.strokeRect(12, 12, 40, 40)
+                  ctx.beginPath()
+                  ctx.moveTo(36, 22)
+                  ctx.lineTo(36, 38)
+                  ctx.quadraticCurveTo(36, 44, 28, 44)
+                  ctx.stroke()
+                  break
+                case 'css':
+                case 'scss':
+                  // CSS - 얇은 해시태그
+                  ctx.strokeStyle = colors.css
+                  ctx.lineWidth = 1.5
+                  ctx.beginPath()
+                  ctx.moveTo(22, 16); ctx.lineTo(18, 48)
+                  ctx.moveTo(34, 16); ctx.lineTo(30, 48)
+                  ctx.moveTo(14, 26); ctx.lineTo(42, 26)
+                  ctx.moveTo(12, 38); ctx.lineTo(40, 38)
+                  ctx.stroke()
+                  break
+                case 'html':
+                  // HTML - 얇은 꺾쇠
+                  ctx.strokeStyle = colors.html
+                  ctx.lineWidth = 1.5
+                  ctx.beginPath()
+                  ctx.moveTo(24, 16); ctx.lineTo(12, 32); ctx.lineTo(24, 48)
+                  ctx.moveTo(40, 16); ctx.lineTo(52, 32); ctx.lineTo(40, 48)
+                  ctx.stroke()
+                  break
+                case 'json':
+                  // JSON - 얇은 중괄호
+                  ctx.strokeStyle = colors.json
+                  ctx.lineWidth = 1.5
+                  ctx.beginPath()
+                  ctx.moveTo(24, 14)
+                  ctx.quadraticCurveTo(18, 14, 18, 22)
+                  ctx.lineTo(18, 28)
+                  ctx.quadraticCurveTo(18, 32, 12, 32)
+                  ctx.quadraticCurveTo(18, 32, 18, 36)
+                  ctx.lineTo(18, 42)
+                  ctx.quadraticCurveTo(18, 50, 24, 50)
+                  ctx.moveTo(40, 14)
+                  ctx.quadraticCurveTo(46, 14, 46, 22)
+                  ctx.lineTo(46, 28)
+                  ctx.quadraticCurveTo(46, 32, 52, 32)
+                  ctx.quadraticCurveTo(46, 32, 46, 36)
+                  ctx.lineTo(46, 42)
+                  ctx.quadraticCurveTo(46, 50, 40, 50)
+                  ctx.stroke()
+                  break
+                case 'md':
+                case 'markdown':
+                  // Markdown - 얇은 M
+                  ctx.strokeStyle = colors.md
+                  ctx.lineWidth = 1.5
+                  ctx.beginPath()
+                  ctx.moveTo(12, 44); ctx.lineTo(12, 20)
+                  ctx.lineTo(24, 32); ctx.lineTo(36, 20)
+                  ctx.lineTo(36, 44)
+                  ctx.moveTo(44, 32); ctx.lineTo(52, 32)
+                  ctx.moveTo(48, 26); ctx.lineTo(48, 44)
+                  ctx.stroke()
+                  break
+                case 'png':
+                case 'jpg':
+                case 'jpeg':
+                case 'gif':
+                case 'webp':
+                case 'svg':
+                  // 이미지 - 얇은 산/태양
+                  ctx.strokeStyle = colors.image
+                  ctx.lineWidth = 1.5
+                  ctx.strokeRect(10, 14, 44, 36)
+                  ctx.beginPath()
+                  ctx.moveTo(10, 42)
+                  ctx.lineTo(22, 30)
+                  ctx.lineTo(30, 38)
+                  ctx.lineTo(42, 24)
+                  ctx.lineTo(54, 36)
+                  ctx.stroke()
+                  ctx.beginPath()
+                  ctx.arc(44, 22, 5, 0, Math.PI * 2)
+                  ctx.stroke()
+                  break
+                case 'pdf':
+                  // PDF - 얇은 문서
+                  ctx.strokeStyle = colors.pdf
+                  ctx.lineWidth = 1.5
+                  ctx.beginPath()
+                  ctx.moveTo(16, 10)
+                  ctx.lineTo(38, 10)
+                  ctx.lineTo(48, 20)
+                  ctx.lineTo(48, 54)
+                  ctx.lineTo(16, 54)
+                  ctx.closePath()
+                  ctx.stroke()
+                  ctx.beginPath()
+                  ctx.moveTo(38, 10)
+                  ctx.lineTo(38, 20)
+                  ctx.lineTo(48, 20)
+                  ctx.stroke()
+                  // 줄
+                  ctx.beginPath()
+                  ctx.moveTo(22, 30); ctx.lineTo(42, 30)
+                  ctx.moveTo(22, 38); ctx.lineTo(42, 38)
+                  ctx.moveTo(22, 46); ctx.lineTo(34, 46)
+                  ctx.stroke()
+                  break
+                case 'yaml':
+                case 'yml':
+                case 'env':
+                  // Config - 얇은 슬라이더
+                  ctx.strokeStyle = colors.config
+                  ctx.lineWidth = 1.5
+                  ctx.beginPath()
+                  ctx.moveTo(10, 20); ctx.lineTo(54, 20)
+                  ctx.moveTo(10, 32); ctx.lineTo(54, 32)
+                  ctx.moveTo(10, 44); ctx.lineTo(54, 44)
+                  ctx.stroke()
+                  ctx.beginPath()
+                  ctx.arc(20, 20, 4, 0, Math.PI * 2)
+                  ctx.arc(38, 32, 4, 0, Math.PI * 2)
+                  ctx.arc(28, 44, 4, 0, Math.PI * 2)
+                  ctx.fillStyle = colors.config
+                  ctx.fill()
+                  break
+                default:
+                  // 기본 - 얇은 문서
+                  ctx.strokeStyle = colors.default
+                  ctx.lineWidth = 1.5
+                  ctx.beginPath()
+                  ctx.moveTo(16, 10)
+                  ctx.lineTo(38, 10)
+                  ctx.lineTo(48, 20)
+                  ctx.lineTo(48, 54)
+                  ctx.lineTo(16, 54)
+                  ctx.closePath()
+                  ctx.stroke()
+                  ctx.beginPath()
+                  ctx.moveTo(38, 10)
+                  ctx.lineTo(38, 20)
+                  ctx.lineTo(48, 20)
+                  ctx.stroke()
+                  break
+              }
+
+              const texture = new THREE.CanvasTexture(canvas)
+              const spriteMat = new THREE.SpriteMaterial({
+                map: texture,
+                transparent: true,
+                depthTest: false,
+                depthWrite: false,
+              })
+              const sprite = new THREE.Sprite(spriteMat)
+              sprite.scale.set(baseSize * 1.2, baseSize * 1.2, 1)
+              sprite.position.set(0, 0, baseSize * 0.6)
+              mesh.add(sprite)
+            }
+          }
+
           // Glow effect for self node
           if (n.type === 'self') {
             const glowGeom = new THREE.SphereGeometry(baseSize * 1.5, 24, 24)
@@ -228,6 +545,49 @@ export function CosmicForceGraph({ className }: CosmicForceGraphProps) {
             })
             const glow = new THREE.Mesh(glowGeom, glowMat)
             mesh.add(glow)
+
+            // Self 노드에 별 아이콘
+            const starCanvas = document.createElement('canvas')
+            const starCtx = starCanvas.getContext('2d')
+            starCanvas.width = 128
+            starCanvas.height = 128
+            if (starCtx) {
+              const cx = 64, cy = 64
+
+              // 5각 별 그리기
+              starCtx.fillStyle = '#ffd700'
+              starCtx.beginPath()
+              for (let i = 0; i < 5; i++) {
+                const outerAngle = (i * 2 * Math.PI / 5) - Math.PI / 2
+                const innerAngle = outerAngle + Math.PI / 5
+                const outerR = 45, innerR = 20
+                if (i === 0) {
+                  starCtx.moveTo(cx + Math.cos(outerAngle) * outerR, cy + Math.sin(outerAngle) * outerR)
+                } else {
+                  starCtx.lineTo(cx + Math.cos(outerAngle) * outerR, cy + Math.sin(outerAngle) * outerR)
+                }
+                starCtx.lineTo(cx + Math.cos(innerAngle) * innerR, cy + Math.sin(innerAngle) * innerR)
+              }
+              starCtx.closePath()
+              starCtx.fill()
+
+              // 테두리
+              starCtx.strokeStyle = '#ffffff'
+              starCtx.lineWidth = 3
+              starCtx.stroke()
+
+              const starTexture = new THREE.CanvasTexture(starCanvas)
+              const starSpriteMat = new THREE.SpriteMaterial({
+                map: starTexture,
+                transparent: true,
+                depthTest: false,
+                depthWrite: false,
+              })
+              const starSprite = new THREE.Sprite(starSpriteMat)
+              starSprite.scale.set(baseSize * 1.4, baseSize * 1.4, 1)
+              starSprite.position.set(0, 0, baseSize * 0.7)
+              mesh.add(starSprite)
+            }
           }
 
           mesh.userData.__nodeId = n.id
@@ -289,9 +649,11 @@ export function CosmicForceGraph({ className }: CosmicForceGraphProps) {
       pointLight2.position.set(-100, -50, -100)
       scene.add(pointLight2)
 
-      // Force tuning
-      Graph.d3Force('charge')?.strength(-150)
-      Graph.d3Force('link')?.distance((l: any) => l.kind === 'parent' ? 60 : 100)
+      // Force tuning - radialDistance와 sidebarOpen 연동
+      const effectiveDistance = sidebarOpen ? radialDistance : radialDistance * 0.2
+      const effectiveStrength = sidebarOpen ? -radialDistance * 1.5 : -30
+      Graph.d3Force('charge')?.strength(effectiveStrength)
+      Graph.d3Force('link')?.distance((l: any) => l.kind === 'parent' ? effectiveDistance * 0.5 : effectiveDistance)
 
       // Keep simulation running longer for smooth animation
       Graph.cooldownTicks(300)
@@ -408,6 +770,19 @@ export function CosmicForceGraph({ className }: CosmicForceGraphProps) {
     setSelectedId(selectedNodeIds[0] || null)
     graphRef.current.nodeThreeObject(graphRef.current.nodeThreeObject())
   }, [selectedNodeIds])
+
+  // Update force settings when radialDistance or sidebarOpen changes
+  useEffect(() => {
+    if (!graphRef.current) return
+
+    // 사이드바 열림 = 노드 펼침, 사이드바 닫힘 = 노드 수축
+    const effectiveDistance = sidebarOpen ? radialDistance : radialDistance * 0.2
+    const effectiveStrength = sidebarOpen ? -radialDistance * 1.5 : -30
+
+    graphRef.current.d3Force('charge')?.strength(effectiveStrength)
+    graphRef.current.d3Force('link')?.distance((l: any) => l.kind === 'parent' ? effectiveDistance * 0.5 : effectiveDistance)
+    graphRef.current.d3ReheatSimulation()
+  }, [radialDistance, sidebarOpen])
 
   if (!isClient) {
     return (

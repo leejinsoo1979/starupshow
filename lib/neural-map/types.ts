@@ -370,7 +370,7 @@ export interface PathfinderResult {
 // UI State Types
 // ============================================
 
-export type RightPanelTab = 'inspector' | 'actions' | 'chat'
+export type RightPanelTab = 'inspector' | 'actions' | 'chat' | 'settings'
 
 export interface PanelState {
   leftPanelWidth: number

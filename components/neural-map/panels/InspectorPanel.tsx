@@ -6,6 +6,7 @@ import { useTheme } from 'next-themes'
 import { cn } from '@/lib/utils'
 import { useNeuralMapStore, selectFirstSelectedNode } from '@/lib/neural-map/store'
 import { useThemeStore, accentColors } from '@/stores/themeStore'
+import { useUIStore } from '@/stores/uiStore'
 import { NODE_COLORS } from '@/lib/neural-map/constants'
 import type { RightPanelTab, NodeType } from '@/lib/neural-map/types'
 import {
@@ -25,12 +26,15 @@ import {
   Eye,
   X,
   Loader2,
+  Settings2,
+  Radius,
 } from 'lucide-react'
 
 const tabs: { id: RightPanelTab; label: string; icon: typeof Info }[] = [
   { id: 'inspector', label: 'Inspector', icon: Info },
   { id: 'actions', label: 'Actions', icon: Zap },
   { id: 'chat', label: 'Chat', icon: MessageSquare },
+  { id: 'settings', label: 'Settings', icon: Settings2 },
 ]
 
 const nodeTypes: { value: NodeType; label: string }[] = [
@@ -467,6 +471,136 @@ function ChatTab({ isDark, currentAccent }: { isDark: boolean; currentAccent: ty
   )
 }
 
+function SettingsTab({ isDark, currentAccent }: { isDark: boolean; currentAccent: typeof accentColors[0] }) {
+  const radialDistance = useNeuralMapStore((s) => s.radialDistance)
+  const setRadialDistance = useNeuralMapStore((s) => s.setRadialDistance)
+  // UIStore의 sidebarOpen과 연동 - 사이드바 열림/닫힘이 그래프 펼침/수축 제어
+  const sidebarOpen = useUIStore((s) => s.sidebarOpen)
+  const toggleSidebar = useUIStore((s) => s.toggleSidebar)
+
+  return (
+    <div className="h-full overflow-y-auto p-4 space-y-6">
+      {/* Graph Layout Section */}
+      <div className="space-y-4">
+        <div className="flex items-center gap-2">
+          <Radius className="w-4 h-4 text-zinc-500" />
+          <h3 className={cn('text-sm font-medium', isDark ? 'text-zinc-300' : 'text-zinc-700')}>
+            그래프 레이아웃
+          </h3>
+        </div>
+
+        {/* Radial Distance Slider */}
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <label className={cn('text-xs', isDark ? 'text-zinc-500' : 'text-zinc-500')}>
+              방사 거리
+            </label>
+            <span
+              className={cn(
+                'text-xs font-mono px-2 py-0.5 rounded',
+                isDark ? 'bg-zinc-800 text-zinc-400' : 'bg-zinc-100 text-zinc-600'
+              )}
+            >
+              {radialDistance}
+            </span>
+          </div>
+          <input
+            type="range"
+            min={50}
+            max={300}
+            step={10}
+            value={radialDistance}
+            onChange={(e) => setRadialDistance(parseInt(e.target.value))}
+            className="w-full h-2 rounded-lg appearance-none cursor-pointer"
+            style={{
+              background: `linear-gradient(to right, ${currentAccent.color} 0%, ${currentAccent.color} ${((radialDistance - 50) / 250) * 100}%, ${isDark ? '#3f3f46' : '#e4e4e7'} ${((radialDistance - 50) / 250) * 100}%, ${isDark ? '#3f3f46' : '#e4e4e7'} 100%)`,
+            }}
+          />
+          <div className="flex justify-between text-[10px] text-zinc-500">
+            <span>좁게</span>
+            <span>넓게</span>
+          </div>
+        </div>
+
+        {/* Graph Expanded Toggle - 사이드바와 연동 */}
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <label className={cn('text-xs', isDark ? 'text-zinc-500' : 'text-zinc-500')}>
+              노드 펼침 (사이드바 연동)
+            </label>
+            <button
+              onClick={toggleSidebar}
+              className={cn(
+                'relative inline-flex h-5 w-9 items-center rounded-full transition-colors',
+                sidebarOpen
+                  ? ''
+                  : isDark
+                  ? 'bg-zinc-700'
+                  : 'bg-zinc-300'
+              )}
+              style={{
+                backgroundColor: sidebarOpen ? currentAccent.color : undefined,
+              }}
+            >
+              <span
+                className={cn(
+                  'inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow-sm transition-transform',
+                  sidebarOpen ? 'translate-x-4' : 'translate-x-1'
+                )}
+              />
+            </button>
+          </div>
+          <p className={cn('text-[10px]', isDark ? 'text-zinc-600' : 'text-zinc-400')}>
+            {sidebarOpen ? '사이드바 열림 → 노드 펼쳐짐' : '사이드바 닫힘 → 노드 수축됨'}
+          </p>
+        </div>
+      </div>
+
+      {/* Presets Section */}
+      <div className={cn('pt-4 border-t space-y-3', isDark ? 'border-zinc-800' : 'border-zinc-200')}>
+        <label className={cn('text-xs font-medium block', isDark ? 'text-zinc-500' : 'text-zinc-500')}>
+          빠른 설정
+        </label>
+        <div className="grid grid-cols-3 gap-2">
+          {[
+            { label: '밀집', value: 50 },
+            { label: '기본', value: 150 },
+            { label: '확산', value: 250 },
+          ].map((preset) => (
+            <button
+              key={preset.value}
+              onClick={() => setRadialDistance(preset.value)}
+              className={cn(
+                'px-3 py-2 text-xs rounded-lg font-medium transition-all',
+                radialDistance === preset.value
+                  ? 'text-white'
+                  : isDark
+                  ? 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700'
+                  : 'bg-zinc-100 text-zinc-600 hover:bg-zinc-200'
+              )}
+              style={{
+                backgroundColor: radialDistance === preset.value ? currentAccent.color : undefined,
+              }}
+            >
+              {preset.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Info */}
+      <div
+        className={cn(
+          'p-3 rounded-lg text-xs',
+          isDark ? 'bg-zinc-800/50 text-zinc-500' : 'bg-zinc-100/50 text-zinc-500'
+        )}
+      >
+        <p>💡 좌측 사이드바를 접으면 그래프 노드들이 중심으로 수축하고, 펼치면 방사형으로 확장됩니다.</p>
+      </div>
+    </div>
+  )
+}
+
 export function InspectorPanel() {
   const { resolvedTheme } = useTheme()
   const isDark = resolvedTheme === 'dark'
@@ -514,6 +648,7 @@ export function InspectorPanel() {
         {rightPanelTab === 'inspector' && <InspectorTab isDark={isDark} currentAccent={currentAccent} />}
         {rightPanelTab === 'actions' && <ActionsTab isDark={isDark} />}
         {rightPanelTab === 'chat' && <ChatTab isDark={isDark} currentAccent={currentAccent} />}
+        {rightPanelTab === 'settings' && <SettingsTab isDark={isDark} currentAccent={currentAccent} />}
       </div>
     </div>
   )
