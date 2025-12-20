@@ -25,41 +25,22 @@ export function Toolbar() {
   const isDark = resolvedTheme === 'dark'
   const [showThemeMenu, setShowThemeMenu] = useState(false)
   const [showModeMenu, setShowModeMenu] = useState(false)
-  const [isCollapsed, setIsCollapsed] = useState(false)
 
   const themeId = useNeuralMapStore((s) => s.themeId)
   const setTheme = useNeuralMapStore((s) => s.setTheme)
   const searchQuery = useNeuralMapStore((s) => s.searchQuery)
   const setSearchQuery = useNeuralMapStore((s) => s.setSearchQuery)
   const openModal = useNeuralMapStore((s) => s.openModal)
+  const headerCollapsed = useNeuralMapStore((s) => s.headerCollapsed)
+  const toggleHeader = useNeuralMapStore((s) => s.toggleHeader)
 
   // User theme accent color
   const { accentColor } = useThemeStore()
   const currentAccent = accentColors.find((c) => c.id === accentColor) || accentColors[0]
 
-  // 접힌 상태
-  if (isCollapsed) {
-    return (
-      <div
-        className={cn(
-          'border-b',
-          isDark ? 'bg-zinc-900/95 border-zinc-800' : 'bg-white border-zinc-200'
-        )}
-      >
-        <button
-          onClick={() => setIsCollapsed(false)}
-          className={cn(
-            'w-full h-8 flex items-center justify-center gap-2 transition-colors',
-            isDark
-              ? 'hover:bg-zinc-800 text-zinc-500 hover:text-zinc-300'
-              : 'hover:bg-zinc-100 text-zinc-400 hover:text-zinc-600'
-          )}
-        >
-          <ChevronDown className="w-4 h-4" />
-          <span className="text-xs">툴바 펼치기</span>
-        </button>
-      </div>
-    )
+  // 접힌 상태 - Toolbar와 ViewTabs 모두 접힘
+  if (headerCollapsed) {
+    return null
   }
 
   return (
@@ -71,14 +52,14 @@ export function Toolbar() {
     >
       {/* Left: 접기 버튼 */}
       <button
-        onClick={() => setIsCollapsed(true)}
+        onClick={toggleHeader}
         className={cn(
           'p-1.5 rounded transition-colors',
           isDark
             ? 'hover:bg-zinc-800 text-zinc-500 hover:text-zinc-300'
             : 'hover:bg-zinc-100 text-zinc-400 hover:text-zinc-600'
         )}
-        title="툴바 접기"
+        title="헤더 접기 (Toolbar + Tabs)"
       >
         <ChevronUp className="w-4 h-4" />
       </button>

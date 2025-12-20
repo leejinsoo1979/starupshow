@@ -59,6 +59,7 @@ interface NeuralMapState {
   rightPanelWidth: number
   leftPanelCollapsed: boolean
   rightPanelCollapsed: boolean
+  headerCollapsed: boolean
 
   // Camera
   cameraPosition: NodePosition
@@ -140,6 +141,7 @@ interface NeuralMapActions {
   setRightPanelWidth: (width: number) => void
   toggleLeftPanel: () => void
   toggleRightPanel: () => void
+  toggleHeader: () => void
 
   // Camera
   setCameraPosition: (position: NodePosition) => void
@@ -205,6 +207,7 @@ const initialState: NeuralMapState = {
   rightPanelWidth: PANEL_SIZES.right.default,
   leftPanelCollapsed: false,
   rightPanelCollapsed: false,
+  headerCollapsed: false,
 
   cameraPosition: CAMERA_SETTINGS.initialPosition,
   cameraTarget: CAMERA_SETTINGS.initialTarget,
@@ -445,6 +448,11 @@ export const useNeuralMapStore = create<NeuralMapState & NeuralMapActions>()(
         toggleRightPanel: () =>
           set((state) => {
             state.rightPanelCollapsed = !state.rightPanelCollapsed
+          }),
+
+        toggleHeader: () =>
+          set((state) => {
+            state.headerCollapsed = !state.headerCollapsed
           }),
 
         // ========== Camera ==========

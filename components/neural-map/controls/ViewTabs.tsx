@@ -26,6 +26,12 @@ export function ViewTabs() {
   const isDark = resolvedTheme === 'dark'
   const activeTab = useNeuralMapStore((s) => s.activeTab)
   const setActiveTab = useNeuralMapStore((s) => s.setActiveTab)
+  const headerCollapsed = useNeuralMapStore((s) => s.headerCollapsed)
+
+  // 헤더가 접힌 상태면 ViewTabs도 숨김
+  if (headerCollapsed) {
+    return null
+  }
 
   return (
     <div

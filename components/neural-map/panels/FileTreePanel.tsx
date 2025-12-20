@@ -126,6 +126,10 @@ export function FileTreePanel({ mapId }: FileTreePanelProps) {
       if (result) {
         addFile(result)
 
+        // 파일 업로드 후 트리 자동 펼침 + 새 파일 선택
+        setIsExpanded(true)
+        setSelectedFileId(result.id)
+
         const nodeType = result.type === 'pdf' ? 'doc' :
                         result.type === 'markdown' ? 'doc' :
                         result.type === 'image' ? 'memory' :

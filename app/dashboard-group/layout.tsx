@@ -134,10 +134,14 @@ export default function DashboardLayout({
     )
   }
 
-  // 2단계 사이드바: Level1(64px) + Level2(240px)
+  // 2단계 사이드바: Level1(64px) + Level2(240px or 280px for neural-map)
   // 이메일 페이지는 자체 레이아웃을 가지므로 Level1만 사용
   const isEmailPage = pathname?.includes('/email')
-  const sidebarWidth = sidebarOpen ? (isEmailPage ? 64 : 304) : 64
+  const isNeuralMapPage = pathname?.includes('/neural-map')
+  // Neural Map은 FileTreePanel이 280px로 더 넓음 (64 + 280 = 344)
+  const sidebarWidth = sidebarOpen
+    ? (isEmailPage ? 64 : (isNeuralMapPage ? 344 : 304))
+    : 64
 
   // Check if we are on the main dashboard page
   const isDashboardRoot = pathname === '/dashboard-group'

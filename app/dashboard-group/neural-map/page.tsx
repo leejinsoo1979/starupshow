@@ -26,6 +26,7 @@ import {
   PanelRightClose,
   PanelRightOpen,
   Loader2,
+  ChevronDown,
 } from 'lucide-react'
 
 // Dynamically import 3D Canvas (uses browser APIs)
@@ -70,6 +71,8 @@ export default function NeuralMapPage() {
     rightPanelWidth,
     rightPanelCollapsed,
     toggleRightPanel,
+    headerCollapsed,
+    toggleHeader,
     setGraph,
     setLoading,
     setError,
@@ -145,6 +148,29 @@ export default function NeuralMapPage() {
 
   return (
     <div className={cn('h-full flex flex-col overflow-hidden', isDark ? 'bg-zinc-950' : 'bg-zinc-50')}>
+      {/* Collapsed Header Bar - 접힌 상태일 때만 표시 */}
+      {headerCollapsed && (
+        <div
+          className={cn(
+            'border-b flex-shrink-0',
+            isDark ? 'bg-zinc-900/95 border-zinc-800' : 'bg-white border-zinc-200'
+          )}
+        >
+          <button
+            onClick={toggleHeader}
+            className={cn(
+              'w-full h-8 flex items-center justify-center gap-2 transition-colors',
+              isDark
+                ? 'hover:bg-zinc-800 text-zinc-500 hover:text-zinc-300'
+                : 'hover:bg-zinc-100 text-zinc-400 hover:text-zinc-600'
+            )}
+          >
+            <ChevronDown className="w-4 h-4" />
+            <span className="text-xs">헤더 펼치기</span>
+          </button>
+        </div>
+      )}
+
       {/* Toolbar */}
       <Toolbar />
 
