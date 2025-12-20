@@ -231,7 +231,7 @@ const initialState: NeuralMapState = {
   selectedNodeIds: [],
   hoveredNodeId: null,
 
-  activeTab: 'radial',
+  activeTab: 'graph2d',
   rightPanelTab: 'inspector',
 
   leftPanelWidth: PANEL_SIZES.left.default,
@@ -1260,7 +1260,7 @@ export const useNeuralMapStore = create<NeuralMapState & NeuralMapActions>()(
                 rootNodeId: rootNode.id,
                 title: projectName,
                 viewState: {
-                  activeTab: 'radial',
+                  activeTab: 'graph2d',
                   expandedNodeIds: [rootNode.id],
                   pinnedNodeIds: [],
                   selectedNodeIds: [],

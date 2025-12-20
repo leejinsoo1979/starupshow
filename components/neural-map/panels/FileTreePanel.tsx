@@ -793,7 +793,31 @@ export function FileTreePanel({ mapId }: FileTreePanelProps) {
       <div className="flex-1 overflow-y-auto">
         {/* 루트 폴더 (맵 이름) */}
         <div
-          onClick={() => setIsExpanded(!isExpanded)}
+          onClick={() => {
+            const newExpanded = !isExpanded
+            setIsExpanded(newExpanded)
+
+            // Sync with graph: Toggle self node
+            if (graph?.nodes) {
+              const selfNode = graph.nodes.find(n => n.type === 'self')
+              if (selfNode) {
+                // To match UI state (if UI expands, Graph expands)
+                // We use setExpandedNodes to force sync or just toggle if states are aligned.
+                // Simpler: Just toggle it. Or better: Ensure state matches `newExpanded`
+                if (newExpanded) {
+                  // If opening, ensure self is in expandedNodeIds
+                  if (!expandedNodeIds.has(selfNode.id)) {
+                    toggleNodeExpansion(selfNode.id)
+                  }
+                } else {
+                  // If closing, ensure self is removed
+                  if (expandedNodeIds.has(selfNode.id)) {
+                    toggleNodeExpansion(selfNode.id)
+                  }
+                }
+              }
+            }
+          }}
           className={cn(
             'flex items-center gap-1 py-[3px] px-2 cursor-pointer select-none',
             isDark
