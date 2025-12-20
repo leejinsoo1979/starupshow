@@ -130,7 +130,7 @@ export interface NeuralCluster {
 // Graph Container
 // ============================================
 
-export type ViewTab = 'radial' | 'graph2d' | 'cosmic' | 'clusters' | 'pathfinder' | 'roadmap' | 'insights'
+export type ViewTab = 'radial' | 'graph2d' | 'cosmic' | 'tree' | 'clusters' | 'pathfinder' | 'roadmap' | 'insights'
 
 export interface CameraState {
   position: NodePosition

@@ -55,6 +55,15 @@ const CosmicForceGraph = dynamic(
   }
 )
 
+// Dynamically import Tree Flow Chart (top-down tree)
+const TreeFlowChart = dynamic(
+  () => import('@/components/neural-map/canvas/TreeFlowChart').then((mod) => mod.TreeFlowChart),
+  {
+    ssr: false,
+    loading: () => <CanvasLoadingFallback />,
+  }
+)
+
 // Loading fallback for canvas
 function CanvasLoadingFallback() {
   const currentTheme = useNeuralMapStore((s) => s.currentTheme)
@@ -224,6 +233,8 @@ export default function NeuralMapPage() {
               <Graph2DView className="absolute inset-0" />
             ) : activeTab === 'cosmic' ? (
               <CosmicForceGraph className="absolute inset-0" />
+            ) : activeTab === 'tree' ? (
+              <TreeFlowChart className="absolute inset-0" />
             ) : (
               <NeuralMapCanvas className="absolute inset-0" />
             )}
