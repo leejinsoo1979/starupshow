@@ -6,7 +6,6 @@ import { cn } from '@/lib/utils'
 import { useNeuralMapStore } from '@/lib/neural-map/store'
 import { THEME_PRESETS } from '@/lib/neural-map/constants'
 import {
-  Orbit,
   ChevronDown,
   Download,
   Upload,
@@ -41,20 +40,8 @@ export function Toolbar() {
         isDark ? 'bg-zinc-900/95 border-zinc-800' : 'bg-white border-zinc-200'
       )}
     >
-      {/* Left: Title */}
-      <div className="flex items-center gap-3">
-        <div
-          className="w-8 h-8 rounded-lg flex items-center justify-center"
-          style={{ backgroundColor: currentTheme?.ui.accentColor || '#3b82f6' }}
-        >
-          <Orbit className="w-5 h-5 text-white" />
-        </div>
-        <div>
-          <h1 className={cn('font-semibold', isDark ? 'text-zinc-100' : 'text-zinc-900')}>
-            {graph?.title || 'My Neural Map'}
-          </h1>
-        </div>
-      </div>
+      {/* Left: spacer */}
+      <div className="w-4" />
 
       {/* Center: Mode & Search */}
       <div className="flex items-center gap-3">

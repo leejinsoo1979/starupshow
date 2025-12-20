@@ -24,6 +24,7 @@ import {
   Trash2,
   Loader2,
   ExternalLink,
+  Orbit,
 } from 'lucide-react'
 
 // 파일 타입별 아이콘
@@ -208,7 +209,22 @@ export function FileTreePanel({ mapId }: FileTreePanelProps) {
 
   return (
     <div className="h-full flex flex-col">
-      {/* Header */}
+      {/* Map Title Header */}
+      <div className={cn('p-4 border-b', isDark ? 'border-zinc-800' : 'border-zinc-200')}>
+        <div className="flex items-center gap-3">
+          <div
+            className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
+            style={{ backgroundColor: accentColor }}
+          >
+            <Orbit className="w-5 h-5 text-white" />
+          </div>
+          <h1 className={cn('font-semibold truncate', isDark ? 'text-zinc-100' : 'text-zinc-900')}>
+            {graph?.title || 'My Neural Map'}
+          </h1>
+        </div>
+      </div>
+
+      {/* File Tree Header */}
       <div className={cn('p-3 border-b', isDark ? 'border-zinc-800' : 'border-zinc-200')}>
         <div className="flex items-center justify-between mb-3">
           <h2 className={cn('text-sm font-semibold', isDark ? 'text-zinc-200' : 'text-zinc-800')}>
