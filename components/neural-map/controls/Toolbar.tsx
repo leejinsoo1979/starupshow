@@ -4,9 +4,11 @@ import { useState } from 'react'
 import { useTheme } from 'next-themes'
 import { cn } from '@/lib/utils'
 import { useNeuralMapStore } from '@/lib/neural-map/store'
+import { useThemeStore, accentColors } from '@/stores/themeStore'
 import { THEME_PRESETS } from '@/lib/neural-map/constants'
 import {
   ChevronDown,
+  ChevronUp,
   Download,
   Upload,
   Palette,
@@ -23,15 +25,42 @@ export function Toolbar() {
   const isDark = resolvedTheme === 'dark'
   const [showThemeMenu, setShowThemeMenu] = useState(false)
   const [showModeMenu, setShowModeMenu] = useState(false)
+  const [isCollapsed, setIsCollapsed] = useState(false)
 
-  const graph = useNeuralMapStore((s) => s.graph)
   const themeId = useNeuralMapStore((s) => s.themeId)
   const setTheme = useNeuralMapStore((s) => s.setTheme)
   const searchQuery = useNeuralMapStore((s) => s.searchQuery)
   const setSearchQuery = useNeuralMapStore((s) => s.setSearchQuery)
   const openModal = useNeuralMapStore((s) => s.openModal)
 
-  const currentTheme = THEME_PRESETS.find((t) => t.id === themeId)
+  // User theme accent color
+  const { accentColor } = useThemeStore()
+  const currentAccent = accentColors.find((c) => c.id === accentColor) || accentColors[0]
+
+  // 접힌 상태
+  if (isCollapsed) {
+    return (
+      <div
+        className={cn(
+          'border-b',
+          isDark ? 'bg-zinc-900/95 border-zinc-800' : 'bg-white border-zinc-200'
+        )}
+      >
+        <button
+          onClick={() => setIsCollapsed(false)}
+          className={cn(
+            'w-full h-8 flex items-center justify-center gap-2 transition-colors',
+            isDark
+              ? 'hover:bg-zinc-800 text-zinc-500 hover:text-zinc-300'
+              : 'hover:bg-zinc-100 text-zinc-400 hover:text-zinc-600'
+          )}
+        >
+          <ChevronDown className="w-4 h-4" />
+          <span className="text-xs">툴바 펼치기</span>
+        </button>
+      </div>
+    )
+  }
 
   return (
     <div
@@ -40,8 +69,19 @@ export function Toolbar() {
         isDark ? 'bg-zinc-900/95 border-zinc-800' : 'bg-white border-zinc-200'
       )}
     >
-      {/* Left: spacer */}
-      <div className="w-4" />
+      {/* Left: 접기 버튼 */}
+      <button
+        onClick={() => setIsCollapsed(true)}
+        className={cn(
+          'p-1.5 rounded transition-colors',
+          isDark
+            ? 'hover:bg-zinc-800 text-zinc-500 hover:text-zinc-300'
+            : 'hover:bg-zinc-100 text-zinc-400 hover:text-zinc-600'
+        )}
+        title="툴바 접기"
+      >
+        <ChevronUp className="w-4 h-4" />
+      </button>
 
       {/* Center: Mode & Search */}
       <div className="flex items-center gap-3">
@@ -122,12 +162,12 @@ export function Toolbar() {
         {/* Add Node / Edge */}
         <button
           onClick={() => openModal('nodeEditor')}
-          className={cn(
-            'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors',
-            isDark
-              ? 'bg-emerald-600 hover:bg-emerald-500 text-white'
-              : 'bg-emerald-500 hover:bg-emerald-400 text-white'
-          )}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-all text-white"
+          style={{
+            backgroundColor: currentAccent.color,
+          }}
+          onMouseEnter={(e) => e.currentTarget.style.backgroundColor = currentAccent.hoverColor}
+          onMouseLeave={(e) => e.currentTarget.style.backgroundColor = currentAccent.color}
           title="노드 추가 (N)"
         >
           <Plus className="w-4 h-4" />
@@ -136,10 +176,10 @@ export function Toolbar() {
         <button
           onClick={() => openModal('export', { mode: 'edge' })}
           className={cn(
-            'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors',
+            'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors border',
             isDark
-              ? 'bg-blue-600 hover:bg-blue-500 text-white'
-              : 'bg-blue-500 hover:bg-blue-400 text-white'
+              ? 'bg-zinc-800 hover:bg-zinc-700 border-zinc-700 text-zinc-200'
+              : 'bg-white hover:bg-zinc-50 border-zinc-300 text-zinc-700'
           )}
           title="연결 추가 (E)"
         >
@@ -264,10 +304,12 @@ export function Toolbar() {
 
         {/* Save */}
         <button
-          className={cn(
-            'flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors',
-            'bg-blue-600 hover:bg-blue-500 text-white'
-          )}
+          className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition-all text-white"
+          style={{
+            backgroundColor: currentAccent.color,
+          }}
+          onMouseEnter={(e) => e.currentTarget.style.backgroundColor = currentAccent.hoverColor}
+          onMouseLeave={(e) => e.currentTarget.style.backgroundColor = currentAccent.color}
         >
           <Save className="w-4 h-4" />
           저장
