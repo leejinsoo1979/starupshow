@@ -193,6 +193,9 @@ interface NeuralMapActions {
   openEditor: () => void
   closeEditor: () => void
   toggleEditorCollapse: () => void
+
+  // Demo
+  loadMockProjectData: () => void
 }
 
 // ============================================
@@ -673,6 +676,185 @@ export const useNeuralMapStore = create<NeuralMapState & NeuralMapActions>()(
         toggleEditorCollapse: () =>
           set((state) => {
             state.editorCollapsed = !state.editorCollapsed
+          }),
+
+        // ========== Demo ==========
+        loadMockProjectData: () =>
+          set((state) => {
+            // 샘플 Next.js 프로젝트 구조
+            const mockProject = {
+              name: 'my-nextjs-app',
+              folders: [
+                { path: 'app', children: ['page.tsx', 'layout.tsx', 'globals.css'] },
+                { path: 'app/api', children: ['route.ts'] },
+                { path: 'app/api/users', children: ['route.ts'] },
+                { path: 'app/dashboard', children: ['page.tsx', 'loading.tsx'] },
+                { path: 'components', children: ['Header.tsx', 'Footer.tsx', 'Sidebar.tsx'] },
+                { path: 'components/ui', children: ['Button.tsx', 'Input.tsx', 'Modal.tsx', 'Card.tsx'] },
+                { path: 'lib', children: ['utils.ts', 'db.ts'] },
+                { path: 'hooks', children: ['useAuth.ts', 'useTheme.ts'] },
+                { path: 'stores', children: ['authStore.ts', 'uiStore.ts'] },
+                { path: 'types', children: ['index.ts', 'api.ts'] },
+                { path: 'public', children: ['favicon.ico', 'logo.svg'] },
+              ],
+              rootFiles: ['package.json', 'tsconfig.json', 'next.config.js', 'README.md', '.env.local']
+            }
+
+            // 노드 ID 생성 헬퍼
+            const generateId = () => `mock-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+
+            // 루트 노드 (프로젝트)
+            const rootNode: NeuralNode = {
+              id: generateId(),
+              type: 'self',
+              title: mockProject.name,
+              summary: 'Next.js 14 프로젝트',
+              tags: ['project', 'nextjs'],
+              importance: 10,
+              createdAt: new Date().toISOString(),
+              updatedAt: new Date().toISOString(),
+            }
+
+            const nodes: NeuralNode[] = [rootNode]
+            const edges: NeuralEdge[] = []
+            const files: NeuralFile[] = []
+
+            // 폴더 노드 맵 (path -> nodeId)
+            const folderMap = new Map<string, string>()
+            folderMap.set('', rootNode.id) // 루트
+
+            // 폴더 노드 생성
+            mockProject.folders.forEach(folder => {
+              const folderId = generateId()
+              const folderName = folder.path.split('/').pop() || folder.path
+              const parentPath = folder.path.includes('/')
+                ? folder.path.substring(0, folder.path.lastIndexOf('/'))
+                : ''
+
+              const folderNode: NeuralNode = {
+                id: folderId,
+                type: 'folder' as any,
+                title: folderName,
+                summary: `폴더: ${folder.path}`,
+                tags: ['folder'],
+                importance: 7,
+                parentId: folderMap.get(parentPath) || rootNode.id,
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString(),
+              }
+
+              nodes.push(folderNode)
+              folderMap.set(folder.path, folderId)
+
+              // 부모와 연결
+              edges.push({
+                id: generateId(),
+                source: folderMap.get(parentPath) || rootNode.id,
+                target: folderId,
+                type: 'parent_child',
+                weight: 0.8,
+                createdAt: new Date().toISOString(),
+              })
+
+              // 해당 폴더의 파일들 생성
+              folder.children.forEach(fileName => {
+                const fileId = generateId()
+                const ext = fileName.split('.').pop() || ''
+                const fileType = ['tsx', 'ts', 'js', 'jsx'].includes(ext) ? 'code' :
+                               ext === 'css' ? 'style' :
+                               ext === 'json' ? 'config' :
+                               ext === 'md' ? 'doc' : 'file'
+
+                const fileNode: NeuralNode = {
+                  id: fileId,
+                  type: fileType as any,
+                  title: fileName,
+                  summary: `${folder.path}/${fileName}`,
+                  tags: [ext, fileType],
+                  importance: 5,
+                  parentId: folderId,
+                  createdAt: new Date().toISOString(),
+                  updatedAt: new Date().toISOString(),
+                }
+
+                nodes.push(fileNode)
+
+                // 폴더와 연결
+                edges.push({
+                  id: generateId(),
+                  source: folderId,
+                  target: fileId,
+                  type: 'parent_child',
+                  weight: 0.6,
+                  createdAt: new Date().toISOString(),
+                })
+
+                // 파일 목록에 추가
+                files.push({
+                  id: fileId,
+                  name: fileName,
+                  type: ext === 'md' ? 'markdown' : 'text' as any,
+                  size: Math.floor(Math.random() * 10000) + 500,
+                  path: `${folder.path}/${fileName}`,
+                  createdAt: new Date().toISOString(),
+                  updatedAt: new Date().toISOString(),
+                })
+              })
+            })
+
+            // 루트 파일들 생성
+            mockProject.rootFiles.forEach(fileName => {
+              const fileId = generateId()
+              const ext = fileName.split('.').pop() || ''
+
+              const fileNode: NeuralNode = {
+                id: fileId,
+                type: 'config' as any,
+                title: fileName,
+                summary: `루트 파일: ${fileName}`,
+                tags: [ext, 'root'],
+                importance: 6,
+                parentId: rootNode.id,
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString(),
+              }
+
+              nodes.push(fileNode)
+
+              // 루트와 연결
+              edges.push({
+                id: generateId(),
+                source: rootNode.id,
+                target: fileId,
+                type: 'parent_child',
+                weight: 0.7,
+                createdAt: new Date().toISOString(),
+              })
+
+              files.push({
+                id: fileId,
+                name: fileName,
+                type: ext === 'md' ? 'markdown' : 'text' as any,
+                size: Math.floor(Math.random() * 5000) + 200,
+                path: fileName,
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString(),
+              })
+            })
+
+            // 그래프 설정
+            state.graph = {
+              id: 'mock-graph',
+              title: mockProject.name,
+              nodes,
+              edges,
+              clusters: [],
+              createdAt: new Date().toISOString(),
+              updatedAt: new Date().toISOString(),
+            }
+
+            state.files = files
+            state.expandedNodeIds = new Set([rootNode.id])
           }),
       })),
       {

@@ -32,6 +32,7 @@ import {
   ChevronsDownUp,
   X,
   Check,
+  Play,
 } from 'lucide-react'
 
 // 정렬 옵션 타입
@@ -174,6 +175,7 @@ export function FileTreePanel({ mapId }: FileTreePanelProps) {
   const setSelectedNodes = useNeuralMapStore((s) => s.setSelectedNodes)
   const focusOnNode = useNeuralMapStore((s) => s.focusOnNode)
   const openEditor = useNeuralMapStore((s) => s.openEditor)
+  const loadMockProjectData = useNeuralMapStore((s) => s.loadMockProjectData)
 
   // API
   const { uploadFile, deleteFile, createNode, createEdge, analyzeFile } = useNeuralMapApi(mapId)
@@ -591,6 +593,18 @@ export function FileTreePanel({ mapId }: FileTreePanelProps) {
               title="New folder"
             >
               <FolderPlus className="w-[18px] h-[18px]" />
+            </button>
+
+            {/* 데모 로드 */}
+            <button
+              onClick={loadMockProjectData}
+              className={cn(
+                'p-2 rounded transition-colors',
+                isDark ? 'hover:bg-[#3c3c3c] text-emerald-400' : 'hover:bg-[#e8e8e8] text-emerald-600'
+              )}
+              title="Load demo project"
+            >
+              <Play className="w-[18px] h-[18px]" />
             </button>
 
             {/* 정렬 */}
