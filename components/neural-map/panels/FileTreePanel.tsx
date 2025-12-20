@@ -13,18 +13,12 @@ import {
   Search,
   ChevronRight,
   ChevronDown,
-  FileText,
-  Image,
-  Film,
-  FileCode,
-  File,
   Trash2,
   Loader2,
   MoreHorizontal,
   FilePlus,
   FolderPlus,
   RefreshCw,
-  FolderClosed,
   Upload,
   Sparkles,
   PenLine,
@@ -35,7 +29,33 @@ import {
   Play,
   Eye,
   Code,
+  FolderClosed,
+  FileText,
+  FileCode,
+  Image,
+  Film,
+  File,
 } from 'lucide-react'
+// react-icons - VS Code 스타일 파일 아이콘
+import {
+  VscFile,
+  VscFileCode,
+  VscFilePdf,
+  VscFileMedia,
+  VscMarkdown,
+  VscJson,
+  VscFolder,
+  VscFolderOpened,
+} from 'react-icons/vsc'
+import {
+  SiTypescript,
+  SiJavascript,
+  SiReact,
+  SiCss3,
+  SiHtml5,
+  SiPython,
+  SiGit,
+} from 'react-icons/si'
 
 // 정렬 옵션 타입
 type SortOption = 'name-asc' | 'name-desc' | 'modified-new' | 'modified-old' | 'created-new' | 'created-old'
@@ -49,28 +69,53 @@ const SORT_OPTIONS: { value: SortOption; label: string }[] = [
   { value: 'created-old', label: 'Created time (old to new)' },
 ]
 
-// VS Code 스타일 파일 아이콘
+// VS Code 스타일 파일 아이콘 - react-icons 사용
 function FileIcon({ type, name }: { type: string; name?: string }) {
   const ext = name?.split('.').pop()?.toLowerCase()
+  const iconClass = "w-4 h-4 flex-shrink-0"
 
-  // 확장자별 아이콘 매핑
-  if (ext === 'pdf') return <FileText className="w-4 h-4 text-red-500 flex-shrink-0" />
-  if (ext === 'md' || ext === 'markdown') return <FileCode className="w-4 h-4 text-sky-500 flex-shrink-0" /> // Blue -> Sky
-  if (ext === 'txt') return <FileText className="w-4 h-4 text-zinc-400 flex-shrink-0" />
-  if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg'].includes(ext || '')) {
-    return <Image className="w-4 h-4 text-violet-500 flex-shrink-0" /> // Emerald -> Violet
+  // TypeScript / JavaScript / React
+  if (ext === 'ts') return <SiTypescript className={cn(iconClass, "text-blue-500")} />
+  if (ext === 'tsx') return <SiReact className={cn(iconClass, "text-cyan-400")} />
+  if (ext === 'js') return <SiJavascript className={cn(iconClass, "text-yellow-400")} />
+  if (ext === 'jsx') return <SiReact className={cn(iconClass, "text-cyan-400")} />
+
+  // 스타일
+  if (ext === 'css' || ext === 'scss' || ext === 'sass') return <SiCss3 className={cn(iconClass, "text-blue-400")} />
+  if (ext === 'html') return <SiHtml5 className={cn(iconClass, "text-orange-500")} />
+
+  // 데이터/설정
+  if (ext === 'json') return <VscJson className={cn(iconClass, "text-yellow-500")} />
+  if (ext === 'env' || name?.startsWith('.env')) return <VscFileCode className={cn(iconClass, "text-yellow-600")} />
+
+  // 마크다운/문서
+  if (ext === 'md' || ext === 'markdown' || ext === 'mdx') return <VscMarkdown className={cn(iconClass, "text-sky-400")} />
+  if (ext === 'pdf') return <VscFilePdf className={cn(iconClass, "text-red-500")} />
+  if (ext === 'txt') return <VscFile className={cn(iconClass, "text-zinc-400")} />
+
+  // 이미지
+  if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'ico'].includes(ext || '')) {
+    return <VscFileMedia className={cn(iconClass, "text-emerald-400")} />
   }
-  if (['mp4', 'webm', 'mov', 'avi'].includes(ext || '')) {
-    return <Film className="w-4 h-4 text-pink-500 flex-shrink-0" /> // Purple -> Pink
+
+  // 비디오/미디어
+  if (['mp4', 'webm', 'mov', 'avi', 'mp3', 'wav'].includes(ext || '')) {
+    return <VscFileMedia className={cn(iconClass, "text-purple-400")} />
   }
+
+  // 파이썬
+  if (ext === 'py') return <SiPython className={cn(iconClass, "text-yellow-500")} />
+
+  // Git
+  if (name === '.gitignore' || ext === 'gitignore') return <SiGit className={cn(iconClass, "text-orange-600")} />
 
   // 타입별 폴백
   switch (type) {
-    case 'pdf': return <FileText className="w-4 h-4 text-red-500 flex-shrink-0" />
-    case 'image': return <Image className="w-4 h-4 text-violet-500 flex-shrink-0" />
-    case 'video': return <Film className="w-4 h-4 text-pink-500 flex-shrink-0" />
-    case 'markdown': return <FileCode className="w-4 h-4 text-sky-500 flex-shrink-0" />
-    default: return <File className="w-4 h-4 text-zinc-400 flex-shrink-0" />
+    case 'pdf': return <VscFilePdf className={cn(iconClass, "text-red-500")} />
+    case 'image': return <VscFileMedia className={cn(iconClass, "text-emerald-400")} />
+    case 'video': return <VscFileMedia className={cn(iconClass, "text-purple-400")} />
+    case 'markdown': return <VscMarkdown className={cn(iconClass, "text-sky-400")} />
+    default: return <VscFile className={cn(iconClass, "text-zinc-500")} />
   }
 }
 
