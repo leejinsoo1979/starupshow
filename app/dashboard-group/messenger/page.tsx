@@ -489,10 +489,10 @@ export default function MessengerPage() {
   return (
     <div className={`flex h-[calc(100vh-4rem)] overflow-hidden ${isDark ? 'bg-zinc-950 text-zinc-100' : 'bg-white text-zinc-900'}`}>
 
-      {/* Sidebar - Room List */}
+      {/* Sidebar - Room List - 회의/채팅방 선택 시 숨김 */}
       <div className={`w-full lg:w-72 flex-shrink-0 flex flex-col border-r ${
         isDark ? 'border-zinc-800/50 bg-zinc-900' : 'border-zinc-200 bg-white'
-      } ${activeRoomId ? 'hidden lg:flex' : 'flex'}`}>
+      } ${activeRoomId ? 'hidden' : 'flex'}`}>
 
         {/* Header */}
         <div className={`px-4 py-3 border-b ${isDark ? 'border-zinc-800/50' : 'border-zinc-200'} flex items-center justify-between`}>
@@ -622,7 +622,7 @@ export default function MessengerPage() {
               <Button
                 size="icon"
                 variant="ghost"
-                className="lg:hidden -ml-2 flex-shrink-0"
+                className="-ml-2 flex-shrink-0"
                 onClick={() => {
                   setActiveRoomId(null)
                   router.replace('/dashboard-group/messenger', { scroll: false })
