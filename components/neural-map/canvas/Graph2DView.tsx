@@ -580,14 +580,18 @@ export function Graph2DView({ className }: Graph2DViewProps) {
       ctx.setLineDash([2 / globalScale, 2 / globalScale])
       ctx.shadowBlur = 0
     } else {
-      // 구조 라인(폴더-파일): 라이트 모드 가독성 확보
-      ctx.strokeStyle = isDark ? 'rgba(59, 130, 246, 0.3)' : 'rgba(71, 85, 105, 0.4)'
+      // 구조 라인(폴더-파일): 테마 색상을 따르되 은은하게 (투명도 조절)
+      // accentColor는 hex string이므로 투명도를 주려면 globalAlpha를 쓰거나 rgba로 변환해야 함
+      // 간단하게 globalAlpha 사용
+      ctx.globalAlpha = isDark ? 0.3 : 0.4
+      ctx.strokeStyle = accentColor
       ctx.lineWidth = 1.0 / globalScale
       ctx.setLineDash([])
       ctx.shadowBlur = 0
     }
 
     ctx.stroke()
+    ctx.globalAlpha = 1.0 // 투명도 초기화
     ctx.setLineDash([])
 
     // 라벨 그리기 (의존성 관계일 때만)
