@@ -113,6 +113,7 @@ export default function NeuralMapPage() {
     setError,
     setFiles,
     currentTheme,
+    setTheme,
     modalType,
     closeModal,
     activeTab,
