@@ -1230,16 +1230,19 @@ export const useNeuralMapStore = create<NeuralMapState & NeuralMapActions>()(
             // ========== 파일 내용 분석 (정확한 종속성 연결) ==========
             // 1. 경로 해결 헬퍼 - 상대 경로를 전체 경로로 변환
             const resolvePath = (fromPath: string, toPath: string) => {
-              if (toPath.startsWith('http') || toPath.startsWith('//')) return null; // 외부 파일
+              if (!toPath || toPath.startsWith('http') || toPath.startsWith('//') || toPath.startsWith('data:')) return null;
+
+              // 쿼리 스트링이나 해시 제거 (styles.css?v=1 -> styles.css)
+              const cleanToPath = toPath.split(/[?#]/)[0];
 
               // 상대 경로 처리 (./, ../)
-              if (toPath.startsWith('.')) {
+              if (cleanToPath.startsWith('.')) {
                 const parts = fromPath.split('/');
-                parts.pop(); // 현재 파일 제외
-                const relativeParts = toPath.split('/');
+                parts.pop(); // 현재 파일명 제외
+                const relativeParts = cleanToPath.split('/');
 
                 for (const part of relativeParts) {
-                  if (part === '.') continue;
+                  if (part === '.' || part === '') continue;
                   if (part === '..') {
                     parts.pop();
                   } else {
@@ -1250,15 +1253,16 @@ export const useNeuralMapStore = create<NeuralMapState & NeuralMapActions>()(
               }
 
               // 절대 경로 느낌의 상대 경로 (예: "components/Button.tsx")
-              // 파일 노드 맵에 있는 것과 대조해봄
-              if (fileNodeMap.has(toPath)) return toPath;
+              if (fileNodeMap.has(cleanToPath)) return cleanToPath;
 
-              // 그 외는 같은 폴더 내 파일로 간주해봄
+              // 그 외는 같은 폴더 내 파일로 간주
               const fromParts = fromPath.split('/');
               fromParts.pop();
-              const joined = fromParts.length > 0 ? `${fromParts.join('/')}/${toPath}` : toPath;
+              const joined = fromParts.length > 0 ? `${fromParts.join('/')}/${cleanToPath}` : cleanToPath;
               return joined;
             }
+
+            let dependencyCount = 0;
 
             // 2. 파일별 내용 분석 루프
             currentFiles.forEach(file => {
@@ -1315,18 +1319,19 @@ export const useNeuralMapStore = create<NeuralMapState & NeuralMapActions>()(
                 }
               }
 
-              // 엣지 생성 (매칭된 파일이 있을 경우)
+              // 엣지 생성
               detectedDeps.forEach(dep => {
                 const resolved = resolvePath(filePath, dep.path);
                 if (!resolved) return;
 
-                // 맵에서 후보 경로들 시도
+                // 후보 경로들 시도 (정규화된 경로 기반)
                 const potentialPaths = [
                   resolved,
                   resolved + '.ts',
                   resolved + '.tsx',
                   resolved + '.js',
                   resolved + '.jsx',
+                  resolved + '.css',
                   resolved + '/index.ts',
                   resolved + '/index.tsx',
                   resolved + '/index.js',
@@ -1341,15 +1346,18 @@ export const useNeuralMapStore = create<NeuralMapState & NeuralMapActions>()(
                       target: targetId,
                       type: 'imports',
                       label: dep.label,
-                      weight: 0.5,
+                      weight: 1.0, // 의존성 관계는 더 강하게 결합
                       bidirectional: false,
                       createdAt: new Date().toISOString(),
                     });
-                    break; // 하나 찾으면 중단
+                    dependencyCount++;
+                    break;
                   }
                 }
               });
             })
+
+            console.log(`[Store] Graph Rebuilt: ${nodes.length} nodes, ${edges.length} edges (${dependencyCount} dependencies)`);
 
             // 그래프 설정
             const graphData = {

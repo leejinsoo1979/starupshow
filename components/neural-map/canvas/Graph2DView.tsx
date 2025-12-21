@@ -552,22 +552,52 @@ export function Graph2DView({ className }: Graph2DViewProps) {
 
     if (!start || !end || typeof start.x !== 'number') return
 
+    // 엣지 타입별 스타일 설정
+    const isImport = link.type === 'imports'
+
     ctx.beginPath()
     ctx.moveTo(start.x, start.y)
     ctx.lineTo(end.x, end.y)
 
-    // 엣지 타입별 색상
-    if (link.type === 'imports') {
-      ctx.strokeStyle = '#f59e0b'  // 앰버 - import 관계
-      ctx.lineWidth = 2 / globalScale
-      ctx.setLineDash([5 / globalScale, 3 / globalScale])
+    if (isImport) {
+      // 의존성 라인: 오렌지색, 굵게, 점선
+      ctx.strokeStyle = '#fbbf24' // Amber-400
+      ctx.lineWidth = 3 / globalScale
+      ctx.setLineDash([6 / globalScale, 4 / globalScale])
     } else {
-      ctx.strokeStyle = isDark ? 'rgba(147, 197, 253, 0.7)' : 'rgba(59, 130, 246, 0.7)'  // 파란색 - 구조
-      ctx.lineWidth = 1.5 / globalScale
+      // 구조 라인: 은은한 파란색
+      ctx.strokeStyle = isDark ? 'rgba(147, 197, 253, 0.4)' : 'rgba(59, 130, 246, 0.4)'
+      ctx.lineWidth = 1.2 / globalScale
       ctx.setLineDash([])
     }
+
     ctx.stroke()
     ctx.setLineDash([])
+
+    // 라벨 그리기 (의존성 관계일 때만)
+    if (isImport && link.label && globalScale > 1.2) {
+      const midX = (start.x + end.x) / 2
+      const midY = (start.y + end.y) / 2
+
+      ctx.save()
+      ctx.translate(midX, midY)
+
+      // 라벨 배경
+      ctx.font = `${10 / globalScale}px -apple-system, sans-serif`
+      const textWidth = ctx.measureText(link.label).width
+      const padding = 4 / globalScale
+
+      ctx.fillStyle = isDark ? 'rgba(30, 30, 30, 0.8)' : 'rgba(255, 255, 255, 0.8)'
+      ctx.fillRect(-textWidth / 2 - padding, -6 / globalScale, textWidth + padding * 2, 12 / globalScale)
+
+      // 라벨 텍스트
+      ctx.fillStyle = '#fbbf24'
+      ctx.textAlign = 'center'
+      ctx.textBaseline = 'middle'
+      ctx.fillText(link.label, 0, 0)
+
+      ctx.restore()
+    }
   }, [isDark])
 
   // 그래프 로드 후 자동 줌 맞춤 (SELF 노드 중심)
@@ -623,7 +653,10 @@ export function Graph2DView({ className }: Graph2DViewProps) {
         }}
         // 링크 설정
         linkCanvasObject={linkCanvasObject}
-        linkDirectionalParticles={0}
+        linkDirectionalParticles={(link: any) => link.type === 'imports' ? 4 : 0}
+        linkDirectionalParticleWidth={(link: any) => 3 / (graphRef.current?.zoom() || 1)}
+        linkDirectionalParticleSpeed={0.01}
+        linkDirectionalParticleColor={() => '#fbbf24'}
         // 물리 엔진 설정 - 빠르게 안정화
         dagMode={undefined}
         d3VelocityDecay={0.6}
@@ -641,8 +674,9 @@ export function Graph2DView({ className }: Graph2DViewProps) {
             force.strength(effectiveStrength).distanceMax(radialDistance * 8)
           }
           if (forceName === 'link') {
-            // 약한 링크 강도로 노드들이 독립적으로 움직임
-            force.distance(effectiveDistance).strength(0.05)
+            // 의존성 관계는 더 가깝게, 구조성 관계는 더 루즈하게
+            force.distance(effectiveDistance)
+              .strength((link: any) => link.type === 'imports' ? 0.2 : 0.05)
           }
           if (forceName === 'center') {
             // 약한 중심력
