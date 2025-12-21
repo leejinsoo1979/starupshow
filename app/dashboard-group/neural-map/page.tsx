@@ -6,6 +6,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { useTheme } from 'next-themes'
 import { cn } from '@/lib/utils'
 import { useNeuralMapStore } from '@/lib/neural-map/store'
+import { useThemeStore, accentColors } from '@/stores/themeStore'
 import { PANEL_SIZES, THEME_PRESETS } from '@/lib/neural-map/constants'
 import type { NeuralGraph, NeuralNode, ViewTab } from '@/lib/neural-map/types'
 
@@ -96,6 +97,7 @@ function CanvasLoadingFallback() {
 export default function NeuralMapPage() {
   const { resolvedTheme } = useTheme()
   const [mounted, setMounted] = useState(false)
+  const globalAccentId = useThemeStore((s) => s.accentColor)
 
   // Store
   const {
@@ -144,16 +146,17 @@ export default function NeuralMapPage() {
   useEffect(() => {
     if (!mounted) return
 
-    // 사용자가 선택한 글로벌 테마 색상 (임시: 초록색 #22c55e)
-    // 실제로는 글로벌 스토어에서 가져와야 함
-    const userAccentColor = '#22c55e'
+    // Find the actual hex color from the global store ID
+    const matchedAccent = accentColors.find(c => c.id === globalAccentId)
+    const userAccentColor = matchedAccent ? matchedAccent.color : '#22c55e'
 
     if (isDark) {
       setTheme('cosmic-dark', userAccentColor)
     } else {
       setTheme('cosmic-light', userAccentColor)
     }
-  }, [mounted, isDark, setTheme])
+  }, [mounted, isDark, setTheme, globalAccentId])
+
 
   // 리사이즈 핸들러
   const handleResizeStart = useCallback((e: React.MouseEvent) => {
