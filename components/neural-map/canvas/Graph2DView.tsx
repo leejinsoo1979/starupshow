@@ -562,12 +562,12 @@ export function Graph2DView({ className }: Graph2DViewProps) {
     if (isImport) {
       // 의존성 라인: 오렌지색, 굵게, 점선
       ctx.strokeStyle = '#fbbf24' // Amber-400
-      ctx.lineWidth = 3 / globalScale
+      ctx.lineWidth = 3.5 / globalScale
       ctx.setLineDash([6 / globalScale, 4 / globalScale])
     } else {
-      // 구조 라인(폴더-파일): 아주 연하게 처리하여 로직 방해 금지
-      ctx.strokeStyle = isDark ? 'rgba(100, 100, 100, 0.15)' : 'rgba(200, 200, 200, 0.2)'
-      ctx.lineWidth = 0.8 / globalScale
+      // 구조 라인(폴더-파일): 투명도를 높여서 가독성 확보
+      ctx.strokeStyle = isDark ? 'rgba(147, 197, 253, 0.3)' : 'rgba(59, 130, 246, 0.4)'
+      ctx.lineWidth = 1.0 / globalScale
       ctx.setLineDash([])
     }
 
