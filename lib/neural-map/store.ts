@@ -192,7 +192,7 @@ interface NeuralMapActions {
   clearSearch: () => void
 
   // Theme
-  setTheme: (themeId: string) => void
+  setTheme: (themeId: string, customAccentColor?: string) => void
 
   // History
   pushHistory: (action: HistoryAction) => void
@@ -612,12 +612,19 @@ export const useNeuralMapStore = create<NeuralMapState & NeuralMapActions>()(
           }),
 
         // ========== Theme ==========
-        setTheme: (themeId) =>
+        setTheme: (themeId, customAccentColor) =>
           set((state) => {
             const theme = THEME_PRESETS.find((t) => t.id === themeId)
             if (theme) {
               state.themeId = themeId
-              state.currentTheme = theme
+              // Deep copy to avoid mutating the constant
+              state.currentTheme = JSON.parse(JSON.stringify(theme))
+
+              // If a custom accent color is provided, override it
+              if (customAccentColor) {
+                state.currentTheme.ui.accentColor = customAccentColor
+                // Also update node colors if needed, but primary UI accent is key
+              }
             }
           }),
 
