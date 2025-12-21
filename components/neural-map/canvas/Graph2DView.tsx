@@ -522,10 +522,15 @@ export function Graph2DView({ className }: Graph2DViewProps) {
 
       ctx.restore()
     } else if (node.fileType) {
-      // 파일 타입 아이콘 (흰색)
+      // 파일 타입 아이콘
       // actualSize는 반지름. 원 안에 안전하게 넣으려면 actualSize * 1.2 정도 (지름의 60%)
       const iconSize = actualSize * 1.2
-      drawFileTypeIcon(ctx, node.fileType, node.x, node.y, iconSize, '#FFFFFF')
+
+      // JS 아이콘은 노란 배경이므로 검정색으로 처리 (가독성 향상)
+      const isJS = ['js', 'javascript'].includes(node.fileType.toLowerCase())
+      const iconColor = isJS ? '#000000' : '#FFFFFF'
+
+      drawFileTypeIcon(ctx, node.fileType, node.x, node.y, iconSize, iconColor)
     }
 
     // 라벨 그리기
