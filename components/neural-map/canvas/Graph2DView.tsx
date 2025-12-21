@@ -638,16 +638,18 @@ export function Graph2DView({ className }: Graph2DViewProps) {
 
   // Layout Mode Change Effect
   useEffect(() => {
+    // Wait for graph ref to be ready
     if (!graphRef.current) return
 
     const fg = graphRef.current
     const effectiveDistance = radialDistance || 150
     console.log('Layout Mode Changed:', layoutMode) // Debug log
 
-    // Force: Charge (Repulsion)
+    // 1. Force: Charge (Repulsion)
+    // d3Force('charge') might return undefined if not initialized yet, so check
     fg.d3Force('charge')?.strength(layoutMode === 'radial' ? -100 : -400)
 
-    // Force: Link (Distance)
+    // 2. Force: Link (Distance)
     fg.d3Force('link')?.distance((link: any) => {
       if (layoutMode === 'radial') {
         return link.type === 'parent_child' ? 30 : 100
@@ -658,7 +660,7 @@ export function Graph2DView({ className }: Graph2DViewProps) {
       return link.type === 'imports' ? effectiveDistance * 0.8 : effectiveDistance * 1.5
     })
 
-    // Force: Radial (Circular Layout)
+    // 3. Force: Radial (Circular Layout)
     if (layoutMode === 'radial') {
       fg.d3Force('radial', forceRadial((n: any) => {
         if (n.type === 'self') return 0
@@ -668,7 +670,7 @@ export function Graph2DView({ className }: Graph2DViewProps) {
 
       fg.d3Force('y', null) // Disable Y force
     }
-    // Force: Structural (Tree-like Layout)
+    // 4. Force: Structural (Tree-like Layout)
     else if (layoutMode === 'structural') {
       fg.d3Force('radial', null) // Disable Radial force
 
@@ -679,16 +681,27 @@ export function Graph2DView({ className }: Graph2DViewProps) {
         return 100
       }).strength(0.5))
     }
-    // Force: Organic (Default)
+    // 5. Force: Organic (Default)
     else {
       fg.d3Force('radial', null)
       fg.d3Force('y', null)
     }
 
-    // Always reheat simulation
-    fg.d3ReheatSimulation()
+    // Restart simulation aggressively
+    try {
+      fg.d3ReheatSimulation() // Standard method
+      // If direct d3 access is needed for alpha:
+      /* 
+      const sim = fg.d3Simulation && fg.d3Simulation()
+      if (sim) {
+        sim.alpha(1).restart()
+      }
+      */
+    } catch (e) {
+      console.warn('Simulation restart failed:', e)
+    }
 
-  }, [layoutMode, radialDistance])
+  }, [layoutMode, radialDistance, graphData.nodes.length]) // Added dependency on nodes to ensure it runs after data load
 
   return (
     <div
