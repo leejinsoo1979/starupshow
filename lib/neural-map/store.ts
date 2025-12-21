@@ -1150,7 +1150,7 @@ export const useNeuralMapStore = create<NeuralMapState & NeuralMapActions>()(
                 tags: ['folder'],
                 importance: 7,
                 parentId: folderMap.get(parentPath) || rootNode.id,
-                expanded: false,
+                expanded: true,
                 pinned: false,
                 createdAt: new Date().toISOString(),
                 updatedAt: new Date().toISOString(),
@@ -1201,7 +1201,7 @@ export const useNeuralMapStore = create<NeuralMapState & NeuralMapActions>()(
                 tags: [ext, fileType],
                 importance: 5,
                 parentId: parentId,
-                expanded: false,
+                expanded: true,
                 pinned: false,
                 createdAt: file.createdAt || new Date().toISOString(),
                 updatedAt: new Date().toISOString(),
@@ -1390,7 +1390,7 @@ export const useNeuralMapStore = create<NeuralMapState & NeuralMapActions>()(
               } as NeuralGraph
             }
 
-            state.expandedNodeIds = new Set([rootNode.id])
+            state.expandedNodeIds = new Set(nodes.map(n => n.id))
           }),
       })),
       {
