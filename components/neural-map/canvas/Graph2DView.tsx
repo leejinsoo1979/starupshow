@@ -565,9 +565,9 @@ export function Graph2DView({ className }: Graph2DViewProps) {
       ctx.lineWidth = 3 / globalScale
       ctx.setLineDash([6 / globalScale, 4 / globalScale])
     } else {
-      // 구조 라인: 은은한 파란색
-      ctx.strokeStyle = isDark ? 'rgba(147, 197, 253, 0.4)' : 'rgba(59, 130, 246, 0.4)'
-      ctx.lineWidth = 1.2 / globalScale
+      // 구조 라인(폴더-파일): 아주 연하게 처리하여 로직 방해 금지
+      ctx.strokeStyle = isDark ? 'rgba(100, 100, 100, 0.15)' : 'rgba(200, 200, 200, 0.2)'
+      ctx.lineWidth = 0.8 / globalScale
       ctx.setLineDash([])
     }
 
@@ -654,37 +654,37 @@ export function Graph2DView({ className }: Graph2DViewProps) {
         // 링크 설정
         linkCanvasObject={linkCanvasObject}
         linkDirectionalParticles={(link: any) => link.type === 'imports' ? 4 : 0}
-        linkDirectionalParticleWidth={(link: any) => 3 / (graphRef.current?.zoom() || 1)}
+        linkDirectionalParticleWidth={(link: any) => {
+          const zoom = graphRef.current?.zoom() || 1
+          return 3 / (zoom || 1)
+        }}
         linkDirectionalParticleSpeed={0.01}
         linkDirectionalParticleColor={() => '#fbbf24'}
-        // 물리 엔진 설정 - 빠르게 안정화
+        // 물리 엔진 설정 - 충분한 시간 제공
         dagMode={undefined}
-        d3VelocityDecay={0.6}
-        d3AlphaDecay={0.1}
-        cooldownTicks={50}
-        warmupTicks={50}
-        // 노드 간 거리 (방사거리와 연동) - 강한 척력으로 퍼뜨림
+        d3VelocityDecay={0.4}
+        d3AlphaDecay={0.01}
+        cooldownTicks={200}
+        warmupTicks={200}
+        // 노드 간 거리 및 척력 설정
         // @ts-ignore - d3Force is a valid prop but not in type definitions
         d3Force={(forceName: string, force: any) => {
-          const effectiveDistance = radialDistance * 1.5
-          const effectiveStrength = -radialDistance * 8 // 매우 강한 척력으로 노드 분리
+          const effectiveDistance = radialDistance || 150
 
           if (forceName === 'charge') {
-            // 강한 척력 + 넓은 영향 범위로 노드들이 서로 밀어냄
-            force.strength(effectiveStrength).distanceMax(radialDistance * 8)
+            // 충분한 척력 확보 (-400 이상)
+            force.strength(-400).distanceMax(1000)
           }
           if (forceName === 'link') {
-            // 의존성 관계는 더 가깝게, 구조성 관계는 더 루즈하게
-            force.distance(effectiveDistance)
-              .strength((link: any) => link.type === 'imports' ? 0.2 : 0.05)
+            // 로직 관계는 가깝게, 구조 관계는 멀게
+            force.distance((link: any) => link.type === 'imports' ? effectiveDistance * 0.8 : effectiveDistance * 1.5)
+              .strength((link: any) => link.type === 'imports' ? 0.4 : 0.1)
           }
           if (forceName === 'center') {
-            // 약한 중심력
             force.strength(0.01)
           }
-          // collision force 추가로 노드 겹침 방지
           if (forceName === 'collide') {
-            force.radius(20).strength(0.8)
+            force.radius(30).strength(0.7)
           }
         }}
         // 상호작용

@@ -1228,17 +1228,16 @@ export const useNeuralMapStore = create<NeuralMapState & NeuralMapActions>()(
             })
 
             // ========== 파일 내용 분석 (정확한 종속성 연결) ==========
-            // 1. 경로 해결 헬퍼 - 상대 경로를 전체 경로로 변환
+            // 1. 경로 해결 헬퍼
             const resolvePath = (fromPath: string, toPath: string) => {
               if (!toPath || toPath.startsWith('http') || toPath.startsWith('//') || toPath.startsWith('data:')) return null;
 
-              // 쿼리 스트링이나 해시 제거 (styles.css?v=1 -> styles.css)
               const cleanToPath = toPath.split(/[?#]/)[0];
 
-              // 상대 경로 처리 (./, ../)
+              // 상대 경로 처리
               if (cleanToPath.startsWith('.')) {
                 const parts = fromPath.split('/');
-                parts.pop(); // 현재 파일명 제외
+                parts.pop();
                 const relativeParts = cleanToPath.split('/');
 
                 for (const part of relativeParts) {
@@ -1252,19 +1251,28 @@ export const useNeuralMapStore = create<NeuralMapState & NeuralMapActions>()(
                 return parts.join('/')
               }
 
-              // 절대 경로 느낌의 상대 경로 (예: "components/Button.tsx")
-              if (fileNodeMap.has(cleanToPath)) return cleanToPath;
-
-              // 그 외는 같은 폴더 내 파일로 간주
               const fromParts = fromPath.split('/');
+              const rootFolder = fromParts[0] || '';
+
+              // 후보군: 원본, 루트 폴더 포함, 루트 폴더 제외
+              const candidates = [
+                cleanToPath,
+                rootFolder ? `${rootFolder}/${cleanToPath}` : cleanToPath,
+                cleanToPath.includes('/') ? cleanToPath.split('/').slice(1).join('/') : cleanToPath
+              ];
+
+              for (const cand of candidates) {
+                if (fileNodeMap.has(cand)) return cand;
+              }
+
+              // 마지막 수단: 같은 폴더 내 파일로 간주
               fromParts.pop();
-              const joined = fromParts.length > 0 ? `${fromParts.join('/')}/${cleanToPath}` : cleanToPath;
-              return joined;
+              return fromParts.length > 0 ? `${fromParts.join('/')}/${cleanToPath}` : cleanToPath;
             }
 
             let dependencyCount = 0;
 
-            // 2. 파일별 내용 분석 루프
+            // 2. 내용 분석 및 엣지 생성
             currentFiles.forEach(file => {
               const content = (file as any).content;
               if (!content || typeof content !== 'string') return;
@@ -1276,55 +1284,38 @@ export const useNeuralMapStore = create<NeuralMapState & NeuralMapActions>()(
               const ext = file.name.split('.').pop()?.toLowerCase() || '';
               const detectedDeps: { path: string; label: string }[] = [];
 
-              // (1) HTML 파일 분석 (link, script, img)
               if (ext === 'html' || ext === 'htm') {
                 const linkRegex = /<link.+?href=["'](.+?)["']/g;
                 const scriptRegex = /<script.+?src=["'](.+?)["']/g;
                 let match;
-                while ((match = linkRegex.exec(content)) !== null) {
-                  detectedDeps.push({ path: match[1], label: 'link' });
-                }
-                while ((match = scriptRegex.exec(content)) !== null) {
-                  detectedDeps.push({ path: match[1], label: 'script' });
-                }
+                while ((match = linkRegex.exec(content)) !== null) detectedDeps.push({ path: match[1], label: 'link' });
+                while ((match = scriptRegex.exec(content)) !== null) detectedDeps.push({ path: match[1], label: 'script' });
               }
 
-              // (2) JS/TS 파일 분석 (import, require)
               if (['js', 'jsx', 'ts', 'tsx'].includes(ext)) {
                 const importRegex = /import\s+?(?:(?:(?:[\w*\s{},]*)\s+from\s+)|(?:["']))["'](.+?)["']/g;
                 const requireRegex = /require\(["'](.+?)["']\)/g;
                 const dynamicImportRegex = /import\(["'](.+?)["']\)/g;
                 let match;
-                while ((match = importRegex.exec(content)) !== null) {
-                  detectedDeps.push({ path: match[1], label: 'import' });
-                }
-                while ((match = requireRegex.exec(content)) !== null) {
-                  detectedDeps.push({ path: match[1], label: 'require' });
-                }
+                while ((match = importRegex.exec(content)) !== null) detectedDeps.push({ path: match[1], label: 'import' });
+                while ((match = requireRegex.exec(content)) !== null) detectedDeps.push({ path: match[1], label: 'require' });
                 while ((match = dynamicImportRegex.exec(content)) !== null) {
                   detectedDeps.push({ path: match[1], label: 'import()' });
                 }
               }
 
-              // (3) CSS 파일 분석 (@import)
               if (['css', 'scss', 'less'].includes(ext)) {
                 const cssImportRegex = /@import\s+["'](.+?)["']/g;
                 const cssUrlRegex = /url\(["']?(.+?)["']?\)/g;
                 let match;
-                while ((match = cssImportRegex.exec(content)) !== null) {
-                  detectedDeps.push({ path: match[1], label: '@import' });
-                }
-                while ((match = cssUrlRegex.exec(content)) !== null) {
-                  detectedDeps.push({ path: match[1], label: 'url' });
-                }
+                while ((match = cssImportRegex.exec(content)) !== null) detectedDeps.push({ path: match[1], label: '@import' });
+                while ((match = cssUrlRegex.exec(content)) !== null) detectedDeps.push({ path: match[1], label: 'url' });
               }
 
-              // 엣지 생성
               detectedDeps.forEach(dep => {
                 const resolved = resolvePath(filePath, dep.path);
                 if (!resolved) return;
 
-                // 후보 경로들 시도 (정규화된 경로 기반)
                 const potentialPaths = [
                   resolved,
                   resolved + '.ts',
@@ -1346,7 +1337,7 @@ export const useNeuralMapStore = create<NeuralMapState & NeuralMapActions>()(
                       target: targetId,
                       type: 'imports',
                       label: dep.label,
-                      weight: 1.0, // 의존성 관계는 더 강하게 결합
+                      weight: 1.5, // 로직 관계는 매우 강하게 결합하여 덩어리를 형성
                       bidirectional: false,
                       createdAt: new Date().toISOString(),
                     });
@@ -1355,9 +1346,16 @@ export const useNeuralMapStore = create<NeuralMapState & NeuralMapActions>()(
                   }
                 }
               });
-            })
+            });
 
-            console.log(`[Store] Graph Rebuilt: ${nodes.length} nodes, ${edges.length} edges (${dependencyCount} dependencies)`);
+            // 기존 parent_child 엣지들의 가중치를 대폭 낮춤 (배경 구조 역할만 수행)
+            edges.forEach(edge => {
+              if (edge.type === 'parent_child') {
+                edge.weight = 0.1;
+              }
+            });
+
+            console.log(`[Store] Logic Graph Rebuilt: ${dependencyCount} functional dependencies found.`);
 
             // 그래프 설정
             const graphData = {
