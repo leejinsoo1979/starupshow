@@ -1132,9 +1132,17 @@ export const useNeuralMapStore = create<NeuralMapState & NeuralMapActions>()(
               return depthA - depthB
             })
 
+            // 중복 노드 방지: 최상위 폴더가 맵 이름과 같으면 루트 노드에 병합
+            if (sortedFolders.length > 0) {
+              const firstFolder = sortedFolders[0]
+              if (firstFolder === projectName || sortedFolders.length === 1) {
+                folderMap.set(firstFolder, rootNode.id)
+              }
+            }
+
             // 폴더 노드 생성
             sortedFolders.forEach(folderPath => {
-              if (folderMap.has(folderPath)) return // 이미 존재
+              if (folderMap.has(folderPath)) return // 이미 루트에 병합되었거나 존재
 
               const folderId = generateId()
               const folderName = folderPath.split('/').pop() || folderPath
@@ -1165,7 +1173,7 @@ export const useNeuralMapStore = create<NeuralMapState & NeuralMapActions>()(
                 source: folderMap.get(parentPath) || rootNode.id,
                 target: folderId,
                 type: 'parent_child',
-                weight: 0.8,
+                weight: 0.1, // 구조선은 아주 연하게
                 bidirectional: false,
                 createdAt: new Date().toISOString(),
               })
@@ -1221,7 +1229,7 @@ export const useNeuralMapStore = create<NeuralMapState & NeuralMapActions>()(
                 source: parentId,
                 target: fileId,
                 type: 'parent_child',
-                weight: 0.6,
+                weight: 0.1, // 구조선은 아주 연하게
                 bidirectional: false,
                 createdAt: new Date().toISOString(),
               })
@@ -1285,8 +1293,9 @@ export const useNeuralMapStore = create<NeuralMapState & NeuralMapActions>()(
               const detectedDeps: { path: string; label: string }[] = [];
 
               if (ext === 'html' || ext === 'htm') {
-                const linkRegex = /<link.+?href=["'](.+?)["']/g;
-                const scriptRegex = /<script.+?src=["'](.+?)["']/g;
+                // 더 유연한 HTML 레겍스
+                const linkRegex = /<link[^>]+href=["']([^"']+)["'][^>]*>/gi;
+                const scriptRegex = /<script[^>]+src=["']([^"']+)["'][^>]*>/gi;
                 let match;
                 while ((match = linkRegex.exec(content)) !== null) detectedDeps.push({ path: match[1], label: 'link' });
                 while ((match = scriptRegex.exec(content)) !== null) detectedDeps.push({ path: match[1], label: 'script' });
