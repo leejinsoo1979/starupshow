@@ -638,70 +638,66 @@ export function Graph2DView({ className }: Graph2DViewProps) {
 
   // Layout Mode Change Effect
   useEffect(() => {
-    // Wait for graph ref to be ready
+    // Wait for graph ref and data
     if (!graphRef.current) return
 
-    const fg = graphRef.current
-    const effectiveDistance = radialDistance || 150
-    console.log('Layout Mode Changed:', layoutMode) // Debug log
+    const applyLayout = () => {
+      const fg = graphRef.current
+      const effectiveDistance = radialDistance || 150
+      console.log('Applying Layout Mode:', layoutMode) // Debug log
 
-    // 1. Force: Charge (Repulsion)
-    // d3Force('charge') might return undefined if not initialized yet, so check
-    fg.d3Force('charge')?.strength(layoutMode === 'radial' ? -100 : -400)
+      // 1. Force: Charge (Repulsion)
+      fg.d3Force('charge')
+        ?.strength(layoutMode === 'radial' ? -100 : -400)
+        ?.distanceMax(1000)
 
-    // 2. Force: Link (Distance)
-    fg.d3Force('link')?.distance((link: any) => {
+      // 2. Force: Link (Distance)
+      fg.d3Force('link')?.distance((link: any) => {
+        if (layoutMode === 'radial') {
+          return link.type === 'parent_child' ? 30 : 100
+        }
+        if (layoutMode === 'structural') {
+          return link.type === 'parent_child' ? 50 : 150
+        }
+        return link.type === 'imports' ? effectiveDistance * 0.8 : effectiveDistance * 1.5
+      })
+
+      // 3. Force: Radial (Circular Layout)
       if (layoutMode === 'radial') {
-        return link.type === 'parent_child' ? 30 : 100
+        fg.d3Force('radial', forceRadial((n: any) => {
+          if (n.type === 'self') return 0
+          if (n.type === 'folder' || n.depth === 1) return 180
+          return 380
+        }, 0, 0).strength(0.8))
+
+        fg.d3Force('y', null) // Disable Y force
       }
-      if (layoutMode === 'structural') {
-        return link.type === 'parent_child' ? 50 : 150
+      // 4. Force: Structural (Tree-like Layout)
+      else if (layoutMode === 'structural') {
+        fg.d3Force('radial', null) // Disable Radial force
+
+        // Simple hierarchy simulation: folders on top, files below
+        fg.d3Force('y', forceY((n: any) => {
+          if (n.type === 'self') return -200
+          if (n.type === 'folder') return -100
+          return 100
+        }).strength(0.5))
       }
-      return link.type === 'imports' ? effectiveDistance * 0.8 : effectiveDistance * 1.5
-    })
-
-    // 3. Force: Radial (Circular Layout)
-    if (layoutMode === 'radial') {
-      fg.d3Force('radial', forceRadial((n: any) => {
-        if (n.type === 'self') return 0
-        if (n.type === 'folder' || n.depth === 1) return 180
-        return 380
-      }, 0, 0).strength(0.8))
-
-      fg.d3Force('y', null) // Disable Y force
-    }
-    // 4. Force: Structural (Tree-like Layout)
-    else if (layoutMode === 'structural') {
-      fg.d3Force('radial', null) // Disable Radial force
-
-      // Simple hierarchy simulation: folders on top, files below
-      fg.d3Force('y', forceY((n: any) => {
-        if (n.type === 'self') return -200
-        if (n.type === 'folder') return -100
-        return 100
-      }).strength(0.5))
-    }
-    // 5. Force: Organic (Default)
-    else {
-      fg.d3Force('radial', null)
-      fg.d3Force('y', null)
-    }
-
-    // Restart simulation aggressively
-    try {
-      fg.d3ReheatSimulation() // Standard method
-      // If direct d3 access is needed for alpha:
-      /* 
-      const sim = fg.d3Simulation && fg.d3Simulation()
-      if (sim) {
-        sim.alpha(1).restart()
+      // 5. Force: Organic (Default)
+      else {
+        fg.d3Force('radial', null)
+        fg.d3Force('y', null)
       }
-      */
-    } catch (e) {
-      console.warn('Simulation restart failed:', e)
+
+      // Restart simulation
+      fg.d3ReheatSimulation()
     }
 
-  }, [layoutMode, radialDistance, graphData.nodes.length]) // Added dependency on nodes to ensure it runs after data load
+    // Small delay to ensure graph is initialized
+    const timer = setTimeout(applyLayout, 50)
+
+    return () => clearTimeout(timer)
+  }, [layoutMode, radialDistance, graphData.nodes.length])
 
   return (
     <div
@@ -753,14 +749,16 @@ export function Graph2DView({ className }: Graph2DViewProps) {
         // 노드 간 거리 및 척력 설정 (초기값)
         // @ts-ignore
         d3Force={(forceName: string, force: any) => {
-          if (forceName === 'charge') {
-            force.strength(-400).distanceMax(1000)
-          }
-          if (forceName === 'link') {
-            force.distance(100)
-          }
+          // Initialize essential static forces only
           if (forceName === 'collide') {
             force.radius(30).strength(0.7)
+          }
+          if (forceName === 'center') {
+            force.strength(0.05)
+          }
+          // Reset others to allow manual control
+          if (forceName === 'charge') {
+            force.strength(-400).distanceMax(1000)
           }
         }}
         // 상호작용
