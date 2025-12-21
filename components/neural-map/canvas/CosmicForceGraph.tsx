@@ -272,10 +272,8 @@ export function CosmicForceGraph({ className }: CosmicForceGraphProps) {
           source: edge.source,
           target: edge.target,
           kind: linkKind,
-          // 파티클 설정: parent와 imports 링크에 파티클 표시
-          particles: linkKind === 'parent' ? 5 : linkKind === 'imports' ? 4 : 0,
-          particleWidth: 6, // 매우 큰 크기
-          particleColor: '#ffffff', // 흰색으로 눈에 띄게
+          type: edge.type, // Add type for consistency
+          // Remove hardcoded particle props to rely on ForceGraph3D props for theme sync
         })
       }
     })
@@ -530,7 +528,7 @@ export function CosmicForceGraph({ className }: CosmicForceGraphProps) {
         .linkWidth((l: any) => l.kind === 'imports' ? 1.5 : 0.8) // 굵기 축소 (1.8 -> 1.5)
         .linkColor((l: any) =>
           l.kind === 'parent' ? (isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)') :
-            l.kind === 'imports' ? (currentTheme.ui.accentColor) : // 점선: 테마색 (불투명, Glow 효과는 Shader로 처리됨)
+            l.kind === 'imports' ? (currentTheme.ui.accentColor + '33') : // 점선 효과: 기본 라인은 아주 흐리게 (20%)
               // 구조 라인: 테마색 + 투명도 (Graph2DView와 일치)
               (currentTheme.ui.accentColor + (isDark ? '4D' : '66')) // hex opacity ~30% / 40%
         )
