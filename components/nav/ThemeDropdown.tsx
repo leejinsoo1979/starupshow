@@ -18,7 +18,12 @@ const themeModes: { id: ThemeMode; name: string; icon: typeof Sun }[] = [
   { id: 'dark', name: '다크', icon: Moon },
 ]
 
-export function ThemeDropdown() {
+interface ThemeDropdownProps {
+  trigger?: React.ReactNode
+  align?: 'right' | 'left-start'
+}
+
+export function ThemeDropdown({ trigger, align = 'right' }: ThemeDropdownProps) {
   const [isOpen, setIsOpen] = useState(false)
   const { accentColor, setAccentColor } = useThemeStore()
   const { theme, setTheme, resolvedTheme } = useTheme()
@@ -29,6 +34,7 @@ export function ThemeDropdown() {
   }, [])
 
   if (!mounted) {
+    if (trigger) return <div className="pointer-events-none opacity-50">{trigger}</div>
     return (
       <button className="p-2.5 rounded-xl bg-zinc-800 text-zinc-400">
         <Palette className="w-5 h-5" />
@@ -40,19 +46,24 @@ export function ThemeDropdown() {
 
   return (
     <div className="relative">
-      <motion.button
-        onClick={() => setIsOpen(!isOpen)}
-        className={`relative p-2.5 rounded-xl transition-colors ${
-          isDark
-            ? 'hover:bg-zinc-800 text-zinc-400 hover:text-zinc-100'
-            : 'hover:bg-zinc-100 text-zinc-500 hover:text-zinc-900'
-        }`}
-        whileHover={{ scale: 1.05 }}
-        whileTap={{ scale: 0.95 }}
-        aria-label="테마 설정"
-      >
-        <Palette className="w-5 h-5" />
-      </motion.button>
+      {trigger ? (
+        <div onClick={(e) => { e.stopPropagation(); setIsOpen(!isOpen) }} className="cursor-pointer">
+          {trigger}
+        </div>
+      ) : (
+        <motion.button
+          onClick={() => setIsOpen(!isOpen)}
+          className={`relative p-2.5 rounded-xl transition-colors ${isDark
+              ? 'hover:bg-zinc-800 text-zinc-400 hover:text-zinc-100'
+              : 'hover:bg-zinc-100 text-zinc-500 hover:text-zinc-900'
+            }`}
+          whileHover={{ scale: 1.05 }}
+          whileTap={{ scale: 0.95 }}
+          aria-label="테마 설정"
+        >
+          <Palette className="w-5 h-5" />
+        </motion.button>
+      )}
 
       <AnimatePresence>
         {isOpen && (
@@ -60,7 +71,7 @@ export function ThemeDropdown() {
             {/* Backdrop */}
             <motion.div
               className="fixed inset-0 z-40"
-              onClick={() => setIsOpen(false)}
+              onClick={(e) => { e.stopPropagation(); setIsOpen(false) }}
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
@@ -68,15 +79,18 @@ export function ThemeDropdown() {
 
             {/* Dropdown */}
             <motion.div
-              className={`absolute right-0 mt-2 w-72 backdrop-blur-xl rounded-2xl shadow-2xl py-3 z-50 overflow-hidden ${
-                isDark
+              className={`absolute w-72 backdrop-blur-xl rounded-2xl shadow-2xl py-3 z-50 overflow-hidden ${align === 'left-start'
+                  ? 'left-full bottom-0 ml-4'
+                  : 'right-0 mt-2 top-full'
+                } ${isDark
                   ? 'bg-zinc-900/95 border border-zinc-700/50'
                   : 'bg-white/95 border border-zinc-200'
-              }`}
+                }`}
               initial={{ opacity: 0, y: -10, scale: 0.95 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: -10, scale: 0.95 }}
               transition={{ duration: 0.15 }}
+              onClick={(e) => e.stopPropagation()}
             >
               {/* Theme Mode Section */}
               <div className={`px-4 pb-3 border-b ${isDark ? 'border-zinc-800' : 'border-zinc-200'}`}>
@@ -92,15 +106,14 @@ export function ThemeDropdown() {
                         key={themeMode.id}
                         onClick={() => {
                           setTheme(themeMode.id)
-                          setIsOpen(false)
+                          // setIsOpen(false) // Keep open for multi-select feel? Or close? User said "이전처럼"... usually theme switcher keeps open or closes. Let's keep it open for consistency with accent color.
                         }}
-                        className={`flex-1 flex flex-col items-center gap-1.5 p-3 rounded-xl transition-all border ${
-                          isActive
+                        className={`flex-1 flex flex-col items-center gap-1.5 p-3 rounded-xl transition-all border ${isActive
                             ? 'bg-accent/20 text-accent border-accent/30'
                             : isDark
                               ? 'bg-zinc-800/50 text-zinc-400 hover:bg-zinc-800 hover:text-zinc-100 border-transparent'
                               : 'bg-zinc-100 text-zinc-600 hover:bg-zinc-200 hover:text-zinc-900 border-transparent'
-                        }`}
+                          }`}
                       >
                         <Icon className="w-5 h-5" />
                         <span className="text-xs font-medium">{themeMode.name}</span>
@@ -123,17 +136,16 @@ export function ThemeDropdown() {
                         key={color.id}
                         onClick={() => {
                           setAccentColor(color.id)
-                          setIsOpen(false)
+                          // setIsOpen(false)
                         }}
-                        className={`relative flex flex-col items-center gap-1.5 p-2 rounded-xl transition-all ${
-                          isActive
+                        className={`relative flex flex-col items-center gap-1.5 p-2 rounded-xl transition-all ${isActive
                             ? isDark
                               ? 'bg-zinc-800 ring-2 ring-offset-2 ring-offset-zinc-900'
                               : 'bg-zinc-100 ring-2 ring-offset-2 ring-offset-white'
                             : isDark
                               ? 'hover:bg-zinc-800/50'
                               : 'hover:bg-zinc-100'
-                        }`}
+                          }`}
                         style={
                           isActive ? { ['--tw-ring-color' as string]: color.color } : undefined
                         }

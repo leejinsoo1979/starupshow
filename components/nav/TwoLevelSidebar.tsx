@@ -14,6 +14,7 @@ import { Logo } from '@/components/ui'
 import { TeamCreateModal, TeamFormData } from '@/components/team/TeamCreateModal'
 import { CreateWorkModal } from '@/app/dashboard-group/works/create-modal'
 import { EmailSidebarChat } from '@/components/email/EmailSidebarChat'
+import { ThemeDropdown } from './ThemeDropdown'
 import { FileTreePanel } from '@/components/neural-map/panels/FileTreePanel'
 import { useNeuralMapStore } from '@/lib/neural-map/store'
 import type { EmailAccount, EmailMessage } from '@/types/email'
@@ -81,7 +82,13 @@ import {
   Wrench,
   Package,
   Orbit,
+  Files,
+  Search,
+  GitBranch,
+  Puzzle,
+  ChevronUp,
 } from 'lucide-react'
+
 
 // 중첩 메뉴 아이템 타입
 interface NestedMenuItem {
@@ -980,12 +987,23 @@ function NestedMenuItemComponent({
   )
 }
 
-export function TwoLevelSidebar() {
+interface TwoLevelSidebarProps {
+  hideLevel2?: boolean
+}
+
+export function TwoLevelSidebar({ hideLevel2 = false }: TwoLevelSidebarProps) {
   const pathname = usePathname()
   const router = useRouter()
   const searchParams = useSearchParams()
   const { user, currentTeam, logout: clearAuth } = useAuthStore()
-  const { activeCategory, setActiveCategory, sidebarOpen, setSidebarOpen, toggleSidebar } = useUIStore()
+  const { accentColor } = useThemeStore()
+  const [isResizingHover, setIsResizingHover] = useState(false)
+  const {
+    activeCategory, setActiveCategory, sidebarOpen, setSidebarOpen, toggleSidebar,
+    level2Width, setLevel2Width, isResizingLevel2, setIsResizingLevel2,
+    emailSidebarWidth, setEmailSidebarWidth, isResizingEmail, setIsResizingEmail
+  } = useUIStore()
+
   const { resolvedTheme } = useTheme()
   const [mounted, setMounted] = useState(false)
   const neuralMapId = useNeuralMapStore((s) => s.mapId)
@@ -1002,7 +1020,7 @@ export function TwoLevelSidebar() {
   const [allEmails, setAllEmails] = useState<EmailMessage[]>([])
   const [currentEmailFolder, setCurrentEmailFolder] = useState<'inbox' | 'starred' | 'sent' | 'trash' | 'spam' | 'drafts' | 'all' | 'scheduled' | 'attachments'>('inbox')
   const [isSyncingEmail, setIsSyncingEmail] = useState(false)
-  const { emailSidebarWidth, setEmailSidebarWidth, isResizingEmail, setIsResizingEmail } = useUIStore()
+
 
   useEffect(() => {
     setMounted(true)
@@ -1035,6 +1053,37 @@ export function TwoLevelSidebar() {
       document.body.style.userSelect = ''
     }
   }, [isResizingEmail, setEmailSidebarWidth])
+
+  // Level 2 sidebar resize effect
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!isResizingLevel2) return
+      const newWidth = e.clientX - 64 // 64px is Level 1 sidebar width
+      // 최소 150px, 최대 화면의 50%
+      const maxWidth = typeof window !== 'undefined' ? window.innerWidth * 0.5 : 600
+      const clampedWidth = Math.min(Math.max(newWidth, 150), maxWidth)
+      setLevel2Width(clampedWidth)
+    }
+
+    const handleMouseUp = () => {
+      setIsResizingLevel2(false)
+    }
+
+    if (isResizingLevel2) {
+      document.addEventListener('mousemove', handleMouseMove)
+      document.addEventListener('mouseup', handleMouseUp)
+      document.body.style.cursor = 'col-resize'
+      document.body.style.userSelect = 'none'
+    }
+
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove)
+      document.removeEventListener('mouseup', handleMouseUp)
+      document.body.style.cursor = ''
+      document.body.style.userSelect = ''
+    }
+  }, [isResizingLevel2, setLevel2Width])
+
 
   // Fetch email accounts when on email page
   useEffect(() => {
@@ -1335,29 +1384,29 @@ export function TwoLevelSidebar() {
             </div>
           </button>
 
-          <Link
-            href="/dashboard-group/settings"
-            className={cn(
-              'w-10 h-10 rounded-xl flex items-center justify-center transition-all duration-200 group relative',
-              pathname === '/dashboard-group/settings'
-                ? isDark
-                  ? 'bg-zinc-800 text-zinc-100'
-                  : 'bg-zinc-200 text-zinc-900'
-                : isDark
-                  ? 'text-zinc-500 hover:bg-zinc-800 hover:text-zinc-300'
-                  : 'text-zinc-500 hover:bg-zinc-200 hover:text-zinc-700'
-            )}
-          >
-            <Settings className="w-5 h-5" />
-            <div className={cn(
-              'absolute left-full ml-2 px-2 py-1 text-xs rounded-md opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all whitespace-nowrap z-50',
-              isDark
-                ? 'bg-zinc-800 text-zinc-100 border border-zinc-700'
-                : 'bg-white text-zinc-900 border border-zinc-200 shadow-lg'
-            )}>
-              설정
-            </div>
-          </Link>
+          <ThemeDropdown
+            align="left-start"
+            trigger={
+              <div
+                className={cn(
+                  'w-10 h-10 rounded-xl flex items-center justify-center transition-all duration-200 group relative',
+                  isDark
+                    ? 'text-zinc-500 hover:bg-zinc-800 hover:text-zinc-300'
+                    : 'text-zinc-500 hover:bg-zinc-200 hover:text-zinc-700'
+                )}
+              >
+                <Settings className="w-5 h-5" />
+                <div className={cn(
+                  'absolute left-full ml-2 px-2 py-1 text-xs rounded-md opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all whitespace-nowrap z-50',
+                  isDark
+                    ? 'bg-zinc-800 text-zinc-100 border border-zinc-700'
+                    : 'bg-white text-zinc-900 border border-zinc-200 shadow-lg'
+                )}>
+                  설정
+                </div>
+              </div>
+            }
+          />
 
           <button
             onClick={handleLogout}
@@ -1381,26 +1430,103 @@ export function TwoLevelSidebar() {
         </div>
       </motion.aside>
 
-      {/* Level 2: 서브메뉴 사이드바 */}
       {!pathname?.includes('/works/new') && (
         <AnimatePresence>
           {/* Neural Map File Tree Panel */}
           {sidebarOpen && currentCategory === 'neural-map' && pathname?.includes('/neural-map') && (
             <motion.aside
               initial={{ width: 0, opacity: 0 }}
-              animate={{ width: 280, opacity: 1 }}
+              animate={{ width: level2Width, opacity: 1 }}
               exit={{ width: 0, opacity: 0 }}
-              transition={{ duration: 0.2 }}
+              transition={{ duration: isResizingLevel2 ? 0 : 0.15 }}
               className={cn(
-                'h-full border-r overflow-hidden',
+                'h-full border-r overflow-hidden relative flex flex-col',
                 isDark ? 'bg-zinc-900 border-zinc-800' : 'bg-white border-zinc-200'
               )}
+              style={{ width: level2Width }}
             >
-              <div className="h-full" style={{ width: 280 }}>
+              {/* 커서 스타일 상단 아이콘 툴바 */}
+              <div className={cn(
+                'h-10 flex items-center px-1 gap-1 border-b flex-shrink-0',
+                isDark ? 'border-zinc-800' : 'border-zinc-200'
+              )}>
+                {/* 탐색기 */}
+                <button
+                  className={cn(
+                    "p-1.5 rounded-md transition-all",
+                    isDark ? "bg-zinc-700 text-zinc-100" : "bg-zinc-200 text-zinc-900"
+                  )}
+                  title="탐색기 ⇧⌘E"
+                >
+                  <Files className="w-4 h-4" strokeWidth={1.5} />
+                </button>
+                {/* 검색 */}
+                <button
+                  className={cn(
+                    "p-2 rounded-lg transition-all",
+                    isDark ? "text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800" : "text-zinc-400 hover:text-zinc-600 hover:bg-zinc-100"
+                  )}
+                  title="검색 ⇧⌘F"
+                >
+                  <Search className="w-4 h-4" strokeWidth={1.5} />
+                </button>
+                {/* 소스 제어 */}
+                <button
+                  className={cn(
+                    "p-2 rounded-lg transition-all",
+                    isDark ? "text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800" : "text-zinc-400 hover:text-zinc-600 hover:bg-zinc-100"
+                  )}
+                  title="소스 제어 ^⇧G"
+                >
+                  <GitBranch className="w-4 h-4" strokeWidth={1.5} />
+                </button>
+                {/* 확장 */}
+                <button
+                  className={cn(
+                    "p-2 rounded-lg transition-all",
+                    isDark ? "text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800" : "text-zinc-400 hover:text-zinc-600 hover:bg-zinc-100"
+                  )}
+                  title="확장 ⇧⌘X"
+                >
+                  <Puzzle className="w-4 h-4" strokeWidth={1.5} />
+                </button>
+                {/* 더보기 드롭다운 */}
+                <div className="relative">
+                  <button
+                    className={cn(
+                      "p-2 rounded-lg transition-all",
+                      isDark ? "text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800" : "text-zinc-400 hover:text-zinc-600 hover:bg-zinc-100"
+                    )}
+                    title="더보기"
+                  >
+                    <ChevronUp className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+
+              {/* FileTreePanel */}
+              <div className="flex-1 overflow-hidden" style={{ width: level2Width }}>
                 <FileTreePanel mapId={neuralMapId} />
               </div>
+
+              {/* 리사이즈 핸들 */}
+              <div
+                className="absolute top-0 right-0 w-2 h-full cursor-col-resize transition-colors z-10"
+                style={{
+                  backgroundColor: isResizingHover ? `${accentColor}80` : 'transparent'
+                }}
+                onMouseEnter={() => setIsResizingHover(true)}
+                onMouseLeave={() => setIsResizingHover(false)}
+                onMouseDown={(e) => {
+                  e.preventDefault()
+                  setIsResizingLevel2(true)
+                }}
+              />
             </motion.aside>
           )}
+
+
+
           {/* Regular menus (not email, not neural-map page) */}
           {sidebarOpen && activeItems.length > 0 && currentCategory !== 'email' && !(currentCategory === 'neural-map' && pathname?.includes('/neural-map')) && (
             <motion.aside

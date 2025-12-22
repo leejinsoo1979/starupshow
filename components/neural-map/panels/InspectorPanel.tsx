@@ -140,7 +140,7 @@ function InspectorTab({ isDark, currentAccent }: { isDark: boolean; currentAccen
   }
 
   return (
-    <div className="h-full overflow-y-auto p-4 space-y-4">
+    <div className="h-full overflow-y-auto overscroll-contain p-4 space-y-4">
       {/* Title */}
       <div>
         <label className={cn('text-xs font-medium mb-1.5 block', isDark ? 'text-zinc-500' : 'text-zinc-500')}>
@@ -151,10 +151,10 @@ function InspectorTab({ isDark, currentAccent }: { isDark: boolean; currentAccen
           value={selectedNode.title}
           onChange={(e) => updateNode(selectedNode.id, { title: e.target.value })}
           className={cn(
-            'w-full px-3 py-2 text-sm rounded-lg border outline-none transition-colors',
+            'no-focus-ring w-full px-3 py-2 text-sm rounded-lg border outline-none transition-colors',
             isDark
-              ? 'bg-zinc-800 border-zinc-700 text-zinc-200 focus:border-zinc-600'
-              : 'bg-zinc-50 border-zinc-200 text-zinc-800 focus:border-zinc-300'
+              ? 'bg-zinc-800 border-zinc-700 text-zinc-200'
+              : 'bg-zinc-50 border-zinc-200 text-zinc-800'
           )}
         />
       </div>
@@ -174,10 +174,10 @@ function InspectorTab({ isDark, currentAccent }: { isDark: boolean; currentAccen
             onChange={(e) => updateNode(selectedNode.id, { type: e.target.value as NodeType })}
             disabled={selectedNode.type === 'self'}
             className={cn(
-              'flex-1 px-3 py-2 text-sm rounded-lg border outline-none transition-colors',
+              'no-focus-ring flex-1 px-3 py-2 text-sm rounded-lg border outline-none transition-colors',
               isDark
-                ? 'bg-zinc-800 border-zinc-700 text-zinc-200 focus:border-zinc-600'
-                : 'bg-zinc-50 border-zinc-200 text-zinc-800 focus:border-zinc-300',
+                ? 'bg-zinc-800 border-zinc-700 text-zinc-200'
+                : 'bg-zinc-50 border-zinc-200 text-zinc-800',
               selectedNode.type === 'self' && 'opacity-50 cursor-not-allowed'
             )}
           >
@@ -202,10 +202,10 @@ function InspectorTab({ isDark, currentAccent }: { isDark: boolean; currentAccen
           placeholder="노드에 대한 간단한 설명..."
           rows={3}
           className={cn(
-            'w-full px-3 py-2 text-sm rounded-lg border outline-none transition-colors resize-none',
+            'no-focus-ring w-full px-3 py-2 text-sm rounded-lg border outline-none transition-colors resize-none',
             isDark
-              ? 'bg-zinc-800 border-zinc-700 text-zinc-200 placeholder:text-zinc-600 focus:border-zinc-600'
-              : 'bg-zinc-50 border-zinc-200 text-zinc-800 placeholder:text-zinc-400 focus:border-zinc-300'
+              ? 'bg-zinc-800 border-zinc-700 text-zinc-200 placeholder:text-zinc-600'
+              : 'bg-zinc-50 border-zinc-200 text-zinc-800 placeholder:text-zinc-400'
           )}
         />
       </div>
@@ -257,10 +257,10 @@ function InspectorTab({ isDark, currentAccent }: { isDark: boolean; currentAccen
             onKeyDown={(e) => e.key === 'Enter' && handleAddTag()}
             placeholder="새 태그..."
             className={cn(
-              'flex-1 px-3 py-1.5 text-sm rounded-lg border outline-none transition-colors',
+              'no-focus-ring flex-1 px-3 py-1.5 text-sm rounded-lg border outline-none transition-colors',
               isDark
-                ? 'bg-zinc-800 border-zinc-700 text-zinc-200 placeholder:text-zinc-600 focus:border-zinc-600'
-                : 'bg-zinc-50 border-zinc-200 text-zinc-800 placeholder:text-zinc-400 focus:border-zinc-300'
+                ? 'bg-zinc-800 border-zinc-700 text-zinc-200 placeholder:text-zinc-600'
+                : 'bg-zinc-50 border-zinc-200 text-zinc-800 placeholder:text-zinc-400'
             )}
           />
           <button
@@ -365,11 +365,11 @@ function ActionsTab({ isDark }: { isDark: boolean }) {
       label: isExpanded ? '축소' : '확장',
       onClick: () => toggleNodeExpansion(selectedNode.id),
     },
-    { icon: Plus, label: '자식 추가', onClick: () => {} },
-    { icon: Link2, label: '연결', onClick: () => {} },
-    { icon: GitMerge, label: '병합', onClick: () => {} },
-    { icon: Pin, label: selectedNode.pinned ? '고정 해제' : '고정', onClick: () => {} },
-    { icon: Layers, label: '클러스터', onClick: () => {} },
+    { icon: Plus, label: '자식 추가', onClick: () => { } },
+    { icon: Link2, label: '연결', onClick: () => { } },
+    { icon: GitMerge, label: '병합', onClick: () => { } },
+    { icon: Pin, label: selectedNode.pinned ? '고정 해제' : '고정', onClick: () => { } },
+    { icon: Layers, label: '클러스터', onClick: () => { } },
   ]
 
   return (
@@ -393,14 +393,25 @@ function ActionsTab({ isDark }: { isDark: boolean }) {
   )
 }
 
+import { ChatInput } from '@/components/chat/ChatInput'
+import { useChatStore } from '@/stores/chatStore'
+
 function ChatTab({ isDark, currentAccent }: { isDark: boolean; currentAccent: typeof accentColors[0] }) {
   const selectedNode = useNeuralMapStore(selectFirstSelectedNode)
-  const [message, setMessage] = useState('')
+  const { messages } = useChatStore()
 
   return (
     <div className="h-full flex flex-col">
       <div className="flex-1 p-4 overflow-y-auto">
-        {selectedNode ? (
+        {messages.length > 0 ? (
+          <div className="space-y-4">
+            {messages.map((msg) => (
+              <div key={msg.id} className={cn("text-sm", msg.role === 'assistant' ? "pl-2 border-l-2 border-blue-500" : "bg-zinc-100 dark:bg-zinc-800/50 p-2 rounded-lg")}>
+                {msg.content}
+              </div>
+            ))}
+          </div>
+        ) : selectedNode ? (
           <div className="space-y-3">
             <div
               className={cn(
@@ -431,40 +442,9 @@ function ChatTab({ isDark, currentAccent }: { isDark: boolean; currentAccent: ty
         )}
       </div>
 
-      {/* Input */}
+      {/* Cursor-style Chat Input */}
       <div className={cn('p-3 border-t', isDark ? 'border-zinc-800' : 'border-zinc-200')}>
-        <div className="flex gap-2">
-          <input
-            type="text"
-            value={message}
-            onChange={(e) => setMessage(e.target.value)}
-            placeholder="질문을 입력하세요..."
-            disabled={!selectedNode}
-            className={cn(
-              'flex-1 px-3 py-2 text-sm rounded-lg border outline-none transition-colors',
-              isDark
-                ? 'bg-zinc-800 border-zinc-700 text-zinc-200 placeholder:text-zinc-600 focus:border-zinc-600'
-                : 'bg-zinc-50 border-zinc-200 text-zinc-800 placeholder:text-zinc-400 focus:border-zinc-300',
-              !selectedNode && 'opacity-50 cursor-not-allowed'
-            )}
-          />
-          <button
-            disabled={!selectedNode || !message.trim()}
-            className={cn(
-              'px-4 py-2 rounded-lg text-sm font-medium transition-all text-white',
-              (!selectedNode || !message.trim()) && 'opacity-50 cursor-not-allowed'
-            )}
-            style={{ backgroundColor: currentAccent.color }}
-            onMouseEnter={(e) => {
-              if (selectedNode && message.trim()) e.currentTarget.style.backgroundColor = currentAccent.hoverColor
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.backgroundColor = currentAccent.color
-            }}
-          >
-            전송
-          </button>
-        </div>
+        <ChatInput />
       </div>
     </div>
   )
@@ -606,8 +586,8 @@ function SettingsTab({ isDark, currentAccent }: { isDark: boolean; currentAccent
                 graphExpanded
                   ? ''
                   : isDark
-                  ? 'bg-zinc-700'
-                  : 'bg-zinc-300'
+                    ? 'bg-zinc-700'
+                    : 'bg-zinc-300'
               )}
               style={{
                 backgroundColor: graphExpanded ? currentAccent.color : undefined,
@@ -646,8 +626,8 @@ function SettingsTab({ isDark, currentAccent }: { isDark: boolean; currentAccent
                 radialDistance === preset.value
                   ? 'text-white'
                   : isDark
-                  ? 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700'
-                  : 'bg-zinc-100 text-zinc-600 hover:bg-zinc-200'
+                    ? 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700'
+                    : 'bg-zinc-100 text-zinc-600 hover:bg-zinc-200'
               )}
               style={{
                 backgroundColor: radialDistance === preset.value ? currentAccent.color : undefined,
@@ -685,31 +665,31 @@ export function InspectorPanel() {
   return (
     <div className="h-full flex flex-col">
       {/* Tabs */}
-      <div className={cn('flex border-b', isDark ? 'border-zinc-800' : 'border-zinc-200')}>
+      <div className={cn('h-10 flex items-center px-1 gap-1 border-b', isDark ? 'border-zinc-800' : 'border-zinc-200')}>
         {tabs.map((tab) => (
           <button
             key={tab.id}
             onClick={() => setRightPanelTab(tab.id)}
             className={cn(
-              'flex-1 flex items-center justify-center gap-2 px-3 py-3 text-sm font-medium transition-colors relative',
+              'flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 text-xs font-medium transition-colors relative rounded-md',
               rightPanelTab === tab.id
                 ? isDark
                   ? 'text-zinc-100'
                   : 'text-zinc-900'
                 : isDark
-                ? 'text-zinc-500 hover:text-zinc-300'
-                : 'text-zinc-500 hover:text-zinc-700'
+                  ? 'text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/50'
+                  : 'text-zinc-500 hover:text-zinc-700 hover:bg-zinc-100/50'
             )}
           >
-            <tab.icon className="w-4 h-4" />
-            {tab.label}
             {rightPanelTab === tab.id && (
               <motion.div
-                layoutId="activeTab"
-                className="absolute bottom-0 left-0 right-0 h-0.5"
-                style={{ backgroundColor: currentAccent.color }}
+                layoutId="activeRightTab"
+                className={cn('absolute inset-0 rounded-md', isDark ? 'bg-zinc-800' : 'bg-zinc-100')}
+                transition={{ type: 'spring', stiffness: 500, damping: 30 }}
               />
             )}
+            <tab.icon className="w-4 h-4 z-10 relative" />
+            <span className="z-10 relative">{tab.label}</span>
           </button>
         ))}
       </div>

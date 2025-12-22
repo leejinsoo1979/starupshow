@@ -8,7 +8,9 @@ interface UIState {
   selectedTaskId: string | null
   emailSidebarWidth: number
   isResizingEmail: boolean
-  workHistoryOpen: boolean
+  agentSidebarOpen: boolean
+  level2Width: number
+  isResizingLevel2: boolean
   toggleSidebar: () => void
   setSidebarOpen: (open: boolean) => void
   setActiveCategory: (category: string | null) => void
@@ -18,7 +20,9 @@ interface UIState {
   closeTaskModal: () => void
   setEmailSidebarWidth: (width: number) => void
   setIsResizingEmail: (resizing: boolean) => void
-  toggleWorkHistory: () => void
+  toggleAgentSidebar: () => void
+  setLevel2Width: (width: number) => void
+  setIsResizingLevel2: (resizing: boolean) => void
 }
 
 export const useUIStore = create<UIState>((set) => ({
@@ -29,7 +33,9 @@ export const useUIStore = create<UIState>((set) => ({
   selectedTaskId: null,
   emailSidebarWidth: 400,
   isResizingEmail: false,
-  workHistoryOpen: false,
+  agentSidebarOpen: false,
+  level2Width: 280,
+  isResizingLevel2: false,
   toggleSidebar: () => set((state) => ({ sidebarOpen: !state.sidebarOpen })),
   setSidebarOpen: (open) => set({ sidebarOpen: open }),
   setActiveCategory: (category) => set({ activeCategory: category }),
@@ -39,5 +45,7 @@ export const useUIStore = create<UIState>((set) => ({
   closeTaskModal: () => set({ taskModalOpen: false, selectedTaskId: null }),
   setEmailSidebarWidth: (width) => set({ emailSidebarWidth: width }),
   setIsResizingEmail: (resizing) => set({ isResizingEmail: resizing }),
-  toggleWorkHistory: () => set((state) => ({ workHistoryOpen: !state.workHistoryOpen })),
+  toggleAgentSidebar: () => set((state) => ({ agentSidebarOpen: !state.agentSidebarOpen })),
+  setLevel2Width: (width) => set({ level2Width: width }),
+  setIsResizingLevel2: (resizing) => set({ isResizingLevel2: resizing }),
 }))

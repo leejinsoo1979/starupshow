@@ -5,7 +5,8 @@ import { useRouter, usePathname } from 'next/navigation'
 import { Header } from '@/components/nav/Header'
 import { TwoLevelSidebar } from '@/components/nav/TwoLevelSidebar'
 import { CommitModal } from '@/components/commits/CommitModal'
-import { WorkHistorySidebar } from '@/components/tools/WorkHistorySidebar'
+import { GlobalAgentSidebar } from '@/components/nav/GlobalAgentSidebar'
+import { ElectronHeader } from '@/components/nav/ElectronHeader'
 import { useAuthStore } from '@/stores/authStore'
 import { useUIStore } from '@/stores/uiStore'
 import { createClient } from '@/lib/supabase/client'
@@ -31,8 +32,23 @@ export default function DashboardLayout({
   const router = useRouter()
   const pathname = usePathname()
   const { setUser, setCurrentStartup, setIsLoading, isLoading } = useAuthStore()
-  const { sidebarOpen, emailSidebarWidth, isResizingEmail, workHistoryOpen, toggleWorkHistory } = useUIStore()
+  // Include isResizingLevel2 for global resize fix
+  const { sidebarOpen, emailSidebarWidth, isResizingEmail, agentSidebarOpen, toggleAgentSidebar, level2Width, isResizingLevel2 } = useUIStore()
   const [mounted, setMounted] = useState(false)
+  const [isElectron, setIsElectron] = useState(false)
+
+  useEffect(() => {
+    const checkElectron = () => {
+      const isEl = typeof window !== 'undefined' &&
+        (!!(window as any).electron ||
+          navigator.userAgent.toLowerCase().includes('electron') ||
+          (window as any).process?.versions?.electron ||
+          document.documentElement.classList.contains('electron-app') ||
+          window.location.search.includes('electron=true'));
+      setIsElectron(isEl)
+    }
+    checkElectron()
+  }, [])
   const isFullWidthPage = pathname?.includes('/messenger') || pathname?.includes('/agent-builder') || pathname?.includes('/email') || pathname?.match(/\/project\/[^/]+$/) || pathname?.includes('/works/new') || pathname?.includes('/apps/ai-slides') || pathname?.includes('/apps/ai-sheet') || pathname?.includes('/apps/ai-docs') || pathname?.includes('/apps/ai-summary') || pathname?.includes('/neural-map')
 
   // Prevent hydration mismatch
@@ -134,35 +150,35 @@ export default function DashboardLayout({
     )
   }
 
-  // 2단계 사이드바: Level1(64px) + Level2(240px or 280px for neural-map)
-  // 이메일 페이지는 자체 레이아웃을 가지므로 Level1만 사용
+  // 2단계 사이드바: Level1(64px) + Level2(동적)
   const isEmailPage = pathname?.includes('/email')
   const isNeuralMapPage = pathname?.includes('/neural-map')
-  // Neural Map은 FileTreePanel이 280px로 더 넓음 (64 + 280 = 344)
+  // Neural Map은 동적 level2Width 사용
   const sidebarWidth = sidebarOpen
-    ? (isEmailPage ? 64 : (isNeuralMapPage ? 344 : 304))
+    ? (isEmailPage ? 64 : (isNeuralMapPage ? 64 + level2Width : 304))
     : 64
 
   // Check if we are on the main dashboard page
   const isDashboardRoot = pathname === '/dashboard-group'
 
   return (
-    <div className={cn("min-h-screen", isDashboardRoot ? "bg-transparent" : "bg-theme")}>
+    <div className={cn("h-screen overflow-hidden", isDashboardRoot ? "bg-transparent" : "bg-theme")}>
+      {isElectron ? <ElectronHeader /> : <Header />}
       <TwoLevelSidebar />
-      <Header />
       <CommitModal />
-      <WorkHistorySidebar isOpen={workHistoryOpen} onToggle={toggleWorkHistory} />
+      <GlobalAgentSidebar isOpen={agentSidebarOpen} onToggle={toggleAgentSidebar} />
       <main
         className={cn(
-          "transition-all duration-300",
-          isFullWidthPage ? "flex flex-col" : "pt-16"
+          (isFullWidthPage || isElectron) ? "flex flex-col" : "pt-16",
+          // Fix for resizing instability: block pointer events on main content (iframe/webview) when resizing sidebar
+          (isResizingEmail || isResizingLevel2) && "pointer-events-none"
         )}
         style={{
           paddingLeft: `${sidebarWidth}px`,
-          marginTop: 'var(--title-bar-height, 0px)',
-          minHeight: 'calc(100vh - var(--title-bar-height, 0px))',
-          height: isFullWidthPage ? 'calc(100vh - var(--title-bar-height, 0px))' : undefined,
-          paddingTop: isFullWidthPage ? '4rem' : undefined // pt-16 equivalent
+          marginTop: isElectron ? '48px' : 'var(--title-bar-height, 0px)',
+          minHeight: `calc(100vh - ${isElectron ? '48px' : 'var(--title-bar-height, 0px)'})`,
+          height: isFullWidthPage ? `calc(100vh - ${isElectron ? '48px' : 'var(--title-bar-height, 0px)'})` : undefined,
+          paddingTop: isElectron ? 0 : (isFullWidthPage ? '4rem' : undefined)
         }}
       >
         <div className={cn(

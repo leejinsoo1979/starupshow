@@ -1,0 +1,22 @@
+
+X main Build and Release Electron App · 20424227597
+Triggered via push about 12 minutes ago
+
+X release in 3m48s (ID 58681353176)
+  ✓ Set up job
+  ✓ Checkout Code
+  ✓ Setup Node.js
+  ✓ Install Dependencies
+  ✓ Build Next.js
+  X Build & Publish Electron
+  - Post Setup Node.js
+  ✓ Post Checkout Code
+  ✓ Complete job
+
+ANNOTATIONS
+X Process completed with exit code 1.
+release: .github#15
+
+
+To see the logs for the failed steps, try: gh run view --log-failed --job=58681353176
+View this run on GitHub: https://github.com/leejinsoo1979/glowus/actions/runs/20424227597

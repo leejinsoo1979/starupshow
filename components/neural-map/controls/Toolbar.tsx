@@ -115,10 +115,10 @@ export function Toolbar() {
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className={cn(
-              'w-64 pl-9 pr-3 py-1.5 text-sm rounded-lg border outline-none transition-colors',
+              'no-focus-ring w-64 pl-9 pr-3 py-1.5 text-sm rounded-lg border outline-none transition-colors',
               isDark
-                ? 'bg-zinc-800 border-zinc-700 text-zinc-200 placeholder:text-zinc-500 focus:border-zinc-600'
-                : 'bg-zinc-50 border-zinc-200 text-zinc-800 placeholder:text-zinc-400 focus:border-zinc-300'
+                ? 'bg-zinc-800 border-zinc-700 text-zinc-200 placeholder:text-zinc-500'
+                : 'bg-zinc-50 border-zinc-200 text-zinc-800 placeholder:text-zinc-400'
             )}
           />
         </div>

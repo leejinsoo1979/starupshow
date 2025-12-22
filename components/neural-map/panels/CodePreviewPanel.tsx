@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { useTheme } from 'next-themes'
 import { motion, AnimatePresence } from 'framer-motion'
 import dynamic from 'next/dynamic'
@@ -164,48 +164,70 @@ export function CodePreviewPanel({ className }: CodePreviewPanelProps) {
   // Resizing State
   const [panelWidth, setPanelWidth] = useState(480)
   const [isResizing, setIsResizing] = useState(false)
+  const resizeRef = useRef<{ startX: number; startWidth: number } | null>(null)
 
   // Start Resizing
   const startResizing = useCallback((e: React.MouseEvent) => {
     e.preventDefault()
-    e.stopPropagation() // Prevent event bubbling
+    e.stopPropagation()
     setIsResizing(true)
-  }, [])
+    resizeRef.current = {
+      startX: e.clientX,
+      startWidth: panelWidth
+    }
+  }, [panelWidth])
 
-  // Handle Resizing
+  // Handle Resizing (Optimized with RAF & Delta)
   useEffect(() => {
-    if (!isResizing) return
+    let animationFrameId: number | null = null
 
     const handleMouseMove = (e: MouseEvent) => {
-      // Calculate new width relative to right edge of screen
-      const newWidth = window.innerWidth - e.clientX
-      // Min 300px, Max 90% of screen width
-      const constrainedWidth = Math.max(300, Math.min(newWidth, window.innerWidth * 0.9))
+      if (!isResizing || !resizeRef.current) return
 
-      setPanelWidth(constrainedWidth)
-
-      // If manually resizing, turn off preset expanded mode
-      if (isExpanded) {
-        setIsExpanded(false)
+      if (animationFrameId !== null) {
+        cancelAnimationFrame(animationFrameId)
       }
+
+      animationFrameId = requestAnimationFrame(() => {
+        if (!resizeRef.current) return
+
+        // Delta: Positive if moved left (startX > clientX)
+        const delta = resizeRef.current.startX - e.clientX
+        const newWidth = resizeRef.current.startWidth + delta
+        const constrainedWidth = Math.max(300, Math.min(newWidth, window.innerWidth * 0.9))
+
+        setPanelWidth(constrainedWidth)
+
+        if (isExpanded) {
+          setIsExpanded(false)
+        }
+      })
     }
 
     const handleMouseUp = () => {
       setIsResizing(false)
+      resizeRef.current = null
+      if (animationFrameId !== null) {
+        cancelAnimationFrame(animationFrameId)
+        animationFrameId = null
+      }
     }
 
-    window.addEventListener('mousemove', handleMouseMove)
-    window.addEventListener('mouseup', handleMouseUp)
-
-    // Global style changes during resize
-    document.body.style.cursor = 'col-resize'
-    document.body.style.userSelect = 'none'
+    if (isResizing) {
+      window.addEventListener('mousemove', handleMouseMove)
+      window.addEventListener('mouseup', handleMouseUp)
+      document.body.style.cursor = 'col-resize'
+      document.body.style.userSelect = 'none'
+    }
 
     return () => {
       window.removeEventListener('mousemove', handleMouseMove)
       window.removeEventListener('mouseup', handleMouseUp)
       document.body.style.cursor = ''
       document.body.style.userSelect = ''
+      if (animationFrameId !== null) {
+        cancelAnimationFrame(animationFrameId)
+      }
     }
   }, [isResizing, isExpanded])
 
@@ -495,6 +517,7 @@ export function CodePreviewPanel({ className }: CodePreviewPanelProps) {
           className={cn(
             'h-full border-l flex flex-col overflow-hidden flex-shrink-0 relative',
             isDark ? 'bg-[#1e1e1e] border-zinc-800' : 'bg-white border-zinc-200',
+            isResizing && 'pointer-events-none', // Performance optimization
             className
           )}
         >

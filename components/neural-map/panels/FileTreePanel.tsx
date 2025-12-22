@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useEffect, useMemo } from 'react'
+import { useState, useRef, useEffect, useMemo, useCallback } from 'react'
 import { useTheme } from 'next-themes'
 import { motion, AnimatePresence } from 'framer-motion'
 import { cn } from '@/lib/utils'
@@ -36,7 +36,17 @@ import {
   Image,
   Film,
   File,
+  Files,
+  GitBranch,
+  Puzzle,
+  ChevronUp,
+  MonitorStop,
+  Container,
+  Share2,
+  Cpu,
+  Pin,
 } from 'lucide-react'
+
 // react-icons - VS Code 스타일 파일 아이콘
 import {
   VscFile,
@@ -855,46 +865,295 @@ export function FileTreePanel({ mapId }: FileTreePanelProps) {
     }
   }
 
+  const [showFileMenu, setShowFileMenu] = useState(false)
+  const fileMenuRef = useRef<HTMLDivElement>(null)
+
+  // 파일 메뉴 외부 클릭 시 닫기
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (fileMenuRef.current && !fileMenuRef.current.contains(e.target as Node)) {
+        setShowFileMenu(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
+
+  // Electron 메뉴 이벤트 리스너
+  useEffect(() => {
+    const electron = (window as any).electron
+    if (!electron?.onMenuEvent) return
+
+    // 폴더 선택 완료 이벤트 - Electron main에서 직접 다이얼로그 열고 결과 전송
+    const unsubFolderSelected = electron.onMenuEvent('menu:folder-selected', async (_event: any, dirInfo: { name: string, path: string }) => {
+      console.log('[Menu] Folder selected:', dirInfo)
+
+      if (!dirInfo?.path) return
+
+      try {
+        setIsUploading(true)
+        setIsExpanded(true)
+
+        // Electron IPC로 폴더 읽기
+        const entries = await electron.fs.readDirectory(dirInfo.path, { includeSystemFiles: showHiddenFiles })
+        console.log(`Found ${entries.length} entries in ${dirInfo.name}`)
+
+        // 파일만 필터링하고 NeuralFile 형식으로 변환
+        const timestamp = Date.now()
+        const localFiles: NeuralFile[] = []
+
+        const processEntries = async (entries: any[], basePath: string) => {
+          for (let i = 0; i < entries.length; i++) {
+            const entry = entries[i]
+            if (entry.kind === 'file') {
+              try {
+                const content = await electron.fs.readFile(entry.path)
+                const ext = entry.name.split('.').pop()?.toLowerCase() || ''
+                const getFileType = (ext: string) => {
+                  const imageExts = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'ico']
+                  const mdExts = ['md', 'markdown', 'mdx']
+                  const codeExts = ['ts', 'tsx', 'js', 'jsx', 'json', 'css', 'html', 'py']
+                  if (imageExts.includes(ext)) return 'image'
+                  if (mdExts.includes(ext)) return 'markdown'
+                  if (codeExts.includes(ext)) return 'code'
+                  return 'text'
+                }
+
+                localFiles.push({
+                  id: `local-${timestamp}-${localFiles.length}`,
+                  name: entry.name,
+                  path: entry.path.replace(dirInfo.path + '/', ''),
+                  type: getFileType(ext),
+                  content: content,
+                  size: entry.size || content.length,
+                  createdAt: new Date().toISOString(),
+                  mapId: mapId || '',
+                  url: '', // 로컬 파일이라 URL 없음
+                })
+
+              } catch (err) {
+                console.warn('Failed to read file:', entry.path, err)
+              }
+            } else if (entry.kind === 'directory') {
+              // 재귀적으로 서브폴더 처리
+              const subEntries = await electron.fs.readDirectory(entry.path, { includeSystemFiles: showHiddenFiles })
+              await processEntries(subEntries, entry.path)
+            }
+          }
+        }
+
+        await processEntries(entries, dirInfo.path)
+
+        console.log(`Loaded ${localFiles.length} files from ${dirInfo.name}`)
+        setFiles(localFiles)
+        buildGraphFromFiles()
+
+      } catch (err) {
+        console.error('Failed to load folder:', err)
+        alert('폴더 로딩 실패: ' + (err as Error).message)
+      } finally {
+        setIsUploading(false)
+      }
+    })
+
+    const unsubNewNote = electron.onMenuEvent('menu:new-note', () => {
+      console.log('[Menu] New Note triggered')
+      openEditor()
+    })
+
+    const unsubNewFile = electron.onMenuEvent('menu:new-file', () => {
+      console.log('[Menu] New File triggered')
+      fileInputRef.current?.click()
+    })
+
+    return () => {
+      unsubFolderSelected?.()
+      unsubNewNote?.()
+      unsubNewFile?.()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+
+
+
   return (
-    <div className={cn('h-full flex flex-col text-[13px]', isDark ? 'bg-[#1e1e1e]' : 'bg-[#f3f3f3]')}>
-      {/* 상위 메뉴 (VS Code 상단 메뉴 스타일) */}
+    <div className={cn('h-full flex flex-col text-[13px]', isDark ? 'bg-zinc-900' : 'bg-[#f3f3f3]')}>
+      {/* File 드롭다운 메뉴 바 */}
       <div
         className={cn(
-          'h-[36px] flex items-center justify-between px-3 border-b text-[12px] font-semibold uppercase tracking-wide',
-          isDark ? 'bg-[#181818] border-[#2c2c2c] text-[#cfcfcf]' : 'bg-white border-[#e5e5e5] text-[#4a4a4a]'
+          'h-[36px] flex items-center px-2 border-b',
+          isDark ? 'bg-zinc-900 border-zinc-800' : 'bg-white border-[#e5e5e5]'
         )}
       >
-        <button
-          onClick={() => fileInputRef.current?.click()}
-          disabled={!mapId}
-          className={cn(
-            'px-2 py-1 rounded-md transition-colors flex items-center gap-1',
-            isDark ? 'hover:bg-[#2c2c2c]' : 'hover:bg-[#f4f4f4]',
-            !mapId && 'opacity-50 cursor-not-allowed'
-          )}
-        >
-          <span>+ New</span>
-        </button>
-        <button
-          onClick={() => folderInputRef.current?.click()}
-          disabled={!mapId}
-          className={cn(
-            'px-2 py-1 rounded-md transition-colors flex items-center gap-1',
-            isDark ? 'hover:bg-[#2c2c2c]' : 'hover:bg-[#f4f4f4]',
-            !mapId && 'opacity-50 cursor-not-allowed'
-          )}
-        >
-          <span>오픈폴더</span>
-        </button>
-      </div>
+        <div className="relative" ref={fileMenuRef}>
+          <button
+            onClick={() => setShowFileMenu(!showFileMenu)}
+            className={cn(
+              'px-3 py-1 text-[13px] rounded transition-colors',
+              showFileMenu
+                ? isDark ? 'bg-[#3c3c3c] text-white' : 'bg-[#e8e8e8] text-zinc-900'
+                : isDark ? 'text-[#cfcfcf] hover:bg-[#2c2c2c]' : 'text-[#4a4a4a] hover:bg-[#f4f4f4]'
+            )}
+          >
+            File
+          </button>
 
-      {/* Obsidian 스타일 상단 툴바 */}
-      <div className={cn(
-        'h-[40px] flex items-center justify-center gap-1 px-2 border-b select-none',
-        isDark ? 'border-[#3c3c3c] text-[#999999]' : 'border-[#d4d4d4] text-[#666666]'
-      )}>
-        {isUploading || isAnalyzing ? (
-          <div className="flex items-center gap-2 px-3">
+          {/* File 드롭다운 메뉴 */}
+          <AnimatePresence>
+            {showFileMenu && (
+              <motion.div
+                initial={{ opacity: 0, y: -5 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -5 }}
+                transition={{ duration: 0.1 }}
+                className={cn(
+                  'absolute top-full left-0 mt-1 py-1 rounded-md shadow-xl z-50 min-w-[240px]',
+                  isDark ? 'bg-zinc-900 border border-zinc-700' : 'bg-white border border-[#d4d4d4]'
+                )}
+              >
+                {/* New Note */}
+                <button
+                  onClick={() => { openEditor(); setShowFileMenu(false) }}
+                  disabled={!mapId}
+                  className={cn(
+                    'w-full px-4 py-2 text-left flex items-center justify-between',
+                    isDark ? 'hover:bg-[#094771] text-[#cccccc]' : 'hover:bg-blue-50 text-zinc-700',
+                    !mapId && 'opacity-50 cursor-not-allowed'
+                  )}
+                >
+                  <span>New Note</span>
+                  <span className={cn('text-[11px]', isDark ? 'text-[#6e6e6e]' : 'text-zinc-400')}>⌘ N</span>
+                </button>
+
+                {/* New File */}
+                <button
+                  onClick={() => { fileInputRef.current?.click(); setShowFileMenu(false) }}
+                  disabled={!mapId}
+                  className={cn(
+                    'w-full px-4 py-2 text-left flex items-center justify-between',
+                    isDark ? 'hover:bg-[#094771] text-[#cccccc]' : 'hover:bg-blue-50 text-zinc-700',
+                    !mapId && 'opacity-50 cursor-not-allowed'
+                  )}
+                >
+                  <span>New File...</span>
+                  <span className={cn('text-[11px]', isDark ? 'text-[#6e6e6e]' : 'text-zinc-400')}>⌥ ⌘ N</span>
+                </button>
+
+                {/* 구분선 */}
+                <div className={cn('my-1 h-px', isDark ? 'bg-[#454545]' : 'bg-[#e0e0e0]')} />
+
+                {/* Open Folder */}
+                <button
+                  onClick={() => {
+                    // @ts-ignore
+                    if (window.showDirectoryPicker || isElectron()) {
+                      handleNativeFolderUpload()
+                    } else {
+                      folderInputRef.current?.click()
+                    }
+                    setShowFileMenu(false)
+                  }}
+                  disabled={!mapId}
+                  className={cn(
+                    'w-full px-4 py-2 text-left flex items-center justify-between',
+                    isDark ? 'hover:bg-[#094771] text-[#cccccc]' : 'hover:bg-blue-50 text-zinc-700',
+                    !mapId && 'opacity-50 cursor-not-allowed'
+                  )}
+                >
+                  <span>Open Folder...</span>
+                  <span className={cn('text-[11px]', isDark ? 'text-[#6e6e6e]' : 'text-zinc-400')}>⌘ O</span>
+                </button>
+
+                {/* 구분선 */}
+                <div className={cn('my-1 h-px', isDark ? 'bg-[#454545]' : 'bg-[#e0e0e0]')} />
+
+                {/* Visualize */}
+                <button
+                  onClick={() => { buildGraphFromFiles(); setShowFileMenu(false) }}
+                  disabled={files.length === 0}
+                  className={cn(
+                    'w-full px-4 py-2 text-left flex items-center justify-between',
+                    isDark ? 'hover:bg-[#094771] text-[#cccccc]' : 'hover:bg-blue-50 text-zinc-700',
+                    files.length === 0 && 'opacity-50 cursor-not-allowed'
+                  )}
+                >
+                  <span>Visualize Files</span>
+                  <span className={cn('text-[11px]', isDark ? 'text-[#6e6e6e]' : 'text-zinc-400')}>⌘ V</span>
+                </button>
+
+                {/* 구분선 */}
+                <div className={cn('my-1 h-px', isDark ? 'bg-[#454545]' : 'bg-[#e0e0e0]')} />
+
+                {/* Sort submenu */}
+                <div className="relative group">
+                  <button
+                    className={cn(
+                      'w-full px-4 py-2 text-left flex items-center justify-between',
+                      isDark ? 'hover:bg-[#094771] text-[#cccccc]' : 'hover:bg-blue-50 text-zinc-700'
+                    )}
+                  >
+                    <span>Sort By</span>
+                    <ChevronRight className="w-4 h-4" />
+                  </button>
+                  {/* Sort submenu */}
+                  <div className={cn(
+                    'absolute left-full top-0 ml-1 py-1 rounded-md shadow-xl min-w-[200px] hidden group-hover:block',
+                    isDark ? 'bg-[#252526] border border-[#454545]' : 'bg-white border border-[#d4d4d4]'
+                  )}>
+                    {SORT_OPTIONS.map((option) => (
+                      <button
+                        key={option.value}
+                        onClick={() => { setSortOption(option.value); setShowFileMenu(false) }}
+                        className={cn(
+                          'w-full px-4 py-2 text-left flex items-center gap-2',
+                          isDark ? 'hover:bg-[#094771] text-[#cccccc]' : 'hover:bg-blue-50 text-zinc-700'
+                        )}
+                      >
+                        {sortOption === option.value ? (
+                          <Check className="w-4 h-4" />
+                        ) : (
+                          <span className="w-4" />
+                        )}
+                        <span>{option.label}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Collapse All */}
+                <button
+                  onClick={() => { collapseAll(); setShowFileMenu(false) }}
+                  className={cn(
+                    'w-full px-4 py-2 text-left',
+                    isDark ? 'hover:bg-[#094771] text-[#cccccc]' : 'hover:bg-blue-50 text-zinc-700'
+                  )}
+                >
+                  <span>Collapse All</span>
+                </button>
+
+                {/* 구분선 */}
+                <div className={cn('my-1 h-px', isDark ? 'bg-[#454545]' : 'bg-[#e0e0e0]')} />
+
+                {/* Show Hidden Files */}
+                <button
+                  onClick={() => { setShowHiddenFiles(!showHiddenFiles); setShowFileMenu(false) }}
+                  className={cn(
+                    'w-full px-4 py-2 text-left flex items-center gap-2',
+                    isDark ? 'hover:bg-[#094771] text-[#cccccc]' : 'hover:bg-blue-50 text-zinc-700'
+                  )}
+                >
+                  {showHiddenFiles ? <Check className="w-4 h-4" /> : <span className="w-4" />}
+                  <span>Show Hidden Files</span>
+                </button>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+
+        {/* 로딩 상태 표시 */}
+        {(isUploading || isAnalyzing) && (
+          <div className="ml-auto flex items-center gap-2 px-3">
             {isAnalyzing ? (
               <>
                 <Sparkles className="w-4 h-4 animate-pulse text-amber-400" />
@@ -903,153 +1162,10 @@ export function FileTreePanel({ mapId }: FileTreePanelProps) {
             ) : (
               <>
                 <Loader2 className="w-4 h-4 animate-spin" />
-                <span className="text-[11px]">업로드 중... ({uploadingCount})</span>
+                <span className="text-[11px]">파일 불러오는 중...</span>
               </>
             )}
           </div>
-        ) : (
-          <>
-            {/* 새 노트 */}
-            <button
-              onClick={openEditor}
-              disabled={!mapId}
-              className={cn(
-                'p-2 rounded transition-colors',
-                isDark ? 'hover:bg-[#3c3c3c]' : 'hover:bg-[#e8e8e8]',
-                !mapId && 'opacity-50 cursor-not-allowed'
-              )}
-              title="New note"
-            >
-              <PenLine className="w-[18px] h-[18px]" />
-            </button>
-
-            {/* 새 폴더 (오픈 폴더) */}
-            <button
-              onClick={() => {
-                // @ts-ignore
-                if (window.showDirectoryPicker || isElectron()) {
-                  handleNativeFolderUpload()
-                } else {
-                  folderInputRef.current?.click()
-                }
-              }}
-              disabled={!mapId}
-              className={cn(
-                'p-2 rounded transition-colors',
-                isDark ? 'hover:bg-[#3c3c3c]' : 'hover:bg-[#e8e8e8]',
-                !mapId && 'opacity-50 cursor-not-allowed'
-              )}
-              title="Open Local Folder (Sync)"
-            >
-              <FolderPlus className="w-[18px] h-[18px]" />
-            </button>
-
-            {/* 시각화 - 실제 파일 기반 */}
-            <button
-              onClick={buildGraphFromFiles}
-              disabled={files.length === 0}
-              className={cn(
-                'p-2 rounded transition-colors',
-                isDark ? 'hover:bg-[#3c3c3c] text-blue-400' : 'hover:bg-[#e8e8e8] text-blue-600',
-                files.length === 0 && 'opacity-50 cursor-not-allowed'
-              )}
-              title="Visualize uploaded files"
-            >
-              <Eye className="w-[18px] h-[18px]" />
-            </button>
-
-
-
-            {/* 정렬 */}
-            <div className="relative" ref={sortMenuRef}>
-              <button
-                onClick={() => setShowSortMenu(!showSortMenu)}
-                className={cn(
-                  'p-2 rounded transition-colors',
-                  isDark ? 'hover:bg-[#3c3c3c]' : 'hover:bg-[#e8e8e8]',
-                  showSortMenu && (isDark ? 'bg-[#3c3c3c]' : 'bg-[#e8e8e8]')
-                )}
-                title="Sort"
-              >
-                <ArrowUpDown className="w-[18px] h-[18px]" />
-              </button>
-
-              {/* 정렬 드롭다운 메뉴 */}
-              <AnimatePresence>
-                {showSortMenu && (
-                  <motion.div
-                    initial={{ opacity: 0, y: -5 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -5 }}
-                    transition={{ duration: 0.15 }}
-                    className={cn(
-                      'absolute top-full left-0 mt-1 py-1 rounded-md shadow-lg z-50 min-w-[200px]',
-                      isDark ? 'bg-[#2d2d2d] border border-[#454545]' : 'bg-white border border-[#d4d4d4]'
-                    )}
-                  >
-                    {SORT_OPTIONS.map((option, idx) => (
-                      <button
-                        key={option.value}
-                        onClick={() => {
-                          setSortOption(option.value)
-                          setShowSortMenu(false)
-                        }}
-                        className={cn(
-                          'w-full px-3 py-1.5 text-left text-[13px] flex items-center gap-2 transition-colors',
-                          isDark ? 'hover:bg-[#3c3c3c]' : 'hover:bg-[#f0f0f0]',
-                          // 구분선 추가 (2개씩 그룹)
-                          (idx === 2 || idx === 4) && (isDark ? 'border-t border-[#454545] mt-1 pt-2' : 'border-t border-[#e0e0e0] mt-1 pt-2')
-                        )}
-                      >
-                        {sortOption === option.value ? (
-                          <Check className="w-4 h-4 flex-shrink-0" />
-                        ) : (
-                          <span className="w-4" />
-                        )}
-                        <span>{option.label}</span>
-                      </button>
-                    ))}
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </div>
-
-            {/* 모두 접기 */}
-            <button
-              onClick={collapseAll}
-              className={cn(
-                'p-2 rounded transition-colors',
-                isDark ? 'hover:bg-[#3c3c3c]' : 'hover:bg-[#e8e8e8]'
-              )}
-              title="Collapse all"
-            >
-              <ChevronsDownUp className="w-[18px] h-[18px]" />
-            </button>
-
-            {/* 닫기 (패널 접기) */}
-            <button
-              onClick={() => setIsExpanded(false)}
-              className={cn(
-                'p-2 rounded transition-colors',
-                isDark ? 'hover:bg-[#3c3c3c]' : 'hover:bg-[#e8e8e8]'
-              )}
-              title="Close"
-            >
-              <X className="w-[18px] h-[18px]" />
-            </button>
-            {/* 숨김 파일 토글 (설정) */}
-            <button
-              onClick={() => setShowHiddenFiles(!showHiddenFiles)}
-              className={cn(
-                'p-2 rounded transition-colors',
-                isDark ? 'hover:bg-[#3c3c3c]' : 'hover:bg-[#e8e8e8]',
-                showHiddenFiles && (isDark ? 'text-amber-400' : 'text-amber-600 bg-amber-100')
-              )}
-              title={showHiddenFiles ? "Hide System Files (node_modules, .git)" : "Show All Files (Experimental)"}
-            >
-              <VscFolderOpened className="w-[18px] h-[18px]" />
-            </button>
-          </>
         )}
       </div>
 
@@ -1227,7 +1343,7 @@ function TreeNodeList({
                 className={cn(
                   'flex items-center gap-1 py-[3px] pr-2 cursor-pointer select-none',
                   isDark
-                    ? 'hover:bg-[#2a2d2e] text-[#cccccc]'
+                    ? 'hover:bg-zinc-800 text-zinc-300'
                     : 'hover:bg-[#e8e8e8] text-[#3b3b3b]'
                 )}
                 style={{ paddingLeft }}
@@ -1287,7 +1403,7 @@ function TreeNodeList({
                   ? 'bg-[#094771] text-white'
                   : 'bg-[#0060c0] text-white'
                 : isDark
-                  ? 'hover:bg-[#2a2d2e] text-[#cccccc]'
+                  ? 'hover:bg-zinc-800 text-zinc-300'
                   : 'hover:bg-[#e8e8e8] text-[#3b3b3b]'
             )}
             style={{ paddingLeft: paddingLeft + 16 }} // 파일은 추가 들여쓰기

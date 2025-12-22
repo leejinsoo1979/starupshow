@@ -136,10 +136,10 @@ export function EdgeEditorModal({ mapId, onClose }: EdgeEditorModalProps) {
                 value={sourceId}
                 onChange={(e) => setSourceId(e.target.value)}
                 className={cn(
-                  'w-full px-3 py-2 rounded-lg border outline-none transition-colors',
+                  'no-focus-ring w-full px-3 py-2 rounded-lg border outline-none transition-colors',
                   isDark
-                    ? 'bg-zinc-800 border-zinc-700 text-zinc-100 focus:border-blue-500'
-                    : 'bg-white border-zinc-200 text-zinc-900 focus:border-blue-500'
+                    ? 'bg-zinc-800 border-zinc-700 text-zinc-100'
+                    : 'bg-white border-zinc-200 text-zinc-900'
                 )}
               >
                 <option value="">노드를 선택하세요</option>
@@ -160,10 +160,10 @@ export function EdgeEditorModal({ mapId, onClose }: EdgeEditorModalProps) {
                 value={targetId}
                 onChange={(e) => setTargetId(e.target.value)}
                 className={cn(
-                  'w-full px-3 py-2 rounded-lg border outline-none transition-colors',
+                  'no-focus-ring w-full px-3 py-2 rounded-lg border outline-none transition-colors',
                   isDark
-                    ? 'bg-zinc-800 border-zinc-700 text-zinc-100 focus:border-blue-500'
-                    : 'bg-white border-zinc-200 text-zinc-900 focus:border-blue-500'
+                    ? 'bg-zinc-800 border-zinc-700 text-zinc-100'
+                    : 'bg-white border-zinc-200 text-zinc-900'
                 )}
               >
                 <option value="">노드를 선택하세요</option>
@@ -219,10 +219,10 @@ export function EdgeEditorModal({ mapId, onClose }: EdgeEditorModalProps) {
                 onChange={(e) => setLabel(e.target.value)}
                 placeholder="연결에 대한 설명"
                 className={cn(
-                  'w-full px-3 py-2 rounded-lg border outline-none transition-colors',
+                  'no-focus-ring w-full px-3 py-2 rounded-lg border outline-none transition-colors',
                   isDark
-                    ? 'bg-zinc-800 border-zinc-700 text-zinc-100 focus:border-blue-500'
-                    : 'bg-white border-zinc-200 text-zinc-900 focus:border-blue-500'
+                    ? 'bg-zinc-800 border-zinc-700 text-zinc-100'
+                    : 'bg-white border-zinc-200 text-zinc-900'
                 )}
               />
             </div>

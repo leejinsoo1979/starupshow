@@ -11,7 +11,9 @@ import {
   Database, // Data
   GitBranch, // Logic
   FlaskConical, // Test
+  Terminal, // Terminal
 } from 'lucide-react'
+import { BsBrowserChrome } from "react-icons/bs"
 
 const viewTabs: { id: ViewTab; label: string; icon: typeof Network; description: string }[] = [
   { id: 'map', label: 'Map', icon: Network, description: '전체 노드 탐색 (2D/3D)' },
@@ -19,6 +21,7 @@ const viewTabs: { id: ViewTab; label: string; icon: typeof Network; description:
   { id: 'data', label: 'Data', icon: Database, description: '데이터 구조 및 스키마' },
   { id: 'logic', label: 'Logic', icon: GitBranch, description: '로직 흐름 및 파일 구조' },
   { id: 'test', label: 'Test', icon: FlaskConical, description: '품질 검증 및 테스트' },
+  { id: 'browser', label: 'Browser', icon: BsBrowserChrome, description: '웹 브라우저' },
 ]
 
 export function ViewTabs() {
@@ -27,6 +30,8 @@ export function ViewTabs() {
   const activeTab = useNeuralMapStore((s) => s.activeTab)
   const setActiveTab = useNeuralMapStore((s) => s.setActiveTab)
   const headerCollapsed = useNeuralMapStore((s) => s.headerCollapsed)
+  const terminalOpen = useNeuralMapStore((s) => s.terminalOpen)
+  const toggleTerminal = useNeuralMapStore((s) => s.toggleTerminal)
 
   // 헤더가 접힌 상태면 ViewTabs도 숨김
   if (headerCollapsed) {
@@ -36,7 +41,7 @@ export function ViewTabs() {
   return (
     <div
       className={cn(
-        'flex items-center justify-center gap-1 py-2 px-4 border-b electron-drag',
+        'flex items-center justify-center gap-1 h-full px-4 border-b electron-drag',
         isDark ? 'bg-zinc-900/80 border-zinc-800' : 'bg-white/80 border-zinc-200'
       )}
     >
@@ -47,11 +52,9 @@ export function ViewTabs() {
             key={tab.id}
             onClick={() => setActiveTab(tab.id)}
             className={cn(
-              'relative flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors electron-no-drag',
+              'relative flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors electron-no-drag',
               isActive
-                ? isDark
-                  ? 'text-zinc-100'
-                  : 'text-zinc-900'
+                ? isDark ? 'text-zinc-100' : 'text-zinc-900'
                 : isDark
                   ? 'text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/50'
                   : 'text-zinc-500 hover:text-zinc-700 hover:bg-zinc-100/50'
@@ -61,10 +64,7 @@ export function ViewTabs() {
             {isActive && (
               <motion.div
                 layoutId="activeViewTab"
-                className={cn(
-                  'absolute inset-0 rounded-lg',
-                  isDark ? 'bg-zinc-800' : 'bg-zinc-100'
-                )}
+                className={cn('absolute inset-0 rounded-md', isDark ? 'bg-zinc-800' : 'bg-zinc-100')}
                 transition={{ type: 'spring', stiffness: 500, damping: 30 }}
               />
             )}
@@ -73,6 +73,8 @@ export function ViewTabs() {
           </button>
         )
       })}
+
+
     </div>
   )
 }

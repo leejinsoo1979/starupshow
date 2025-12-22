@@ -123,6 +123,10 @@ interface NeuralMapState {
   radialDistance: number // 방사 거리 (50~300)
   graphExpanded: boolean // 그래프 펼침 상태 (트리 접힘과 연동)
   layoutMode: LayoutMode // 레이아웃 모드 (원형/유기적)
+
+  // Terminal
+  terminalOpen: boolean
+  terminalHeight: number
 }
 
 // ============================================
@@ -232,6 +236,10 @@ interface NeuralMapActions {
   setGraphExpanded: (expanded: boolean) => void
   setLayoutMode: (mode: LayoutMode) => void
 
+  // Terminal
+  toggleTerminal: () => void
+  setTerminalHeight: (height: number) => void
+
   // Build graph from real files
   buildGraphFromFiles: () => void
 
@@ -303,6 +311,10 @@ const initialState: NeuralMapState = {
   radialDistance: 150, // 기본 방사 거리
   graphExpanded: true, // 기본 펼침 상태
   layoutMode: 'organic',
+
+  // Terminal
+  terminalOpen: false,
+  terminalHeight: 250,
 }
 
 // ============================================
@@ -1025,6 +1037,17 @@ export const useNeuralMapStore = create<NeuralMapState & NeuralMapActions>()(
               state.graph = graphData
             }
             state.expandedNodeIds = new Set(nodes.map((n) => n.id))
+          }),
+
+        // ========== Terminal ==========
+        toggleTerminal: () =>
+          set((state) => {
+            state.terminalOpen = !state.terminalOpen
+          }),
+
+        setTerminalHeight: (height) =>
+          set((state) => {
+            state.terminalHeight = height
           }),
 
         resetLayout: () =>

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useTheme } from 'next-themes'
@@ -28,11 +28,25 @@ import {
 export function Header() {
   const router = useRouter()
   const pathname = usePathname()
-  const { openCommitModal, sidebarOpen, workHistoryOpen, toggleWorkHistory } = useUIStore()
+  const { openCommitModal, sidebarOpen, agentSidebarOpen, toggleAgentSidebar } = useUIStore()
   const { user, logout: clearAuth } = useAuthStore()
   const { resolvedTheme } = useTheme()
   const [showUserMenu, setShowUserMenu] = useState(false)
   const [searchFocused, setSearchFocused] = useState(false)
+  const [isElectron, setIsElectron] = useState(false)
+
+  useEffect(() => {
+    const checkElectron = () => {
+      const isEl = typeof window !== 'undefined' &&
+        (!!(window as any).electron ||
+          navigator.userAgent.toLowerCase().includes('electron') ||
+          (window as any).process?.versions?.electron);
+      setIsElectron(isEl)
+    }
+    checkElectron()
+  }, [])
+
+  if (isElectron) return null
 
   // resolvedTheme이 undefined일 때(SSR) dark로 기본값
   const isDark = resolvedTheme === 'dark' || resolvedTheme === undefined
@@ -240,18 +254,17 @@ export function Header() {
           </AnimatePresence>
         </div>
 
-        {/* Work History Panel Toggle - 맨 우측 */}
         <motion.button
-          onClick={toggleWorkHistory}
+          onClick={toggleAgentSidebar}
           className={`p-2.5 rounded-xl transition-colors ${isDark
             ? 'hover:bg-zinc-800 text-zinc-400 hover:text-zinc-100'
             : 'hover:bg-zinc-100 text-zinc-500 hover:text-zinc-900'
             }`}
           whileHover={{ scale: 1.05 }}
           whileTap={{ scale: 0.95 }}
-          title={workHistoryOpen ? '작업 목록 닫기' : '작업 목록 열기'}
+          title={agentSidebarOpen ? 'AI 어시스턴트 닫기' : 'AI 어시스턴트 열기'}
         >
-          {workHistoryOpen ? (
+          {agentSidebarOpen ? (
             <PanelRightClose className="w-5 h-5" />
           ) : (
             <PanelRightOpen className="w-5 h-5" />

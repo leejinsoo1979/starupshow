@@ -23,20 +23,5 @@ export function TitleBar() {
         checkElectron()
     }, [])
 
-    if (!isElectronApp) return null
-
-    return (
-        <div
-            className="fixed top-0 left-0 right-0 h-8 z-[9999] flex items-center justify-center pointer-events-none select-none overflow-hidden"
-            style={{ WebkitAppRegion: 'drag' } as any}
-        >
-            {/* Background layer */}
-            <div className="absolute inset-0 bg-[#0c0c0c]/80 backdrop-blur-md border-b border-white/10" />
-
-            {/* Window Title */}
-            <span className="relative z-10 text-[11px] font-bold text-zinc-400 font-sans tracking-[0.2em] uppercase opacity-80">
-                GlowUS
-            </span>
-        </div>
-    )
+    return null
 }

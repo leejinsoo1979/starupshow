@@ -190,10 +190,10 @@ export function NodeEditorModal({ mapId, onClose, editingNode }: NodeEditorModal
                 onChange={(e) => setTitle(e.target.value)}
                 placeholder="노드 제목을 입력하세요"
                 className={cn(
-                  'w-full px-3 py-2 rounded-lg border outline-none transition-colors',
+                  'no-focus-ring w-full px-3 py-2 rounded-lg border outline-none transition-colors',
                   isDark
-                    ? 'bg-zinc-800 border-zinc-700 text-zinc-100 focus:border-blue-500'
-                    : 'bg-white border-zinc-200 text-zinc-900 focus:border-blue-500'
+                    ? 'bg-zinc-800 border-zinc-700 text-zinc-100'
+                    : 'bg-white border-zinc-200 text-zinc-900'
                 )}
               />
             </div>
@@ -209,10 +209,10 @@ export function NodeEditorModal({ mapId, onClose, editingNode }: NodeEditorModal
                 placeholder="간단한 설명을 입력하세요"
                 rows={3}
                 className={cn(
-                  'w-full px-3 py-2 rounded-lg border outline-none transition-colors resize-none',
+                  'no-focus-ring w-full px-3 py-2 rounded-lg border outline-none transition-colors resize-none',
                   isDark
-                    ? 'bg-zinc-800 border-zinc-700 text-zinc-100 focus:border-blue-500'
-                    : 'bg-white border-zinc-200 text-zinc-900 focus:border-blue-500'
+                    ? 'bg-zinc-800 border-zinc-700 text-zinc-100'
+                    : 'bg-white border-zinc-200 text-zinc-900'
                 )}
               />
             </div>
@@ -228,10 +228,10 @@ export function NodeEditorModal({ mapId, onClose, editingNode }: NodeEditorModal
                 onChange={(e) => setTags(e.target.value)}
                 placeholder="태그를 쉼표로 구분하여 입력"
                 className={cn(
-                  'w-full px-3 py-2 rounded-lg border outline-none transition-colors',
+                  'no-focus-ring w-full px-3 py-2 rounded-lg border outline-none transition-colors',
                   isDark
-                    ? 'bg-zinc-800 border-zinc-700 text-zinc-100 focus:border-blue-500'
-                    : 'bg-white border-zinc-200 text-zinc-900 focus:border-blue-500'
+                    ? 'bg-zinc-800 border-zinc-700 text-zinc-100'
+                    : 'bg-white border-zinc-200 text-zinc-900'
                 )}
               />
             </div>
@@ -245,10 +245,10 @@ export function NodeEditorModal({ mapId, onClose, editingNode }: NodeEditorModal
                 value={parentId}
                 onChange={(e) => setParentId(e.target.value)}
                 className={cn(
-                  'w-full px-3 py-2 rounded-lg border outline-none transition-colors',
+                  'no-focus-ring w-full px-3 py-2 rounded-lg border outline-none transition-colors',
                   isDark
-                    ? 'bg-zinc-800 border-zinc-700 text-zinc-100 focus:border-blue-500'
-                    : 'bg-white border-zinc-200 text-zinc-900 focus:border-blue-500'
+                    ? 'bg-zinc-800 border-zinc-700 text-zinc-100'
+                    : 'bg-white border-zinc-200 text-zinc-900'
                 )}
               >
                 <option value="">없음 (루트 레벨)</option>

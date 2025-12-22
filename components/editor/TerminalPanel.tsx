@@ -566,8 +566,8 @@ export const TerminalPanel = forwardRef<TerminalPanelRef, TerminalPanelProps>(({
   return (
     <div
       ref={panelRef}
-      className={`terminal-panel flex flex-col bg-white dark:bg-[#000000] border-t border-zinc-200 dark:border-[#333333] shrink-0 relative ${className}`}
-      style={{ height: panelHeight, transition: 'none', animation: 'none', willChange: 'auto' }}
+      className={`terminal-panel flex flex-col bg-white dark:bg-zinc-900 border-t border-zinc-200 dark:border-zinc-800 shrink-0 relative ${className}`}
+      style={{ height: '100%', transition: 'none', animation: 'none', willChange: 'auto' }}
     >
       {/* 리사이즈 핸들 */}
       <div
@@ -579,7 +579,7 @@ export const TerminalPanel = forwardRef<TerminalPanelRef, TerminalPanelProps>(({
       </div>
 
       {/* 탭 바 */}
-      <div className="flex items-center bg-zinc-100 dark:bg-[#0a0a0a] border-b border-zinc-200 dark:border-[#333333] h-[35px] select-none">
+      <div className="flex items-center bg-zinc-100 dark:bg-zinc-900 border-b border-zinc-200 dark:border-zinc-800 h-[35px] select-none">
         {/* 패널 타입 탭 */}
         <div className="flex items-center h-full">
           <button className="px-3 h-full text-xs text-zinc-500 dark:text-[#888888] border-b-2 border-transparent hover:text-zinc-900 dark:hover:text-white">
@@ -663,28 +663,28 @@ export const TerminalPanel = forwardRef<TerminalPanelRef, TerminalPanelProps>(({
           })}
         </div>
 
-        {/* 사이드바 리사이즈 핸들 - 사이드바 밖에 배치 */}
-        <div
-          onMouseDown={(e) => {
-            e.preventDefault()
-            e.stopPropagation()
-            setIsResizingSidebar(true)
-            startXRef.current = e.clientX
-            startWidthRef.current = sidebarWidth
-          }}
-          className="w-[12px] cursor-ew-resize z-50 flex-shrink-0 flex items-center justify-center bg-zinc-200 dark:bg-[#1a1a1a] hover:bg-accent/30 active:bg-accent/50"
-        >
-          <div className="w-[2px] h-8 rounded bg-zinc-400 dark:bg-[#555] hover:bg-accent" />
-        </div>
+
 
         {/* 우측 트리 사이드바 */}
         <div
-          className="relative bg-zinc-100 dark:bg-[#0a0a0a] flex flex-col overflow-hidden"
+          className="relative bg-zinc-100 dark:bg-zinc-900 flex flex-col overflow-hidden"
           style={{ width: sidebarWidth, transition: 'none' }}
         >
+          {/* 리사이즈 핸들 (투명, 오버레이) */}
+          <div
+            onMouseDown={(e) => {
+              e.preventDefault()
+              e.stopPropagation()
+              setIsResizingSidebar(true)
+              startXRef.current = e.clientX
+              startWidthRef.current = sidebarWidth
+            }}
+            className="absolute left-0 top-0 bottom-0 w-1.5 cursor-col-resize z-50 hover:bg-zinc-500/10 transition-colors"
+            title="Drag to resize"
+          />
 
           {/* 리스트 헤더 */}
-          <div className="flex items-center justify-between px-2 py-1 border-b border-zinc-200 dark:border-[#333333]">
+          <div className="flex items-center justify-between px-2 py-1 border-b border-zinc-200 dark:border-zinc-800">
             <span className="text-[10px] text-zinc-500 dark:text-[#888888] uppercase tracking-wider">터미널</span>
             <button
               onClick={addTerminal}
@@ -696,7 +696,7 @@ export const TerminalPanel = forwardRef<TerminalPanelRef, TerminalPanelProps>(({
           </div>
 
           {/* 터미널 리스트 */}
-          <div className="flex-1 overflow-y-auto py-1">
+          <div className="flex-1 overflow-y-auto overscroll-contain py-1">
             {renderTerminalList()}
           </div>
         </div>

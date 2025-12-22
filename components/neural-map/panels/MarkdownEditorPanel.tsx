@@ -244,10 +244,10 @@ export function MarkdownEditorPanel({
                 onChange={(e) => setTitle(e.target.value)}
                 placeholder="노트 제목..."
                 className={cn(
-                  'w-full px-2 py-1.5 text-sm rounded border outline-none transition-colors',
+                  'no-focus-ring w-full px-2 py-1.5 text-sm rounded border outline-none transition-colors',
                   isDark
-                    ? 'bg-[#2d2d2d] border-[#3c3c3c] text-zinc-200 placeholder:text-zinc-500 focus:border-blue-500'
-                    : 'bg-zinc-50 border-zinc-200 text-zinc-900 placeholder:text-zinc-400 focus:border-blue-500'
+                    ? 'bg-[#2d2d2d] border-[#3c3c3c] text-zinc-200 placeholder:text-zinc-500'
+                    : 'bg-zinc-50 border-zinc-200 text-zinc-900 placeholder:text-zinc-400'
                 )}
               />
             </div>
@@ -284,7 +284,7 @@ export function MarkdownEditorPanel({
 
 [[링크]]를 사용하면 다른 노트와 연결됩니다."
                 className={cn(
-                  'w-full h-full px-3 py-2 text-sm resize-none outline-none font-mono',
+                  'no-focus-ring w-full h-full px-3 py-2 text-sm resize-none outline-none font-mono',
                   isDark
                     ? 'bg-[#1e1e1e] text-zinc-200 placeholder:text-zinc-600'
                     : 'bg-white text-zinc-900 placeholder:text-zinc-400'

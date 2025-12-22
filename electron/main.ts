@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, dialog, shell } from 'electron';
+import { app, BrowserWindow, ipcMain, dialog, shell, Menu, webContents } from 'electron';
 import { autoUpdater } from 'electron-updater';
 import * as path from 'path';
 import * as fs from 'fs';
@@ -98,8 +98,10 @@ async function createWindow() {
                 preload: path.join(__dirname, 'preload.js'),
                 nodeIntegration: false,
                 contextIsolation: true,
+                webviewTag: true, // Enable <webview> tag
             },
-            titleBarStyle: 'hiddenInset', // Mac-style seamless header
+            titleBarStyle: 'hidden',
+            trafficLightPosition: { x: 16, y: 16 },
             backgroundColor: '#111111',
             title: 'GlowUS',
         });
@@ -114,11 +116,14 @@ async function createWindow() {
         //    mainWindow.webContents.openDevTools();
         // }
 
-        // Handle external links
+        // Handle external links - DISABLED: This overrides webview internal popups.
+        // webview internal "new-window" events should be handled by the renderer.
+        /*
         mainWindow.webContents.setWindowOpenHandler(({ url }) => {
             shell.openExternal(url);
             return { action: 'deny' };
         });
+        */
 
         mainWindow.on('closed', () => {
             mainWindow = null;
@@ -132,6 +137,131 @@ async function createWindow() {
 
 app.whenReady().then(() => {
     createWindow();
+
+    // Create Application Menu
+    const template: Electron.MenuItemConstructorOptions[] = [
+        {
+            label: 'GlowUS',
+            submenu: [
+                { role: 'about' },
+                { type: 'separator' },
+                { role: 'services' },
+                { type: 'separator' },
+                { role: 'hide' },
+                { role: 'hideOthers' },
+                { role: 'unhide' },
+                { type: 'separator' },
+                { role: 'quit' }
+            ]
+        },
+        {
+            label: 'File',
+            submenu: [
+                {
+                    label: 'New Note',
+                    accelerator: 'CmdOrCtrl+N',
+                    click: () => {
+                        mainWindow?.webContents.send('menu:new-note');
+                    }
+                },
+                {
+                    label: 'New File...',
+                    accelerator: 'Alt+CmdOrCtrl+N',
+                    click: () => {
+                        mainWindow?.webContents.send('menu:new-file');
+                    }
+                },
+                { type: 'separator' },
+                {
+                    label: 'Open Folder...',
+                    accelerator: 'CmdOrCtrl+O',
+                    click: async () => {
+                        if (!mainWindow) return;
+                        const result = await dialog.showOpenDialog(mainWindow, {
+                            properties: ['openDirectory', 'createDirectory']
+                        });
+                        if (!result.canceled && result.filePaths.length > 0) {
+                            const dirPath = result.filePaths[0];
+                            const name = path.basename(dirPath);
+                            mainWindow.webContents.send('menu:folder-selected', {
+                                kind: 'directory',
+                                name: name,
+                                path: dirPath
+                            });
+                        }
+                    }
+                },
+                { type: 'separator' },
+                {
+                    label: 'Save',
+                    accelerator: 'CmdOrCtrl+S',
+                    click: () => {
+                        mainWindow?.webContents.send('menu:save');
+                    }
+                },
+                {
+                    label: 'Save As...',
+                    accelerator: 'Shift+CmdOrCtrl+S',
+                    click: () => {
+                        mainWindow?.webContents.send('menu:save-as');
+                    }
+                },
+                { type: 'separator' },
+                { role: 'close' }
+            ]
+        },
+        {
+            label: 'Edit',
+            submenu: [
+                { role: 'undo' },
+                { role: 'redo' },
+                { type: 'separator' },
+                { role: 'cut' },
+                { role: 'copy' },
+                { role: 'paste' },
+                { role: 'pasteAndMatchStyle' },
+                { role: 'delete' },
+                { role: 'selectAll' },
+            ]
+        },
+        {
+            label: 'View',
+            submenu: [
+                { role: 'reload' },
+                { role: 'forceReload' },
+                { role: 'toggleDevTools' },
+                { type: 'separator' },
+                { role: 'resetZoom' },
+                { role: 'zoomIn' },
+                { role: 'zoomOut' },
+                { type: 'separator' },
+                { role: 'togglefullscreen' }
+            ]
+        },
+        {
+            label: 'Window',
+            submenu: [
+                { role: 'minimize' },
+                { role: 'zoom' },
+                { type: 'separator' },
+                { role: 'front' },
+            ]
+        },
+        {
+            label: 'Help',
+            submenu: [
+                {
+                    label: 'Learn More',
+                    click: async () => {
+                        await shell.openExternal('https://glowus.io');
+                    }
+                }
+            ]
+        }
+    ];
+
+    const menu = Menu.buildFromTemplate(template);
+    Menu.setApplicationMenu(menu);
 
     // Check for updates on startup
     if (app.isPackaged) {
@@ -165,6 +295,26 @@ app.whenReady().then(() => {
             createWindow();
         }
     });
+});
+
+
+app.on('web-contents-created', (event, contents) => {
+    // Intercept all webview creations
+    if (contents.getType() === 'webview') {
+        // Prevent new windows from being created by the webview
+        contents.setWindowOpenHandler((details) => {
+            // We can emit an event here if we wanted to handle it in the main process,
+            // but the renderer's <webview> 'new-window' or 'did-attach' logic 
+            // is usually where we assume control. 
+            // However, to strictly satisfy "NO POPUPS", we deny everything here.
+            // If the renderer's listener works, it picks up the url.
+            // If the renderer listener was failing because of Main process interference, this clarifies "Deny"
+            // But wait, if we deny here, does the renderer still get notified?
+            // Usually yes.
+            // Let's allow shell.openExternal ONLY if we decide to? No, user wants internal.
+            return { action: 'deny' };
+        });
+    }
 });
 
 app.on('window-all-closed', () => {
@@ -251,4 +401,56 @@ ipcMain.handle('fs:read-file', async (_, filePath: string) => {
 ipcMain.handle('fs:write-file', async (_, filePath: string, content: string) => {
     await writeFile(filePath, content, 'utf-8');
     return true;
+});
+
+// 5. Check for Updates
+ipcMain.handle('app:check-for-updates', async () => {
+    if (app.isPackaged) {
+        return await autoUpdater.checkForUpdatesAndNotify();
+    }
+    return { status: 'dev-mode', message: 'Update check is skipped in development mode.' };
+});
+
+// 6. Open Webview DevTools (Fallback mechanism)
+ipcMain.handle('app:open-webview-devtools', async (_, webContentsId?: number) => {
+    // 1. If a specific ID is provided (Best method)
+    if (webContentsId) {
+        try {
+            const wc = webContents.fromId(webContentsId);
+            if (wc) {
+                wc.openDevTools({ mode: 'right' });
+                return { success: true, message: `Opened DevTools for provided ID ${webContentsId}` };
+            }
+        } catch (e) {
+            console.error(`Failed to find WebContents with ID ${webContentsId}:`, e);
+        }
+    }
+
+    // 2. Fallback: Search for guest webview
+    const allContents = webContents.getAllWebContents();
+
+    // Log for debugging
+    console.log('Searching for webview contents to open DevTools...');
+
+    for (const wc of allContents) {
+        // Skip mainWindow
+        if (mainWindow && wc.id === mainWindow.webContents.id) continue;
+
+        // Skip DevTools and other internal pages
+        const url = wc.getURL();
+        if (url.startsWith('devtools://')) continue;
+        if (url.startsWith('chrome-extension://')) continue;
+
+        console.log(`Potential target found - ID: ${wc.id}, URL: ${url}`);
+
+        // If it's not the main window and not devtools, it's likely our webview
+        try {
+            wc.openDevTools({ mode: 'right' });
+            return { success: true, message: `Opened DevTools for WebContents ID ${wc.id}` };
+        } catch (err: any) {
+            console.error(`Failed to open devtools on ID ${wc.id}:`, err);
+        }
+    }
+
+    return { success: false, message: 'No suitable webview found' };
 });

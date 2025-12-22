@@ -133,7 +133,7 @@ export interface NeuralCluster {
 // Graph Container
 // ============================================
 
-export type ViewTab = 'map' | 'life-stream' | 'data' | 'logic' | 'test'
+export type ViewTab = 'map' | 'life-stream' | 'data' | 'logic' | 'test' | 'browser'
 export type LayoutMode = 'organic' | 'radial' | 'structural'
 
 export interface CameraState {
