@@ -155,9 +155,15 @@ export default function DashboardLayout({
       <main
         className={cn(
           "transition-all duration-300",
-          isFullWidthPage ? "h-screen pt-16 flex flex-col" : "min-h-screen pt-16"
+          isFullWidthPage ? "flex flex-col" : "pt-16"
         )}
-        style={{ paddingLeft: `${sidebarWidth}px` }}
+        style={{
+          paddingLeft: `${sidebarWidth}px`,
+          marginTop: 'var(--title-bar-height, 0px)',
+          minHeight: 'calc(100vh - var(--title-bar-height, 0px))',
+          height: isFullWidthPage ? 'calc(100vh - var(--title-bar-height, 0px))' : undefined,
+          paddingTop: isFullWidthPage ? '4rem' : undefined // pt-16 equivalent
+        }}
       >
         <div className={cn(
           isFullWidthPage ? "flex-1 overflow-hidden" : "p-8"

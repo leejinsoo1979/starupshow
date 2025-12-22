@@ -145,6 +145,7 @@ export function CosmicForceGraph({ className }: CosmicForceGraphProps) {
   const graphRef = useRef<any>(null)
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [isClient, setIsClient] = useState(false)
+  const [threeInstance, setThreeInstance] = useState<any>(null)
 
   // Store
   const graph = useNeuralMapStore((s) => s.graph)
@@ -268,18 +269,28 @@ export function CosmicForceGraph({ className }: CosmicForceGraphProps) {
 
       if (sourceVisible && targetVisible) {
         const linkKind = edge.type === 'parent_child' ? 'parent' : edge.type === 'imports' ? 'imports' : 'reference'
+
+        // 중요: 데이터 객체에 직접 속성 주입 (라이브러리가 Accessor보다 우선하거나 Accessor 갱신 실패 시 대비)
+        const particles = linkKind === 'imports' ? 4 : 0
+        const particleColor = currentTheme.ui.accentColor
+        const particleWidth = 3
+
         links.push({
           source: edge.source,
           target: edge.target,
           kind: linkKind,
-          type: edge.type, // Add type for consistency
-          // Remove hardcoded particle props to rely on ForceGraph3D props for theme sync
+          type: edge.type,
+          // 3D Force Graph 속성 직접 주입
+          particles,
+          particleColor,
+          particleWidth,
+          color: linkKind === 'imports' ? (currentTheme.ui.accentColor + '33') : (isDark ? '#ffffff1a' : '#0000001a')
         })
       }
     })
 
     return { nodes, links }
-  }, [graph, fileMap, fileSizeRange, isNodeVisible, expandedNodeIds])
+  }, [graph, fileMap, fileSizeRange, isNodeVisible, expandedNodeIds, currentTheme, isDark]) // Theme dependencies added
 
   // Add stars to scene
   const addStars = useCallback((scene: any, THREE: any, count = 1500) => {
@@ -342,249 +353,35 @@ export function CosmicForceGraph({ className }: CosmicForceGraphProps) {
     return colors[node.type] || 0x6b7280
   }, [])
 
-  // Initialize graph
+  // 1. Initialization Effect (Mount only)
   useEffect(() => {
     if (!isClient || !containerRef.current) return
 
-    // Dynamic import for 3d-force-graph (browser only)
+    let resizeObserver: ResizeObserver | null = null
+    let animationInterval: NodeJS.Timeout | null = null
+    let handleResize: (() => void) | null = null
+    let graphInstance: any = null
+
     Promise.all([
       import('3d-force-graph'),
       import('three'),
     ]).then(([ForceGraph3DModule, THREE]) => {
+      // Prevent race conditions if unmounted
+      if (!containerRef.current) return
+
       const ForceGraph3D = ForceGraph3DModule.default
-
-      // 이미 초기화된 경우 force만 업데이트
-      if (graphRef.current) {
-        const currentEffectiveDistance = graphExpanded ? radialDistance : radialDistance * 0.2
-        const currentEffectiveStrength = graphExpanded ? -radialDistance * 1.5 : -30
-        graphRef.current.d3Force('charge')?.strength(currentEffectiveStrength)
-        graphRef.current.d3Force('link')?.distance((l: any) => l.kind === 'parent' ? currentEffectiveDistance * 0.5 : currentEffectiveDistance)
-        graphRef.current.d3ReheatSimulation()
-        return
-      }
-
-      const { nodes, links } = convertToGraphData()
-
       const Graph = ForceGraph3D()(containerRef.current!)
         .backgroundColor(isDark ? '#070A12' : '#f8fafc')
-        .nodeLabel((n: any) => `
-          <div style="
-            font: 12px/1.4 -apple-system, BlinkMacSystemFont, sans-serif;
-            background: rgba(0,0,0,0.8);
-            padding: 8px 12px;
-            border-radius: 8px;
-            border: 1px solid rgba(255,255,255,0.1);
-          ">
-            <b style="color: #fff;">${n.label}</b><br/>
-            <span style="color: rgba(255,255,255,0.6);">type: ${n.type}</span>
-          </div>
-        `)
-        .nodeThreeObject((n: any) => {
-          const isSelected = selectedNodeIds.includes(n.id)
-          // 파일 크기 기반 노드 크기 사용
-          const baseSize = n.nodeSize || (n.type === 'self' ? 16 :
-            n.depth === 1 ? 9 : 6)
+        .minZoom(0.1)
 
-          // Create sphere
-          const geom = new THREE.SphereGeometry(baseSize, 24, 24)
-          const color = getNodeColor(n, isSelected)
+      graphRef.current = Graph
+      graphInstance = Graph
 
-          const mat = new THREE.MeshStandardMaterial({
-            color,
-            metalness: 0.3,
-            roughness: 0.5,
-            emissive: new THREE.Color(color),
-            emissiveIntensity: n.type === 'self' ? 0.8 : 0.5,
-          })
-
-          const mesh = new THREE.Mesh(geom, mat)
-
-          // Selection ring (aura)
-          const ringGeom = new THREE.TorusGeometry(baseSize + 3, 1, 12, 48)
-          const ringMat = new THREE.MeshBasicMaterial({
-            color: 0xffffff,
-            transparent: true,
-            opacity: isSelected ? 0.9 : 0,
-          })
-          const ring = new THREE.Mesh(ringGeom, ringMat)
-          ring.rotation.x = Math.PI / 2
-          mesh.add(ring)
-
-          // 파일 타입 표시 (스프라이트) - 2D와 동일한 아이콘 사용
-          if (n.fileType) {
-            const ext = n.fileType
-            const color = '#' + (FILE_TYPE_COLORS[ext.toLowerCase()] || 0x6b7280).toString(16).padStart(6, '0')
-            const IconComp = getIconComponent(ext)
-
-            const canvas = document.createElement('canvas')
-            canvas.width = 128
-            canvas.height = 128
-            const ctx = canvas.getContext('2d')
-
-            if (ctx) {
-              try {
-                // JS 아이콘은 검정색 (#000000), 나머지는 흰색 (#FFFFFF)
-                const isJS = ['js', 'javascript'].includes(ext.toLowerCase())
-                const iconColor = isJS ? '#000000' : '#FFFFFF'
-
-                const svgString = renderToStaticMarkup(
-                  <IconComp size={100} color={iconColor} style={{ display: 'block' }} />
-                )
-                const img = new Image()
-                const svgData = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svgString)}`
-
-                img.onload = () => {
-                  ctx.clearRect(0, 0, 128, 128)
-                  // 배경 원 (2D 뷰 스타일 반영 가능)
-                  ctx.beginPath()
-                  ctx.arc(64, 64, 54, 0, Math.PI * 2)
-                  ctx.fillStyle = color
-                  ctx.fill()
-
-                  // 아이콘 그리기
-                  ctx.drawImage(img, 14, 14, 100, 100)
-                  texture.needsUpdate = true
-                }
-                img.src = svgData
-              } catch (e) {
-                console.error('Icon texture generation failed:', e)
-              }
-
-              const texture = new THREE.CanvasTexture(canvas)
-              const spriteMat = new THREE.SpriteMaterial({
-                map: texture,
-                transparent: true,
-                depthTest: false,
-                depthWrite: false,
-              })
-              const sprite = new THREE.Sprite(spriteMat)
-              sprite.scale.set(baseSize * 1.5, baseSize * 1.5, 1)
-              sprite.position.set(0, 0, baseSize * 0.6)
-              mesh.add(sprite)
-            }
-          }
-
-          // Glow effect for self node
-          if (n.type === 'self') {
-            const glowGeom = new THREE.SphereGeometry(baseSize * 1.5, 24, 24)
-            const glowMat = new THREE.MeshBasicMaterial({
-              color: 0xffd700,
-              transparent: true,
-              opacity: 0.15,
-            })
-            const glow = new THREE.Mesh(glowGeom, glowMat)
-            mesh.add(glow)
-
-            // Self 노드에 별 아이콘
-            const starCanvas = document.createElement('canvas')
-            const starCtx = starCanvas.getContext('2d')
-            starCanvas.width = 128
-            starCanvas.height = 128
-            if (starCtx) {
-              const cx = 64, cy = 64
-
-              // 5각 별 그리기
-              starCtx.fillStyle = '#ffd700'
-              starCtx.beginPath()
-              for (let i = 0; i < 5; i++) {
-                const outerAngle = (i * 2 * Math.PI / 5) - Math.PI / 2
-                const innerAngle = outerAngle + Math.PI / 5
-                const outerR = 45, innerR = 20
-                if (i === 0) {
-                  starCtx.moveTo(cx + Math.cos(outerAngle) * outerR, cy + Math.sin(outerAngle) * outerR)
-                } else {
-                  starCtx.lineTo(cx + Math.cos(outerAngle) * outerR, cy + Math.sin(outerAngle) * outerR)
-                }
-                starCtx.lineTo(cx + Math.cos(innerAngle) * innerR, cy + Math.sin(innerAngle) * innerR)
-              }
-              starCtx.closePath()
-              starCtx.fill()
-
-              // 테두리
-              starCtx.strokeStyle = '#ffffff'
-              starCtx.lineWidth = 3
-              starCtx.stroke()
-
-              const starTexture = new THREE.CanvasTexture(starCanvas)
-              const starSpriteMat = new THREE.SpriteMaterial({
-                map: starTexture,
-                transparent: true,
-                depthTest: false,
-                depthWrite: false,
-              })
-              const starSprite = new THREE.Sprite(starSpriteMat)
-              starSprite.scale.set(baseSize * 1.4, baseSize * 1.4, 1)
-              starSprite.position.set(0, 0, baseSize * 0.7)
-              mesh.add(starSprite)
-            }
-          }
-
-          mesh.userData.__nodeId = n.id
-          mesh.userData.__ring = ring
-
-          return mesh
-        })
-        .linkOpacity((l: any) => l.kind === 'imports' ? 0.6 : 0.3) // 투명도 조정 (구조 라인은 더 은은하게)
-        .linkWidth((l: any) => l.kind === 'imports' ? 1.5 : 0.8) // 굵기 축소 (1.8 -> 1.5)
-        .linkColor((l: any) =>
-          l.kind === 'parent' ? (isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)') :
-            l.kind === 'imports' ? (currentTheme.ui.accentColor + '33') : // 점선 효과: 기본 라인은 아주 흐리게 (20%)
-              // 구조 라인: 테마색 + 투명도 (Graph2DView와 일치)
-              (currentTheme.ui.accentColor + (isDark ? '4D' : '66')) // hex opacity ~30% / 40%
-        )
-        // 링크 파티클 설정 - 2D와 일치 (4, 3, 0.01)
-        .linkDirectionalParticles((link: any) => link.kind === 'imports' ? 4 : 0)
-        .linkDirectionalParticleSpeed(0.01)
-        .linkDirectionalParticleWidth(3) // 4 -> 3
-        .linkDirectionalParticleResolution(10)
-        .linkDirectionalParticleColor(() => currentTheme.ui.accentColor)
-        // 모든 설정 후 데이터 로드
-        .graphData({ nodes, links })
-        .onNodeClick((node: any) => {
-          if (!node) return
-
-          setSelectedId(node.id)
-          setSelectedNodes([node.id])
-
-          // Trigger Preview
-          let targetFile = files.find(f => f.id === node.id) || files.find(f => f.name === node.label)
-
-          // Try sourceRef if available (__node property from convertToGraphData)
-          if (!targetFile && node.__node?.sourceRef?.fileId) {
-            targetFile = files.find(f => f.id === node.__node.sourceRef.fileId)
-          }
-
-          if (targetFile) {
-            openCodePreview(targetFile)
-          }
-
-          // Animate camera to node
-          Graph.cameraPosition(
-            {
-              x: node.x * 1.3,
-              y: node.y * 1.3,
-              z: (node.z ?? 0) * 1.3 + 150,
-            },
-            node,
-            800
-          )
-
-          // Re-render to update selection ring
-          Graph.nodeThreeObject(Graph.nodeThreeObject())
-        })
-        .onBackgroundClick(() => {
-          setSelectedId(null)
-          setSelectedNodes([])
-          Graph.nodeThreeObject(Graph.nodeThreeObject())
-        })
-
-      // Get scene and add enhancements
+      // Scene Setup
       const scene = Graph.scene()
-
-      // Add stars
+      // addStars uses THREE, so we pass it
       addStars(scene, THREE)
 
-      // Lighting
       const ambientLight = new THREE.AmbientLight(0xffffff, 0.6)
       scene.add(ambientLight)
 
@@ -600,20 +397,9 @@ export function CosmicForceGraph({ className }: CosmicForceGraphProps) {
       pointLight2.position.set(-100, -50, -100)
       scene.add(pointLight2)
 
-      // Force tuning - radialDistance와 graphExpanded 연동
-      const effectiveDistance = graphExpanded ? radialDistance : radialDistance * 0.2
-      const effectiveStrength = graphExpanded ? -radialDistance * 1.5 : -30
-      Graph.d3Force('charge')?.strength(effectiveStrength)
-      Graph.d3Force('link')?.distance((l: any) => l.kind === 'parent' ? effectiveDistance * 0.5 : effectiveDistance)
-
-      // Keep simulation running longer for smooth animation
-      Graph.cooldownTicks(300)
-      Graph.warmupTicks(100)
-
-      // Continuous animation - reheat simulation periodically
-      const animationInterval = setInterval(() => {
+      // Animation Loop
+      animationInterval = setInterval(() => {
         if (graphRef.current) {
-          // Add slight random movement to keep nodes alive
           const graphData = graphRef.current.graphData()
           if (graphData.nodes && graphData.nodes.length > 0) {
             graphData.nodes.forEach((node: any) => {
@@ -628,68 +414,186 @@ export function CosmicForceGraph({ className }: CosmicForceGraphProps) {
         }
       }, 3000)
 
-      // Initial camera - center on graph after simulation settles
-      const centerCamera = () => {
-        if (!graphRef.current) return
-        const graphData = graphRef.current.graphData()
-        if (!graphData.nodes || graphData.nodes.length === 0) return
-
-        // Calculate centroid of all nodes
-        let cx = 0, cy = 0, cz = 0
-        graphData.nodes.forEach((n: any) => {
-          cx += n.x || 0
-          cy += n.y || 0
-          cz += n.z || 0
-        })
-        cx /= graphData.nodes.length
-        cy /= graphData.nodes.length
-        cz /= graphData.nodes.length
-
-        // Position camera looking at centroid
-        Graph.cameraPosition(
-          { x: cx, y: cy - 50, z: cz + 350 },
-          { x: cx, y: cy, z: cz },
-          1000
-        )
-      }
-
-      // Wait for initial simulation to settle, then center
-      setTimeout(centerCamera, 1500)
-
-        // Store interval for cleanup
-        ; (Graph as any).__animationInterval = animationInterval
-
-      graphRef.current = Graph
-
-      // Resize handling (ResizeObserver로 컨테이너 크기 변화 감지)
-      const handleResize = () => {
+      // Resize Observer
+      handleResize = () => {
         if (containerRef.current && graphRef.current) {
           graphRef.current
             .width(containerRef.current.clientWidth)
             .height(containerRef.current.clientHeight)
         }
       }
-
-      // ResizeObserver로 컨테이너 크기 변화 감지
-      const resizeObserver = new ResizeObserver(() => {
-        handleResize()
-      })
-      if (containerRef.current) {
-        resizeObserver.observe(containerRef.current)
-      }
-
+      resizeObserver = new ResizeObserver(handleResize)
+      resizeObserver.observe(containerRef.current)
       window.addEventListener('resize', handleResize)
 
-      return () => {
-        resizeObserver.disconnect()
-        window.removeEventListener('resize', handleResize)
-        // Clean up animation interval
-        if ((Graph as any).__animationInterval) {
-          clearInterval((Graph as any).__animationInterval)
-        }
-      }
+      // Trigger Update Phase passed the THREE instance
+      setThreeInstance(THREE)
     })
-  }, [isClient, isDark, selectedNodeIds, graphExpanded, radialDistance])
+
+    return () => {
+      if (resizeObserver) resizeObserver.disconnect()
+      if (handleResize) window.removeEventListener('resize', handleResize)
+      if (animationInterval) clearInterval(animationInterval)
+      // Attempt to pause/clean graph if possible
+      if (graphInstance) {
+        try { graphInstance.pauseAnimation() } catch (e) { }
+      }
+    }
+  }, [isClient])
+
+  // 2. Update Effect (Runs on dependencies)
+  useEffect(() => {
+    if (!threeInstance || !graphRef.current) return
+
+    // We casts to any to avoid complex TS issues with dynamic imports
+    const THREE = threeInstance as any
+    const Graph = graphRef.current
+    const { nodes, links } = convertToGraphData()
+
+    Graph
+      .backgroundColor(isDark ? '#070A12' : '#f8fafc')
+      .nodeLabel((n: any) => `
+          <div style="
+            font: 12px/1.4 -apple-system, BlinkMacSystemFont, sans-serif;
+            background: rgba(0,0,0,0.8);
+            padding: 8px 12px;
+            border-radius: 8px;
+            border: 1px solid rgba(255,255,255,0.1);
+          ">
+            <b style="color: #fff;">${n.label}</b><br/>
+            <span style="color: rgba(255,255,255,0.6);">type: ${n.type}</span>
+          </div>
+        `)
+      .nodeThreeObject((n: any) => {
+        const isSelected = selectedNodeIds.includes(n.id)
+        const baseSize = n.nodeSize || (n.type === 'self' ? 16 : n.depth === 1 ? 9 : 6)
+
+        const geom = new THREE.SphereGeometry(baseSize, 24, 24)
+        const color = getNodeColor(n, isSelected)
+        const mat = new THREE.MeshStandardMaterial({
+          color,
+          metalness: 0.3,
+          roughness: 0.5,
+          emissive: new THREE.Color(color),
+          emissiveIntensity: n.type === 'self' ? 0.8 : 0.5,
+        })
+        const mesh = new THREE.Mesh(geom, mat)
+
+        // Selection Ring
+        const ringGeom = new THREE.TorusGeometry(baseSize + 3, 1, 12, 48)
+        const ringMat = new THREE.MeshBasicMaterial({
+          color: 0xffffff,
+          transparent: true,
+          opacity: isSelected ? 0.9 : 0,
+        })
+        const ring = new THREE.Mesh(ringGeom, ringMat)
+        ring.rotation.x = Math.PI / 2
+        mesh.add(ring)
+
+        // File Type Icon
+        if (n.fileType) {
+          const ext = n.fileType
+          const color = '#' + (FILE_TYPE_COLORS[ext.toLowerCase()] || 0x6b7280).toString(16).padStart(6, '0')
+          const IconComp = getIconComponent(ext)
+
+          // Texture generation
+          const canvas = document.createElement('canvas')
+          canvas.width = 128; canvas.height = 128
+          const ctx = canvas.getContext('2d')
+          if (ctx) {
+            try {
+              const isJS = ['js', 'javascript'].includes(ext.toLowerCase())
+              const iconColor = isJS ? '#000000' : '#FFFFFF'
+              const svgString = renderToStaticMarkup(<IconComp size={100} color={iconColor} style={{ display: 'block' }} />)
+              const img = new Image()
+              const svgData = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svgString)}`
+              img.onload = () => {
+                ctx.clearRect(0, 0, 128, 128)
+                ctx.beginPath()
+                ctx.arc(64, 64, 54, 0, Math.PI * 2)
+                ctx.fillStyle = color
+                ctx.fill()
+                ctx.drawImage(img, 14, 14, 100, 100)
+                texture.needsUpdate = true
+              }
+              img.src = svgData
+            } catch (e) { }
+            const texture = new THREE.CanvasTexture(canvas)
+            const spriteMat = new THREE.SpriteMaterial({ map: texture, transparent: true, depthTest: false, depthWrite: false })
+            const sprite = new THREE.Sprite(spriteMat)
+            sprite.scale.set(baseSize * 1.5, baseSize * 1.5, 1)
+            sprite.position.set(0, 0, baseSize * 0.6)
+            mesh.add(sprite)
+          }
+        }
+
+        // Self Node visuals
+        if (n.type === 'self') {
+          const glowGeom = new THREE.SphereGeometry(baseSize * 1.5, 24, 24)
+          const glowMat = new THREE.MeshBasicMaterial({ color: 0xffd700, transparent: true, opacity: 0.15 })
+          mesh.add(new THREE.Mesh(glowGeom, glowMat))
+          // Star Icon
+          const starCanvas = document.createElement('canvas'); starCanvas.width = 128; starCanvas.height = 128
+          const starCtx = starCanvas.getContext('2d')
+          if (starCtx) {
+            const cx = 64, cy = 64
+            starCtx.fillStyle = '#ffd700'; starCtx.beginPath();
+            for (let i = 0; i < 5; i++) {
+              const oa = (i * 2 * Math.PI / 5) - Math.PI / 2, ia = oa + Math.PI / 5
+              const or = 45, ir = 20
+              i === 0 ? starCtx.moveTo(cx + Math.cos(oa) * or, cy + Math.sin(oa) * or) : starCtx.lineTo(cx + Math.cos(oa) * or, cy + Math.sin(oa) * or)
+              starCtx.lineTo(cx + Math.cos(ia) * ir, cy + Math.sin(ia) * ir)
+            }
+            starCtx.closePath(); starCtx.fill(); starCtx.strokeStyle = '#ffffff'; starCtx.lineWidth = 3; starCtx.stroke()
+            const st = new THREE.CanvasTexture(starCanvas)
+            const ss = new THREE.Sprite(new THREE.SpriteMaterial({ map: st, transparent: true, depthTest: false, depthWrite: false }))
+            ss.scale.set(baseSize * 1.4, baseSize * 1.4, 1); ss.position.set(0, 0, baseSize * 0.7); mesh.add(ss)
+          }
+        }
+        mesh.userData.__nodeId = n.id
+        mesh.userData.__ring = ring
+        return mesh
+      })
+      .linkOpacity((l: any) => l.kind === 'imports' ? 0.6 : 0.3)
+      .linkWidth((l: any) => l.kind === 'imports' ? 1.5 : 0.8)
+      .linkColor((l: any) => l.color) // Use injected color
+      .linkDirectionalParticles((l: any) => l.particles)
+      .linkDirectionalParticleSpeed(0.01)
+      .linkDirectionalParticleWidth((l: any) => l.particleWidth)
+      .linkDirectionalParticleResolution(10)
+      .linkDirectionalParticleColor((l: any) => l.particleColor)
+
+      // Update Data
+      .graphData({ nodes, links })
+
+      // Interactions
+      .onNodeClick((node: any) => {
+        if (!node) return
+        setSelectedNodes([node.id])
+        let targetFile = files.find(f => f.id === node.id) || files.find(f => f.name === node.label)
+        if (!targetFile && node.__node?.sourceRef?.fileId) targetFile = files.find(f => f.id === node.__node.sourceRef.fileId)
+        if (targetFile) openCodePreview(targetFile)
+        Graph.cameraPosition({ x: node.x * 1.3, y: node.y * 1.3, z: (node.z ?? 0) * 1.3 + 150 }, node, 800)
+        Graph.nodeThreeObject(Graph.nodeThreeObject())
+      })
+      .onBackgroundClick(() => {
+        setSelectedNodes([])
+        Graph.nodeThreeObject(Graph.nodeThreeObject())
+      })
+
+    // Force Settings
+    const currentEffectiveDistance = graphExpanded ? radialDistance : radialDistance * 0.2
+    const currentEffectiveStrength = graphExpanded ? -radialDistance * 1.5 : -30
+    Graph.d3Force('charge')?.strength(currentEffectiveStrength)
+    Graph.d3Force('link')?.distance((l: any) => l.kind === 'parent' ? currentEffectiveDistance * 0.5 : currentEffectiveDistance)
+    Graph.d3ReheatSimulation()
+
+    // Set cleanup function on the Graph object for extraction later if needed (though resizeObserver handles most)
+    // Note: React cleanup below handles component unmount
+    return () => {
+      window.removeEventListener('resize', () => { }) // Dummy
+    }
+  }, [graph, fileMap, fileSizeRange, isNodeVisible, expandedNodeIds, currentTheme, isDark, radialDistance, graphExpanded, layoutMode])
 
   // Update graph data when store changes
   useEffect(() => {

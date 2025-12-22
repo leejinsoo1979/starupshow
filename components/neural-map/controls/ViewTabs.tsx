@@ -15,7 +15,7 @@ import {
 
 const viewTabs: { id: ViewTab; label: string; icon: typeof Network; description: string }[] = [
   { id: 'map', label: 'Map', icon: Network, description: '전체 노드 탐색 (2D/3D)' },
-  { id: 'life-stream', label: 'Life Stream', icon: Activity, description: '전체 개발 현황 및 순서 (Blueprint)' },
+  { id: 'life-stream', label: 'Blueprint', icon: Activity, description: '전체 개발 현황 및 순서 (Blueprint)' },
   { id: 'data', label: 'Data', icon: Database, description: '데이터 구조 및 스키마' },
   { id: 'logic', label: 'Logic', icon: GitBranch, description: '로직 흐름 및 파일 구조' },
   { id: 'test', label: 'Test', icon: FlaskConical, description: '품질 검증 및 테스트' },
@@ -36,7 +36,7 @@ export function ViewTabs() {
   return (
     <div
       className={cn(
-        'flex items-center justify-center gap-1 py-2 px-4 border-b',
+        'flex items-center justify-center gap-1 py-2 px-4 border-b electron-drag',
         isDark ? 'bg-zinc-900/80 border-zinc-800' : 'bg-white/80 border-zinc-200'
       )}
     >
@@ -47,7 +47,7 @@ export function ViewTabs() {
             key={tab.id}
             onClick={() => setActiveTab(tab.id)}
             className={cn(
-              'relative flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors',
+              'relative flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors electron-no-drag',
               isActive
                 ? isDark
                   ? 'text-zinc-100'

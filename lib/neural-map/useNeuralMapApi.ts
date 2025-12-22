@@ -186,7 +186,16 @@ export function useNeuralMapApi(mapId: string | null) {
     setIsSubmitting(true)
     try {
       const formData = new FormData()
-      formData.append('file', file)
+
+      // Explicitly check for Electron fakeFile vs real File
+      if (!(file instanceof File) && (file as any).text) {
+        console.log('[uploadFile] Using Electron fakeFile compatibility mode for:', (file as any).name);
+        // We can append the fake object as a Blob/File if it has the right structure
+        formData.append('file', file as any, (file as any).name)
+      } else {
+        formData.append('file', file)
+      }
+
       if (path) {
         formData.append('path', path)
       }

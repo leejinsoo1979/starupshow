@@ -5,12 +5,56 @@
   "engines": {
     "node": ">=20.0.0 <23.0.0"
   },
+  "main": "electron/dist/main.js",
+  "build": {
+    "appId": "com.glowus.app",
+    "productName": "GlowUS",
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "leejinsoo1979",
+        "repo": "glowus"
+      }
+    ],
+    "afterPack": "./scripts/afterPack.js",
+    "directories": {
+      "output": "dist-electron"
+    },
+    "files": [
+      "electron/dist/**/*",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": ".next/standalone",
+        "to": "server",
+        "filter": [
+          "**/*"
+        ]
+      }
+    ],
+    "mac": {
+      "icon": "build/icon.png",
+      "category": "public.app-category.developer-tools",
+      "target": [
+        "dmg",
+        "zip"
+      ]
+    },
+    "win": {
+      "target": "nsis"
+    }
+  },
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "electron:compile": "tsc electron/main.ts electron/preload.ts --outDir electron/dist --target ES2022 --module commonjs --moduleResolution node --esModuleInterop --skipLibCheck",
+    "electron:start": "wait-on tcp:3000 && electron .",
+    "electron:dev": "concurrently -k \"npm run dev\" \"npm run electron:compile && npm run electron:start\"",
+    "electron:pack": "npm run build && cp -R public .next/standalone/public && cp -R .next/static .next/standalone/.next/static && npm run electron:compile && electron-builder"
   },
   "dependencies": {
     "@ai-sdk/google": "^2.0.45",
@@ -62,6 +106,7 @@
     "d3-force-3d": "^3.0.5",
     "dagre": "^0.8.5",
     "date-fns": "^4.1.0",
+    "electron-updater": "^6.6.2",
     "fabric": "^6.9.1",
     "framer-motion": "^12.23.25",
     "googleapis": "^169.0.0",
@@ -111,10 +156,15 @@
     "@types/react": "^18.2.0",
     "@types/react-dom": "^18.2.0",
     "autoprefixer": "^10.4.0",
+    "concurrently": "^9.2.1",
+    "cross-env": "^10.1.0",
+    "electron": "^39.2.7",
+    "electron-builder": "^26.0.12",
     "eslint": "^8.56.0",
     "eslint-config-next": "14.2.0",
     "postcss": "^8.4.0",
     "tailwindcss": "^3.4.0",
-    "typescript": "^5.3.0"
+    "typescript": "^5.3.0",
+    "wait-on": "^9.0.3"
   }
 }

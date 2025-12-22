@@ -9,6 +9,7 @@ import { useNeuralMapApi } from '@/lib/neural-map/useNeuralMapApi'
 import { useThemeStore, accentColors } from '@/stores/themeStore'
 import { parseWikiLinks, extractTitle } from '@/lib/neural-map/markdown-parser'
 import type { NeuralFile } from '@/lib/neural-map/types'
+import { isElectron } from '@/lib/utils/electron'
 import {
   Search,
   ChevronRight,
@@ -134,6 +135,8 @@ interface TreeNode {
   children: TreeNode[]
 }
 
+import { FileSystemManager } from '@/lib/neural-map/file-system'
+
 const normalizePath = (path: string) =>
   path
     .replace(/\\+/g, '/')
@@ -230,6 +233,7 @@ export function FileTreePanel({ mapId }: FileTreePanelProps) {
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set())
   const [sortOption, setSortOption] = useState<SortOption>('name-asc')
   const [showSortMenu, setShowSortMenu] = useState(false)
+  const [showHiddenFiles, setShowHiddenFiles] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const folderInputRef = useRef<HTMLInputElement>(null)
   const sortMenuRef = useRef<HTMLDivElement>(null)
@@ -243,7 +247,6 @@ export function FileTreePanel({ mapId }: FileTreePanelProps) {
   const setSelectedNodes = useNeuralMapStore((s) => s.setSelectedNodes)
   const focusOnNode = useNeuralMapStore((s) => s.focusOnNode)
   const openEditor = useNeuralMapStore((s) => s.openEditor)
-  const loadMockProjectData = useNeuralMapStore((s) => s.loadMockProjectData)
   const buildGraphFromFiles = useNeuralMapStore((s) => s.buildGraphFromFiles)
   const openCodePreview = useNeuralMapStore((s) => s.openCodePreview)
 
@@ -611,13 +614,13 @@ export function FileTreePanel({ mapId }: FileTreePanelProps) {
     }
   }
 
-  // 폴더 업로드 - VS Code처럼 로컬 파일 즉시 표시
-  const handleFolderUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  // 폴더 업로드 (Legacy/Fallback) - input[type=file] webkitdirectory 사용
+  const handleLegacyFolderUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFiles = e.target.files
     if (!selectedFiles || selectedFiles.length === 0) return
 
     // 숨김/시스템 파일 제외
-    const ignoredNames = new Set(['.DS_Store', 'Thumbs.db', '.git', 'node_modules', '.next', 'dist', 'build'])
+    const ignoredNames = new Set(['.DS_Store', 'Thumbs.db', '.git', 'node_modules', '.next'])
     const validFiles = Array.from(selectedFiles)
       .filter(file => {
         const fileName = file.name
@@ -634,7 +637,6 @@ export function FileTreePanel({ mapId }: FileTreePanelProps) {
 
     setIsExpanded(true)
 
-    // 파일 타입 결정 함수
     const getFileType = (fileName: string): string => {
       const ext = fileName.split('.').pop()?.toLowerCase() || ''
       const imageExts = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'ico', 'bmp']
@@ -650,16 +652,10 @@ export function FileTreePanel({ mapId }: FileTreePanelProps) {
       return 'text'
     }
 
-    // 타임스탬프를 한 번만 생성
     const timestamp = Date.now()
-
-    // 파일 ID 미리 생성
     const fileIds = validFiles.map((_, index) => `local-${timestamp}-${index}`)
-
-    // 파일 내용 저장용 Map
     const fileContentsMap = new Map<number, string>()
 
-    // 파일 내용 미리 읽기 (텍스트 파일만)
     for (let i = 0; i < validFiles.length; i++) {
       const file = validFiles[i]
       const type = getFileType(file.name)
@@ -667,22 +663,18 @@ export function FileTreePanel({ mapId }: FileTreePanelProps) {
         try {
           const content = await file.text()
           fileContentsMap.set(i, content)
-          console.log('[FileTree] Read content for:', file.name, 'length:', content.length)
         } catch (err) {
           console.error('파일 읽기 실패:', file.name, err)
         }
       }
     }
 
-    // 로컬 파일을 NeuralFile 형태로 변환 (content 포함)
     const localFiles: NeuralFile[] = validFiles.map((file, index) => {
       const rawPath = (file as any).webkitRelativePath || file.name
       const path = normalizePath(rawPath)
       const id = fileIds[index]
       const type = getFileType(file.name) as NeuralFile['type']
       const content = fileContentsMap.get(index)
-
-      // Blob URL 생성 (이미지/비디오용)
       const blobUrl = URL.createObjectURL(file)
 
       const neuralFile: NeuralFile = {
@@ -696,7 +688,6 @@ export function FileTreePanel({ mapId }: FileTreePanelProps) {
         createdAt: new Date().toISOString(),
       }
 
-      // content가 있으면 추가
       if (content) {
         (neuralFile as any).content = content
       }
@@ -704,20 +695,14 @@ export function FileTreePanel({ mapId }: FileTreePanelProps) {
       return neuralFile
     })
 
-    // 기존 파일 교체 여부 확인
     if (files.length > 0) {
       const choice = window.confirm(
-        `기존 파일 ${files.length}개가 있습니다.\n\n` +
-        `[확인] = 기존 파일 교체\n` +
-        `[취소] = 기존 파일 유지하고 추가`
+        `기존 파일 ${files.length}개가 있습니다.\n[확인] = 교체\n[취소] = 추가`
       )
-
       if (choice) {
-        // 기존 파일 교체 - 그래프도 초기화
         setFiles(localFiles)
         buildGraphFromFiles()
       } else {
-        // 기존 파일에 추가
         const existingPaths = new Set(files.map(f => f.path))
         const newFiles = localFiles.filter(f => !existingPaths.has(f.path))
         setFiles([...files, ...newFiles])
@@ -728,11 +713,145 @@ export function FileTreePanel({ mapId }: FileTreePanelProps) {
       buildGraphFromFiles()
     }
 
-    console.log(`✅ ${localFiles.length}개 파일 로드 완료!`)
-
     // 입력 초기화
     if (folderInputRef.current) {
       folderInputRef.current.value = ''
+    }
+  }
+
+  // 폴더 업로드 - File System Access API (Real Sync)
+  const handleNativeFolderUpload = async () => {
+    try {
+      const dirHandle = await FileSystemManager.selectDirectory()
+      if (!dirHandle) return
+
+      if (showHiddenFiles) {
+        const confirmResult = window.confirm(
+          "경고: 숨김 파일(node_modules, .git 등)을 모두 포함하면 \n" +
+          "파일 개수가 너무 많아 브라우저가 응답하지 않을 수 있습니다.\n\n" +
+          "그래도 진행하시겠습니까?"
+        )
+        if (!confirmResult) return
+      }
+
+      setIsExpanded(true)
+      FileSystemManager.setProjectHandle(dirHandle)
+
+      // 폴더 스캔 (재귀적)
+      console.log('Scanning directory:', dirHandle.name)
+      const { files: scannedFiles, handles } = await FileSystemManager.readDirectory(dirHandle, '', { includeSystemFiles: showHiddenFiles })
+      console.log(`Found ${scannedFiles.length} files`)
+
+      if (scannedFiles.length === 0) {
+        alert('업로드 가능한 파일이 없습니다.')
+        return
+      }
+
+      // 파일 타입 결정 함수
+      const getFileType = (fileName: string): string => {
+        const ext = fileName.split('.').pop()?.toLowerCase() || ''
+        const imageExts = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'ico', 'bmp']
+        const videoExts = ['mp4', 'webm', 'mov', 'avi', 'mkv']
+        const mdExts = ['md', 'markdown', 'mdx']
+        const codeExts = ['ts', 'tsx', 'js', 'jsx', 'json', 'css', 'scss', 'html', 'py', 'go', 'rs', 'java', 'c', 'cpp', 'h']
+
+        if (ext === 'pdf') return 'pdf'
+        if (imageExts.includes(ext)) return 'image'
+        if (videoExts.includes(ext)) return 'video'
+        if (mdExts.includes(ext)) return 'markdown'
+        if (codeExts.includes(ext)) return 'code'
+        return 'text'
+      }
+
+      const timestamp = Date.now()
+      const fileIds = scannedFiles.map((_, index) => `local-${timestamp}-${index}`)
+      const fileContentsMap = new Map<number, string>()
+
+      // 파일 읽기
+      for (let i = 0; i < scannedFiles.length; i++) {
+        const file = scannedFiles[i]
+        const type = getFileType(file.name)
+        if (type === 'code' || type === 'markdown' || type === 'text' || type === 'config' || file.name === '.env') {
+          try {
+            const content = await file.text()
+            fileContentsMap.set(i, content)
+          } catch (err) {
+            console.error('Failed to read file:', file.name, err)
+          }
+        }
+      }
+
+      // NeuralFile 변환 및 핸들 등록
+      const localFiles: NeuralFile[] = scannedFiles.map((file, index) => {
+        // webkitRelativePath was injected by FileSystemManager
+        const rawPath = (file as any).webkitRelativePath || file.name
+        const path = normalizePath(rawPath)
+        const id = fileIds[index]
+        const type = getFileType(file.name) as NeuralFile['type']
+        const content = fileContentsMap.get(index)
+
+        // Register Handle
+        const handle = handles.get(rawPath)
+        if (handle) {
+          FileSystemManager.registerFileHandle(id, handle)
+        }
+
+        let blobUrl = ''
+        try {
+          // @ts-ignore
+          if (window.electron) {
+            // in Electron, we use file:// path
+            // Accessing the 'path' property we injected in the fake file
+            blobUrl = `file://${(file as any).path}`
+          } else {
+            blobUrl = URL.createObjectURL(file)
+          }
+        } catch (e) {
+          console.warn('Failed to create object URL', e)
+        }
+
+        const neuralFile: NeuralFile = {
+          id,
+          mapId: mapId || 'local',
+          name: file.name,
+          path: path,
+          type: type,
+          url: blobUrl,
+          size: file.size,
+          createdAt: new Date().toISOString(),
+        }
+
+        if (content) {
+          (neuralFile as any).content = content
+        }
+        return neuralFile
+      })
+
+      // 기존 파일 교체 여부 확인
+      if (files.length > 0) {
+        const choice = window.confirm(
+          `기존 파일 ${files.length}개가 있습니다.\n[확인] = 교체 (실제 폴더 연동)\n[취소] = 추가`
+        )
+        if (choice) {
+          setFiles(localFiles)
+          buildGraphFromFiles()
+        } else {
+          const existingPaths = new Set(files.map(f => f.path))
+          const newFiles = localFiles.filter(f => !existingPaths.has(f.path))
+          setFiles([...files, ...newFiles])
+          buildGraphFromFiles()
+        }
+      } else {
+        setFiles(localFiles)
+        buildGraphFromFiles()
+      }
+
+      console.log(`✅ ${localFiles.length} files loaded via File System Access API`)
+
+    } catch (err) {
+      if ((err as any).name === 'AbortError') return; // User cancelled
+      console.error('Folder upload failed:', err)
+      alert("Folder access failed. Note: Use Chrome/Edge/Opera.")
     }
   }
 
@@ -804,16 +923,23 @@ export function FileTreePanel({ mapId }: FileTreePanelProps) {
               <PenLine className="w-[18px] h-[18px]" />
             </button>
 
-            {/* 새 폴더 */}
+            {/* 새 폴더 (오픈 폴더) */}
             <button
-              onClick={() => folderInputRef.current?.click()}
+              onClick={() => {
+                // @ts-ignore
+                if (window.showDirectoryPicker || isElectron()) {
+                  handleNativeFolderUpload()
+                } else {
+                  folderInputRef.current?.click()
+                }
+              }}
               disabled={!mapId}
               className={cn(
                 'p-2 rounded transition-colors',
                 isDark ? 'hover:bg-[#3c3c3c]' : 'hover:bg-[#e8e8e8]',
                 !mapId && 'opacity-50 cursor-not-allowed'
               )}
-              title="New folder"
+              title="Open Local Folder (Sync)"
             >
               <FolderPlus className="w-[18px] h-[18px]" />
             </button>
@@ -832,17 +958,7 @@ export function FileTreePanel({ mapId }: FileTreePanelProps) {
               <Eye className="w-[18px] h-[18px]" />
             </button>
 
-            {/* 데모 로드 */}
-            <button
-              onClick={loadMockProjectData}
-              className={cn(
-                'p-2 rounded transition-colors',
-                isDark ? 'hover:bg-[#3c3c3c] text-emerald-400' : 'hover:bg-[#e8e8e8] text-emerald-600'
-              )}
-              title="Load demo project"
-            >
-              <Play className="w-[18px] h-[18px]" />
-            </button>
+
 
             {/* 정렬 */}
             <div className="relative" ref={sortMenuRef}>
@@ -920,6 +1036,18 @@ export function FileTreePanel({ mapId }: FileTreePanelProps) {
               title="Close"
             >
               <X className="w-[18px] h-[18px]" />
+            </button>
+            {/* 숨김 파일 토글 (설정) */}
+            <button
+              onClick={() => setShowHiddenFiles(!showHiddenFiles)}
+              className={cn(
+                'p-2 rounded transition-colors',
+                isDark ? 'hover:bg-[#3c3c3c]' : 'hover:bg-[#e8e8e8]',
+                showHiddenFiles && (isDark ? 'text-amber-400' : 'text-amber-600 bg-amber-100')
+              )}
+              title={showHiddenFiles ? "Hide System Files (node_modules, .git)" : "Show All Files (Experimental)"}
+            >
+              <VscFolderOpened className="w-[18px] h-[18px]" />
             </button>
           </>
         )}
@@ -1043,7 +1171,7 @@ export function FileTreePanel({ mapId }: FileTreePanelProps) {
         webkitdirectory=""
         directory=""
         multiple
-        onChange={handleFolderUpload}
+        onChange={handleLegacyFolderUpload}
         accept="*/*"
         className="hidden"
       />

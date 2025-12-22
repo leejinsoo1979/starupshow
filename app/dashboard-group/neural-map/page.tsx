@@ -75,6 +75,15 @@ const SchemaView = dynamic(
   }
 )
 
+// Dynamically import Life Stream View
+const LifeStreamView = dynamic(
+  () => import('@/components/neural-map/views/LifeStreamView').then((mod) => mod.LifeStreamView),
+  {
+    ssr: false,
+    loading: () => <CanvasLoadingFallback />,
+  }
+)
+
 // Loading fallback for canvas
 function CanvasLoadingFallback() {
   const currentTheme = useNeuralMapStore((s) => s.currentTheme)
@@ -416,12 +425,7 @@ export default function NeuralMapPage() {
                 </div>
               </div>
             ) : activeTab === 'life-stream' ? (
-              <div className="absolute inset-0 flex items-center justify-center text-zinc-500">
-                <div className="text-center">
-                  <h2 className="text-2xl font-bold mb-2">Life Stream</h2>
-                  <p>Development Pipeline Visualization (The Blueprint) Coming Soon</p>
-                </div>
-              </div>
+              <LifeStreamView className="absolute inset-0" />
             ) : activeTab === 'data' ? (
               <SchemaView className="absolute inset-0" />
             ) : activeTab === 'logic' ? (

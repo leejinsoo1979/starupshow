@@ -33,7 +33,12 @@ export default function AuthLayout({
       {/* Content */}
       <div className="relative mx-auto flex min-h-screen max-w-6xl flex-col justify-center px-4">
         {/* Back to Home Button */}
-        <Button variant="ghost" className="absolute top-4 left-4 text-zinc-400 hover:text-zinc-100" asChild>
+        <Button
+          variant="ghost"
+          className="absolute left-4 text-zinc-400 hover:text-zinc-100"
+          style={{ top: 'calc(var(--title-bar-height, 0px) + 1rem)' }}
+          asChild
+        >
           <Link href="/">
             <ChevronLeft className="me-1 size-4" />
             홈으로

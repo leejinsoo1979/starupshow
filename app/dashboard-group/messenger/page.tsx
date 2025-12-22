@@ -22,6 +22,16 @@ import { DEV_USER, isDevMode } from '@/lib/dev-user'
 import { useAuth } from '@/hooks/useAuth'
 import { PROVIDER_INFO, LLMProvider } from '@/lib/llm/models'
 import { useThemeStore, accentColors } from '@/stores/themeStore'
+import { useVoice, OpenAIVoice } from '@/hooks/useVoice'
+
+// 에이전트 역할별 음성 매핑
+const ROLE_VOICES: Record<string, OpenAIVoice> = {
+  strategist: 'onyx',
+  analyst: 'nova',
+  executor: 'alloy',
+  critic: 'fable',
+  mediator: 'shimmer',
+}
 
 // 참여자별 고유 색상 팔레트 (Enterprise 스타일)
 const AVATAR_COLORS = [
@@ -65,7 +75,7 @@ function detectRoomMode(room: ChatRoom | null): RoomMode {
   }
   // 회의실: 기본 AI 회의
   if (room.type === 'meeting' || category.includes('strategic') || category.includes('problem') ||
-      category.includes('action') || category.includes('idea') || category.includes('risk')) {
+    category.includes('action') || category.includes('idea') || category.includes('risk')) {
     return 'meeting'
   }
   return 'chat'
@@ -133,6 +143,17 @@ export default function MessengerPage() {
   const { user: authUser } = useAuth()
   const { accentColor } = useThemeStore()
   const currentAccent = accentColors.find(c => c.id === accentColor) || accentColors[0]
+
+  // 음성 서비스 훅
+  const {
+    isVoiceEnabled,
+    isPlaying,
+    isTranscribing,
+    toggleVoiceMode,
+    playSpeech,
+    startTranscription,
+    stopTranscription
+  } = useVoice()
 
   // 현재 사용자 ID (DEV 모드 or 실제 로그인)
   const currentUserId = isDevMode() ? DEV_USER.id : authUser?.id || null
@@ -211,6 +232,23 @@ export default function MessengerPage() {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight
     }
   }, [activeRoomId])
+
+  // 에이전트 메시지 수신 시 자동 재생
+  useEffect(() => {
+    if (!isVoiceEnabled || messages.length === 0) return
+
+    const lastMessage = messages[messages.length - 1]
+    if (lastMessage.sender_type === 'agent' && !lastMessage.metadata?.speech_played) {
+      // 역할에 따른 목소리 선택
+      const agentRole = meetingConfig?.agentConfigs?.find((c: any) => c.id === lastMessage.sender_agent_id)?.role
+      const voice = (agentRole ? ROLE_VOICES[agentRole] : 'alloy') as OpenAIVoice
+
+      playSpeech(lastMessage.content, voice)
+
+      // 중복 재생 방지를 위해 메타데이터 표시 (로컬에서만 관리)
+      lastMessage.metadata = { ...lastMessage.metadata, speech_played: true }
+    }
+  }, [messages, isVoiceEnabled, meetingConfig, playSpeech])
 
   // 에이전트 멘션 (프로필 클릭 시)
   const mentionAgent = (agentName: string) => {
@@ -490,9 +528,8 @@ export default function MessengerPage() {
     <div className={`flex h-[calc(100vh-4rem)] overflow-hidden ${isDark ? 'bg-zinc-950 text-zinc-100' : 'bg-white text-zinc-900'}`}>
 
       {/* Sidebar - Room List - 회의/채팅방 선택 시 숨김 */}
-      <div className={`w-full lg:w-72 flex-shrink-0 flex flex-col border-r ${
-        isDark ? 'border-zinc-800/50 bg-zinc-900' : 'border-zinc-200 bg-white'
-      } ${activeRoomId ? 'hidden' : 'flex'}`}>
+      <div className={`w-full lg:w-72 flex-shrink-0 flex flex-col border-r ${isDark ? 'border-zinc-800/50 bg-zinc-900' : 'border-zinc-200 bg-white'
+        } ${activeRoomId ? 'hidden' : 'flex'}`}>
 
         {/* Header */}
         <div className={`px-4 py-3 border-b ${isDark ? 'border-zinc-800/50' : 'border-zinc-200'} flex items-center justify-between`}>
@@ -501,9 +538,8 @@ export default function MessengerPage() {
           </span>
           <button
             onClick={() => setShowNewChat(true)}
-            className={`p-1.5 rounded-lg transition-colors ${
-              isDark ? 'hover:bg-zinc-800 text-zinc-400' : 'hover:bg-zinc-100 text-zinc-500'
-            }`}
+            className={`p-1.5 rounded-lg transition-colors ${isDark ? 'hover:bg-zinc-800 text-zinc-400' : 'hover:bg-zinc-100 text-zinc-500'
+              }`}
           >
             <Plus className="w-4 h-4" />
           </button>
@@ -511,9 +547,8 @@ export default function MessengerPage() {
 
         {/* Search */}
         <div className="p-3">
-          <div className={`relative rounded-lg overflow-hidden ${
-            isDark ? 'bg-zinc-800/50' : 'bg-zinc-100'
-          }`}>
+          <div className={`relative rounded-lg overflow-hidden ${isDark ? 'bg-zinc-800/50' : 'bg-zinc-100'
+            }`}>
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-zinc-500" />
             <input
               type="text"
@@ -533,9 +568,8 @@ export default function MessengerPage() {
             </div>
           ) : filteredRooms.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-12 px-4">
-              <div className={`w-12 h-12 rounded-xl flex items-center justify-center mb-3 ${
-                isDark ? 'bg-zinc-800' : 'bg-zinc-100'
-              }`}>
+              <div className={`w-12 h-12 rounded-xl flex items-center justify-center mb-3 ${isDark ? 'bg-zinc-800' : 'bg-zinc-100'
+                }`}>
                 <MessageSquare className={`w-5 h-5 ${isDark ? 'text-zinc-600' : 'text-zinc-400'}`} />
               </div>
               <p className={`text-sm font-medium ${isDark ? 'text-zinc-400' : 'text-zinc-600'}`}>No conversations</p>
@@ -543,68 +577,65 @@ export default function MessengerPage() {
             </div>
           ) : (
             <div className="space-y-0.5">
-            {filteredRooms.map((room) => {
-              const displayName = getRoomDisplayName(room)
-              const roomModeType = detectRoomMode(room)
-              const hasUnread = (room.unread_count || 0) > 0
-              const hasAgents = room.participants?.some(p => p.agent && !p.user)
+              {filteredRooms.map((room) => {
+                const displayName = getRoomDisplayName(room)
+                const roomModeType = detectRoomMode(room)
+                const hasUnread = (room.unread_count || 0) > 0
+                const hasAgents = room.participants?.some(p => p.agent && !p.user)
 
-              return (
-                <button
-                  key={room.id}
-                  onClick={() => selectRoom(room)}
-                  className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg transition-all text-left ${
-                    activeRoomId === room.id
+                return (
+                  <button
+                    key={room.id}
+                    onClick={() => selectRoom(room)}
+                    className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg transition-all text-left ${activeRoomId === room.id
                       ? isDark ? 'bg-zinc-800' : 'bg-zinc-100'
                       : isDark ? 'hover:bg-zinc-800/50' : 'hover:bg-zinc-50'
-                  }`}
-                >
-                  {/* Room Type Icon */}
-                  <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${
-                    roomModeType === 'meeting' ? 'bg-indigo-500/10' :
-                    roomModeType === 'debate' ? 'bg-amber-500/10' :
-                    roomModeType === 'presentation' ? 'bg-emerald-500/10' :
-                    isDark ? 'bg-zinc-800' : 'bg-zinc-100'
-                  }`}>
-                    {roomModeType === 'meeting' && <Target className="w-3.5 h-3.5 text-indigo-400" />}
-                    {roomModeType === 'debate' && <Swords className="w-3.5 h-3.5 text-amber-400" />}
-                    {roomModeType === 'presentation' && <Presentation className="w-3.5 h-3.5 text-emerald-400" />}
-                    {roomModeType === 'chat' && (
-                      hasAgents
-                        ? <Bot className="w-3.5 h-3.5 text-zinc-500" />
-                        : <MessageSquare className="w-3.5 h-3.5 text-zinc-500" />
-                    )}
-                  </div>
-
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center justify-between gap-2 mb-0.5">
-                      <span className={`text-sm font-medium truncate ${
-                        activeRoomId === room.id
-                          ? isDark ? 'text-white' : 'text-zinc-900'
-                          : isDark ? 'text-zinc-300' : 'text-zinc-700'
+                      }`}
+                  >
+                    {/* Room Type Icon */}
+                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${roomModeType === 'meeting' ? 'bg-indigo-500/10' :
+                      roomModeType === 'debate' ? 'bg-amber-500/10' :
+                        roomModeType === 'presentation' ? 'bg-emerald-500/10' :
+                          isDark ? 'bg-zinc-800' : 'bg-zinc-100'
                       }`}>
-                        {displayName}
-                      </span>
-                      <span className="text-[10px] text-zinc-500 flex-shrink-0">
-                        {room.last_message?.created_at
-                          ? formatTime(room.last_message.created_at)
-                          : ''}
-                      </span>
-                    </div>
-                    <div className="flex items-center justify-between gap-2">
-                      <p className="text-xs text-zinc-500 truncate">
-                        {room.last_message?.content || 'No messages yet'}
-                      </p>
-                      {hasUnread && (
-                        <span className="min-w-[1rem] h-4 rounded-full bg-accent text-white text-[9px] font-bold flex items-center justify-center px-1 flex-shrink-0">
-                          {room.unread_count}
-                        </span>
+                      {roomModeType === 'meeting' && <Target className="w-3.5 h-3.5 text-indigo-400" />}
+                      {roomModeType === 'debate' && <Swords className="w-3.5 h-3.5 text-amber-400" />}
+                      {roomModeType === 'presentation' && <Presentation className="w-3.5 h-3.5 text-emerald-400" />}
+                      {roomModeType === 'chat' && (
+                        hasAgents
+                          ? <Bot className="w-3.5 h-3.5 text-zinc-500" />
+                          : <MessageSquare className="w-3.5 h-3.5 text-zinc-500" />
                       )}
                     </div>
-                  </div>
-                </button>
-              )
-            })}
+
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between gap-2 mb-0.5">
+                        <span className={`text-sm font-medium truncate ${activeRoomId === room.id
+                          ? isDark ? 'text-white' : 'text-zinc-900'
+                          : isDark ? 'text-zinc-300' : 'text-zinc-700'
+                          }`}>
+                          {displayName}
+                        </span>
+                        <span className="text-[10px] text-zinc-500 flex-shrink-0">
+                          {room.last_message?.created_at
+                            ? formatTime(room.last_message.created_at)
+                            : ''}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="text-xs text-zinc-500 truncate">
+                          {room.last_message?.content || 'No messages yet'}
+                        </p>
+                        {hasUnread && (
+                          <span className="min-w-[1rem] h-4 rounded-full bg-accent text-white text-[9px] font-bold flex items-center justify-center px-1 flex-shrink-0">
+                            {room.unread_count}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </button>
+                )
+              })}
             </div>
           )}
         </div>
@@ -614,9 +645,8 @@ export default function MessengerPage() {
       <div className={`flex-1 flex flex-col min-w-0 ${!activeRoomId ? 'hidden lg:flex' : 'flex'}`}>
 
         {/* Chat Header - Enterprise Style */}
-        <div className={`h-14 px-4 border-b flex items-center justify-between flex-shrink-0 ${
-          isDark ? 'border-zinc-800/50 bg-zinc-900' : 'border-zinc-200 bg-white'
-        }`}>
+        <div className={`h-14 px-4 border-b flex items-center justify-between flex-shrink-0 ${isDark ? 'border-zinc-800/50 bg-zinc-900' : 'border-zinc-200 bg-white'
+          }`}>
           {activeRoom ? (
             <div className="flex items-center gap-3 min-w-0">
               <Button
@@ -632,12 +662,11 @@ export default function MessengerPage() {
               </Button>
 
               {/* Room Mode Icon */}
-              <div className={`w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 ${
-                roomMode === 'meeting' ? 'bg-indigo-500/10' :
+              <div className={`w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 ${roomMode === 'meeting' ? 'bg-indigo-500/10' :
                 roomMode === 'debate' ? 'bg-amber-500/10' :
-                roomMode === 'presentation' ? 'bg-emerald-500/10' :
-                isDark ? 'bg-zinc-800' : 'bg-zinc-100'
-              }`}>
+                  roomMode === 'presentation' ? 'bg-emerald-500/10' :
+                    isDark ? 'bg-zinc-800' : 'bg-zinc-100'
+                }`}>
                 {roomMode === 'meeting' && <Target className={`w-4 h-4 ${isDark ? 'text-indigo-400' : 'text-indigo-600'}`} />}
                 {roomMode === 'debate' && <Swords className={`w-4 h-4 ${isDark ? 'text-amber-400' : 'text-amber-600'}`} />}
                 {roomMode === 'presentation' && <Presentation className={`w-4 h-4 ${isDark ? 'text-emerald-400' : 'text-emerald-600'}`} />}
@@ -648,11 +677,10 @@ export default function MessengerPage() {
                 <div className="flex items-center gap-2">
                   <h2 className="font-semibold text-sm truncate">{getRoomDisplayName(activeRoom)}</h2>
                   {roomMode !== 'chat' && (
-                    <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium uppercase tracking-wide ${
-                      roomMode === 'meeting' ? 'bg-indigo-500/10 text-indigo-400' :
+                    <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium uppercase tracking-wide ${roomMode === 'meeting' ? 'bg-indigo-500/10 text-indigo-400' :
                       roomMode === 'debate' ? 'bg-amber-500/10 text-amber-400' :
-                      'bg-emerald-500/10 text-emerald-400'
-                    }`}>
+                        'bg-emerald-500/10 text-emerald-400'
+                      }`}>
                       {roomMode === 'meeting' ? 'Meeting' : roomMode === 'debate' ? 'Debate' : 'Presentation'}
                     </span>
                   )}
@@ -707,7 +735,6 @@ export default function MessengerPage() {
             <Button size="icon" variant="ghost" className="text-zinc-500 hover:text-accent">
               <Video className="w-5 h-5" />
             </Button>
-
             {/* 화면 공유 버튼 */}
             {isViewerActive ? (
               <Button
@@ -732,6 +759,22 @@ export default function MessengerPage() {
               </Button>
             )}
 
+            <div className={`w-px h-6 mx-1 ${isDark ? 'bg-zinc-800' : 'bg-zinc-200'}`}></div>
+
+            {/* 음성 모드 토글 */}
+            <Button
+              size="icon"
+              variant="ghost"
+              className={`transition-colors ${isVoiceEnabled
+                ? 'text-accent bg-accent/10'
+                : 'text-zinc-500 hover:text-accent'
+                }`}
+              onClick={toggleVoiceMode}
+              title={isVoiceEnabled ? '음성 모드 끄기' : '음성 모드 켜기'}
+            >
+              {isVoiceEnabled ? <Volume2 className="w-5 h-5" /> : <Volume2 className="w-5 h-5 opacity-40" />}
+            </Button>
+
             <div className={`w-px h-6 mx-2 ${isDark ? 'bg-zinc-800' : 'bg-zinc-200'}`}></div>
 
             {/* 채팅방 설정 드롭다운 */}
@@ -751,9 +794,8 @@ export default function MessengerPage() {
                     initial={{ opacity: 0, y: -10 }}
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: -10 }}
-                    className={`absolute right-0 top-full mt-2 w-48 rounded-xl shadow-xl border z-50 ${
-                      isDark ? 'bg-zinc-900 border-zinc-800' : 'bg-white border-zinc-200'
-                    }`}
+                    className={`absolute right-0 top-full mt-2 w-48 rounded-xl shadow-xl border z-50 ${isDark ? 'bg-zinc-900 border-zinc-800' : 'bg-white border-zinc-200'
+                      }`}
                   >
                     <div className="py-2">
                       <button
@@ -761,9 +803,8 @@ export default function MessengerPage() {
                           setShowRoomSettings(false)
                           setShowInviteModal(true)
                         }}
-                        className={`w-full flex items-center gap-3 px-4 py-2.5 text-sm transition-colors ${
-                          isDark ? 'hover:bg-zinc-800' : 'hover:bg-zinc-100'
-                        }`}
+                        className={`w-full flex items-center gap-3 px-4 py-2.5 text-sm transition-colors ${isDark ? 'hover:bg-zinc-800' : 'hover:bg-zinc-100'
+                          }`}
                       >
                         <UserPlus className="w-4 h-4 text-blue-500" />
                         <span>참여자 초대</span>
@@ -774,9 +815,8 @@ export default function MessengerPage() {
                           setShowRoomSettings(false)
                           setConfirmLeave(true)
                         }}
-                        className={`w-full flex items-center gap-3 px-4 py-2.5 text-sm transition-colors ${
-                          isDark ? 'hover:bg-zinc-800' : 'hover:bg-zinc-100'
-                        }`}
+                        className={`w-full flex items-center gap-3 px-4 py-2.5 text-sm transition-colors ${isDark ? 'hover:bg-zinc-800' : 'hover:bg-zinc-100'
+                          }`}
                       >
                         <LogOut className="w-4 h-4 text-orange-500" />
                         <span>채팅방 나가기</span>
@@ -790,9 +830,8 @@ export default function MessengerPage() {
                               setShowRoomSettings(false)
                               setConfirmDelete(true)
                             }}
-                            className={`w-full flex items-center gap-3 px-4 py-2.5 text-sm text-red-500 transition-colors ${
-                              isDark ? 'hover:bg-zinc-800' : 'hover:bg-zinc-100'
-                            }`}
+                            className={`w-full flex items-center gap-3 px-4 py-2.5 text-sm text-red-500 transition-colors ${isDark ? 'hover:bg-zinc-800' : 'hover:bg-zinc-100'
+                              }`}
                           >
                             <Trash2 className="w-4 h-4" />
                             <span>채팅방 삭제</span>
@@ -820,9 +859,8 @@ export default function MessengerPage() {
         <div className="flex flex-1 overflow-hidden">
           {/* Shared Viewer Panel - 회의/토론/발표 모드이거나 공유 화면이 활성화되면 왼쪽에 표시 */}
           {(roomMode !== 'chat' || meetingStatus?.is_meeting_active || (showSharedViewer && isViewerActive)) && (
-            <div className={`w-1/2 border-r flex-shrink-0 flex flex-col ${
-              isDark ? 'border-zinc-800/50 bg-zinc-950' : 'border-zinc-200 bg-zinc-50'
-            }`}>
+            <div className={`w-1/2 border-r flex-shrink-0 flex flex-col ${isDark ? 'border-zinc-800/50 bg-zinc-950' : 'border-zinc-200 bg-zinc-50'
+              }`}>
               {isViewerActive ? (
                 <SharedViewer
                   roomId={activeRoomId!}
@@ -835,9 +873,8 @@ export default function MessengerPage() {
               ) : (
                 /* 파일 없을 때 Placeholder UI */
                 <div className="flex-1 flex flex-col items-center justify-center p-8">
-                  <div className={`w-24 h-24 rounded-2xl flex items-center justify-center mb-6 ${
-                    isDark ? 'bg-zinc-800/50' : 'bg-zinc-200/50'
-                  }`}>
+                  <div className={`w-24 h-24 rounded-2xl flex items-center justify-center mb-6 ${isDark ? 'bg-zinc-800/50' : 'bg-zinc-200/50'
+                    }`}>
                     <MonitorPlay className={`w-12 h-12 ${isDark ? 'text-zinc-600' : 'text-zinc-400'}`} />
                   </div>
                   <h3 className={`text-lg font-medium mb-2 ${isDark ? 'text-zinc-300' : 'text-zinc-700'}`}>
@@ -887,9 +924,8 @@ export default function MessengerPage() {
               const isLowTime = remainingSeconds <= 60
 
               return (
-                <div className={`flex items-center justify-between py-2 px-4 border-b ${
-                  isDark ? 'bg-zinc-900/50 border-zinc-800/50' : 'bg-zinc-50/50 border-zinc-200'
-                }`}>
+                <div className={`flex items-center justify-between py-2 px-4 border-b ${isDark ? 'bg-zinc-900/50 border-zinc-800/50' : 'bg-zinc-50/50 border-zinc-200'
+                  }`}>
                   <div className="flex items-center gap-4">
                     {/* Live Indicator */}
                     <div className="flex items-center gap-2">
@@ -897,17 +933,15 @@ export default function MessengerPage() {
                         <span className="absolute w-2 h-2 bg-red-500 rounded-full animate-ping opacity-75" />
                         <span className="relative w-2 h-2 bg-red-500 rounded-full" />
                       </div>
-                      <span className={`text-xs font-semibold uppercase tracking-wider ${
-                        isDark ? 'text-red-400' : 'text-red-600'
-                      }`}>Live</span>
+                      <span className={`text-xs font-semibold uppercase tracking-wider ${isDark ? 'text-red-400' : 'text-red-600'
+                        }`}>Live</span>
                     </div>
 
                     {/* Timer */}
-                    <div className={`flex items-center gap-1.5 px-3 py-1 rounded-md font-mono text-sm ${
-                      isLowTime
-                        ? 'bg-red-500/10 text-red-500'
-                        : isDark ? 'bg-zinc-800 text-zinc-300' : 'bg-zinc-100 text-zinc-700'
-                    }`}>
+                    <div className={`flex items-center gap-1.5 px-3 py-1 rounded-md font-mono text-sm ${isLowTime
+                      ? 'bg-red-500/10 text-red-500'
+                      : isDark ? 'bg-zinc-800 text-zinc-300' : 'bg-zinc-100 text-zinc-700'
+                      }`}>
                       <Timer className="w-3.5 h-3.5" />
                       <span className="font-medium tabular-nums">
                         {formatMeetingTime(remainingSeconds)}
@@ -924,9 +958,8 @@ export default function MessengerPage() {
 
                     {/* Facilitator */}
                     {facilitatorAgent && (
-                      <div className={`flex items-center gap-1.5 px-2 py-0.5 rounded text-xs ${
-                        isDark ? 'bg-zinc-800 text-zinc-400' : 'bg-zinc-100 text-zinc-600'
-                      }`}>
+                      <div className={`flex items-center gap-1.5 px-2 py-0.5 rounded text-xs ${isDark ? 'bg-zinc-800 text-zinc-400' : 'bg-zinc-100 text-zinc-600'
+                        }`}>
                         <Crown className="w-3 h-3 text-amber-500" />
                         <span>{facilitatorAgent.name}</span>
                       </div>
@@ -936,11 +969,10 @@ export default function MessengerPage() {
                   <Button
                     size="sm"
                     variant="ghost"
-                    className={`h-7 px-2.5 text-xs font-medium ${
-                      isDark
-                        ? 'text-zinc-400 hover:text-red-400 hover:bg-red-500/10'
-                        : 'text-zinc-600 hover:text-red-600 hover:bg-red-50'
-                    }`}
+                    className={`h-7 px-2.5 text-xs font-medium ${isDark
+                      ? 'text-zinc-400 hover:text-red-400 hover:bg-red-500/10'
+                      : 'text-zinc-600 hover:text-red-600 hover:bg-red-50'
+                      }`}
                     onClick={endMeeting}
                     disabled={meetingLoading}
                   >
@@ -953,31 +985,29 @@ export default function MessengerPage() {
 
             {/* Room Mode Context Panel */}
             {activeRoom && roomMode !== 'chat' && !meetingStatus?.is_meeting_active && (
-              <div className={`px-4 py-3 border-b ${
-                isDark ? 'border-zinc-800/50 bg-zinc-900/30' : 'border-zinc-200 bg-zinc-50/50'
-              }`}>
+              <div className={`px-4 py-3 border-b ${isDark ? 'border-zinc-800/50 bg-zinc-900/30' : 'border-zinc-200 bg-zinc-50/50'
+                }`}>
                 {/* Meeting Room Context */}
                 {roomMode === 'meeting' && meetingConfig && (
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-4">
-                      <div className={`flex items-center gap-2 px-2.5 py-1 rounded-md ${
-                        isDark ? 'bg-indigo-500/10' : 'bg-indigo-50'
-                      }`}>
+                      <div className={`flex items-center gap-2 px-2.5 py-1 rounded-md ${isDark ? 'bg-indigo-500/10' : 'bg-indigo-50'
+                        }`}>
                         <Target className="w-3.5 h-3.5 text-indigo-500" />
                         <span className="text-xs font-medium text-indigo-500">
                           {meetingConfig.purpose === 'strategic_decision' ? 'Strategic Decision' :
-                           meetingConfig.purpose === 'problem_analysis' ? 'Problem Analysis' :
-                           meetingConfig.purpose === 'action_planning' ? 'Action Planning' :
-                           meetingConfig.purpose === 'idea_expansion' ? 'Idea Expansion' :
-                           meetingConfig.purpose === 'risk_validation' ? 'Risk Validation' : 'Meeting'}
+                            meetingConfig.purpose === 'problem_analysis' ? 'Problem Analysis' :
+                              meetingConfig.purpose === 'action_planning' ? 'Action Planning' :
+                                meetingConfig.purpose === 'idea_expansion' ? 'Idea Expansion' :
+                                  meetingConfig.purpose === 'risk_validation' ? 'Risk Validation' : 'Meeting'}
                         </span>
                       </div>
                       {meetingConfig.discussionMode && (
                         <span className={`text-xs ${isDark ? 'text-zinc-500' : 'text-zinc-600'}`}>
                           {meetingConfig.discussionMode === 'quick' ? 'Quick Conclusion' :
-                           meetingConfig.discussionMode === 'balanced' ? 'Balanced Discussion' :
-                           meetingConfig.discussionMode === 'deep' ? 'Deep Analysis' :
-                           'Brainstorming'}
+                            meetingConfig.discussionMode === 'balanced' ? 'Balanced Discussion' :
+                              meetingConfig.discussionMode === 'deep' ? 'Deep Analysis' :
+                                'Brainstorming'}
                         </span>
                       )}
                       {meetingConfig.agentConfigs?.length > 0 && (
@@ -989,9 +1019,8 @@ export default function MessengerPage() {
                     <Button
                       size="sm"
                       variant="ghost"
-                      className={`h-7 px-3 text-xs ${
-                        isDark ? 'text-indigo-400 hover:bg-indigo-500/10' : 'text-indigo-600 hover:bg-indigo-50'
-                      }`}
+                      className={`h-7 px-3 text-xs ${isDark ? 'text-indigo-400 hover:bg-indigo-500/10' : 'text-indigo-600 hover:bg-indigo-50'
+                        }`}
                       onClick={() => setShowMeetingModal(true)}
                     >
                       <Play className="w-3 h-3 mr-1" />
@@ -1004,9 +1033,8 @@ export default function MessengerPage() {
                 {roomMode === 'debate' && (
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-4">
-                      <div className={`flex items-center gap-2 px-2.5 py-1 rounded-md ${
-                        isDark ? 'bg-amber-500/10' : 'bg-amber-50'
-                      }`}>
+                      <div className={`flex items-center gap-2 px-2.5 py-1 rounded-md ${isDark ? 'bg-amber-500/10' : 'bg-amber-50'
+                        }`}>
                         <Swords className="w-3.5 h-3.5 text-amber-500" />
                         <span className="text-xs font-medium text-amber-500">Debate Mode</span>
                       </div>
@@ -1021,9 +1049,8 @@ export default function MessengerPage() {
                 {roomMode === 'presentation' && (
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-4">
-                      <div className={`flex items-center gap-2 px-2.5 py-1 rounded-md ${
-                        isDark ? 'bg-emerald-500/10' : 'bg-emerald-50'
-                      }`}>
+                      <div className={`flex items-center gap-2 px-2.5 py-1 rounded-md ${isDark ? 'bg-emerald-500/10' : 'bg-emerald-50'
+                        }`}>
                         <Presentation className="w-3.5 h-3.5 text-emerald-500" />
                         <span className="text-xs font-medium text-emerald-500">Presentation Mode</span>
                       </div>
@@ -1038,303 +1065,300 @@ export default function MessengerPage() {
 
             {/* Message List - Enterprise Style */}
             <div className={`flex-1 overflow-y-auto px-4 py-4 ${isDark ? 'bg-zinc-950' : 'bg-zinc-50/30'}`} ref={scrollRef} onScroll={handleScroll}>
-          {messagesLoading ? (
-            <div className="flex items-center justify-center h-full">
-              <div className="flex flex-col items-center gap-3">
-                <Loader2 className="w-6 h-6 animate-spin text-zinc-400" />
-                <span className="text-xs text-zinc-500">Loading messages...</span>
-              </div>
-            </div>
-          ) : messages.length === 0 ? (
-            <div className="flex flex-col items-center justify-center h-full">
-              <div className={`w-16 h-16 rounded-2xl flex items-center justify-center mb-4 ${
-                isDark ? 'bg-zinc-800' : 'bg-zinc-100'
-              }`}>
-                <MessageSquare className={`w-7 h-7 ${isDark ? 'text-zinc-600' : 'text-zinc-400'}`} />
-              </div>
-              <p className={`text-sm font-medium ${isDark ? 'text-zinc-400' : 'text-zinc-600'}`}>No messages yet</p>
-              <p className="text-xs text-zinc-500 mt-1">Send a message to start the conversation</p>
-            </div>
-          ) : (
-            <div className="space-y-3">
-            {messages.map((msg, index) => {
-              // 내가 보낸 메시지인지 확인
-              const isMe = msg.sender_type === 'user' && msg.sender_user_id === currentUserId
-              const isAgent = msg.sender_type === 'agent'
-              const senderName = msg.sender_user?.name || msg.sender_agent?.name || 'Unknown'
-              const senderInitials = senderName.slice(0, 2).toUpperCase()
-              const senderId = msg.sender_user_id || msg.sender_agent_id || ''
-
-              // 이전 메시지와 같은 발신자인지 확인 (연속 메시지 그룹핑)
-              const prevMsg = messages[index - 1]
-              const isContinuation = prevMsg &&
-                ((prevMsg.sender_user_id === msg.sender_user_id && msg.sender_user_id) ||
-                 (prevMsg.sender_agent_id === msg.sender_agent_id && msg.sender_agent_id)) &&
-                (new Date(msg.created_at).getTime() - new Date(prevMsg.created_at).getTime()) < 60000
-
-              // 에이전트 역할 정보
-              const agentRole = meetingConfig?.agentConfigs?.find((c: any) => c.id === msg.sender_agent_id)?.role
-              const roleStyle = agentRole ? ROLE_COLORS[agentRole] : null
-
-              // 시스템 메시지
-              if (msg.message_type === 'system') {
-                return (
-                  <div key={msg.id} className="flex justify-center py-2">
-                    <span className={`text-xs px-3 py-1 rounded-full ${
-                      isDark ? 'bg-zinc-800/50 text-zinc-500' : 'bg-zinc-100 text-zinc-500'
-                    }`}>
-                      {msg.content}
-                    </span>
+              {messagesLoading ? (
+                <div className="flex items-center justify-center h-full">
+                  <div className="flex flex-col items-center gap-3">
+                    <Loader2 className="w-6 h-6 animate-spin text-zinc-400" />
+                    <span className="text-xs text-zinc-500">Loading messages...</span>
                   </div>
-                )
-              }
-
-              return (
-                <motion.div
-                  key={msg.id}
-                  initial={{ opacity: 0, y: 8 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.15 }}
-                  className={`flex gap-2.5 ${isMe ? 'flex-row-reverse' : 'flex-row'} ${isContinuation ? 'mt-0.5' : 'mt-3'}`}
-                >
-                  {/* Avatar - 연속 메시지면 숨김 */}
-                  {!isMe && (
-                    <div className={`w-8 flex-shrink-0 ${isContinuation ? 'invisible' : ''}`}>
-                      <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-[10px] font-semibold ${
-                        isAgent && roleStyle
-                          ? `${roleStyle.bg} ${roleStyle.text}`
-                          : isDark ? 'bg-zinc-800 text-zinc-400' : 'bg-zinc-200 text-zinc-600'
-                      }`}>
-                        {isAgent ? <Bot className="w-3.5 h-3.5" /> : senderInitials}
-                      </div>
-                    </div>
-                  )}
-
-                  <div className={`flex flex-col max-w-[65%] ${isMe ? 'items-end' : 'items-start'}`}>
-                    {/* Sender Info - 연속 메시지면 숨김 */}
-                    {!isMe && !isContinuation && (
-                      <div className="flex items-center gap-1.5 mb-1 px-1">
-                        <span className={`text-xs font-medium ${isDark ? 'text-zinc-400' : 'text-zinc-600'}`}>
-                          {senderName}
-                        </span>
-                        {isAgent && agentRole && (
-                          <span className={`text-[10px] px-1.5 py-0.5 rounded ${roleStyle?.bg} ${roleStyle?.text}`}>
-                            {ROLE_LABELS[agentRole] || agentRole}
-                          </span>
-                        )}
-                        <span className="text-[10px] text-zinc-500">
-                          {formatTime(msg.created_at)}
-                        </span>
-                      </div>
-                    )}
-
-                    {/* Message Content */}
-                    {msg.message_type === 'image' && msg.metadata?.url ? (
-                      <div className={`rounded-xl overflow-hidden ${
-                        isDark ? 'bg-zinc-800' : 'bg-white border border-zinc-200'
-                      }`}>
-                        <a href={msg.metadata.url} target="_blank" rel="noopener noreferrer">
-                          <img
-                            src={msg.metadata.url}
-                            alt={msg.metadata.fileName || 'Image'}
-                            className="max-w-[280px] max-h-[180px] object-cover cursor-pointer hover:opacity-90 transition-opacity"
-                            onError={(e) => {
-                              (e.target as HTMLImageElement).style.display = 'none'
-                            }}
-                          />
-                        </a>
-                      </div>
-                    ) : msg.message_type === 'file' && msg.metadata?.url ? (
-                      <a
-                        href={msg.metadata.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className={`flex items-center gap-2.5 px-3 py-2.5 rounded-xl transition-colors ${
-                          isDark
-                            ? 'bg-zinc-800 hover:bg-zinc-700'
-                            : 'bg-white border border-zinc-200 hover:bg-zinc-50'
-                        }`}
-                      >
-                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${
-                          isDark ? 'bg-zinc-700' : 'bg-zinc-100'
-                        }`}>
-                          <FileText className="w-4 h-4 text-zinc-500" />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium truncate">{msg.metadata.fileName || 'File'}</p>
-                          <p className="text-xs text-zinc-500">{msg.metadata.fileSize ? formatFileSize(msg.metadata.fileSize) : ''}</p>
-                        </div>
-                        <Download className="w-4 h-4 text-zinc-400" />
-                      </a>
-                    ) : (
-                      <div className={`px-3.5 py-2 rounded-xl text-sm leading-relaxed ${
-                        isMe
-                          ? 'bg-accent text-white'
-                          : isAgent && roleStyle
-                            ? `${isDark ? 'bg-zinc-800/80' : 'bg-white'} border ${roleStyle.border}`
-                            : isDark
-                              ? 'bg-zinc-800/80 text-zinc-100'
-                              : 'bg-white text-zinc-900 border border-zinc-200'
-                      }`}>
-                        {msg.content}
-                      </div>
-                    )}
-
-                    {/* Time for own messages */}
-                    {isMe && !isContinuation && (
-                      <span className="text-[10px] text-zinc-500 mt-1 px-1">
-                        {formatTime(msg.created_at)}
-                      </span>
-                    )}
-                  </div>
-                </motion.div>
-              )
-            })}
-            </div>
-          )}
-
-          {/* Typing Indicator - Enterprise Style */}
-          <AnimatePresence>
-            {(agentTyping || typingUsers.length > 0) && (
-              <motion.div
-                initial={{ opacity: 0, y: 5 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -5 }}
-                className="px-4 py-2"
-              >
-                <div className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-lg ${
-                  isDark ? 'bg-zinc-800/50' : 'bg-zinc-100'
-                }`}>
-                  <div className="flex gap-0.5">
-                    <span className={`w-1.5 h-1.5 rounded-full animate-bounce ${
-                      agentTyping ? 'bg-indigo-400' : 'bg-zinc-400'
-                    }`} style={{ animationDelay: '0ms' }} />
-                    <span className={`w-1.5 h-1.5 rounded-full animate-bounce ${
-                      agentTyping ? 'bg-indigo-400' : 'bg-zinc-400'
-                    }`} style={{ animationDelay: '150ms' }} />
-                    <span className={`w-1.5 h-1.5 rounded-full animate-bounce ${
-                      agentTyping ? 'bg-indigo-400' : 'bg-zinc-400'
-                    }`} style={{ animationDelay: '300ms' }} />
-                  </div>
-                  <span className="text-xs text-zinc-500">
-                    {typingUsers.map(p => p.agent?.name || p.user?.name).slice(0, 2).join(', ')}
-                    {typingUsers.length > 2 && ` +${typingUsers.length - 2}`}
-                    {agentTyping ? ' generating...' : ' typing...'}
-                  </span>
                 </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </div>
-
-        {/* Input Area - Enterprise Style */}
-        {activeRoomId && (
-          <div className={`px-4 py-3 border-t flex-shrink-0 ${
-            isDark ? 'border-zinc-800/50 bg-zinc-900' : 'border-zinc-200 bg-white'
-          }`}>
-            {/* Hidden file inputs */}
-            <input
-              type="file"
-              ref={fileInputRef}
-              onChange={(e) => handleFileUpload(e, 'file')}
-              accept=".pdf,.doc,.docx,.xls,.xlsx,.txt,.csv"
-              className="hidden"
-            />
-            <input
-              type="file"
-              ref={imageInputRef}
-              onChange={(e) => handleFileUpload(e, 'image')}
-              accept="image/jpeg,image/png,image/gif,image/webp"
-              className="hidden"
-            />
-            {/* Hidden share file input (PDF, Image, Video) */}
-            <input
-              type="file"
-              ref={shareInputRef}
-              onChange={handleShareFile}
-              accept="application/pdf,image/jpeg,image/png,image/gif,image/webp,video/mp4,video/webm,video/quicktime"
-              className="hidden"
-            />
-
-            <div className={`flex items-center gap-2 px-3 py-2 rounded-xl border transition-all ${
-              isDark
-                ? 'bg-zinc-800/50 border-zinc-700/50 focus-within:border-zinc-600'
-                : 'bg-zinc-50 border-zinc-200 focus-within:border-zinc-300'
-            }`}>
-              {/* Attachment buttons */}
-              <div className="flex items-center gap-0.5">
-                <button
-                  onClick={() => fileInputRef.current?.click()}
-                  disabled={uploading}
-                  className={`p-1.5 rounded-lg transition-colors ${
-                    isDark ? 'hover:bg-zinc-700 text-zinc-500 hover:text-zinc-300' : 'hover:bg-zinc-200 text-zinc-400 hover:text-zinc-600'
-                  }`}
-                >
-                  <Paperclip className="w-4 h-4" />
-                </button>
-                <button
-                  onClick={() => imageInputRef.current?.click()}
-                  disabled={uploading}
-                  className={`p-1.5 rounded-lg transition-colors ${
-                    isDark ? 'hover:bg-zinc-700 text-zinc-500 hover:text-zinc-300' : 'hover:bg-zinc-200 text-zinc-400 hover:text-zinc-600'
-                  }`}
-                >
-                  <ImageIcon className="w-4 h-4" />
-                </button>
-              </div>
-
-              <div className={`w-px h-5 ${isDark ? 'bg-zinc-700' : 'bg-zinc-200'}`} />
-
-              {/* Input field */}
-              {uploading ? (
-                <div className="flex-1 flex items-center gap-2 py-1">
-                  <Loader2 className="w-4 h-4 animate-spin text-accent" />
-                  <span className="text-sm text-zinc-500">Uploading...</span>
+              ) : messages.length === 0 ? (
+                <div className="flex flex-col items-center justify-center h-full">
+                  <div className={`w-16 h-16 rounded-2xl flex items-center justify-center mb-4 ${isDark ? 'bg-zinc-800' : 'bg-zinc-100'
+                    }`}>
+                    <MessageSquare className={`w-7 h-7 ${isDark ? 'text-zinc-600' : 'text-zinc-400'}`} />
+                  </div>
+                  <p className={`text-sm font-medium ${isDark ? 'text-zinc-400' : 'text-zinc-600'}`}>No messages yet</p>
+                  <p className="text-xs text-zinc-500 mt-1">Send a message to start the conversation</p>
                 </div>
               ) : (
-                <input
-                  ref={inputRef}
-                  type="text"
-                  id="chat-message-input"
-                  value={inputText}
-                  onChange={(e) => setInputText(e.target.value)}
-                  onKeyDown={handleKeyDown}
-                  placeholder={inputText.startsWith('/') ? 'Message to mentioned agent...' : 'Type a message...'}
-                  autoComplete="off"
-                  className={`flex-1 py-1 bg-transparent text-sm placeholder:text-zinc-500 no-focus-ring ${
-                    isDark ? 'text-zinc-100' : 'text-zinc-900'
-                  }`}
-                />
+                <div className="space-y-3">
+                  {messages.map((msg, index) => {
+                    // 내가 보낸 메시지인지 확인
+                    const isMe = msg.sender_type === 'user' && msg.sender_user_id === currentUserId
+                    const isAgent = msg.sender_type === 'agent'
+                    const senderName = msg.sender_user?.name || msg.sender_agent?.name || 'Unknown'
+                    const senderInitials = senderName.slice(0, 2).toUpperCase()
+                    const senderId = msg.sender_user_id || msg.sender_agent_id || ''
+
+                    // 이전 메시지와 같은 발신자인지 확인 (연속 메시지 그룹핑)
+                    const prevMsg = messages[index - 1]
+                    const isContinuation = prevMsg &&
+                      ((prevMsg.sender_user_id === msg.sender_user_id && msg.sender_user_id) ||
+                        (prevMsg.sender_agent_id === msg.sender_agent_id && msg.sender_agent_id)) &&
+                      (new Date(msg.created_at).getTime() - new Date(prevMsg.created_at).getTime()) < 60000
+
+                    // 에이전트 역할 정보
+                    const agentRole = meetingConfig?.agentConfigs?.find((c: any) => c.id === msg.sender_agent_id)?.role
+                    const roleStyle = agentRole ? ROLE_COLORS[agentRole] : null
+
+                    // 시스템 메시지
+                    if (msg.message_type === 'system') {
+                      return (
+                        <div key={msg.id} className="flex justify-center py-2">
+                          <span className={`text-xs px-3 py-1 rounded-full ${isDark ? 'bg-zinc-800/50 text-zinc-500' : 'bg-zinc-100 text-zinc-500'
+                            }`}>
+                            {msg.content}
+                          </span>
+                        </div>
+                      )
+                    }
+
+                    return (
+                      <motion.div
+                        key={msg.id}
+                        initial={{ opacity: 0, y: 8 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ duration: 0.15 }}
+                        className={`flex gap-2.5 ${isMe ? 'flex-row-reverse' : 'flex-row'} ${isContinuation ? 'mt-0.5' : 'mt-3'}`}
+                      >
+                        {/* Avatar - 연속 메시지면 숨김 */}
+                        {!isMe && (
+                          <div className={`w-8 flex-shrink-0 ${isContinuation ? 'invisible' : ''}`}>
+                            <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-[10px] font-semibold ${isAgent && roleStyle
+                              ? `${roleStyle.bg} ${roleStyle.text}`
+                              : isDark ? 'bg-zinc-800 text-zinc-400' : 'bg-zinc-200 text-zinc-600'
+                              }`}>
+                              {isAgent ? <Bot className="w-3.5 h-3.5" /> : senderInitials}
+                            </div>
+                          </div>
+                        )}
+
+                        <div className={`flex flex-col max-w-[65%] ${isMe ? 'items-end' : 'items-start'}`}>
+                          {/* Sender Info - 연속 메시지면 숨김 */}
+                          {!isMe && !isContinuation && (
+                            <div className="flex items-center gap-1.5 mb-1 px-1">
+                              <span className={`text-xs font-medium ${isDark ? 'text-zinc-400' : 'text-zinc-600'}`}>
+                                {senderName}
+                              </span>
+                              {isAgent && agentRole && (
+                                <span className={`text-[10px] px-1.5 py-0.5 rounded ${roleStyle?.bg} ${roleStyle?.text}`}>
+                                  {ROLE_LABELS[agentRole] || agentRole}
+                                </span>
+                              )}
+                              <span className="text-[10px] text-zinc-500">
+                                {formatTime(msg.created_at)}
+                              </span>
+                            </div>
+                          )}
+
+                          {/* Message Content */}
+                          {msg.message_type === 'image' && msg.metadata?.url ? (
+                            <div className={`rounded-xl overflow-hidden ${isDark ? 'bg-zinc-800' : 'bg-white border border-zinc-200'
+                              }`}>
+                              <a href={msg.metadata.url} target="_blank" rel="noopener noreferrer">
+                                <img
+                                  src={msg.metadata.url}
+                                  alt={msg.metadata.fileName || 'Image'}
+                                  className="max-w-[280px] max-h-[180px] object-cover cursor-pointer hover:opacity-90 transition-opacity"
+                                  onError={(e) => {
+                                    (e.target as HTMLImageElement).style.display = 'none'
+                                  }}
+                                />
+                              </a>
+                            </div>
+                          ) : msg.message_type === 'file' && msg.metadata?.url ? (
+                            <a
+                              href={msg.metadata.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className={`flex items-center gap-2.5 px-3 py-2.5 rounded-xl transition-colors ${isDark
+                                ? 'bg-zinc-800 hover:bg-zinc-700'
+                                : 'bg-white border border-zinc-200 hover:bg-zinc-50'
+                                }`}
+                            >
+                              <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${isDark ? 'bg-zinc-700' : 'bg-zinc-100'
+                                }`}>
+                                <FileText className="w-4 h-4 text-zinc-500" />
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm font-medium truncate">{msg.metadata.fileName || 'File'}</p>
+                                <p className="text-xs text-zinc-500">{msg.metadata.fileSize ? formatFileSize(msg.metadata.fileSize) : ''}</p>
+                              </div>
+                              <Download className="w-4 h-4 text-zinc-400" />
+                            </a>
+                          ) : (
+                            <div className={`px-3.5 py-2 rounded-xl text-sm leading-relaxed ${isMe
+                              ? 'bg-accent text-white'
+                              : isAgent && roleStyle
+                                ? `${isDark ? 'bg-zinc-800/80' : 'bg-white'} border ${roleStyle.border}`
+                                : isDark
+                                  ? 'bg-zinc-800/80 text-zinc-100'
+                                  : 'bg-white text-zinc-900 border border-zinc-200'
+                              }`}>
+                              {msg.content}
+                            </div>
+                          )}
+
+                          {/* Time for own messages */}
+                          {isMe && !isContinuation && (
+                            <span className="text-[10px] text-zinc-500 mt-1 px-1">
+                              {formatTime(msg.created_at)}
+                            </span>
+                          )}
+                        </div>
+                      </motion.div>
+                    )
+                  })}
+                </div>
               )}
 
-              {/* Send button */}
-              <button
-                onClick={handleSendMessage}
-                disabled={!inputText.trim() || sending}
-                className={`p-2 rounded-lg transition-all ${
-                  inputText.trim() && !sending
-                    ? 'bg-accent text-white hover:opacity-90'
-                    : isDark ? 'bg-zinc-700 text-zinc-500' : 'bg-zinc-200 text-zinc-400'
-                }`}
-              >
-                {sending ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                ) : (
-                  <Send className="w-4 h-4" />
+              {/* Typing Indicator - Enterprise Style */}
+              <AnimatePresence>
+                {(agentTyping || typingUsers.length > 0) && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 5 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -5 }}
+                    className="px-4 py-2"
+                  >
+                    <div className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-lg ${isDark ? 'bg-zinc-800/50' : 'bg-zinc-100'
+                      }`}>
+                      <div className="flex gap-0.5">
+                        <span className={`w-1.5 h-1.5 rounded-full animate-bounce ${agentTyping ? 'bg-indigo-400' : 'bg-zinc-400'
+                          }`} style={{ animationDelay: '0ms' }} />
+                        <span className={`w-1.5 h-1.5 rounded-full animate-bounce ${agentTyping ? 'bg-indigo-400' : 'bg-zinc-400'
+                          }`} style={{ animationDelay: '150ms' }} />
+                        <span className={`w-1.5 h-1.5 rounded-full animate-bounce ${agentTyping ? 'bg-indigo-400' : 'bg-zinc-400'
+                          }`} style={{ animationDelay: '300ms' }} />
+                      </div>
+                      <span className="text-xs text-zinc-500">
+                        {typingUsers.map(p => p.agent?.name || p.user?.name).slice(0, 2).join(', ')}
+                        {typingUsers.length > 2 && ` +${typingUsers.length - 2}`}
+                        {agentTyping ? ' generating...' : ' typing...'}
+                      </span>
+                    </div>
+                  </motion.div>
                 )}
-              </button>
+              </AnimatePresence>
             </div>
 
-            {/* Mention hint */}
-            {inputText.startsWith('/') && (
-              <div className="mt-2 px-1">
-                <span className="text-xs text-zinc-500">
-                  Tip: Use /AgentName to mention a specific agent
-                </span>
+            {/* Input Area - Enterprise Style */}
+            {activeRoomId && (
+              <div className={`px-4 py-3 border-t flex-shrink-0 ${isDark ? 'border-zinc-800/50 bg-zinc-900' : 'border-zinc-200 bg-white'
+                }`}>
+                {/* Hidden file inputs */}
+                <input
+                  type="file"
+                  ref={fileInputRef}
+                  onChange={(e) => handleFileUpload(e, 'file')}
+                  accept=".pdf,.doc,.docx,.xls,.xlsx,.txt,.csv"
+                  className="hidden"
+                />
+                <input
+                  type="file"
+                  ref={imageInputRef}
+                  onChange={(e) => handleFileUpload(e, 'image')}
+                  accept="image/jpeg,image/png,image/gif,image/webp"
+                  className="hidden"
+                />
+                {/* Hidden share file input (PDF, Image, Video) */}
+                <input
+                  type="file"
+                  ref={shareInputRef}
+                  onChange={handleShareFile}
+                  accept="application/pdf,image/jpeg,image/png,image/gif,image/webp,video/mp4,video/webm,video/quicktime"
+                  className="hidden"
+                />
+
+                <div className={`flex items-center gap-2 px-3 py-2 rounded-xl border transition-all ${isDark
+                  ? 'bg-zinc-800/50 border-zinc-700/50 focus-within:border-zinc-600'
+                  : 'bg-zinc-50 border-zinc-200 focus-within:border-zinc-300'
+                  }`}>
+                  {/* Attachment buttons */}
+                  <div className="flex items-center gap-0.5">
+                    <button
+                      onClick={() => fileInputRef.current?.click()}
+                      disabled={uploading}
+                      className={`p-1.5 rounded-lg transition-colors ${isDark ? 'hover:bg-zinc-700 text-zinc-500 hover:text-zinc-300' : 'hover:bg-zinc-200 text-zinc-400 hover:text-zinc-600'
+                        }`}
+                    >
+                      <Paperclip className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={() => imageInputRef.current?.click()}
+                      disabled={uploading}
+                      className={`p-1.5 rounded-lg transition-colors ${isDark ? 'hover:bg-zinc-700 text-zinc-500 hover:text-zinc-300' : 'hover:bg-zinc-200 text-zinc-400 hover:text-zinc-600'
+                        }`}
+                    >
+                      <ImageIcon className="w-4 h-4" />
+                    </button>
+                  </div>
+
+                  <div className={`w-px h-5 ${isDark ? 'bg-zinc-700' : 'bg-zinc-200'}`} />
+
+                  {/* Input field */}
+                  {uploading ? (
+                    <div className="flex-1 flex items-center gap-2 py-1">
+                      <Loader2 className="w-4 h-4 animate-spin text-accent" />
+                      <span className="text-sm text-zinc-500">Uploading...</span>
+                    </div>
+                  ) : (
+                    <input
+                      ref={inputRef}
+                      type="text"
+                      id="chat-message-input"
+                      value={inputText}
+                      onChange={(e) => setInputText(e.target.value)}
+                      onKeyDown={handleKeyDown}
+                      placeholder={inputText.startsWith('/') ? 'Message to mentioned agent...' : 'Type a message...'}
+                      autoComplete="off"
+                      className={`flex-1 py-1 bg-transparent text-sm placeholder:text-zinc-500 no-focus-ring ${isDark ? 'text-zinc-100' : 'text-zinc-900'
+                        }`}
+                    />
+                  )}
+
+                  {/* STT Microphone button */}
+                  <button
+                    onClick={() => isTranscribing ? stopTranscription() : startTranscription((text) => setInputText(prev => prev + (prev ? ' ' : '') + text))}
+                    className={`p-1.5 rounded-lg transition-colors ${isTranscribing
+                      ? 'bg-red-500/10 text-red-500 animate-pulse'
+                      : isDark ? 'hover:bg-zinc-700 text-zinc-500' : 'hover:bg-zinc-200 text-zinc-400'
+                      }`}
+                    title={isTranscribing ? '음성 인식 중지' : '음성 인식 시작'}
+                  >
+                    {isTranscribing ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
+                  </button>
+
+                  <div className={`w-px h-5 ${isDark ? 'bg-zinc-700' : 'bg-zinc-200'}`} />
+
+                  {/* Send button */}
+                  <button
+                    onClick={handleSendMessage}
+                    disabled={!inputText.trim() || sending}
+                    className={`p-2 rounded-lg transition-all ${inputText.trim() && !sending
+                      ? 'bg-accent text-white hover:opacity-90'
+                      : isDark ? 'bg-zinc-700 text-zinc-500' : 'bg-zinc-200 text-zinc-400'
+                      }`}
+                  >
+                    {sending ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <Send className="w-4 h-4" />
+                    )}
+                  </button>
+                </div>
+
+                {/* Mention hint */}
+                {inputText.startsWith('/') && (
+                  <div className="mt-2 px-1">
+                    <span className="text-xs text-zinc-500">
+                      Tip: Use /AgentName to mention a specific agent
+                    </span>
+                  </div>
+                )}
               </div>
             )}
-          </div>
-        )}
           </div>
 
           {/* Right Sidebar - Participants Panel */}
@@ -1345,24 +1369,21 @@ export default function MessengerPage() {
                 animate={{ width: 260, opacity: 1 }}
                 exit={{ width: 0, opacity: 0 }}
                 transition={{ duration: 0.15 }}
-                className={`flex-shrink-0 border-l overflow-hidden ${
-                  isDark ? 'border-zinc-800/50 bg-zinc-900' : 'border-zinc-200 bg-white'
-                }`}
+                className={`flex-shrink-0 border-l overflow-hidden ${isDark ? 'border-zinc-800/50 bg-zinc-900' : 'border-zinc-200 bg-white'
+                  }`}
               >
                 <div className="w-[260px] h-full flex flex-col">
                   {/* Sidebar Header */}
                   <div className={`px-4 py-3 border-b ${isDark ? 'border-zinc-800/50' : 'border-zinc-200'}`}>
                     <div className="flex items-center justify-between">
-                      <span className={`text-xs font-medium uppercase tracking-wider ${
-                        isDark ? 'text-zinc-500' : 'text-zinc-400'
-                      }`}>
+                      <span className={`text-xs font-medium uppercase tracking-wider ${isDark ? 'text-zinc-500' : 'text-zinc-400'
+                        }`}>
                         Participants ({activeRoom.participants?.length || 0})
                       </span>
                       <button
                         onClick={() => setShowInviteModal(true)}
-                        className={`p-1.5 rounded-lg transition-colors ${
-                          isDark ? 'hover:bg-zinc-800 text-zinc-400' : 'hover:bg-zinc-100 text-zinc-500'
-                        }`}
+                        className={`p-1.5 rounded-lg transition-colors ${isDark ? 'hover:bg-zinc-800 text-zinc-400' : 'hover:bg-zinc-100 text-zinc-500'
+                          }`}
                       >
                         <UserPlus className="w-4 h-4" />
                       </button>
@@ -1385,9 +1406,8 @@ export default function MessengerPage() {
                       return (
                         <div
                           key={participant.id}
-                          className={`flex items-center gap-2.5 px-2.5 py-2 rounded-lg group transition-colors ${
-                            isDark ? 'hover:bg-zinc-800/50' : 'hover:bg-zinc-50'
-                          } ${isAgentParticipant ? 'cursor-pointer' : ''}`}
+                          className={`flex items-center gap-2.5 px-2.5 py-2 rounded-lg group transition-colors ${isDark ? 'hover:bg-zinc-800/50' : 'hover:bg-zinc-50'
+                            } ${isAgentParticipant ? 'cursor-pointer' : ''}`}
                           onClick={() => {
                             if (isAgentParticipant && participant.agent?.name) {
                               mentionAgent(participant.agent.name)
@@ -1396,17 +1416,15 @@ export default function MessengerPage() {
                         >
                           {/* Avatar */}
                           <div className="relative flex-shrink-0">
-                            <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-[10px] font-semibold ${
-                              isAgentParticipant && roleStyle
-                                ? `${roleStyle.bg} ${roleStyle.text}`
-                                : isDark ? 'bg-zinc-800 text-zinc-400' : 'bg-zinc-100 text-zinc-600'
-                            }`}>
+                            <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-[10px] font-semibold ${isAgentParticipant && roleStyle
+                              ? `${roleStyle.bg} ${roleStyle.text}`
+                              : isDark ? 'bg-zinc-800 text-zinc-400' : 'bg-zinc-100 text-zinc-600'
+                              }`}>
                               {isAgentParticipant ? <Bot className="w-3.5 h-3.5" /> : initials}
                             </div>
                             {/* Online indicator */}
-                            <span className={`absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-2 ${
-                              isDark ? 'border-zinc-900' : 'border-white'
-                            } ${isAgentParticipant || onlineUsers.includes(participant.user_id || '') ? 'bg-emerald-500' : 'bg-zinc-400'}`} />
+                            <span className={`absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-2 ${isDark ? 'border-zinc-900' : 'border-white'
+                              } ${isAgentParticipant || onlineUsers.includes(participant.user_id || '') ? 'bg-emerald-500' : 'bg-zinc-400'}`} />
                           </div>
 
                           <div className="flex-1 min-w-0">
@@ -1419,9 +1437,8 @@ export default function MessengerPage() {
                                 <Shield className="w-3 h-3 text-indigo-400 flex-shrink-0" />
                               )}
                               {isMe && (
-                                <span className={`text-[9px] px-1 py-0.5 rounded font-medium ${
-                                  isDark ? 'bg-zinc-800 text-zinc-400' : 'bg-zinc-100 text-zinc-500'
-                                }`}>you</span>
+                                <span className={`text-[9px] px-1 py-0.5 rounded font-medium ${isDark ? 'bg-zinc-800 text-zinc-400' : 'bg-zinc-100 text-zinc-500'
+                                  }`}>you</span>
                               )}
                             </div>
                             <div className="flex items-center gap-1 text-[11px] text-zinc-500">
@@ -1447,9 +1464,8 @@ export default function MessengerPage() {
                                 e.stopPropagation()
                                 setConfirmKick({ participantId: participant.id, name })
                               }}
-                              className={`opacity-0 group-hover:opacity-100 p-1 rounded transition-all ${
-                                isDark ? 'hover:bg-red-500/10 text-red-400' : 'hover:bg-red-50 text-red-500'
-                              }`}
+                              className={`opacity-0 group-hover:opacity-100 p-1 rounded transition-all ${isDark ? 'hover:bg-red-500/10 text-red-400' : 'hover:bg-red-50 text-red-500'
+                                }`}
                             >
                               <UserMinus className="w-3.5 h-3.5" />
                             </button>
@@ -1463,11 +1479,10 @@ export default function MessengerPage() {
                   <div className={`p-2 border-t ${isDark ? 'border-zinc-800/50' : 'border-zinc-200'}`}>
                     <button
                       onClick={() => setConfirmLeave(true)}
-                      className={`w-full flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium transition-colors ${
-                        isDark
-                          ? 'text-zinc-500 hover:text-red-400 hover:bg-red-500/10'
-                          : 'text-zinc-500 hover:text-red-600 hover:bg-red-50'
-                      }`}
+                      className={`w-full flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium transition-colors ${isDark
+                        ? 'text-zinc-500 hover:text-red-400 hover:bg-red-500/10'
+                        : 'text-zinc-500 hover:text-red-600 hover:bg-red-50'
+                        }`}
                     >
                       <LogOut className="w-3.5 h-3.5" />
                       Leave Room
@@ -1701,9 +1716,8 @@ function MeetingModal({
             value={topic}
             onChange={(e) => setTopic(e.target.value)}
             placeholder="자유 토론"
-            className={`w-full px-4 py-2.5 rounded-xl no-focus-ring ${
-              isDark ? 'bg-zinc-800 text-white' : 'bg-zinc-100 text-zinc-900'
-            }`}
+            className={`w-full px-4 py-2.5 rounded-xl no-focus-ring ${isDark ? 'bg-zinc-800 text-white' : 'bg-zinc-100 text-zinc-900'
+              }`}
           />
         </div>
 
@@ -1715,11 +1729,10 @@ function MeetingModal({
               <button
                 key={opt.value}
                 onClick={() => setDuration(opt.value)}
-                className={`py-2 px-3 rounded-xl text-sm font-medium transition-all ${
-                  duration === opt.value
-                    ? 'bg-purple-500 text-white'
-                    : isDark ? 'bg-zinc-800 text-zinc-300 hover:bg-zinc-700' : 'bg-zinc-100 text-zinc-700 hover:bg-zinc-200'
-                }`}
+                className={`py-2 px-3 rounded-xl text-sm font-medium transition-all ${duration === opt.value
+                  ? 'bg-purple-500 text-white'
+                  : isDark ? 'bg-zinc-800 text-zinc-300 hover:bg-zinc-700' : 'bg-zinc-100 text-zinc-700 hover:bg-zinc-200'
+                  }`}
               >
                 {opt.label}
               </button>
@@ -2032,7 +2045,7 @@ function NewChatModal({
         participant_ids: agentConfigs.map(c => ({ type: 'agent' as const, id: c.id })),
         topic: topic.trim() || null,
         duration: discussionModeOptions.find(m => m.value === discussionMode)?.depth === 3 ? 15 :
-                  discussionModeOptions.find(m => m.value === discussionMode)?.depth === 1 ? 3 : 5,
+          discussionModeOptions.find(m => m.value === discussionMode)?.depth === 1 ? 3 : 5,
         facilitator_id: null,
         attachments: attachmentData.length > 0 ? attachmentData : null,
         // 확장 설정
@@ -2073,9 +2086,8 @@ function NewChatModal({
         animate={{ scale: 1, opacity: 1, y: 0 }}
         exit={{ scale: 0.95, opacity: 0, y: 20 }}
         onClick={(e) => e.stopPropagation()}
-        className={`w-full max-w-2xl rounded-2xl overflow-hidden ${
-          isDark ? 'bg-zinc-900' : 'bg-white'
-        } shadow-2xl max-h-[90vh] flex flex-col`}
+        className={`w-full max-w-2xl rounded-2xl overflow-hidden ${isDark ? 'bg-zinc-900' : 'bg-white'
+          } shadow-2xl max-h-[90vh] flex flex-col`}
         style={{ border: `1px solid ${isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)'}` }}
       >
         {/* 헤더 - 콘솔 스타일 */}
@@ -2109,13 +2121,12 @@ function NewChatModal({
               <button
                 key={step}
                 onClick={() => setCurrentStep(i)}
-                className={`flex-1 py-1.5 text-xs font-mono rounded transition-all ${
-                  currentStep === i
-                    ? 'text-white'
-                    : currentStep > i
-                      ? ''
-                      : isDark ? 'bg-zinc-800 text-zinc-500' : 'bg-zinc-100 text-zinc-400'
-                }`}
+                className={`flex-1 py-1.5 text-xs font-mono rounded transition-all ${currentStep === i
+                  ? 'text-white'
+                  : currentStep > i
+                    ? ''
+                    : isDark ? 'bg-zinc-800 text-zinc-500' : 'bg-zinc-100 text-zinc-400'
+                  }`}
                 style={
                   currentStep === i
                     ? { backgroundColor: currentAccent.color }
@@ -2148,13 +2159,12 @@ function NewChatModal({
                   <button
                     key={opt.value}
                     onClick={() => setPurpose(opt.value)}
-                    className={`w-full p-4 rounded-xl text-left transition-all border ${
-                      purpose === opt.value
-                        ? ''
-                        : isDark
-                          ? 'border-zinc-800 bg-zinc-800/50 hover:border-zinc-700'
-                          : 'border-zinc-200 bg-zinc-50 hover:border-zinc-300'
-                    }`}
+                    className={`w-full p-4 rounded-xl text-left transition-all border ${purpose === opt.value
+                      ? ''
+                      : isDark
+                        ? 'border-zinc-800 bg-zinc-800/50 hover:border-zinc-700'
+                        : 'border-zinc-200 bg-zinc-50 hover:border-zinc-300'
+                      }`}
                     style={purpose === opt.value ? {
                       borderColor: currentAccent.color,
                       backgroundColor: `rgba(${currentAccent.rgb}, 0.1)`
@@ -2204,9 +2214,8 @@ function NewChatModal({
                   {selectedAgentsInfo.map(({ id, role, tendency, canDecide, agent }) => (
                     <div
                       key={id}
-                      className={`p-4 rounded-xl border ${
-                        isDark ? 'border-zinc-700 bg-zinc-800/50' : 'border-zinc-200 bg-zinc-50'
-                      }`}
+                      className={`p-4 rounded-xl border ${isDark ? 'border-zinc-700 bg-zinc-800/50' : 'border-zinc-200 bg-zinc-50'
+                        }`}
                     >
                       <div className="flex items-center justify-between mb-3">
                         <div className="flex items-center gap-2">
@@ -2231,11 +2240,10 @@ function NewChatModal({
                             <button
                               key={r.value}
                               onClick={() => updateAgentConfig(id, { role: r.value })}
-                              className={`px-2 py-1 rounded text-xs transition-all ${
-                                role === r.value
-                                  ? 'text-white'
-                                  : isDark ? 'bg-zinc-700 text-zinc-300' : 'bg-zinc-200 text-zinc-600'
-                              }`}
+                              className={`px-2 py-1 rounded text-xs transition-all ${role === r.value
+                                ? 'text-white'
+                                : isDark ? 'bg-zinc-700 text-zinc-300' : 'bg-zinc-200 text-zinc-600'
+                                }`}
                               style={role === r.value ? { backgroundColor: currentAccent.color } : undefined}
                             >
                               {r.label}
@@ -2252,11 +2260,10 @@ function NewChatModal({
                             <button
                               key={t.value}
                               onClick={() => updateAgentConfig(id, { tendency: t.value })}
-                              className={`px-2 py-1 rounded text-xs transition-all ${
-                                tendency === t.value
-                                  ? 'text-white'
-                                  : isDark ? 'bg-zinc-700 text-zinc-300' : 'bg-zinc-200 text-zinc-600'
-                              }`}
+                              className={`px-2 py-1 rounded text-xs transition-all ${tendency === t.value
+                                ? 'text-white'
+                                : isDark ? 'bg-zinc-700 text-zinc-300' : 'bg-zinc-200 text-zinc-600'
+                                }`}
                               style={tendency === t.value ? { backgroundColor: currentAccent.hoverColor } : undefined}
                             >
                               {t.label}
@@ -2268,13 +2275,11 @@ function NewChatModal({
                       {/* 의사결정 권한 */}
                       <button
                         onClick={() => updateAgentConfig(id, { canDecide: !canDecide })}
-                        className={`flex items-center gap-2 text-xs ${
-                          canDecide ? 'text-amber-500' : isDark ? 'text-zinc-500' : 'text-zinc-400'
-                        }`}
+                        className={`flex items-center gap-2 text-xs ${canDecide ? 'text-amber-500' : isDark ? 'text-zinc-500' : 'text-zinc-400'
+                          }`}
                       >
-                        <div className={`w-4 h-4 rounded border flex items-center justify-center ${
-                          canDecide ? 'bg-amber-500 border-amber-500' : isDark ? 'border-zinc-600' : 'border-zinc-300'
-                        }`}>
+                        <div className={`w-4 h-4 rounded border flex items-center justify-center ${canDecide ? 'bg-amber-500 border-amber-500' : isDark ? 'border-zinc-600' : 'border-zinc-300'
+                          }`}>
                           {canDecide && <CheckCircle2 className="w-3 h-3 text-white" />}
                         </div>
                         의사결정 권한 부여
@@ -2297,9 +2302,8 @@ function NewChatModal({
                       <button
                         key={agent.id}
                         onClick={() => addAgent(agent.id)}
-                        className={`w-full flex items-center gap-2 p-2 rounded-lg transition-all ${
-                          isDark ? 'hover:bg-zinc-700' : 'hover:bg-zinc-200'
-                        }`}
+                        className={`w-full flex items-center gap-2 p-2 rounded-lg transition-all ${isDark ? 'hover:bg-zinc-700' : 'hover:bg-zinc-200'
+                          }`}
                       >
                         <div className={`w-6 h-6 rounded bg-gradient-to-br ${getColorForId(agent.id)} flex items-center justify-center text-white`}>
                           <Bot className="w-3 h-3" />
@@ -2330,13 +2334,12 @@ function NewChatModal({
                   <button
                     key={mode.value}
                     onClick={() => setDiscussionMode(mode.value)}
-                    className={`p-3 rounded-xl text-left transition-all border ${
-                      discussionMode === mode.value
-                        ? ''
-                        : isDark
-                          ? 'border-zinc-800 bg-zinc-800/50 hover:border-zinc-700'
-                          : 'border-zinc-200 bg-zinc-50 hover:border-zinc-300'
-                    }`}
+                    className={`p-3 rounded-xl text-left transition-all border ${discussionMode === mode.value
+                      ? ''
+                      : isDark
+                        ? 'border-zinc-800 bg-zinc-800/50 hover:border-zinc-700'
+                        : 'border-zinc-200 bg-zinc-50 hover:border-zinc-300'
+                      }`}
                     style={discussionMode === mode.value ? {
                       borderColor: currentAccent.color,
                       backgroundColor: `rgba(${currentAccent.rgb}, 0.1)`
@@ -2344,14 +2347,13 @@ function NewChatModal({
                   >
                     <div className="flex items-center gap-2 mb-1">
                       <div className="flex gap-0.5">
-                        {[1,2,3].map(i => (
+                        {[1, 2, 3].map(i => (
                           <div
                             key={i}
-                            className={`w-1.5 h-3 rounded-sm ${
-                              i <= mode.depth && discussionMode !== mode.value
-                                ? isDark ? 'bg-zinc-500' : 'bg-zinc-400'
-                                : !( i <= mode.depth) ? (isDark ? 'bg-zinc-700' : 'bg-zinc-200') : ''
-                            }`}
+                            className={`w-1.5 h-3 rounded-sm ${i <= mode.depth && discussionMode !== mode.value
+                              ? isDark ? 'bg-zinc-500' : 'bg-zinc-400'
+                              : !(i <= mode.depth) ? (isDark ? 'bg-zinc-700' : 'bg-zinc-200') : ''
+                              }`}
                             style={i <= mode.depth && discussionMode === mode.value ? { backgroundColor: currentAccent.color } : undefined}
                           />
                         ))}
@@ -2396,11 +2398,10 @@ function NewChatModal({
                       <button
                         key={opt.value}
                         onClick={() => setFailureResolution(opt.value as any)}
-                        className={`flex-1 py-2 rounded-lg text-xs font-medium transition-all ${
-                          failureResolution === opt.value
-                            ? 'text-white'
-                            : isDark ? 'bg-zinc-700 text-zinc-300' : 'bg-zinc-200 text-zinc-600'
-                        }`}
+                        className={`flex-1 py-2 rounded-lg text-xs font-medium transition-all ${failureResolution === opt.value
+                          ? 'text-white'
+                          : isDark ? 'bg-zinc-700 text-zinc-300' : 'bg-zinc-200 text-zinc-600'
+                          }`}
                         style={failureResolution === opt.value ? { backgroundColor: currentAccent.color } : undefined}
                       >
                         {opt.label}
@@ -2432,9 +2433,8 @@ function NewChatModal({
                   onChange={(e) => setTopic(e.target.value)}
                   placeholder="AI 조직이 논의할 핵심 안건을 입력하세요"
                   rows={3}
-                  className={`w-full px-4 py-3 rounded-xl no-focus-ring resize-none ${
-                    isDark ? 'bg-zinc-800 text-white placeholder:text-zinc-600' : 'bg-zinc-100 text-zinc-900 placeholder:text-zinc-400'
-                  }`}
+                  className={`w-full px-4 py-3 rounded-xl no-focus-ring resize-none ${isDark ? 'bg-zinc-800 text-white placeholder:text-zinc-600' : 'bg-zinc-100 text-zinc-900 placeholder:text-zinc-400'
+                    }`}
                 />
               </div>
 
@@ -2453,11 +2453,10 @@ function NewChatModal({
                 />
                 <button
                   onClick={() => fileInputRef.current?.click()}
-                  className={`w-full px-4 py-3 rounded-xl border-2 border-dashed transition-all flex items-center justify-center gap-2 ${
-                    isDark
-                      ? 'border-zinc-700 hover:border-emerald-500 text-zinc-400 hover:text-emerald-400'
-                      : 'border-zinc-300 hover:border-emerald-500 text-zinc-500 hover:text-emerald-500'
-                  }`}
+                  className={`w-full px-4 py-3 rounded-xl border-2 border-dashed transition-all flex items-center justify-center gap-2 ${isDark
+                    ? 'border-zinc-700 hover:border-emerald-500 text-zinc-400 hover:text-emerald-400'
+                    : 'border-zinc-300 hover:border-emerald-500 text-zinc-500 hover:text-emerald-500'
+                    }`}
                 >
                   <Paperclip className="w-4 h-4" />
                   <span className="text-sm">파일 첨부</span>
@@ -2467,9 +2466,8 @@ function NewChatModal({
                     {attachmentPreviews.map((file, idx) => (
                       <div
                         key={idx}
-                        className={`flex items-center justify-between px-3 py-2 rounded-lg ${
-                          isDark ? 'bg-zinc-800' : 'bg-zinc-100'
-                        }`}
+                        className={`flex items-center justify-between px-3 py-2 rounded-lg ${isDark ? 'bg-zinc-800' : 'bg-zinc-100'
+                          }`}
                       >
                         <div className="flex items-center gap-2 flex-1 min-w-0">
                           <FileText className="w-4 h-4 flex-shrink-0" style={{ color: currentAccent.color }} />
@@ -2502,13 +2500,12 @@ function NewChatModal({
                     <button
                       key={opt.value}
                       onClick={() => setMemoryScope(opt.value as any)}
-                      className={`flex-1 p-2 rounded-lg text-left transition-all border ${
-                        memoryScope === opt.value
-                          ? ''
-                          : isDark
-                            ? 'border-zinc-700 bg-zinc-800/50'
-                            : 'border-zinc-200 bg-zinc-50'
-                      }`}
+                      className={`flex-1 p-2 rounded-lg text-left transition-all border ${memoryScope === opt.value
+                        ? ''
+                        : isDark
+                          ? 'border-zinc-700 bg-zinc-800/50'
+                          : 'border-zinc-200 bg-zinc-50'
+                        }`}
                       style={memoryScope === opt.value ? {
                         borderColor: currentAccent.color,
                         backgroundColor: `rgba(${currentAccent.rgb}, 0.1)`
@@ -2545,24 +2542,22 @@ function NewChatModal({
                   <button
                     key={item.key}
                     onClick={() => toggleOutput(item.key as keyof typeof outputs)}
-                    className={`w-full p-3 rounded-xl text-left transition-all border flex items-center gap-3 ${
-                      outputs[item.key as keyof typeof outputs]
-                        ? ''
-                        : isDark
-                          ? 'border-zinc-800 bg-zinc-800/50 hover:border-zinc-700'
-                          : 'border-zinc-200 bg-zinc-50 hover:border-zinc-300'
-                    }`}
+                    className={`w-full p-3 rounded-xl text-left transition-all border flex items-center gap-3 ${outputs[item.key as keyof typeof outputs]
+                      ? ''
+                      : isDark
+                        ? 'border-zinc-800 bg-zinc-800/50 hover:border-zinc-700'
+                        : 'border-zinc-200 bg-zinc-50 hover:border-zinc-300'
+                      }`}
                     style={outputs[item.key as keyof typeof outputs] ? {
                       borderColor: currentAccent.color,
                       backgroundColor: `rgba(${currentAccent.rgb}, 0.1)`
                     } : undefined}
                   >
                     <div
-                      className={`w-5 h-5 rounded border flex items-center justify-center ${
-                        outputs[item.key as keyof typeof outputs]
-                          ? ''
-                          : isDark ? 'border-zinc-600' : 'border-zinc-300'
-                      }`}
+                      className={`w-5 h-5 rounded border flex items-center justify-center ${outputs[item.key as keyof typeof outputs]
+                        ? ''
+                        : isDark ? 'border-zinc-600' : 'border-zinc-300'
+                        }`}
                       style={outputs[item.key as keyof typeof outputs] ? {
                         backgroundColor: currentAccent.color,
                         borderColor: currentAccent.color
@@ -2764,11 +2759,10 @@ function InviteModal({
                     setSelectedUser(selectedUser === user.id ? null : user.id)
                     setSelectedAgent(null)
                   }}
-                  className={`w-full flex items-center gap-3 p-2 rounded-xl transition-all ${
-                    selectedUser === user.id
-                      ? 'bg-accent/10 border border-accent'
-                      : isDark ? 'bg-zinc-800' : 'bg-zinc-100'
-                  }`}
+                  className={`w-full flex items-center gap-3 p-2 rounded-xl transition-all ${selectedUser === user.id
+                    ? 'bg-accent/10 border border-accent'
+                    : isDark ? 'bg-zinc-800' : 'bg-zinc-100'
+                    }`}
                 >
                   <div className={`w-8 h-8 rounded-full bg-gradient-to-br ${getColorForId(user.id)} flex items-center justify-center text-white text-xs font-bold`}>
                     {user.name?.slice(0, 2).toUpperCase()}
@@ -2797,11 +2791,10 @@ function InviteModal({
                     setSelectedAgent(selectedAgent === agent.id ? null : agent.id)
                     setSelectedUser(null)
                   }}
-                  className={`w-full flex items-center gap-3 p-2 rounded-xl transition-all ${
-                    selectedAgent === agent.id
-                      ? 'bg-accent/10 border border-accent'
-                      : isDark ? 'bg-zinc-800' : 'bg-zinc-100'
-                  }`}
+                  className={`w-full flex items-center gap-3 p-2 rounded-xl transition-all ${selectedAgent === agent.id
+                    ? 'bg-accent/10 border border-accent'
+                    : isDark ? 'bg-zinc-800' : 'bg-zinc-100'
+                    }`}
                 >
                   <div className={`w-8 h-8 rounded-full bg-gradient-to-br ${getColorForId(agent.id)} flex items-center justify-center text-white`}>
                     <Bot className="w-4 h-4" />
@@ -2879,11 +2872,10 @@ function ConfirmModal({
         className={`w-full max-w-sm rounded-2xl p-6 ${isDark ? 'bg-zinc-900' : 'bg-white'} shadow-xl`}
       >
         <div className="flex flex-col items-center text-center mb-4">
-          <div className={`w-12 h-12 rounded-full flex items-center justify-center mb-3 ${
-            confirmColor === 'red'
-              ? isDark ? 'bg-red-500/20' : 'bg-red-100'
-              : isDark ? 'bg-orange-500/20' : 'bg-orange-100'
-          }`}>
+          <div className={`w-12 h-12 rounded-full flex items-center justify-center mb-3 ${confirmColor === 'red'
+            ? isDark ? 'bg-red-500/20' : 'bg-red-100'
+            : isDark ? 'bg-orange-500/20' : 'bg-orange-100'
+            }`}>
             {confirmColor === 'red' ? (
               <Trash2 className={`w-6 h-6 ${isDark ? 'text-red-400' : 'text-red-500'}`} />
             ) : (
@@ -2904,11 +2896,10 @@ function ConfirmModal({
           <Button
             onClick={handleConfirm}
             disabled={loading}
-            className={`flex-1 ${
-              confirmColor === 'red'
-                ? 'bg-red-500 hover:bg-red-600'
-                : 'bg-orange-500 hover:bg-orange-600'
-            } text-white`}
+            className={`flex-1 ${confirmColor === 'red'
+              ? 'bg-red-500 hover:bg-red-600'
+              : 'bg-orange-500 hover:bg-orange-600'
+              } text-white`}
           >
             {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : confirmText}
           </Button>

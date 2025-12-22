@@ -1230,7 +1230,7 @@ export function TwoLevelSidebar() {
   }
 
   return (
-    <div className="flex fixed left-0 top-0 h-screen z-50">
+    <div className="flex fixed left-0 top-0 h-screen z-50 transition-all duration-300" style={{ top: 'var(--title-bar-height, 0px)', height: 'calc(100vh - var(--title-bar-height, 0px))' }}>
       {/* Level 1: 아이콘 사이드바 */}
       <motion.aside
         className={cn(

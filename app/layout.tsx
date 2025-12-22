@@ -48,6 +48,8 @@ const accentColorScript = `
 })();
 `
 
+import { TitleBar } from '@/components/ui/TitleBar'
+
 export default function RootLayout({
   children,
 }: {
@@ -57,8 +59,22 @@ export default function RootLayout({
     <html lang="ko" suppressHydrationWarning>
       <head>
         <script dangerouslySetInnerHTML={{ __html: accentColorScript }} />
+        <script dangerouslySetInnerHTML={{
+          __html: `
+          (function() {
+            try {
+              if (typeof window !== 'undefined' && (window.electron || navigator.userAgent.indexOf('Electron') > -1)) {
+                document.documentElement.classList.add('electron-app');
+                document.addEventListener('DOMContentLoaded', function() {
+                  document.body.classList.add('electron-app');
+                });
+              }
+            } catch (e) {}
+          })();
+        ` }} />
       </head>
       <body className="min-h-screen">
+        <TitleBar />
         <QueryProvider>
           <ThemeProvider>
             {children}

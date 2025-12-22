@@ -88,6 +88,7 @@ export function Sidebar() {
           : 'bg-white/90 border-r border-zinc-200'
       )}
       animate={{ width: sidebarOpen ? 280 : 80 }}
+      style={{ top: 'var(--title-bar-height, 0px)', height: 'calc(100vh - var(--title-bar-height, 0px))' }}
     >
       {/* Logo */}
       <div className={`h-16 flex items-center justify-between px-4 border-b ${isDark ? 'border-zinc-800' : 'border-zinc-200'

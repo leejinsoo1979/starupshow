@@ -3,7 +3,8 @@
 @tailwind utilities;
 
 /* Prevent browser back/forward on swipe */
-html, body {
+html,
+body {
   overscroll-behavior-x: none;
 }
 
@@ -34,6 +35,7 @@ html, body {
     --input: 39 39 42;
     --ring: 14 165 233;
     --edge-color: #e4e4e7;
+    --title-bar-height: 0px;
   }
 
   /* Dark mode variables */
@@ -105,6 +107,10 @@ html, body {
     font-feature-settings: "rlig" 1, "calt" 1;
     background-color: rgb(var(--background));
     color: rgb(var(--foreground));
+  }
+
+  body.electron-app {
+    --title-bar-height: 32px;
   }
 
   /* Smooth focus rings */
@@ -584,6 +590,7 @@ html, body {
   from {
     transform: rotate(0deg);
   }
+
   to {
     transform: rotate(360deg);
   }
@@ -595,12 +602,10 @@ html, body {
 
 /* Shimmer animation for progress bars */
 .animate-shimmer {
-  background: linear-gradient(
-    90deg,
-    transparent,
-    rgba(255, 255, 255, 0.4),
-    transparent
-  );
+  background: linear-gradient(90deg,
+      transparent,
+      rgba(255, 255, 255, 0.4),
+      transparent);
   background-size: 200% 100%;
   animation: shimmer-move 1.5s infinite;
 }
@@ -609,6 +614,7 @@ html, body {
   0% {
     background-position: -200% 0;
   }
+
   100% {
     background-position: 200% 0;
   }
@@ -621,9 +627,12 @@ html, body {
 }
 
 @keyframes gradient-x-move {
-  0%, 100% {
+
+  0%,
+  100% {
     background-position: 0% 50%;
   }
+
   50% {
     background-position: 100% 50%;
   }
@@ -635,9 +644,12 @@ html, body {
 }
 
 @keyframes pulse-glow {
-  0%, 100% {
+
+  0%,
+  100% {
     box-shadow: 0 0 20px rgba(139, 92, 246, 0.3);
   }
+
   50% {
     box-shadow: 0 0 40px rgba(139, 92, 246, 0.6);
   }
@@ -649,10 +661,13 @@ html, body {
 }
 
 @keyframes float-particle {
-  0%, 100% {
+
+  0%,
+  100% {
     transform: translateY(0) scale(1);
     opacity: 0.5;
   }
+
   50% {
     transform: translateY(-10px) scale(1.2);
     opacity: 1;
@@ -665,9 +680,12 @@ html, body {
 }
 
 @keyframes cursor-blink {
-  0%, 100% {
+
+  0%,
+  100% {
     opacity: 1;
   }
+
   50% {
     opacity: 0;
   }
@@ -682,20 +700,36 @@ html, body {
   0% {
     transform: scale(0);
   }
+
   50% {
     transform: scale(1.2);
   }
+
   100% {
     transform: scale(1);
   }
 }
 
 /* Stagger delay utilities for children */
-.stagger-animation > *:nth-child(1) { animation-delay: 0ms; }
-.stagger-animation > *:nth-child(2) { animation-delay: 100ms; }
-.stagger-animation > *:nth-child(3) { animation-delay: 200ms; }
-.stagger-animation > *:nth-child(4) { animation-delay: 300ms; }
-.stagger-animation > *:nth-child(5) { animation-delay: 400ms; }
+.stagger-animation>*:nth-child(1) {
+  animation-delay: 0ms;
+}
+
+.stagger-animation>*:nth-child(2) {
+  animation-delay: 100ms;
+}
+
+.stagger-animation>*:nth-child(3) {
+  animation-delay: 200ms;
+}
+
+.stagger-animation>*:nth-child(4) {
+  animation-delay: 300ms;
+}
+
+.stagger-animation>*:nth-child(5) {
+  animation-delay: 400ms;
+}
 
 /* Gradient border animation */
 .gradient-border-animated {
@@ -708,12 +742,10 @@ html, body {
   inset: 0;
   border-radius: inherit;
   padding: 2px;
-  background: linear-gradient(
-    90deg,
-    #8b5cf6,
-    #ec4899,
-    #8b5cf6
-  );
+  background: linear-gradient(90deg,
+      #8b5cf6,
+      #ec4899,
+      #8b5cf6);
   background-size: 200% 100%;
   -webkit-mask:
     linear-gradient(#fff 0 0) content-box,

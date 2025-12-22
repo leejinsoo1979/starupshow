@@ -65,6 +65,16 @@ export async function updateSession(request: NextRequest) {
   // Refresh session if expired
   const { data: { user } } = await supabase.auth.getUser()
   const pathname = request.nextUrl.pathname
+  const userAgent = request.headers.get('user-agent') || ''
+  // Electron environment detection (assuming standard Electron UA or custom one)
+  const isElectron = userAgent.includes('Electron') || userAgent.includes('GlowUS')
+
+  // 🖥️ Electron App: Root path redirects directly to app entry
+  if (isElectron && pathname === '/') {
+    // If logged in, go to dashboard. If not, go to login. Skip landing page.
+    const destination = user ? '/dashboard-group' : '/auth-group/login'
+    return NextResponse.redirect(new URL(destination, request.url))
+  }
 
   // 🔓 개발 모드: 인증 바이패스 (DEV_BYPASS_AUTH=true)
   if (DEV_MODE) {

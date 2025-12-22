@@ -48,25 +48,35 @@ export function LandingPage() {
   return (
     <div className="min-h-screen bg-white dark:bg-zinc-950">
       {/* Navigation */}
-      <nav className="fixed top-0 left-0 right-0 z-50 bg-white/80 dark:bg-zinc-950/80 backdrop-blur-md border-b border-zinc-200 dark:border-zinc-800">
+      <nav
+        className="fixed left-0 right-0 z-50 bg-white/80 dark:bg-zinc-950/80 backdrop-blur-md border-b border-zinc-200 dark:border-zinc-800"
+        style={{
+          WebkitAppRegion: 'drag',
+          top: 'var(--title-bar-height, 0px)'
+        } as any}
+      >
         <div className="max-w-[1600px] mx-auto px-6 sm:px-10 lg:px-16">
           <div className="flex justify-between items-center h-16">
-            <Logo size="lg" href="/" />
+            <div style={{ WebkitAppRegion: 'no-drag' } as any}>
+              <Logo size="lg" href="/" />
+            </div>
 
             {/* Center Navigation */}
-            <AnimeNavBar
-              items={[
-                { name: "HOME", url: "/" },
-                { name: "FUNCTION", url: "#features" },
-                { name: "PRICE", url: "/pricing" },
-                { name: "FORUM", url: "#forum" },
-                { name: "REVIEW", url: "#case-studies" },
-                { name: "CONTACT", url: "#contact" },
-              ]}
-              defaultActive="HOME"
-            />
+            <div style={{ WebkitAppRegion: 'no-drag' } as any}>
+              <AnimeNavBar
+                items={[
+                  { name: "HOME", url: "/" },
+                  { name: "FUNCTION", url: "#features" },
+                  { name: "PRICE", url: "/pricing" },
+                  { name: "FORUM", url: "#forum" },
+                  { name: "REVIEW", url: "#case-studies" },
+                  { name: "CONTACT", url: "#contact" },
+                ]}
+                defaultActive="HOME"
+              />
+            </div>
 
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-4" style={{ WebkitAppRegion: 'no-drag' } as any}>
               <UnifiedThemePicker />
               <Link href="/auth-group/login">
                 <Button variant="ghost">로그인</Button>

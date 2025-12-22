@@ -158,8 +158,12 @@ export async function POST(request: Request, { params }: RouteParams) {
       fileType = 'binary'
     }
 
+    console.log('[POST /files] Starting upload for map:', mapId, 'file:', file.name, 'path:', path)
+
     // Storage에 파일 업로드 (adminSupabase for storage operations)
-    const fileName = `${userId}/${mapId}/${Date.now()}-${file.name}`
+    // path가 절대 경로로 날아오는 경우를 대비하여 basename만 사용하도록 안전하게 처리
+    const safeFileName = file.name.split(/[/\\]/).pop() || 'file'
+    const storagePath = `${userId}/${mapId}/${Date.now()}-${safeFileName}`
 
     // MIME 타입 결정 - 코드 파일도 정상 업로드되도록
     let contentType = file.type || 'application/octet-stream'
@@ -184,7 +188,7 @@ export async function POST(request: Request, { params }: RouteParams) {
 
     const { data: uploadData, error: uploadError } = await adminSupabase.storage
       .from('neural-files')
-      .upload(fileName, file, {
+      .upload(storagePath, file, {
         cacheControl: '3600',
         upsert: false,
         contentType,
