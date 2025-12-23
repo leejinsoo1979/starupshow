@@ -499,15 +499,15 @@ export default function NeuralMapPage() {
               mermaidDiagramType === 'flowchart' ? (
                 <CytoscapeView projectPath={projectPath ?? undefined} mapId={mapId ?? undefined} />
               ) : mermaidDiagramType === 'sequence' ? (
-                <SequenceDiagramView className="absolute inset-0" />
+                <SequenceDiagramView projectPath={projectPath ?? undefined} className="absolute inset-0" />
               ) : mermaidDiagramType === 'class' ? (
-                <ClassDiagramView className="absolute inset-0" />
+                <ClassDiagramView projectPath={projectPath ?? undefined} className="absolute inset-0" />
               ) : mermaidDiagramType === 'er' ? (
-                <ERDiagramView className="absolute inset-0" />
+                <ERDiagramView projectPath={projectPath ?? undefined} className="absolute inset-0" />
               ) : mermaidDiagramType === 'pie' ? (
                 <PieChartView projectPath={projectPath ?? undefined} className="absolute inset-0" />
               ) : mermaidDiagramType === 'state' ? (
-                <StateDiagramView className="absolute inset-0" />
+                <StateDiagramView projectPath={projectPath ?? undefined} className="absolute inset-0" />
               ) : mermaidDiagramType === 'gitgraph' ? (
                 <GitGraphView className="absolute inset-0" />
               ) : (
