@@ -250,6 +250,18 @@ export function analyzeFile(
 /**
  * 여러 파일을 분석해서 전체 의존성 그래프 생성
  */
+// Helper to write debug logs to file (for packaged app)
+function writeDebugLog(message: string) {
+  console.log(message)
+  if (typeof window !== 'undefined' && (window as any).electron?.fs?.appendFile) {
+    try {
+      (window as any).electron.fs.appendFile('/tmp/code_analyzer_debug.log', message + '\n')
+    } catch (e) {
+      // Ignore
+    }
+  }
+}
+
 export function buildDependencyGraph(
   files: Array<{ path: string; content: string }>,
   projectRoot: string
@@ -257,8 +269,8 @@ export function buildDependencyGraph(
   const nodes: CodeNode[] = []
   const edges: CodeEdge[] = []
 
-  console.log(`[CodeAnalyzer] 📊 Starting analysis of ${files.length} files`)
-  console.log(`[CodeAnalyzer] 📂 Project root: ${projectRoot}`)
+  writeDebugLog(`[CodeAnalyzer] 📊 Starting analysis of ${files.length} files`)
+  writeDebugLog(`[CodeAnalyzer] 📂 Project root: ${projectRoot}`)
 
   // 1단계: 각 파일을 노드로 변환
   let successCount = 0
@@ -275,8 +287,8 @@ export function buildDependencyGraph(
     }
   }
 
-  console.log(`[CodeAnalyzer] ✅ Successfully parsed: ${successCount} files`)
-  console.log(`[CodeAnalyzer] ❌ Failed to parse: ${failCount} files`)
+  writeDebugLog(`[CodeAnalyzer] ✅ Successfully parsed: ${successCount} files`)
+  writeDebugLog(`[CodeAnalyzer] ❌ Failed to parse: ${failCount} files`)
 
   // 2단계: 의존성 관계를 엣지로 변환
   // Create a map of normalized paths to node IDs for exact matching
@@ -288,11 +300,14 @@ export function buildDependencyGraph(
     pathToNodeMap.set(node.id, node.id) // Also store with extension
   })
 
-  console.log(`[CodeAnalyzer] 📋 Created path map with ${pathToNodeMap.size} entries`)
+  writeDebugLog(`[CodeAnalyzer] 📋 Created path map with ${pathToNodeMap.size} entries`)
 
   // Debug: Log first 10 path map entries
   const pathMapSample = Array.from(pathToNodeMap.entries()).slice(0, 10)
-  console.log(`[CodeAnalyzer] 📋 Sample path map entries:`, pathMapSample)
+  writeDebugLog(`[CodeAnalyzer] 📋 Sample path map entries:`)
+  pathMapSample.forEach(([key, value]) => {
+    writeDebugLog(`  "${key}" -> "${value}"`)
+  })
 
   let matchedCount = 0
   let unmatchedCount = 0
@@ -379,12 +394,15 @@ export function buildDependencyGraph(
     edges.push(...importEdges)
   }
 
-  console.log(`[CodeAnalyzer] 🔗 Matched ${matchedCount} imports, ${unmatchedCount} unmatched`)
+  writeDebugLog(`[CodeAnalyzer] 🔗 Matched ${matchedCount} imports, ${unmatchedCount} unmatched`)
   if (unmatchedSamples.length > 0) {
-    console.log(`[CodeAnalyzer] ❌ Sample unmatched imports:`, unmatchedSamples)
+    writeDebugLog(`[CodeAnalyzer] ❌ Sample unmatched imports:`)
+    unmatchedSamples.forEach(sample => {
+      writeDebugLog(`  ${sample}`)
+    })
   }
 
-  console.log(`[CodeAnalyzer] 🔗 Created ${edges.length} edges`)
+  writeDebugLog(`[CodeAnalyzer] 🔗 Created ${edges.length} edges`)
 
   return { nodes, edges }
 }
