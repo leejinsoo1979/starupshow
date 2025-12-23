@@ -79,7 +79,7 @@ export default function XTermWrapper({ tabId, onExecute, projectPath }: XTermWra
   const lastSentCwdRef = useRef<string | null>(null) // 마지막으로 전송한 cwd
   const { resolvedTheme } = useTheme()
 
-  // projectPath가 변경되면 터미널에 새 경로 전송
+  // projectPath가 변경되면 터미널에 새 경로 전송 (cd 명령)
   useEffect(() => {
     if (!projectPath) return
 
@@ -88,6 +88,19 @@ export default function XTermWrapper({ tabId, onExecute, projectPath }: XTermWra
       return
     }
 
+    // Electron 터미널인 경우 cd 명령 전송
+    if (isElectron()) {
+      const electronApi = (window as any).electron?.terminal
+      if (electronApi) {
+        console.log('[Terminal] projectPath changed, sending cd command:', projectPath)
+        // cd 명령으로 디렉토리 변경 (clear도 같이)
+        electronApi.write(tabId, `cd "${projectPath}" && clear\n`)
+        lastSentCwdRef.current = projectPath
+        return
+      }
+    }
+
+    // WebSocket 터미널인 경우
     const sendCwd = () => {
       if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
         console.log('[Terminal] projectPath changed, sending set-cwd:', projectPath)
@@ -119,7 +132,7 @@ export default function XTermWrapper({ tabId, onExecute, projectPath }: XTermWra
       clearInterval(intervalId)
       clearTimeout(timeoutId)
     }
-  }, [projectPath])
+  }, [projectPath, tabId])
 
   // 테마 변경 시 xterm 테마 업데이트
   useEffect(() => {
@@ -267,9 +280,9 @@ export default function XTermWrapper({ tabId, onExecute, projectPath }: XTermWra
     }
 
     try {
-      // 터미널 생성
-      console.log('[Terminal] Calling electronApi.create...')
-      const result = await electronApi.create(tabId)
+      // 터미널 생성 - projectPath를 cwd로 전달
+      console.log('[Terminal] Calling electronApi.create with cwd:', projectPath)
+      const result = await electronApi.create(tabId, projectPath || undefined)
       console.log('[Terminal] electronApi.create result:', result)
 
       if (!result.success) {

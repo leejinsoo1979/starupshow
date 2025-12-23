@@ -360,14 +360,45 @@ export default function NeuralMapPage() {
       try {
         // 먼저 프로젝트 상세 정보 로드 (folder_path 포함)
         let folderPath: string | null = null
+        let projectName: string = linkedProjectName || 'project'
+        const electron = typeof window !== 'undefined' ? (window as any).electron : null
+
         try {
           const projectRes = await fetch(`/api/projects/${linkedProjectId}`)
           if (projectRes.ok) {
             const projectData = await projectRes.json()
+            projectName = projectData.name || projectName
+
             if (projectData.folder_path) {
               folderPath = projectData.folder_path
               console.log('[NeuralMap] 📁 Loading folder_path from project:', folderPath)
               setProjectPath(folderPath)
+            } else if (electron?.project?.createWorkspace) {
+              // 🆕 folder_path가 없으면 자동으로 워크스페이스 폴더 생성 (Electron 환경)
+              // ~/Documents/GlowUS-Projects/{projectName}/ 에 생성됨
+              console.log('[NeuralMap] 🆕 Auto-creating workspace folder for:', projectName)
+
+              try {
+                const result = await electron.project.createWorkspace(projectName)
+
+                if (result.success && result.path) {
+                  folderPath = result.path
+                  setProjectPath(folderPath)
+
+                  // DB에 저장
+                  await fetch(`/api/projects/${linkedProjectId}`, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ folder_path: folderPath })
+                  })
+
+                  console.log('[NeuralMap] ✅ Workspace folder created and saved:', folderPath)
+                } else {
+                  console.warn('[NeuralMap] Workspace creation returned:', result)
+                }
+              } catch (mkdirErr) {
+                console.warn('[NeuralMap] Failed to create workspace folder:', mkdirErr)
+              }
             }
           }
         } catch (e) {
@@ -375,7 +406,6 @@ export default function NeuralMapPage() {
         }
 
         // 🔥 Electron 환경이고 folder_path가 있으면 실제 파일 시스템에서 로드 + 워처 시작
-        const electron = typeof window !== 'undefined' ? (window as any).electron : null
         if (folderPath && electron?.fs?.scanTree) {
           console.log('[NeuralMap] 🚀 Loading files from folder:', folderPath)
 

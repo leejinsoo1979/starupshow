@@ -10,6 +10,7 @@ import { useThemeStore, accentColors } from '@/stores/themeStore'
 import { parseWikiLinks, extractTitle } from '@/lib/neural-map/markdown-parser'
 import type { NeuralFile } from '@/lib/neural-map/types'
 import { isElectron } from '@/lib/utils/electron'
+import { getFileSystem, isWeb } from '@/lib/file-system'
 import {
   Search,
   ChevronRight,
@@ -415,12 +416,29 @@ export function FileTreePanel({ mapId }: FileTreePanelProps) {
     const fileContent = getDefaultContent(fileName)
     const fileType = getFileTypeFromExt(fileName)
 
-    // 로컬 폴더가 있으면 파일 시스템에 저장
-    if (projectPath && window.electron?.fs?.writeFile) {
+    // 파일 시스템에 저장 (Electron 또는 GCS)
+    if (projectPath) {
       try {
-        const filePath = `${projectPath}/${fileName}`
-        await window.electron.fs.writeFile(filePath, fileContent)
-        console.log('[FileTree] Created new file:', filePath)
+        if (isWeb()) {
+          // Web 모드: GCS에 저장
+          const response = await fetch('/api/gcs', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              path: fileName,
+              content: fileContent,
+              projectId: projectPath,
+            }),
+          })
+          if (response.ok) {
+            console.log('[FileTree] 🌐 Created file in GCS:', fileName)
+          }
+        } else if (window.electron?.fs?.writeFile) {
+          // Electron 모드: 로컬에 저장
+          const filePath = `${projectPath}/${fileName}`
+          await window.electron.fs.writeFile(filePath, fileContent)
+          console.log('[FileTree] Created new file:', filePath)
+        }
       } catch (err) {
         console.error('[FileTree] Failed to create file:', err)
       }
@@ -1469,9 +1487,73 @@ export function FileTreePanel({ mapId }: FileTreePanelProps) {
     }
   }
 
-  // 공통 폴더 로드 함수 (Electron 환경)
+  // 공통 폴더 로드 함수 (Electron 환경 + Web GCS 환경)
   const loadFolderFromPath = useCallback(async (dirPath: string) => {
     const electron = (window as any).electron
+
+    // Web 모드: GCS에서 파일 로드
+    if (isWeb()) {
+      try {
+        setIsUploading(true)
+        setIsExpanded(true)
+        setProjectPath(dirPath)
+        console.log('[FileTree] 🌐 Web mode - loading from GCS:', dirPath)
+
+        const response = await fetch(`/api/gcs/tree?projectId=${encodeURIComponent(dirPath)}`)
+        if (!response.ok) {
+          console.error('[FileTree] GCS tree fetch failed')
+          return
+        }
+
+        const data = await response.json()
+        const timestamp = Date.now()
+        const neuralFiles: NeuralFile[] = []
+
+        const getFileType = (ext: string) => {
+          const imageExts = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'ico']
+          const mdExts = ['md', 'markdown', 'mdx']
+          const codeExts = ['ts', 'tsx', 'js', 'jsx', 'json', 'css', 'html', 'py', 'java', 'c', 'cpp', 'h', 'rs', 'go']
+          if (imageExts.includes(ext)) return 'image'
+          if (mdExts.includes(ext)) return 'markdown'
+          if (codeExts.includes(ext)) return 'code'
+          return 'text'
+        }
+
+        const flattenGcsTree = (nodes: any[], parentPath = '') => {
+          for (const node of nodes) {
+            if (node.type === 'file') {
+              const ext = node.name.split('.').pop()?.toLowerCase() || ''
+              const type = getFileType(ext)
+              neuralFiles.push({
+                id: `gcs-${timestamp}-${neuralFiles.length}`,
+                name: node.name,
+                path: node.path,
+                type: type as any,
+                content: '',  // 필요시 lazy load
+                size: node.size || 0,
+                createdAt: new Date().toISOString(),
+                mapId: mapId || '',
+                url: '',
+              })
+            }
+            if (node.children) {
+              flattenGcsTree(node.children, node.path)
+            }
+          }
+        }
+
+        flattenGcsTree(data.tree || [])
+        setFiles(neuralFiles)
+        console.log(`[FileTree] 🌐 GCS loaded ${neuralFiles.length} files`)
+      } catch (error) {
+        console.error('[FileTree] GCS load error:', error)
+      } finally {
+        setIsUploading(false)
+      }
+      return
+    }
+
+    // Electron 모드: 로컬 파일시스템
     if (!electron?.fs?.scanTree) return
 
     try {

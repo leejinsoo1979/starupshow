@@ -23,6 +23,7 @@ import { NetworkRoadmap } from "./NetworkRoadmap"
 import { ActivityLogPanel } from "./ActivityLogPanel"
 import { InvestorPreviewWidget } from "./InvestorPreviewWidget"
 import { ProjectRunner } from "./ProjectRunner"
+import { WebFileManager } from "./WebFileManager"
 import { useProjectFileSync } from "@/lib/hooks/useProjectFileSync"
 
 const stageConfig = {
@@ -243,6 +244,12 @@ export function OverviewSection({ projectId, project, onEdit }: OverviewSectionP
           githubRepo={project.githubRepo}
           githubCloneUrl={project.githubCloneUrl}
           onFolderLinked={(path) => setLinkedFolderPath(path)}
+        />
+
+        {/* Web File Manager - Web Only */}
+        <WebFileManager
+          projectId={projectId}
+          projectName={project.name}
         />
 
         {/* Main Content Grid */}

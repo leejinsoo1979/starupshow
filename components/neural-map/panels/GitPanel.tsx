@@ -65,8 +65,31 @@ export default function GitPanel() {
 
   const isDark = mounted ? resolvedTheme === 'dark' : true
 
+  // Check if the path looks like a dangerous directory (home, Documents, Desktop, etc.)
+  const isDangerousPath = (path: string): boolean => {
+    const dangerousPatterns = [
+      /^\/Users\/[^/]+\/?$/i,           // User home directory
+      /^\/Users\/[^/]+\/Documents\/?$/i, // Documents folder
+      /^\/Users\/[^/]+\/Desktop\/?$/i,   // Desktop folder
+      /^\/Users\/[^/]+\/Downloads\/?$/i, // Downloads folder
+      /^~\/?$/i,                          // Home shorthand
+      /^\/home\/[^/]+\/?$/i,             // Linux home
+      /^C:\\Users\\[^\\]+\\?$/i,         // Windows home
+    ]
+    return dangerousPatterns.some(pattern => pattern.test(path))
+  }
+
   const checkGitRepo = useCallback(async () => {
     if (!projectPath || !window.electron?.git) {
+      setIsGitRepo(false)
+      setIsLoading(false)
+      return
+    }
+
+    // Block dangerous paths
+    if (isDangerousPath(projectPath)) {
+      console.error('[GitPanel] Blocked dangerous path:', projectPath)
+      setError('개인 폴더에서는 Git을 사용할 수 없습니다. 프로젝트 폴더를 선택하세요.')
       setIsGitRepo(false)
       setIsLoading(false)
       return
@@ -125,6 +148,27 @@ export default function GitPanel() {
     }
   }
 
+  // Filter out sensitive files that should never be shown or committed
+  const isSensitiveFile = (filename: string): boolean => {
+    const sensitivePatterns = [
+      /\.p12$/i,           // 공인인증서
+      /\.pem$/i,           // SSL certificates
+      /\.key$/i,           // Private keys
+      /\.pfx$/i,           // Certificate files
+      /\.cer$/i,           // Certificate files
+      /\.crt$/i,           // Certificate files
+      /credential/i,       // Credential files
+      /secret/i,           // Secret files
+      /password/i,         // Password files
+      /\.env\.local$/i,    // Local env files
+      /\.env\.production$/i,
+      /BizBank/i,          // 은행 관련
+      /npki/i,             // 공인인증서 폴더
+      /signCert/i,         // 인증서
+    ]
+    return sensitivePatterns.some(pattern => pattern.test(filename))
+  }
+
   const parseGitStatus = (output: string): GitStatus => {
     const lines = output.trim().split('\n').filter(Boolean)
     const staged: string[] = []
@@ -135,6 +179,12 @@ export default function GitPanel() {
       const indexStatus = line[0]
       const workTreeStatus = line[1]
       const filename = line.substring(3)
+
+      // Skip sensitive files
+      if (isSensitiveFile(filename)) {
+        console.warn('[GitPanel] Filtered sensitive file:', filename)
+        continue
+      }
 
       if (indexStatus === '?' && workTreeStatus === '?') {
         untracked.push(filename)
