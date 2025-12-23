@@ -138,6 +138,13 @@ async function createWindow() {
 app.whenReady().then(() => {
     createWindow();
 
+    // Check for updates on startup
+    if (app.isPackaged) {
+        autoUpdater.checkForUpdatesAndNotify().catch(err => {
+            console.error('Failed to check for updates:', err);
+        });
+    }
+
     // Create Application Menu
     const template: Electron.MenuItemConstructorOptions[] = [
         {

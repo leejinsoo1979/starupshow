@@ -393,16 +393,25 @@ function ActionsTab({ isDark }: { isDark: boolean }) {
   )
 }
 
+import { useRef, useEffect } from 'react'
 import { ChatInput } from '@/components/chat/ChatInput'
 import { useChatStore } from '@/stores/chatStore'
 
 function ChatTab({ isDark, currentAccent }: { isDark: boolean; currentAccent: typeof accentColors[0] }) {
   const selectedNode = useNeuralMapStore(selectFirstSelectedNode)
   const { messages } = useChatStore()
+  const scrollRef = useRef<HTMLDivElement>(null)
+
+  // Auto-scroll to bottom when messages change
+  useEffect(() => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight
+    }
+  }, [messages])
 
   return (
     <div className="h-full flex flex-col">
-      <div className="flex-1 p-4 overflow-y-auto">
+      <div className="flex-1 p-4 overflow-y-auto" ref={scrollRef}>
         {messages.length > 0 ? (
           <div className="space-y-4">
             {messages.map((msg) => (
@@ -410,6 +419,12 @@ function ChatTab({ isDark, currentAccent }: { isDark: boolean; currentAccent: ty
                 {msg.content}
               </div>
             ))}
+            {/* Fake thinking indicator if last message is user */}
+            {messages[messages.length - 1]?.role === 'user' && (
+              <div className="pl-2 border-l-2 border-zinc-300 animate-pulse text-xs text-zinc-500">
+                AI가 생각중입니다...
+              </div>
+            )}
           </div>
         ) : selectedNode ? (
           <div className="space-y-3">

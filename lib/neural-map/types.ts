@@ -418,8 +418,26 @@ export interface SimulationNode extends NeuralNode {
   fz?: number | null
 }
 
+
 export interface SimulationLink {
   source: string | SimulationNode
   target: string | SimulationNode
   weight: number
 }
+
+
+// ============================================
+// Terminal Types
+// ============================================
+
+export interface TerminalInstance {
+  id: string
+  name: string
+  shell: string
+  cwd: string
+  pid?: number
+  color?: string
+  groupId: string
+  customName?: string
+}
+

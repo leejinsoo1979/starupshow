@@ -1,7 +1,7 @@
 export const profileData = {
   name: '김대표',
   title: 'CEO & Founder',
-  avatar: '/avatar-placeholder.png',
+  avatar: '',
   email: 'ceo@startup.com',
   phone: '+82 10-1234-5678',
   birthday: '1990년 3월 15일',

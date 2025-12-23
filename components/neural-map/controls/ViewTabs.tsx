@@ -12,6 +12,7 @@ import {
   GitBranch, // Logic
   FlaskConical, // Test
   Terminal, // Terminal
+  Globe, // Browser
 } from 'lucide-react'
 import { BsBrowserChrome } from "react-icons/bs"
 
@@ -21,7 +22,7 @@ const viewTabs: { id: ViewTab; label: string; icon: typeof Network; description:
   { id: 'data', label: 'Data', icon: Database, description: '데이터 구조 및 스키마' },
   { id: 'logic', label: 'Logic', icon: GitBranch, description: '로직 흐름 및 파일 구조' },
   { id: 'test', label: 'Test', icon: FlaskConical, description: '품질 검증 및 테스트' },
-  { id: 'browser', label: 'Browser', icon: BsBrowserChrome, description: '웹 브라우저' },
+  { id: 'browser', label: 'Browser', icon: Globe, description: '웹 브라우저' },
 ]
 
 export function ViewTabs() {

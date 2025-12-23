@@ -26,10 +26,12 @@ const MODELS: { id: ChatModel; name: string; icon: any }[] = [
     { id: 'claude-3-opus', name: 'Claude 3 Opus', icon: Sparkles },
     { id: 'gpt-4o', name: 'GPT-4o', icon: Sparkles },
     { id: 'gemini-1.5-pro', name: 'Gemini 1.5 Pro', icon: Sparkles },
+    { id: 'grok-4.1-fast', name: 'Grok 4.1 Fast', icon: Sparkles },
+    { id: 'gemini-3-flash', name: 'Gemini 3 Flash', icon: Sparkles },
 ]
 
 export function ChatInput() {
-    const { input, setInput, selectedModel, setSelectedModel, isAgentMode, toggleAgentMode } = useChatStore()
+    const { input, setInput, selectedModel, setSelectedModel, isAgentMode, toggleAgentMode, addMessage, setIsLoading } = useChatStore()
     const textareaRef = useRef<HTMLTextAreaElement>(null)
 
     // Auto-resize textarea
@@ -40,11 +42,67 @@ export function ChatInput() {
         }
     }, [input])
 
-    const handleKeyDown = (e: React.KeyboardEvent) => {
+    const handleKeyDown = async (e: React.KeyboardEvent) => {
         if (e.key === 'Enter' && !e.shiftKey) {
+            // Prevent double submission during IME composition (Korean)
+            if (e.nativeEvent.isComposing) return
+
             e.preventDefault()
-            // Handle submit
-            console.log('Submit:', input)
+            if (!input.trim()) return
+
+            // Add user message
+            addMessage({
+                id: Date.now().toString(),
+                role: 'user',
+                content: input,
+                timestamp: Date.now(),
+                model: selectedModel
+            })
+
+            // Mock response removed
+            // Real API integration
+            setIsLoading(true)
+
+            try {
+                const response = await fetch('/api/chat', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        messages: [
+                            ...useChatStore.getState().messages,
+                            { role: 'user', content: input }
+                        ],
+                        model: selectedModel
+                    })
+                })
+
+                if (!response.ok) {
+                    const errorData = await response.json().catch(() => ({}))
+                    throw new Error(errorData.error || `HTTP Error ${response.status}`)
+                }
+
+                const data = await response.json()
+
+                addMessage({
+                    id: Date.now().toString(),
+                    role: 'assistant',
+                    content: data.content,
+                    timestamp: Date.now(),
+                    model: selectedModel
+                })
+            } catch (error: any) {
+                console.error('Chat error:', error)
+                addMessage({
+                    id: Date.now().toString(),
+                    role: 'assistant',
+                    content: `오류가 발생했습니다: ${error.message || '알 수 없는 오류'}`,
+                    timestamp: Date.now(),
+                    model: selectedModel
+                })
+            } finally {
+                setIsLoading(false)
+            }
+
             setInput('')
         }
     }

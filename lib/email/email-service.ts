@@ -4,6 +4,7 @@ import { ImapService, parsedEmailToDbFormat } from './imap-service'
 import { Pop3Service, pop3EmailToDbFormat } from './pop3-service'
 import { EmailAIAgent } from './email-ai-agent'
 import { SmtpService } from './smtp-service'
+import { ResendService } from './resend-service'
 import { createCipheriv, createDecipheriv, randomBytes, scryptSync } from 'crypto'
 import type {
   EmailAccount,
@@ -446,9 +447,11 @@ export class EmailService {
     return data as EmailMessage
   }
 
+
+
   // Send email
   async sendEmail(request: SendEmailRequest): Promise<{ success: boolean; messageId?: string; error?: string }> {
-    // Get account with password
+    // Get account
     const { data: account, error: accountError } = await (this.supabase as any)
       .from('email_accounts')
       .select('*')
@@ -459,11 +462,11 @@ export class EmailService {
       return { success: false, error: 'Account not found' }
     }
 
-    const password = decrypt(account.encrypted_password)
-    const smtpService = new SmtpService(account as EmailAccount, password)
+    // Use ResendService (Secure API)
+    const resendService = new ResendService(account as EmailAccount)
 
     try {
-      const result = await smtpService.sendEmail({
+      const result = await resendService.sendEmail({
         to: request.to,
         cc: request.cc,
         bcc: request.bcc,
@@ -473,13 +476,11 @@ export class EmailService {
         attachments: request.attachments,
       })
 
-      smtpService.close()
-
       if (result.success) {
         // Save sent email to database
         await (this.supabase as any).from('email_messages').insert({
           account_id: request.account_id,
-          message_id: result.messageId,
+          message_id: result.messageId || `resend-${Date.now()}`,
           uid: 0,
           folder: 'Sent',
           subject: request.subject,
@@ -499,7 +500,7 @@ export class EmailService {
 
       return result
     } catch (error) {
-      smtpService.close()
+      console.error('Email send failed:', error)
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Send failed',

@@ -127,6 +127,9 @@ interface NeuralMapState {
   // Terminal
   terminalOpen: boolean
   terminalHeight: number
+  terminals: import('./types').TerminalInstance[]
+  activeTerminalId: string | null
+  activeGroupId: string | null
 }
 
 // ============================================
@@ -239,6 +242,12 @@ interface NeuralMapActions {
   // Terminal
   toggleTerminal: () => void
   setTerminalHeight: (height: number) => void
+  addTerminal: (terminal: import('./types').TerminalInstance) => void
+  removeTerminal: (id: string) => void
+  splitTerminal: (sourceId: string, newTerminal: import('./types').TerminalInstance) => void
+  setActiveTerminal: (id: string) => void
+  updateTerminal: (id: string, updates: Partial<import('./types').TerminalInstance>) => void
+  setTerminals: (terminals: import('./types').TerminalInstance[]) => void
 
   // Build graph from real files
   buildGraphFromFiles: () => void
@@ -315,6 +324,9 @@ const initialState: NeuralMapState = {
   // Terminal
   terminalOpen: false,
   terminalHeight: 250,
+  terminals: [],
+  activeTerminalId: null,
+  activeGroupId: null,
 }
 
 // ============================================
@@ -1048,6 +1060,69 @@ export const useNeuralMapStore = create<NeuralMapState & NeuralMapActions>()(
         setTerminalHeight: (height) =>
           set((state) => {
             state.terminalHeight = height
+          }),
+
+        addTerminal: (terminal) =>
+          set((state) => {
+            state.terminals.push(terminal)
+            state.activeTerminalId = terminal.id
+            state.activeGroupId = terminal.groupId
+          }),
+
+        removeTerminal: (id) =>
+          set((state) => {
+            const terminalToRemove = state.terminals.find(t => t.id === id)
+            if (!terminalToRemove) return
+
+            state.terminals = state.terminals.filter(t => t.id !== id)
+
+            // If active terminal was removed, select another
+            if (state.activeTerminalId === id) {
+              const sameGroup = state.terminals.filter(t => t.groupId === terminalToRemove.groupId)
+              if (sameGroup.length > 0) {
+                state.activeTerminalId = sameGroup[sameGroup.length - 1].id
+              } else if (state.terminals.length > 0) {
+                state.activeTerminalId = state.terminals[state.terminals.length - 1].id
+                state.activeGroupId = state.terminals[state.terminals.length - 1].groupId
+              } else {
+                state.activeTerminalId = null
+                state.activeGroupId = null
+              }
+            }
+          }),
+
+        splitTerminal: (sourceId, newTerminal) =>
+          set((state) => {
+            const sourceIndex = state.terminals.findIndex(t => t.id === sourceId)
+            if (sourceIndex === -1) {
+              state.terminals.push(newTerminal)
+            } else {
+              // Insert after source
+              state.terminals.splice(sourceIndex + 1, 0, newTerminal)
+            }
+            state.activeTerminalId = newTerminal.id
+          }),
+
+        setActiveTerminal: (id) =>
+          set((state) => {
+            state.activeTerminalId = id
+            const term = state.terminals.find(t => t.id === id)
+            if (term) {
+              state.activeGroupId = term.groupId
+            }
+          }),
+
+        updateTerminal: (id, updates) =>
+          set((state) => {
+            const term = state.terminals.find(t => t.id === id)
+            if (term) {
+              Object.assign(term, updates)
+            }
+          }),
+
+        setTerminals: (terminals) =>
+          set((state) => {
+            state.terminals = terminals
           }),
 
         resetLayout: () =>

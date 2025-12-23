@@ -16,18 +16,18 @@ import type {
 // ============================================
 
 export const NODE_COLORS: Record<NodeType, string> = {
-  self:     '#FFD700',  // 골드
-  concept:  '#00BFFF',  // 시안
-  project:  '#10B981',  // 에메랄드
-  doc:      '#3B82F6',  // 블루
-  idea:     '#F59E0B',  // 앰버
+  self: '#FFD700',  // 골드
+  concept: '#00BFFF',  // 시안
+  project: '#10B981',  // 에메랄드
+  doc: '#3B82F6',  // 블루
+  idea: '#F59E0B',  // 앰버
   decision: '#EF4444',  // 레드
-  memory:   '#14B8A6',  // 틸
-  task:     '#06B6D4',  // 시안
-  person:   '#0EA5E9',  // 스카이블루
-  insight:  '#22D3EE',  // 시안라이트
-  folder:   '#6B7280',  // 그레이
-  file:     '#9CA3AF',  // 라이트그레이
+  memory: '#14B8A6',  // 틸
+  task: '#06B6D4',  // 시안
+  person: '#0EA5E9',  // 스카이블루
+  insight: '#22D3EE',  // 시안라이트
+  folder: '#6B7280',  // 그레이
+  file: '#9CA3AF',  // 라이트그레이
 }
 
 // ============================================
@@ -365,9 +365,9 @@ export const PANEL_SIZES = {
     collapsed: 0,
   },
   right: {
-    default: 320,
+    default: 420,
     min: 280,
-    max: 480,
+    max: 600,
     collapsed: 0,
   },
 }

@@ -2,7 +2,7 @@
 
 import { create } from 'zustand'
 
-export type ChatModel = 'gpt-4o' | 'claude-3-opus' | 'claude-3.5-sonnet' | 'gemini-1.5-pro'
+export type ChatModel = 'gpt-4o' | 'claude-3-opus' | 'claude-3.5-sonnet' | 'gemini-1.5-pro' | 'grok-4.1-fast' | 'gemini-3-flash'
 
 export interface ChatMessage {
     id: string

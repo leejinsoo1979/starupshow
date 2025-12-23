@@ -3,6 +3,8 @@
 import { useState, useRef, useEffect, useCallback, forwardRef, useImperativeHandle } from 'react'
 import { Terminal as TerminalIcon, X, ChevronDown, Plus, Trash2, Maximize2, Minimize2, SplitSquareHorizontal } from 'lucide-react'
 import dynamic from 'next/dynamic'
+import { useNeuralMapStore } from '@/lib/neural-map/store'
+import type { TerminalInstance } from '@/lib/neural-map/types'
 
 // xterm을 동적으로 import (SSR 비활성화) - 로딩 상태 없이 즉시 렌더링
 const XTermComponent = dynamic(() => import('./XTermWrapper'), {
@@ -10,16 +12,7 @@ const XTermComponent = dynamic(() => import('./XTermWrapper'), {
   loading: () => null  // 로딩 중에는 아무것도 표시하지 않음 (애니메이션 방지)
 })
 
-interface TerminalInstance {
-  id: string
-  name: string
-  shell: string // 실제 셸 이름 (zsh, bash, powershell 등)
-  cwd: string // 현재 작업 디렉토리
-  pid?: number
-  color?: string
-  groupId: string // 분할 그룹 ID
-  customName?: string // 사용자가 지정한 이름
-}
+// TerminalInstance imported from types
 
 interface TerminalPanelProps {
   isOpen: boolean
@@ -55,11 +48,33 @@ export const TerminalPanel = forwardRef<TerminalPanelRef, TerminalPanelProps>(({
     return 'zsh'
   }
 
-  const [terminals, setTerminals] = useState<TerminalInstance[]>([
-    { id: '1', name: 'Terminal', shell: getDefaultShell(), cwd: '', groupId: '1' },
-  ])
-  const [activeTerminal, setActiveTerminal] = useState('1')
-  const [activeGroupId, setActiveGroupId] = useState('1')
+  // Global Store Access
+  const terminals = useNeuralMapStore(s => s.terminals)
+  const activeTerminalId = useNeuralMapStore(s => s.activeTerminalId)
+  const activeGroupId = useNeuralMapStore(s => s.activeGroupId)
+
+  const addTerminalAction = useNeuralMapStore(s => s.addTerminal)
+  const removeTerminalAction = useNeuralMapStore(s => s.removeTerminal)
+  const splitTerminalAction = useNeuralMapStore(s => s.splitTerminal)
+  const setActiveTerminal = useNeuralMapStore(s => s.setActiveTerminal)
+  const updateTerminal = useNeuralMapStore(s => s.updateTerminal)
+  const setTerminals = useNeuralMapStore(s => s.setTerminals)
+
+  // Initialize defaults if empty
+  useEffect(() => {
+    if (terminals.length === 0) {
+      const initialId = '1'
+      const initialGroupId = '1'
+      setTerminals([
+        { id: initialId, name: 'Terminal', shell: getDefaultShell(), cwd: '', groupId: initialGroupId },
+      ])
+      setActiveTerminal(initialId)
+    }
+  }, []) // run once on mount
+
+  // Local derived state aliases for compatibility
+  const activeTerminal = activeTerminalId || (terminals[0]?.id ?? '1')
+
 
   // Expose write method (RESTORATION)
   useImperativeHandle(ref, () => ({
@@ -249,9 +264,7 @@ export const TerminalPanel = forwardRef<TerminalPanelRef, TerminalPanelProps>(({
       cwd: '',
       groupId: newGroupId,
     }
-    setTerminals([...terminals, newTerminal])
-    setActiveGroupId(newGroupId)
-    setActiveTerminal(newId)
+    addTerminalAction(newTerminal)
   }
 
   // 터미널 분할 (같은 그룹에 추가)
@@ -267,40 +280,16 @@ export const TerminalPanel = forwardRef<TerminalPanelRef, TerminalPanelProps>(({
       cwd: '',
       groupId: terminal.groupId, // 같은 그룹!
     }
-    setTerminals([...terminals, newTerminal])
-    setSplitWidths({}) // 너비 초기화 (균등 분할)
-    setActiveTerminal(newId)
+    splitTerminalAction(terminalId, newTerminal)
   }
 
   // 터미널 제거 (Kill Terminal)
   const removeTerminal = (id: string) => {
-    if (terminals.length === 1) return
-
-    const terminalToRemove = terminals.find(t => t.id === id)
-    if (!terminalToRemove) return
-
-    const newTerminals = terminals.filter(t => t.id !== id)
-    setTerminals(newTerminals)
-
-    // 같은 그룹에 남은 터미널이 있는지 확인
-    const sameGroupTerminals = newTerminals.filter(t => t.groupId === terminalToRemove.groupId)
-
-    if (activeTerminal === id) {
-      if (sameGroupTerminals.length > 0) {
-        setActiveTerminal(sameGroupTerminals[0].id)
-      } else {
-        const remaining = newTerminals[0]
-        setActiveTerminal(remaining.id)
-        setActiveGroupId(remaining.groupId)
-      }
-    }
+    removeTerminalAction(id)
   }
 
   // 터미널 선택 (그룹도 함께 변경)
   const selectTerminal = (id: string) => {
-    const terminal = terminals.find(t => t.id === id)
-    if (!terminal) return
-    setActiveGroupId(terminal.groupId)
     setActiveTerminal(id)
   }
 
@@ -352,9 +341,7 @@ export const TerminalPanel = forwardRef<TerminalPanelRef, TerminalPanelProps>(({
 
   // 터미널 이름 변경
   const renameTerminal = (id: string, newName: string) => {
-    setTerminals(prev => prev.map(t =>
-      t.id === id ? { ...t, customName: newName } : t
-    ))
+    updateTerminal(id, { customName: newName })
     setRenameModal(null)
     setRenameInput('')
   }
@@ -381,20 +368,20 @@ export const TerminalPanel = forwardRef<TerminalPanelRef, TerminalPanelProps>(({
       const event = e as CustomEvent
       const { id, shell, cwd, pid } = event.detail
 
-      setTerminals(prev => prev.map(t =>
-        t.id === id
-          ? { ...t, shell, cwd, pid }
-          : t
-      ))
+      const terminal = terminals.find(t => t.id === id)
+      if (terminal) {
+        updateTerminal(id, { shell, cwd, pid })
+      }
     }
 
     const handleCwdUpdate = (e: Event) => {
       const event = e as CustomEvent
       const { id, cwd } = event.detail
 
-      setTerminals(prev => prev.map(t =>
-        t.id === id ? { ...t, cwd } : t
-      ))
+      const terminal = terminals.find(t => t.id === id)
+      if (terminal) {
+        updateTerminal(id, { cwd })
+      }
     }
 
     window.addEventListener('terminal-shell-info', handleShellInfo)
@@ -561,7 +548,7 @@ export const TerminalPanel = forwardRef<TerminalPanelRef, TerminalPanelProps>(({
   // 최소화된 상태 - CSS로 숨김 처리 (RESTORATION)
   // if (!isOpen) return null
 
-  if (!isOpen) return null
+  // if (!isOpen) return null // Removed for persistence
 
   return (
     <div

@@ -97,18 +97,17 @@ export function ElectronHeader() {
             {/* Drag area for traffic lights on Mac */}
             {isMac && <div className="w-20 h-full flex-shrink-0" />}
 
-            {/* Left Section: Navigation - No Drag for buttons */}
             <div className="flex items-center gap-2" style={{ WebkitAppRegion: 'no-drag' } as any}>
                 <button
                     onClick={() => router.back()}
-                    className="p-1.5 rounded-md hover:bg-white/5 text-zinc-500 hover:text-white transition-colors"
+                    className={cn("p-1.5 rounded-md transition-colors", isDark ? "hover:bg-white/5 text-zinc-500 hover:text-white" : "hover:bg-zinc-100 text-zinc-500 hover:text-zinc-900")}
                     title="뒤로"
                 >
                     <ChevronRight className="w-4 h-4 rotate-180" />
                 </button>
                 <button
                     onClick={() => router.forward()}
-                    className="p-1.5 rounded-md hover:bg-white/5 text-zinc-500 hover:text-white transition-colors"
+                    className={cn("p-1.5 rounded-md transition-colors", isDark ? "hover:bg-white/5 text-zinc-500 hover:text-white" : "hover:bg-zinc-100 text-zinc-500 hover:text-zinc-900")}
                     title="앞으로"
                 >
                     <ChevronRight className="w-4 h-4" />
@@ -148,7 +147,7 @@ export function ElectronHeader() {
                 <div className="flex items-center gap-0.5">
                     {/* Grid 4-panel */}
                     <button
-                        className="p-1.5 rounded hover:bg-white/10 transition-colors text-zinc-500 hover:text-white"
+                        className={cn("p-1.5 rounded transition-colors", isDark ? "hover:bg-white/10 text-zinc-500 hover:text-white" : "hover:bg-zinc-100 text-zinc-500 hover:text-zinc-900")}
                         title="Grid Layout"
                     >
                         <svg className="w-4 h-4" viewBox="0 0 16 16" fill="none">
@@ -160,7 +159,7 @@ export function ElectronHeader() {
                     </button>
                     {/* Single window */}
                     <button
-                        className="p-1.5 rounded hover:bg-white/10 transition-colors text-zinc-500 hover:text-white"
+                        className={cn("p-1.5 rounded transition-colors", isDark ? "hover:bg-white/10 text-zinc-500 hover:text-white" : "hover:bg-zinc-100 text-zinc-500 hover:text-zinc-900")}
                         title="Single Window"
                     >
                         <svg className="w-4 h-4" viewBox="0 0 16 16" fill="none">
@@ -200,7 +199,7 @@ export function ElectronHeader() {
 
                 {/* Search */}
                 <button
-                    className="p-1.5 rounded hover:bg-white/10 transition-colors text-zinc-500 hover:text-white"
+                    className={cn("p-1.5 rounded transition-colors", isDark ? "hover:bg-white/10 text-zinc-500 hover:text-white" : "hover:bg-zinc-100 text-zinc-500 hover:text-zinc-900")}
                     title="Search"
                 >
                     <Search className="w-4 h-4" />

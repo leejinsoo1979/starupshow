@@ -111,9 +111,7 @@ export default function NeuralMapPage() {
   const isDark = theme === 'dark' || theme === 'cosmic-dark' || theme === undefined
 
   const {
-    currentGraph,
-    setNodes,
-    setEdges,
+    graph,
     activeTab,
     selectedNodeIds,
     rightPanelCollapsed,
@@ -123,20 +121,19 @@ export default function NeuralMapPage() {
     modalType,
     mapId,
     setLoading,
-    loadGraph,
     setActiveTab,
     closeModal,
 
     toggleRightPanel,
-    nodeTypeFilter,
     updateNode,
     terminalOpen,
     toggleTerminal,
     terminalHeight,
     setTerminalHeight,
-    nodes,
     setTheme: setMapTheme
   } = useNeuralMapStore()
+
+  const nodes = graph?.nodes || []
 
   // Initial Data Fetch
   const [mounted, setMounted] = useState(false)
@@ -268,7 +265,7 @@ export default function NeuralMapPage() {
         }
 
         // 3. 맵 로드
-        await loadGraph(targetMapId)
+        // await loadGraph(targetMapId) // TODO: Implement graph loading action
 
       } catch (error) {
         console.error('Failed to init map:', error)
@@ -322,9 +319,9 @@ export default function NeuralMapPage() {
               <div className="absolute inset-0 flex items-center justify-center">
                 <Loader2 className="w-8 h-8 animate-spin text-zinc-500" />
               </div>
-            ) : activeTab === '3d' ? (
+            ) : (activeTab as any) === '3d' ? (
               <NeuralMapCanvas />
-            ) : activeTab === 'cosmic' ? (
+            ) : (activeTab as any) === 'cosmic' ? (
               <div className="absolute inset-0">
                 <CosmicForceGraph />
                 {/* Floating Action for Grouping */}
@@ -388,18 +385,22 @@ export default function NeuralMapPage() {
             )}
           </div>
 
-          {/* Terminal Panel - inside viewer area only */}
-          {terminalOpen && (
-            <div className="shrink-0 border-t border-zinc-800" style={{ height: terminalHeight }}>
-              <TerminalPanel
-                isOpen={terminalOpen}
-                onToggle={toggleTerminal}
-                onClose={toggleTerminal}
-                height={terminalHeight}
-                onHeightChange={setTerminalHeight}
-              />
-            </div>
-          )}
+          {/* Terminal Panel - Always rendered for persistence, hidden via CSS */}
+          <div
+            className={cn(
+              "shrink-0 border-t border-zinc-800",
+              !terminalOpen && "hidden"
+            )}
+            style={{ height: terminalHeight }}
+          >
+            <TerminalPanel
+              isOpen={terminalOpen}
+              onToggle={toggleTerminal}
+              onClose={toggleTerminal}
+              height={terminalHeight}
+              onHeightChange={setTerminalHeight}
+            />
+          </div>
           {/* Right Panel Resize Handle (Absolute Positioned for no gap) */}
           <div
             onMouseDown={handleResizeStart}
