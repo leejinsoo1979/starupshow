@@ -20,6 +20,9 @@ import {
   Clock,
   User,
   ExternalLink,
+  Github,
+  Link2,
+  FolderGit,
 } from 'lucide-react'
 import { useNeuralMapStore } from '@/lib/neural-map/store'
 
@@ -52,6 +55,11 @@ export default function GitPanel() {
   const [isPushing, setIsPushing] = useState(false)
   const [isPulling, setIsPulling] = useState(false)
   const [isCommitting, setIsCommitting] = useState(false)
+  const [isInitializing, setIsInitializing] = useState(false)
+  const [isConnectingGitHub, setIsConnectingGitHub] = useState(false)
+  const [hasRemote, setHasRemote] = useState(false)
+  const [isGitHubConnected, setIsGitHubConnected] = useState(false)
+  const [gitHubUsername, setGitHubUsername] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [expandedSections, setExpandedSections] = useState({
     staged: true,
@@ -168,6 +176,138 @@ export default function GitPanel() {
     checkGitRepo()
   }, [checkGitRepo])
 
+  // Check GitHub connection status
+  const checkGitHubConnection = useCallback(async () => {
+    try {
+      const response = await fetch('/api/github')
+      if (response.ok) {
+        const data = await response.json()
+        setIsGitHubConnected(data.connected)
+        setGitHubUsername(data.connection?.github_username || null)
+      }
+    } catch (err) {
+      console.error('[GitPanel] Failed to check GitHub connection:', err)
+    }
+  }, [])
+
+  useEffect(() => {
+    checkGitHubConnection()
+  }, [checkGitHubConnection])
+
+  // Check if remote origin exists
+  const checkRemote = async () => {
+    if (!projectGitPath || !window.electron?.git?.remoteList) return false
+
+    try {
+      const result = await window.electron.git.remoteList(projectGitPath)
+      if (result?.success && result.output) {
+        const hasOrigin = result.output.includes('origin')
+        setHasRemote(hasOrigin)
+        return hasOrigin
+      }
+    } catch (err) {
+      console.error('[GitPanel] Failed to check remote:', err)
+    }
+    setHasRemote(false)
+    return false
+  }
+
+  // Initialize git only (no GitHub)
+  const handleInitGitOnly = async () => {
+    if (!projectGitPath || !window.electron?.git?.init) return
+
+    setIsInitializing(true)
+    setError(null)
+
+    try {
+      const result = await window.electron.git.init(projectGitPath)
+      if (result?.success) {
+        await checkGitRepo()
+      } else {
+        setError(result?.error || 'Git 초기화 실패')
+      }
+    } catch (err) {
+      console.error('[GitPanel] Failed to init git:', err)
+      setError('Git 초기화 중 오류가 발생했습니다')
+    } finally {
+      setIsInitializing(false)
+    }
+  }
+
+  // Initialize git and connect to GitHub
+  const handleConnectGitHub = async () => {
+    if (!projectGitPath || !linkedProjectName) return
+
+    // Check GitHub connection first
+    if (!isGitHubConnected) {
+      // Redirect to GitHub OAuth
+      window.location.href = `/api/auth/github?returnUrl=/dashboard-group/neural-map`
+      return
+    }
+
+    setIsConnectingGitHub(true)
+    setError(null)
+
+    try {
+      // 1. Initialize git if not already
+      if (!isGitRepo && window.electron?.git?.init) {
+        const initResult = await window.electron.git.init(projectGitPath)
+        if (!initResult?.success) {
+          throw new Error(initResult?.error || 'Git 초기화 실패')
+        }
+      }
+
+      // 2. Create GitHub repository
+      const repoName = linkedProjectName.replace(/[^a-zA-Z0-9-_]/g, '-').toLowerCase()
+      const createResponse = await fetch('/api/github/repos', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: repoName,
+          description: `${linkedProjectName} - Created by GlowUS`,
+          private: true,
+          auto_init: false, // We'll push our own initial commit
+        }),
+      })
+
+      if (!createResponse.ok) {
+        const errorData = await createResponse.json()
+        throw new Error(errorData.error || 'GitHub 레포지토리 생성 실패')
+      }
+
+      const { repo } = await createResponse.json()
+
+      // 3. Add remote origin
+      if (window.electron?.git?.remoteAdd) {
+        await window.electron.git.remoteAdd(projectGitPath, 'origin', repo.clone_url)
+      }
+
+      // 4. Update project with GitHub info
+      if (linkedProjectId) {
+        await fetch(`/api/projects/${linkedProjectId}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            github_owner: repo.owner.login,
+            github_repo: repo.name,
+            github_clone_url: repo.clone_url,
+            github_connected_at: new Date().toISOString(),
+          }),
+        })
+      }
+
+      // 5. Refresh status
+      await checkGitRepo()
+      await checkRemote()
+
+    } catch (err: any) {
+      console.error('[GitPanel] Failed to connect GitHub:', err)
+      setError(err.message || 'GitHub 연동 중 오류가 발생했습니다')
+    } finally {
+      setIsConnectingGitHub(false)
+    }
+  }
+
   const refreshGitStatus = async () => {
     // projectGitPath만 사용 (사용자 프로젝트의 실제 경로)
     if (!projectGitPath || !linkedProjectId || !window.electron?.git) return
@@ -195,6 +335,9 @@ export default function GitPanel() {
         const parsedCommits = parseGitLog(logResult)
         setCommits(parsedCommits)
       }
+
+      // Check remote
+      await checkRemote()
     } catch (err) {
       console.error('Failed to refresh git status:', err)
       setError('Git 상태를 가져오는데 실패했습니다')
@@ -440,21 +583,85 @@ export default function GitPanel() {
   if (!isGitRepo) {
     return (
       <div className={`h-full flex flex-col items-center justify-center p-6 ${isDark ? 'bg-zinc-900' : 'bg-white'}`}>
-        <GitBranch className={`w-12 h-12 mb-4 ${isDark ? 'text-zinc-600' : 'text-zinc-400'}`} />
-        <p className={`text-center mb-4 ${isDark ? 'text-zinc-400' : 'text-zinc-600'}`}>
+        <FolderGit className={`w-16 h-16 mb-4 ${isDark ? 'text-zinc-600' : 'text-zinc-400'}`} />
+        <h3 className={`text-lg font-medium mb-2 ${isDark ? 'text-zinc-200' : 'text-zinc-800'}`}>
           Git 저장소가 아닙니다
+        </h3>
+        <p className={`text-center text-sm mb-6 max-w-xs ${isDark ? 'text-zinc-500' : 'text-zinc-500'}`}>
+          이 프로젝트를 Git으로 관리하려면 초기화가 필요합니다.
+          GitHub에 올리거나 로컬에서만 관리할 수 있습니다.
         </p>
-        <button
-          onClick={async () => {
-            if (window.electron?.git?.init && projectGitPath) {
-              await window.electron.git.init(projectGitPath)
-              await checkGitRepo()
-            }
-          }}
-          className="px-4 py-2 bg-zinc-800 text-white rounded-lg hover:bg-zinc-700 transition-colors"
-        >
-          Git 저장소 초기화
-        </button>
+
+        {/* Error message */}
+        {error && (
+          <div className="mb-4 px-3 py-2 bg-red-500/10 border border-red-500/20 rounded-lg flex items-center gap-2">
+            <AlertCircle className="w-4 h-4 text-red-400 flex-shrink-0" />
+            <span className="text-xs text-red-400">{error}</span>
+          </div>
+        )}
+
+        <div className="w-full max-w-xs space-y-3">
+          {/* GitHub 연동 버튼 */}
+          <button
+            onClick={handleConnectGitHub}
+            disabled={isConnectingGitHub || isInitializing}
+            className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-zinc-800 text-white rounded-lg hover:bg-zinc-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {isConnectingGitHub ? (
+              <Loader2 className="w-5 h-5 animate-spin" />
+            ) : (
+              <Github className="w-5 h-5" />
+            )}
+            <span className="font-medium">
+              {isConnectingGitHub
+                ? 'GitHub 연동 중...'
+                : isGitHubConnected
+                  ? 'GitHub 레포지토리 생성 및 연동'
+                  : 'GitHub 계정 연결하기'}
+            </span>
+          </button>
+
+          {isGitHubConnected && gitHubUsername && (
+            <p className={`text-xs text-center ${isDark ? 'text-zinc-500' : 'text-zinc-400'}`}>
+              <Github className="w-3 h-3 inline mr-1" />
+              {gitHubUsername}으로 연결됨
+            </p>
+          )}
+
+          <div className="relative">
+            <div className="absolute inset-0 flex items-center">
+              <div className={`w-full border-t ${isDark ? 'border-zinc-700' : 'border-zinc-200'}`} />
+            </div>
+            <div className="relative flex justify-center text-xs">
+              <span className={`px-2 ${isDark ? 'bg-zinc-900 text-zinc-500' : 'bg-white text-zinc-400'}`}>
+                또는
+              </span>
+            </div>
+          </div>
+
+          {/* 로컬 Git만 초기화 버튼 */}
+          <button
+            onClick={handleInitGitOnly}
+            disabled={isInitializing || isConnectingGitHub}
+            className={`w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
+              isDark
+                ? 'bg-zinc-800/50 text-zinc-300 hover:bg-zinc-800'
+                : 'bg-zinc-100 text-zinc-700 hover:bg-zinc-200'
+            }`}
+          >
+            {isInitializing ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <GitBranch className="w-4 h-4" />
+            )}
+            <span className="text-sm">
+              {isInitializing ? '초기화 중...' : '로컬 Git만 초기화'}
+            </span>
+          </button>
+          <p className={`text-xs text-center ${isDark ? 'text-zinc-600' : 'text-zinc-400'}`}>
+            GitHub 없이 로컬에서만 버전 관리
+          </p>
+        </div>
       </div>
     )
   }
@@ -470,6 +677,12 @@ export default function GitPanel() {
           <span className={`font-medium ${isDark ? 'text-zinc-200' : 'text-zinc-800'}`}>
             {currentBranch || 'main'}
           </span>
+          {hasRemote && (
+            <span className="flex items-center gap-1 text-xs text-green-500">
+              <Github className="w-3 h-3" />
+              연결됨
+            </span>
+          )}
         </div>
         <button
           onClick={refreshGitStatus}
@@ -481,6 +694,37 @@ export default function GitPanel() {
           <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''} ${isDark ? 'text-zinc-400' : 'text-zinc-600'}`} />
         </button>
       </div>
+
+      {/* No remote - show GitHub connect prompt */}
+      {!hasRemote && (
+        <div className={`mx-4 mt-3 p-3 rounded-lg border ${isDark ? 'bg-zinc-800/50 border-zinc-700' : 'bg-zinc-50 border-zinc-200'}`}>
+          <div className="flex items-center gap-2 mb-2">
+            <Link2 className={`w-4 h-4 ${isDark ? 'text-zinc-400' : 'text-zinc-500'}`} />
+            <span className={`text-sm font-medium ${isDark ? 'text-zinc-300' : 'text-zinc-700'}`}>
+              GitHub에 연결되지 않음
+            </span>
+          </div>
+          <p className={`text-xs mb-3 ${isDark ? 'text-zinc-500' : 'text-zinc-500'}`}>
+            GitHub에 연동하면 원격 저장소에 백업하고 협업할 수 있습니다.
+          </p>
+          <button
+            onClick={handleConnectGitHub}
+            disabled={isConnectingGitHub}
+            className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-zinc-800 text-white text-sm rounded-lg hover:bg-zinc-700 transition-colors disabled:opacity-50"
+          >
+            {isConnectingGitHub ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <Github className="w-4 h-4" />
+            )}
+            {isConnectingGitHub
+              ? '연동 중...'
+              : isGitHubConnected
+                ? 'GitHub 레포지토리 생성'
+                : 'GitHub 연결하기'}
+          </button>
+        </div>
+      )}
 
       {/* Error */}
       {error && (

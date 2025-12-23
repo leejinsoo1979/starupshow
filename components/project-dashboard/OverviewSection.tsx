@@ -21,7 +21,6 @@ import { AICommandCenter } from "./AICommandCenter"
 import { BattlefieldMatrix } from "./BattlefieldMatrix"
 import { NetworkRoadmap } from "./NetworkRoadmap"
 import { ActivityLogPanel } from "./ActivityLogPanel"
-import { InvestorPreviewWidget } from "./InvestorPreviewWidget"
 import { ProjectRunner } from "./ProjectRunner"
 import { WebFileManager } from "./WebFileManager"
 import { useProjectFileSync } from "@/lib/hooks/useProjectFileSync"
@@ -440,10 +439,6 @@ export function OverviewSection({ projectId, project, onEdit }: OverviewSectionP
         </motion.div>
       </div>
 
-      {/* Floating Widgets */}
-      <div className="fixed bottom-4 right-4 z-50">
-        <InvestorPreviewWidget projectId={projectId} projectName={project.name} />
-      </div>
     </div>
   )
 }

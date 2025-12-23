@@ -2528,44 +2528,16 @@ export function FileTreePanel({ mapId }: FileTreePanelProps) {
                 }}
               />
 
-              {/* GitHub 레포지토리 생성 옵션 */}
-              {isGitHubConnected && (
-                <label className={cn(
-                  'flex items-center gap-3 mt-4 p-3 rounded-lg cursor-pointer transition-colors',
-                  isDark
-                    ? 'hover:bg-[#2d2d2d]'
-                    : 'hover:bg-zinc-50'
-                )}>
-                  <input
-                    type="checkbox"
-                    checked={createGitHubRepo}
-                    onChange={(e) => setCreateGitHubRepo(e.target.checked)}
-                    className="w-4 h-4 rounded accent-current"
-                    style={{ accentColor: currentAccent.color }}
-                  />
-                  <div className="flex items-center gap-2">
-                    <GitBranch className="w-4 h-4" style={{ color: currentAccent.color }} />
-                    <span className={cn(
-                      'text-sm',
-                      isDark ? 'text-zinc-300' : 'text-zinc-700'
-                    )}>
-                      GitHub 레포지토리 생성
-                    </span>
-                  </div>
-                </label>
-              )}
+              {/* GitHub 연동은 Git 탭에서 나중에 가능 */}
+              <p className={cn(
+                'text-xs mt-4 flex items-center gap-2',
+                isDark ? 'text-zinc-500' : 'text-zinc-400'
+              )}>
+                <GitBranch className="w-3.5 h-3.5" />
+                GitHub 연동은 프로젝트 생성 후 Git 탭에서 할 수 있습니다.
+              </p>
 
-              {!isGitHubConnected && (
-                <p className={cn(
-                  'text-xs mt-4 flex items-center gap-2',
-                  isDark ? 'text-zinc-500' : 'text-zinc-400'
-                )}>
-                  <GitBranch className="w-3.5 h-3.5" />
-                  설정에서 GitHub 계정을 연결하면 레포지토리를 함께 생성할 수 있습니다.
-                </p>
-              )}
-
-              <div className="flex gap-3 mt-6">
+              <div className="flex gap-3 mt-4">
                 <button
                   onClick={() => setIsCreatingProject(false)}
                   className={cn(
