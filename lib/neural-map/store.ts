@@ -1411,7 +1411,10 @@ export const useNeuralMapStore = create<NeuralMapState & NeuralMapActions>()(
           leftPanelCollapsed: state.leftPanelCollapsed,
           rightPanelCollapsed: state.rightPanelCollapsed,
           radialDistance: state.radialDistance,
-          // projectPath, linkedProject는 persist하지 않음 - 매번 새로 선택하도록
+          // 프로젝트 연결 정보 persist (새로고침해도 유지)
+          linkedProjectId: state.linkedProjectId,
+          linkedProjectName: state.linkedProjectName,
+          projectPath: state.projectPath,
         }),
       }
     ),

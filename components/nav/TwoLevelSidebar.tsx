@@ -87,7 +87,15 @@ import {
   GitBranch,
   Puzzle,
   ChevronUp,
+  Bug,
+  MonitorPlay,
+  Share2,
+  FileCode,
+  Pin,
+  Container,
+  Github,
 } from 'lucide-react'
+import { SiPython } from 'react-icons/si'
 
 
 // 중첩 메뉴 아이템 타입
@@ -1020,6 +1028,36 @@ export function TwoLevelSidebar({ hideLevel2 = false }: TwoLevelSidebarProps) {
   const [allEmails, setAllEmails] = useState<EmailMessage[]>([])
   const [currentEmailFolder, setCurrentEmailFolder] = useState<'inbox' | 'starred' | 'sent' | 'trash' | 'spam' | 'drafts' | 'all' | 'scheduled' | 'attachments'>('inbox')
   const [isSyncingEmail, setIsSyncingEmail] = useState(false)
+  const [isToolbarMenuOpen, setIsToolbarMenuOpen] = useState(false)
+  const [pinnedToolbarItems, setPinnedToolbarItems] = useState<Set<string>>(new Set(['explorer', 'search', 'git', 'extensions']))
+
+  // Toolbar menu items (VS Code style)
+  const toolbarMenuItems = [
+    { id: 'explorer', name: '탐색기', shortcut: '⇧⌘E', icon: Files },
+    { id: 'search', name: '검색', shortcut: '⇧⌘F', icon: Search },
+    { id: 'git', name: '소스 제어', shortcut: '^⇧G', icon: GitBranch },
+    { id: 'extensions', name: '확장', shortcut: '⇧⌘X', icon: Puzzle },
+    { id: 'debug', name: '실행 및 디버그', shortcut: '⇧⌘D', icon: Bug },
+    { id: 'remote', name: '원격 탐색기', shortcut: '', icon: MonitorPlay },
+    { id: 'python', name: 'Python', shortcut: '', icon: SiPython },
+    { id: 'github-actions', name: 'GitHub Actions', shortcut: '', icon: Github },
+    { id: 'containers', name: 'Containers', shortcut: '', icon: Container },
+    { id: 'makefile', name: 'Makefile', shortcut: '', icon: FileCode },
+    { id: 'liveshare', name: 'Live Share', shortcut: '', icon: Share2 },
+    { id: 'codex', name: 'Codex', shortcut: '', icon: Bot },
+  ]
+
+  const togglePinnedItem = (id: string) => {
+    setPinnedToolbarItems(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) {
+        next.delete(id)
+      } else {
+        next.add(id)
+      }
+      return next
+    })
+  }
 
 
   useEffect(() => {
@@ -1450,57 +1488,125 @@ export function TwoLevelSidebar({ hideLevel2 = false }: TwoLevelSidebarProps) {
                 'h-10 flex items-center px-1 gap-1 border-b flex-shrink-0',
                 isDark ? 'border-zinc-800' : 'border-zinc-200'
               )}>
-                {/* 탐색기 */}
-                <button
-                  className={cn(
-                    "p-1.5 rounded-md transition-all",
-                    isDark ? "bg-zinc-700 text-zinc-100" : "bg-zinc-200 text-zinc-900"
-                  )}
-                  title="탐색기 ⇧⌘E"
-                >
-                  <Files className="w-4 h-4" strokeWidth={1.5} />
-                </button>
-                {/* 검색 */}
-                <button
-                  className={cn(
-                    "p-2 rounded-lg transition-all",
-                    isDark ? "text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800" : "text-zinc-400 hover:text-zinc-600 hover:bg-zinc-100"
-                  )}
-                  title="검색 ⇧⌘F"
-                >
-                  <Search className="w-4 h-4" strokeWidth={1.5} />
-                </button>
-                {/* 소스 제어 */}
-                <button
-                  className={cn(
-                    "p-2 rounded-lg transition-all",
-                    isDark ? "text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800" : "text-zinc-400 hover:text-zinc-600 hover:bg-zinc-100"
-                  )}
-                  title="소스 제어 ^⇧G"
-                >
-                  <GitBranch className="w-4 h-4" strokeWidth={1.5} />
-                </button>
-                {/* 확장 */}
-                <button
-                  className={cn(
-                    "p-2 rounded-lg transition-all",
-                    isDark ? "text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800" : "text-zinc-400 hover:text-zinc-600 hover:bg-zinc-100"
-                  )}
-                  title="확장 ⇧⌘X"
-                >
-                  <Puzzle className="w-4 h-4" strokeWidth={1.5} />
-                </button>
+                {/* 고정된 툴바 아이템들 */}
+                {toolbarMenuItems.filter(item => pinnedToolbarItems.has(item.id)).slice(0, 4).map((item, index) => {
+                  const IconComponent = item.icon
+                  const isFirst = index === 0
+                  return (
+                    <button
+                      key={item.id}
+                      className={cn(
+                        "p-1.5 rounded-md transition-all",
+                        isFirst
+                          ? isDark ? "bg-zinc-700 text-zinc-100" : "bg-zinc-200 text-zinc-900"
+                          : isDark ? "text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800" : "text-zinc-400 hover:text-zinc-600 hover:bg-zinc-100"
+                      )}
+                      title={`${item.name} ${item.shortcut}`}
+                    >
+                      <IconComponent className="w-4 h-4" strokeWidth={1.5} />
+                    </button>
+                  )
+                })}
                 {/* 더보기 드롭다운 */}
                 <div className="relative">
                   <button
+                    onClick={() => setIsToolbarMenuOpen(!isToolbarMenuOpen)}
                     className={cn(
-                      "p-2 rounded-lg transition-all",
-                      isDark ? "text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800" : "text-zinc-400 hover:text-zinc-600 hover:bg-zinc-100"
+                      "p-1.5 rounded-md transition-all",
+                      isToolbarMenuOpen
+                        ? isDark ? "bg-zinc-700 text-zinc-100" : "bg-zinc-200 text-zinc-900"
+                        : isDark ? "text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800" : "text-zinc-400 hover:text-zinc-600 hover:bg-zinc-100"
                     )}
                     title="더보기"
                   >
-                    <ChevronUp className="w-4 h-4" />
+                    {isToolbarMenuOpen ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
                   </button>
+
+                  {/* 드롭다운 메뉴 */}
+                  <AnimatePresence>
+                    {isToolbarMenuOpen && (
+                      <>
+                        {/* 오버레이 */}
+                        <div
+                          className="fixed inset-0 z-40"
+                          onClick={() => setIsToolbarMenuOpen(false)}
+                        />
+                        <motion.div
+                          initial={{ opacity: 0, y: -8 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          exit={{ opacity: 0, y: -8 }}
+                          transition={{ duration: 0.15 }}
+                          className={cn(
+                            'absolute left-0 top-full mt-1 w-64 rounded-lg border shadow-xl z-50 overflow-hidden',
+                            isDark
+                              ? 'bg-zinc-900 border-zinc-700'
+                              : 'bg-white border-zinc-200'
+                          )}
+                        >
+                          <div className="py-1 max-h-80 overflow-y-auto scrollbar-thin">
+                            {toolbarMenuItems.map((item) => {
+                              const IconComponent = item.icon
+                              const isPinned = pinnedToolbarItems.has(item.id)
+                              return (
+                                <div
+                                  key={item.id}
+                                  className={cn(
+                                    'flex items-center gap-3 px-3 py-2 cursor-pointer group',
+                                    isDark
+                                      ? 'hover:bg-zinc-800'
+                                      : 'hover:bg-zinc-100'
+                                  )}
+                                  onClick={() => {
+                                    // 아이템 선택 시 동작 (추후 확장 가능)
+                                  }}
+                                >
+                                  <IconComponent className={cn(
+                                    'w-4 h-4 flex-shrink-0',
+                                    isDark ? 'text-zinc-400' : 'text-zinc-500'
+                                  )} />
+                                  <span className={cn(
+                                    'flex-1 text-sm',
+                                    isDark ? 'text-zinc-200' : 'text-zinc-700'
+                                  )}>
+                                    {item.name}
+                                  </span>
+                                  {item.shortcut && (
+                                    <span className={cn(
+                                      'text-xs',
+                                      isDark ? 'text-zinc-500' : 'text-zinc-400'
+                                    )}>
+                                      {item.shortcut}
+                                    </span>
+                                  )}
+                                  {/* 핀 버튼 */}
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                      togglePinnedItem(item.id)
+                                    }}
+                                    className={cn(
+                                      'p-1 rounded transition-colors',
+                                      isPinned
+                                        ? isDark ? 'text-accent' : 'text-accent'
+                                        : isDark
+                                          ? 'text-zinc-600 opacity-0 group-hover:opacity-100 hover:text-zinc-300'
+                                          : 'text-zinc-400 opacity-0 group-hover:opacity-100 hover:text-zinc-600'
+                                    )}
+                                    title={isPinned ? '고정 해제' : '툴바에 고정'}
+                                  >
+                                    <Pin className={cn(
+                                      'w-3.5 h-3.5',
+                                      isPinned && 'fill-current'
+                                    )} />
+                                  </button>
+                                </div>
+                              )
+                            })}
+                          </div>
+                        </motion.div>
+                      </>
+                    )}
+                  </AnimatePresence>
                 </div>
               </div>
 

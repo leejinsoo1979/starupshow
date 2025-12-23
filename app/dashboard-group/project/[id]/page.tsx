@@ -190,11 +190,15 @@ export default function ProjectDetailPage() {
     }
   }
 
+  // API returns project_members/project_agents naming
+  const projectMembers = (project as any)?.project_members || project?.members || []
+  const projectAgents = (project as any)?.project_agents || project?.agents || []
+
   const availableMembers = teamMembers.filter(
-    (member) => !project?.members?.some((pm) => pm.user_id === member.id)
+    (member) => !projectMembers.some((pm: any) => pm.user_id === member.id)
   )
   const availableAgents = agents.filter(
-    (agent) => !project?.agents?.some((pa) => pa.agent_id === agent.id)
+    (agent) => !projectAgents.some((pa: any) => pa.agent_id === agent.id)
   )
 
   if (loading) {
@@ -235,8 +239,9 @@ export default function ProjectDetailPage() {
               color: project.color,
               mission: project.description,
               stage: project.status === "planning" ? "planning" : project.status === "active" ? "development" : "production",
-              members: project.members,
-              agents: project.agents,
+              // API returns project_members/project_agents, support both naming conventions
+              members: (project as any).project_members || project.members || [],
+              agents: (project as any).project_agents || project.agents || [],
               folderPath: (project as any).folder_path || null,
               githubRepo: (project as any).github_repo || null,
               githubCloneUrl: (project as any).github_clone_url || null,
@@ -285,7 +290,7 @@ export default function ProjectDetailPage() {
                   <h3 className="font-semibold text-white flex items-center gap-2">
                     <Users className="w-5 h-5 text-blue-400" />
                     팀원
-                    <span className="text-sm text-zinc-500">({project.members?.length || 0})</span>
+                    <span className="text-sm text-zinc-500">({projectMembers.length})</span>
                   </h3>
                   <Button size="sm" onClick={() => setIsAddMemberOpen(true)}>
                     <UserPlus className="w-4 h-4 mr-2" />
@@ -293,7 +298,7 @@ export default function ProjectDetailPage() {
                   </Button>
                 </div>
                 <div className="p-4 space-y-2 max-h-[500px] overflow-y-auto">
-                  {project.members?.length === 0 ? (
+                  {projectMembers.length === 0 ? (
                     <div className="text-center text-zinc-500 py-12">
                       <Users className="w-12 h-12 mx-auto mb-3 opacity-50" />
                       <p>투입된 팀원이 없습니다</p>
@@ -308,7 +313,7 @@ export default function ProjectDetailPage() {
                       </Button>
                     </div>
                   ) : (
-                    project.members?.map((member) => (
+                    projectMembers.map((member: any) => (
                       <motion.div
                         key={member.id}
                         initial={{ opacity: 0, y: 10 }}
@@ -355,7 +360,7 @@ export default function ProjectDetailPage() {
                   <h3 className="font-semibold text-white flex items-center gap-2">
                     <Bot className="w-5 h-5 text-purple-400" />
                     AI 에이전트
-                    <span className="text-sm text-zinc-500">({project.agents?.length || 0})</span>
+                    <span className="text-sm text-zinc-500">({projectAgents.length})</span>
                   </h3>
                   <Button size="sm" onClick={() => setIsAddAgentOpen(true)}>
                     <Plus className="w-4 h-4 mr-2" />
@@ -363,7 +368,7 @@ export default function ProjectDetailPage() {
                   </Button>
                 </div>
                 <div className="p-4 space-y-2 max-h-[500px] overflow-y-auto">
-                  {project.agents?.length === 0 ? (
+                  {projectAgents.length === 0 ? (
                     <div className="text-center text-zinc-500 py-12">
                       <Bot className="w-12 h-12 mx-auto mb-3 opacity-50" />
                       <p>투입된 AI 에이전트가 없습니다</p>
@@ -378,7 +383,7 @@ export default function ProjectDetailPage() {
                       </Button>
                     </div>
                   ) : (
-                    project.agents?.map((assignment) => (
+                    projectAgents.map((assignment: any) => (
                       <motion.div
                         key={assignment.id}
                         initial={{ opacity: 0, y: 10 }}
@@ -483,8 +488,8 @@ export default function ProjectDetailPage() {
                 progress: project.progress,
                 deadline: project.deadline,
                 status: project.status,
-                members: project.members,
-                agents: project.agents,
+                members: projectMembers,
+                agents: projectAgents,
               }}
             />
           </div>

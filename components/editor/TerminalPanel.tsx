@@ -12,6 +12,48 @@ const XTermComponent = dynamic(() => import('./XTermWrapper'), {
   loading: () => null  // 로딩 중에는 아무것도 표시하지 않음 (애니메이션 방지)
 })
 
+// 링크된 프로젝트의 folder_path를 가져오는 커스텀 훅
+function useLinkedProjectPath() {
+  const linkedProjectId = useNeuralMapStore(s => s.linkedProjectId)
+  const fallbackProjectPath = useNeuralMapStore(s => s.projectPath)
+  const [linkedProjectPath, setLinkedProjectPath] = useState<string | null>(null)
+  const [isLoading, setIsLoading] = useState(false)
+
+  useEffect(() => {
+    if (!linkedProjectId) {
+      setLinkedProjectPath(null)
+      return
+    }
+
+    const fetchProjectPath = async () => {
+      setIsLoading(true)
+      try {
+        const response = await fetch(`/api/projects/${linkedProjectId}`)
+        if (response.ok) {
+          const project = await response.json()
+          setLinkedProjectPath(project.folder_path || null)
+        } else {
+          setLinkedProjectPath(null)
+        }
+      } catch (error) {
+        console.error('[TerminalPanel] Failed to fetch linked project path:', error)
+        setLinkedProjectPath(null)
+      } finally {
+        setIsLoading(false)
+      }
+    }
+
+    fetchProjectPath()
+  }, [linkedProjectId])
+
+  // 링크된 프로젝트가 있고 folder_path가 있으면 사용, 없으면 fallback
+  return {
+    projectPath: linkedProjectId && linkedProjectPath ? linkedProjectPath : fallbackProjectPath,
+    linkedProjectId,
+    isLoading
+  }
+}
+
 // TerminalInstance imported from types
 
 interface TerminalPanelProps {
@@ -52,7 +94,9 @@ export const TerminalPanel = forwardRef<TerminalPanelRef, TerminalPanelProps>(({
   const terminals = useNeuralMapStore(s => s.terminals)
   const activeTerminalId = useNeuralMapStore(s => s.activeTerminalId)
   const activeGroupId = useNeuralMapStore(s => s.activeGroupId)
-  const projectPath = useNeuralMapStore(s => s.projectPath)
+
+  // 링크된 프로젝트의 folder_path 사용 (없으면 전역 projectPath 폴백)
+  const { projectPath, linkedProjectId } = useLinkedProjectPath()
 
   const addTerminalAction = useNeuralMapStore(s => s.addTerminal)
   const removeTerminalAction = useNeuralMapStore(s => s.removeTerminal)
@@ -118,7 +162,8 @@ export const TerminalPanel = forwardRef<TerminalPanelRef, TerminalPanelProps>(({
     activeGroupId,
     terminals: terminals.map(t => ({ id: t.id, groupId: t.groupId })),
     isOpen,
-    projectPath // 프로젝트 경로 디버깅
+    linkedProjectId, // 링크된 프로젝트 ID
+    projectPath // 프로젝트 경로 (링크된 프로젝트 folder_path 또는 전역 경로)
   })
   // 컨텍스트 메뉴 상태
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; terminalId: string } | null>(null)

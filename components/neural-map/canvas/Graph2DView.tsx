@@ -356,9 +356,9 @@ export function Graph2DView({ className }: Graph2DViewProps) {
       const goldenAngle = Math.PI * (3 - Math.sqrt(5)) // 황금각 ~137.5도
       const angle = nonSelfIndex * goldenAngle // 황금각으로 배치하면 균등하게 퍼짐
 
-      // 거리는 노드 수에 따라 동적 조절 (노드가 많을수록 넓게)
-      const baseDistance = Math.max(200, radialDistance || 200)
-      const distance = baseDistance + (nonSelfIndex * 30) // 각 노드마다 거리 증가
+      // 거리는 노드 수에 따라 동적 조절 (더 조밀하게)
+      const baseDistance = Math.max(80, radialDistance || 80)
+      const distance = baseDistance + (nonSelfIndex * 10) // 각 노드마다 거리 증가 (적게)
 
       return {
         id: node.id,
@@ -726,41 +726,41 @@ export function Graph2DView({ className }: Graph2DViewProps) {
       const effectiveDistance = radialDistance || 150
       console.log('Applying Layout Mode:', layoutMode) // Debug log
 
-      // 1. Force: Charge (Repulsion)
+      // 1. Force: Charge (Repulsion) - 더 약하게 밀어냄
       fg.d3Force('charge')
-        ?.strength(layoutMode === 'radial' ? -100 : -400)
-        ?.distanceMax(1000)
+        ?.strength(layoutMode === 'radial' ? -80 : -200)
+        ?.distanceMax(200)
 
-      // 2. Force: Link (Distance)
+      // 2. Force: Link (Distance) - 더 짧게
       fg.d3Force('link')?.distance((link: any) => {
         if (layoutMode === 'radial') {
-          return link.type === 'parent_child' ? 30 : 100
+          return link.type === 'parent_child' ? 20 : 50
         }
         if (layoutMode === 'structural') {
-          return link.type === 'parent_child' ? 50 : 150
+          return link.type === 'parent_child' ? 30 : 80
         }
-        return link.type === 'imports' ? effectiveDistance * 0.8 : effectiveDistance * 1.5
+        return link.type === 'imports' ? effectiveDistance * 0.5 : effectiveDistance * 0.8
       })
 
-      // 3. Force: Radial (Circular Layout)
+      // 3. Force: Radial (Circular Layout) - 더 조밀하게
       if (layoutMode === 'radial') {
         fg.d3Force('radial', forceRadial((n: any) => {
           if (n.type === 'self') return 0
-          if (n.type === 'folder' || n.depth === 1) return 180
-          return 380
+          if (n.type === 'folder' || n.depth === 1) return 80
+          return 160
         }, 0, 0).strength(0.8))
 
         fg.d3Force('y', null) // Disable Y force
       }
-      // 4. Force: Structural (Tree-like Layout)
+      // 4. Force: Structural (Tree-like Layout) - 더 조밀하게
       else if (layoutMode === 'structural') {
         fg.d3Force('radial', null) // Disable Radial force
 
         // Simple hierarchy simulation: folders on top, files below
         fg.d3Force('y', forceY((n: any) => {
-          if (n.type === 'self') return -200
-          if (n.type === 'folder') return -100
-          return 100
+          if (n.type === 'self') return -80
+          if (n.type === 'folder') return -40
+          return 40
         }).strength(0.5))
       }
       // 5. Force: Organic (Default)
@@ -863,11 +863,11 @@ export function Graph2DView({ className }: Graph2DViewProps) {
           .maxZoom(15)
           .onBackgroundClick(() => callbacksRef.current.handleBackgroundClick())
 
-        // Force 설정
-        graph.d3Force('collide')?.radius(60).strength(1.0).iterations(3)
-        graph.d3Force('center')?.strength(0.03)
-        graph.d3Force('charge')?.strength(-800).distanceMax(500).distanceMin(50)
-        graph.d3Force('link')?.distance(120).strength(0.5)
+        // Force 설정 (노드 간 거리 축소)
+        graph.d3Force('collide')?.radius(35).strength(0.8).iterations(3)
+        graph.d3Force('center')?.strength(0.08)
+        graph.d3Force('charge')?.strength(-200).distanceMax(200).distanceMin(20)
+        graph.d3Force('link')?.distance(50).strength(0.6)
 
         graphInstanceRef.current = graph
         graphRef.current = graph

@@ -118,6 +118,9 @@ export async function POST(request: NextRequest) {
         color: body.color || '#8B5CF6',
         owner_id: user.id,
         progress: 0,
+        // 로컬 폴더 불러오기 지원
+        folder_path: (body as any).folder_path || null,
+        metadata: (body as any).metadata || null,
       })
       .select()
       .single()

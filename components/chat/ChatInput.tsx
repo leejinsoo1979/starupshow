@@ -163,7 +163,8 @@ ${readme.content.slice(0, 1500)}${readme.content.length > 1500 ? '...' : ''}`)
                 let toolCalls: string[] = []
 
                 // Agent 모드 + Electron 환경: IPC로 직접 실행 (Cursor 스타일)
-                if (isAgentMode && typeof window !== 'undefined' && window.electron?.agent) {
+                const agentExecute = window.electron?.agent?.execute
+                if (isAgentMode && typeof window !== 'undefined' && agentExecute) {
                     const agentContext = {
                         files: files.map(f => ({
                             id: f.id,
@@ -175,7 +176,7 @@ ${readme.content.slice(0, 1500)}${readme.content.length > 1500 ? '...' : ''}`)
                         projectPath: projectPath || undefined
                     }
 
-                    const result = await window.electron.agent.execute({
+                    const result = await agentExecute({
                         messages: messagesWithContext,
                         model: selectedModel,
                         context: agentContext

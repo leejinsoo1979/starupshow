@@ -6,6 +6,7 @@ import {
   Plus,
   Search,
   Folder,
+  FolderOpen,
   Bot,
   MoreHorizontal,
   Loader2,
@@ -86,6 +87,13 @@ export default function ProjectsPage() {
   const [teamMembers, setTeamMembers] = useState<User[]>([])
   const [isFilterOpen, setIsFilterOpen] = useState(false)
   const [creating, setCreating] = useState(false)
+  const [importing, setImporting] = useState(false)
+  const [isElectron, setIsElectron] = useState(false)
+
+  // Check if running in Electron
+  useEffect(() => {
+    setIsElectron(typeof window !== "undefined" && !!window.electron?.fs?.selectDirectory)
+  }, [])
 
   useEffect(() => {
     fetchProjects()
@@ -141,6 +149,114 @@ export default function ProjectsPage() {
   }, [])
 
   const setLinkedProject = useNeuralMapStore((s) => s.setLinkedProject)
+
+  // 로컬 폴더 불러오기 핸들러
+  const handleImportLocalFolder = async () => {
+    if (!isElectron || !window.electron?.fs?.selectDirectory) {
+      alert("이 기능은 데스크톱 앱에서만 사용할 수 있습니다.")
+      return
+    }
+
+    setImporting(true)
+    try {
+      // 1. 폴더 선택
+      const folderPath = await window.electron.fs.selectDirectory()
+      if (!folderPath) {
+        setImporting(false)
+        return
+      }
+
+      console.log("[Import] Selected folder:", folderPath)
+
+      // 2. package.json 파싱 시도
+      let projectName = folderPath.split("/").pop() || "Untitled Project"
+      let projectDescription = ""
+      let projectMetadata: Record<string, any> = {}
+
+      try {
+        const packageJsonContent = await window.electron.fs.readFile?.(`${folderPath}/package.json`)
+        if (packageJsonContent) {
+          const packageJson = JSON.parse(packageJsonContent)
+          projectName = packageJson.name || projectName
+          projectDescription = packageJson.description || ""
+          projectMetadata = {
+            version: packageJson.version,
+            scripts: packageJson.scripts,
+            dependencies: Object.keys(packageJson.dependencies || {}),
+            devDependencies: Object.keys(packageJson.devDependencies || {}),
+            main: packageJson.main,
+            type: "node",
+          }
+          console.log("[Import] Parsed package.json:", projectName, projectMetadata)
+        }
+      } catch (e) {
+        console.log("[Import] No package.json found, using folder name")
+      }
+
+      // 3. pyproject.toml 또는 requirements.txt 파싱 시도 (Node 프로젝트가 아닌 경우)
+      if (!projectMetadata.type) {
+        try {
+          const pyprojectContent = await window.electron.fs.readFile?.(`${folderPath}/pyproject.toml`)
+          if (pyprojectContent) {
+            // 간단한 TOML 파싱 (name 추출)
+            const nameMatch = pyprojectContent.match(/name\s*=\s*["']([^"']+)["']/)
+            if (nameMatch) projectName = nameMatch[1]
+            const descMatch = pyprojectContent.match(/description\s*=\s*["']([^"']+)["']/)
+            if (descMatch) projectDescription = descMatch[1]
+            projectMetadata = { type: "python" }
+            console.log("[Import] Parsed pyproject.toml:", projectName)
+          }
+        } catch (e) {
+          // pyproject.toml 없음
+        }
+
+        try {
+          const reqContent = await window.electron.fs.readFile?.(`${folderPath}/requirements.txt`)
+          if (reqContent && !projectMetadata.type) {
+            projectMetadata = {
+              type: "python",
+              dependencies: reqContent.split("\n").filter((l: string) => l.trim() && !l.startsWith("#")),
+            }
+            console.log("[Import] Found requirements.txt")
+          }
+        } catch (e) {
+          // requirements.txt 없음
+        }
+      }
+
+      // 4. 프로젝트 생성 (DB 저장)
+      const res = await fetch("/api/projects", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: projectName,
+          description: projectDescription,
+          folder_path: folderPath,
+          status: "active",
+          metadata: projectMetadata,
+        }),
+      })
+
+      if (!res.ok) throw new Error("프로젝트 생성 실패")
+      const project = await res.json()
+      console.log("[Import] Project created:", project.id, project.name)
+
+      // 5. Neural Map에 연결하고 이동
+      setLinkedProject(project.id, project.name)
+      useNeuralMapStore.getState().setProjectPath(folderPath)
+
+      // 프로젝트 목록 새로고침
+      await fetchProjects()
+
+      // Neural Map으로 이동
+      router.push("/dashboard-group/neural-map")
+    } catch (error) {
+      console.error("[Import] Error:", error)
+      alert("폴더를 불러오는 중 오류가 발생했습니다.")
+    } finally {
+      setImporting(false)
+    }
+  }
 
   const handleCreateProject = async (
     formData: ProjectFormData,
@@ -292,14 +408,28 @@ export default function ProjectsPage() {
               </div>
             </div>
 
-            <Button
-              onClick={() => setIsCreateModalOpen(true)}
-              variant="accent"
-              size="sm"
-              leftIcon={<Plus className="w-4 h-4" />}
-            >
-              새 프로젝트
-            </Button>
+            <div className="flex items-center gap-2">
+              {/* 로컬 폴더 불러오기 버튼 (Electron 환경에서만 표시) */}
+              {isElectron && (
+                <Button
+                  onClick={handleImportLocalFolder}
+                  variant="outline"
+                  size="sm"
+                  leftIcon={importing ? <Loader2 className="w-4 h-4 animate-spin" /> : <FolderOpen className="w-4 h-4" />}
+                  disabled={importing}
+                >
+                  {importing ? "불러오는 중..." : "폴더 불러오기"}
+                </Button>
+              )}
+              <Button
+                onClick={() => setIsCreateModalOpen(true)}
+                variant="accent"
+                size="sm"
+                leftIcon={<Plus className="w-4 h-4" />}
+              >
+                새 프로젝트
+              </Button>
+            </div>
           </div>
 
           {/* Toolbar */}
@@ -420,15 +550,28 @@ export default function ProjectsPage() {
             <p className="text-sm text-zinc-500 dark:text-zinc-400 mb-8 text-center max-w-sm">
               프로젝트를 생성하고 팀원이나 AI 에이전트에게<br />업무를 할당해보세요
             </p>
-            <Button
-              onClick={() => setIsCreateModalOpen(true)}
-              variant="accent"
-              size="lg"
-              leftIcon={<Plus className="w-5 h-5" />}
-              className="shadow-lg"
-            >
-              새 프로젝트 만들기
-            </Button>
+            <div className="flex items-center gap-3">
+              {isElectron && (
+                <Button
+                  onClick={handleImportLocalFolder}
+                  variant="outline"
+                  size="lg"
+                  leftIcon={importing ? <Loader2 className="w-5 h-5 animate-spin" /> : <FolderOpen className="w-5 h-5" />}
+                  disabled={importing}
+                >
+                  {importing ? "불러오는 중..." : "로컬 폴더 불러오기"}
+                </Button>
+              )}
+              <Button
+                onClick={() => setIsCreateModalOpen(true)}
+                variant="accent"
+                size="lg"
+                leftIcon={<Plus className="w-5 h-5" />}
+                className="shadow-lg"
+              >
+                새 프로젝트 만들기
+              </Button>
+            </div>
           </motion.div>
         ) : viewMode === "list" ? (
           <div className="bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-200/80 dark:border-zinc-800 overflow-hidden shadow-sm">
@@ -449,6 +592,9 @@ export default function ProjectsPage() {
               const members = (project as any).project_members || project.members || []
               const agents = (project as any).project_agents || project.agents || []
               const memberCount = members.length + agents.length
+              const folderPath = (project as any).folder_path
+              const metadata = (project as any).metadata || {}
+              const projectType = metadata.type as string | undefined
 
               return (
                 <motion.div
@@ -461,23 +607,44 @@ export default function ProjectsPage() {
                 >
                   {/* Project Info */}
                   <div className="col-span-4 flex items-center gap-3.5 min-w-0">
-                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${style.bg}`}>
+                    <div className={`relative w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${style.bg}`}>
                       <Folder className={`w-5 h-5 ${style.icon}`} />
+                      {/* 폴더 연결 표시 */}
+                      {folderPath && (
+                        <div className="absolute -bottom-1 -right-1 w-4 h-4 rounded-full bg-emerald-500 flex items-center justify-center ring-2 ring-white dark:ring-zinc-900">
+                          <FolderOpen className="w-2.5 h-2.5 text-white" />
+                        </div>
+                      )}
                     </div>
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2">
                         <p className="text-sm font-semibold text-zinc-900 dark:text-zinc-50 truncate group-hover:text-zinc-700 dark:group-hover:text-white transition-colors">
                           {project.name}
                         </p>
+                        {/* 프로젝트 타입 뱃지 */}
+                        {projectType === 'node' && (
+                          <span className="flex-shrink-0 px-1.5 py-0.5 text-[10px] font-bold rounded bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400">
+                            Node
+                          </span>
+                        )}
+                        {projectType === 'python' && (
+                          <span className="flex-shrink-0 px-1.5 py-0.5 text-[10px] font-bold rounded bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400">
+                            Python
+                          </span>
+                        )}
                         {(project.priority === 'high' || project.priority === 'urgent') && (
                           <span className="flex-shrink-0 px-1.5 py-0.5 text-[10px] font-bold rounded bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400">
                             {project.priority === 'urgent' ? '긴급' : '높음'}
                           </span>
                         )}
                       </div>
-                      {project.description && (
+                      {project.description ? (
                         <p className="text-xs text-zinc-500 truncate mt-0.5">{project.description}</p>
-                      )}
+                      ) : folderPath ? (
+                        <p className="text-xs text-zinc-400 truncate mt-0.5" title={folderPath}>
+                          📁 {folderPath.split('/').slice(-2).join('/')}
+                        </p>
+                      ) : null}
                     </div>
                     {/* 호버시 화살표 */}
                     <ArrowUpRight className="w-4 h-4 text-zinc-400 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0" />
@@ -575,6 +742,9 @@ export default function ProjectsPage() {
               const progress = project.progress || 0
               const style = statusStyles[project.status] || statusStyles.planning
               const hasDeadline = project.deadline || project.end_date
+              const folderPath = (project as any).folder_path
+              const metadata = (project as any).metadata || {}
+              const projectType = metadata.type as string | undefined
 
               return (
                 <motion.div
@@ -609,12 +779,30 @@ export default function ProjectsPage() {
                   </div>
 
                   <div className="p-5">
-                    {/* 상태 뱃지 */}
-                    <div className="flex items-center gap-2 mb-4">
+                    {/* 상태 및 타입 뱃지 */}
+                    <div className="flex items-center gap-2 mb-4 flex-wrap">
                       <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold rounded-full ${style.bg} ${style.text}`}>
                         <span className={`w-1.5 h-1.5 rounded-full ${style.dot} animate-pulse`} />
                         {statusLabels[project.status]}
                       </span>
+                      {/* 프로젝트 타입 뱃지 */}
+                      {projectType === 'node' && (
+                        <span className="px-2 py-1 text-xs font-medium rounded-full bg-green-50 dark:bg-green-900/30 text-green-600 dark:text-green-400">
+                          Node
+                        </span>
+                      )}
+                      {projectType === 'python' && (
+                        <span className="px-2 py-1 text-xs font-medium rounded-full bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400">
+                          Python
+                        </span>
+                      )}
+                      {/* 폴더 연결 뱃지 */}
+                      {folderPath && (
+                        <span className="px-2 py-1 text-xs font-medium rounded-full bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+                          <FolderOpen className="w-3 h-3" />
+                          연결됨
+                        </span>
+                      )}
                       {project.priority === 'high' || project.priority === 'urgent' ? (
                         <span className="px-2 py-1 text-xs font-medium rounded-full bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400">
                           {project.priority === 'urgent' ? '긴급' : '높음'}
@@ -627,9 +815,9 @@ export default function ProjectsPage() {
                       {project.name}
                     </h3>
 
-                    {/* 설명 */}
+                    {/* 설명 또는 폴더 경로 */}
                     <p className="text-sm text-zinc-500 dark:text-zinc-400 mb-4 line-clamp-2 min-h-[40px]">
-                      {project.description || '설명 없음'}
+                      {project.description || (folderPath ? `📁 ${folderPath.split('/').slice(-2).join('/')}` : '설명 없음')}
                     </p>
 
                     {/* 진행률 바 */}

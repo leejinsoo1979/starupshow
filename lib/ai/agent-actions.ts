@@ -57,7 +57,7 @@ export async function executeAction(action: AgentAction): Promise<ActionResult> 
   try {
     switch (action.type) {
       case 'write_file': {
-        await window.electron.fs.writeFile(action.path, action.content)
+        await window.electron?.fs?.writeFile?.(action.path, action.content)
         return {
           action,
           success: true,
@@ -66,7 +66,7 @@ export async function executeAction(action: AgentAction): Promise<ActionResult> 
       }
 
       case 'create_file': {
-        await window.electron.fs.writeFile(action.path, action.content)
+        await window.electron?.fs?.writeFile?.(action.path, action.content)
         return {
           action,
           success: true,
@@ -79,10 +79,10 @@ export async function executeAction(action: AgentAction): Promise<ActionResult> 
         const terminalId = `agent-${Date.now()}`
 
         // 터미널 생성
-        await window.electron.terminal.create(terminalId, action.cwd)
+        await window.electron?.terminal?.create?.(terminalId, action.cwd)
 
         // 명령어 실행
-        await window.electron.terminal.write(terminalId, action.command + '\n')
+        await window.electron?.terminal?.write?.(terminalId, action.command + '\n')
 
         // 출력 대기 (간단한 구현)
         if (action.waitForOutput) {
@@ -137,131 +137,4 @@ export async function executeActions(actions: AgentAction[]): Promise<ActionResu
   return Promise.all(actions.map(executeAction))
 }
 
-// window.electron 타입 정의
-declare global {
-  interface Window {
-    electron?: {
-      invoke: (channel: string, ...args: any[]) => Promise<any>
-      fs: {
-        readFile: (path: string) => Promise<string>
-        writeFile: (path: string, content: string) => Promise<void>
-        readDirectory: (path: string, options?: any) => Promise<any>
-        selectDirectory: () => Promise<{ kind: string; name: string; path: string } | null>
-        getCwd: () => Promise<string>
-        scanTree: (rootPath: string, options?: any) => Promise<any>
-        fileStats: (dirPath: string) => Promise<Array<{ extension: string; count: number; size: number }>>
-        scanApiRoutes: (dirPath: string) => Promise<Array<{ path: string; method: string; file: string }>>
-        scanTypes: (dirPath: string, options?: { extensions?: string[] }) => Promise<any[]>
-        scanSchema: (dirPath: string) => Promise<any[]>
-        isEmpty: (dirPath: string) => Promise<{
-          isEmpty: boolean
-          folderName: string
-          path: string
-          existingFiles: string[]
-          fileCount: number
-          error?: string
-        }>
-      }
-      project: {
-        scaffold: (params: {
-          dirPath: string
-          template: string
-          options?: { typescript?: boolean; tailwind?: boolean; eslint?: boolean }
-        }) => Promise<{
-          success: boolean
-          template?: string
-          projectName?: string
-          path?: string
-          message?: string
-          error?: string
-        }>
-        onScaffolded: (callback: (data: {
-          template: string
-          projectName: string
-          path: string
-          results?: string[]
-        }) => void) => () => void
-      }
-      git: {
-        log: (dirPath: string, options?: { maxCommits?: number }) => Promise<string>
-        branches: (dirPath: string) => Promise<string[]>
-        clone?: (url: string, targetPath: string) => Promise<{ success: boolean; stdout?: string; stderr?: string; error?: string }>
-        status?: (cwd: string) => Promise<{ success: boolean; output?: string; error?: string }>
-        diff?: (cwd: string, staged?: boolean) => Promise<{ success: boolean; output?: string; error?: string }>
-        add?: (cwd: string, files: string | string[]) => Promise<{ success: boolean; output?: string; error?: string }>
-        commit?: (cwd: string, message: string) => Promise<{ success: boolean; output?: string; error?: string }>
-        push?: (cwd: string, remote?: string, branch?: string) => Promise<{ success: boolean; output?: string; error?: string }>
-        pull?: (cwd: string, remote?: string, branch?: string) => Promise<{ success: boolean; output?: string; error?: string }>
-        init?: (cwd: string) => Promise<{ success: boolean; output?: string; error?: string }>
-        remoteAdd?: (cwd: string, name: string, url: string) => Promise<{ success: boolean; output?: string; error?: string }>
-        remoteList?: (cwd: string) => Promise<{ success: boolean; output?: string; error?: string }>
-        config?: (cwd: string, key: string, value: string) => Promise<{ success: boolean; output?: string; error?: string }>
-        fetch?: (cwd: string, remote?: string) => Promise<{ success: boolean; output?: string; error?: string }>
-        stash?: (cwd: string, action?: 'push' | 'pop' | 'list') => Promise<{ success: boolean; output?: string; error?: string }>
-        isRepo?: (cwd: string) => Promise<{ success: boolean; isRepo: boolean }>
-        currentBranch?: (cwd: string) => Promise<{ success: boolean; branch?: string; error?: string }>
-      }
-      viewfinder: {
-        captureWebview: (webContentsId: number, rect?: { x: number; y: number; width: number; height: number }) => Promise<{
-          success: boolean
-          dataUrl?: string
-          width?: number
-          height?: number
-          timestamp?: number
-          error?: string
-        }>
-        captureWindow: (rect?: { x: number; y: number; width: number; height: number }) => Promise<{
-          success: boolean
-          dataUrl?: string
-          width?: number
-          height?: number
-          timestamp?: number
-          error?: string
-        }>
-      }
-      terminal: {
-        create: (id: string, cwd?: string) => Promise<{ success: boolean; shell?: string; cwd?: string; pid?: number; error?: string }>
-        write: (id: string, data: string) => Promise<{ success: boolean; error?: string }>
-        resize: (id: string, cols: number, rows: number) => Promise<{ success: boolean; error?: string }>
-        kill: (id: string) => Promise<{ success: boolean; error?: string }>
-        onData: (callback: (id: string, data: string) => void) => () => void
-        onExit: (callback: (id: string, exitCode: number, signal?: number) => void) => () => void
-      }
-      projectRunner: {
-        run: (id: string, cwd: string, command: string) => Promise<{ success: boolean; pid?: number; error?: string }>
-        stop: (id: string) => Promise<{ success: boolean; error?: string }>
-        status: (id: string) => Promise<{ running: boolean }>
-        onOutput: (callback: (id: string, data: string) => void) => () => void
-        onExit: (callback: (id: string, exitCode: number) => void) => () => void
-        onError: (callback: (id: string, error: string) => void) => () => void
-      }
-      openWebviewDevTools: (id?: number) => Promise<{ success: boolean; message: string }>
-      onMenuEvent: (event: string, callback: () => void) => () => void
-      agent: {
-        execute: (params: {
-          messages: Array<{ role: string; content: string }>
-          model: string
-          context: {
-            files: Array<{ id: string; name: string; path?: string; content?: string; type: string }>
-            projectPath?: string
-          }
-        }) => Promise<{
-          success: boolean
-          content?: string
-          toolCalls?: string[]
-          error?: string
-        }>
-        onDesign: (callback: (data: {
-          type: 'flowchart' | 'schema' | 'logic'
-          title: string
-          mermaidCode?: string
-          schema?: string
-          pseudocode?: string
-          functions?: string[]
-          filePath: string
-        }) => void) => () => void
-        onSwitchTab: (callback: (data: { tab: string }) => void) => () => void
-      }
-    }
-  }
-}
+// NOTE: window.electron 타입은 types/electron.d.ts에 정의되어 있습니다

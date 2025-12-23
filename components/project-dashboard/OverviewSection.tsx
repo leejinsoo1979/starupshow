@@ -235,13 +235,11 @@ export function OverviewSection({ projectId, project, onEdit }: OverviewSectionP
         {/* AI Command Center */}
         <AICommandCenter projectId={projectId} />
 
-        {/* Project Runner - Electron Only */}
+        {/* Project Runner - Electron Only (자동 워크스페이스 생성) */}
         <ProjectRunner
           projectId={projectId}
           folderPath={linkedFolderPath}
           projectName={project.name}
-          githubRepo={project.githubRepo}
-          githubCloneUrl={project.githubCloneUrl}
           onFolderLinked={(path) => setLinkedFolderPath(path)}
         />
 

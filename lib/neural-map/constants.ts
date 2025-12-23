@@ -113,20 +113,20 @@ export const DEFAULT_RADIAL_CONFIG: RadialLayoutConfig = {
 
 export const FORCE_SETTINGS = {
   // Link force
-  linkDistance: 50,
-  linkStrength: 0.3,
+  linkDistance: 30,        // 50 → 30 (더 짧게)
+  linkStrength: 0.5,       // 0.3 → 0.5 (더 강하게 당김)
 
   // Charge force (repulsion)
-  chargeStrength: -100,
-  chargeDistanceMax: 500,
+  chargeStrength: -60,     // -100 → -60 (덜 밀어냄)
+  chargeDistanceMax: 300,  // 500 → 300
   theta: 0.8,              // Barnes-Hut approximation theta
-  distanceMax: 500,        // Maximum distance for charge force
+  distanceMax: 300,        // Maximum distance for charge force
 
   // Center force
-  centerStrength: 0.05,
+  centerStrength: 0.08,    // 0.05 → 0.08 (중앙으로 더 당김)
 
   // Collision
-  collisionRadius: 15,
+  collisionRadius: 12,     // 15 → 12
   collisionStrength: 0.7,
 
   // Alpha (simulation warmth)

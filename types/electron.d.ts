@@ -191,6 +191,33 @@ declare global {
           error?: string
         }>
       }
+
+      // AI Agent
+      agent?: {
+        execute?: (params: {
+          messages: Array<{ role: string; content: string }>
+          model: string
+          context: {
+            files: Array<{ id: string; name: string; path?: string; content?: string; type: string }>
+            projectPath?: string
+          }
+        }) => Promise<{
+          success: boolean
+          content?: string
+          toolCalls?: string[]
+          error?: string
+        }>
+        onDesign?: (callback: (data: {
+          type: 'flowchart' | 'schema' | 'logic'
+          title: string
+          mermaidCode?: string
+          schema?: string
+          pseudocode?: string
+          functions?: string[]
+          filePath: string
+        }) => void) => () => void
+        onSwitchTab?: (callback: (data: { tab: string }) => void) => () => void
+      }
     }
   }
 }

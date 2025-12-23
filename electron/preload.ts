@@ -152,6 +152,11 @@ contextBridge.exposeInMainWorld('electron', {
         },
     },
 
+    // Project Preview - HTML 파일 팝업 미리보기
+    projectPreview: {
+        open: (filePath: string, title?: string) => ipcRenderer.invoke('project:preview', filePath, title),
+    },
+
     // Project Runner - 프로젝트 실행
     projectRunner: {
         run: (id: string, cwd: string, command: string) => ipcRenderer.invoke('project:run', id, cwd, command),

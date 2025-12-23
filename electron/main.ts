@@ -1011,6 +1011,49 @@ ipcMain.handle('git:branches', async (_, dirPath: string) => {
 // Git Operations Handlers (for GitHub Integration)
 // ==========================================
 
+// Helper: Validate cwd path for git operations
+const isValidGitPath = (cwd: string | undefined | null): boolean => {
+    if (!cwd || typeof cwd !== 'string' || cwd.trim() === '') {
+        return false;
+    }
+    // Block dangerous paths (home directory, system folders)
+    const dangerousPatterns = [
+        /^\/Users\/[^/]+\/?$/i,           // macOS user home
+        /^\/Users\/[^/]+\/Desktop\/?$/i,  // Desktop
+        /^\/Users\/[^/]+\/Documents\/?$/i, // Documents (폴더 자체만, 하위는 OK)
+        /^~\/?$/i,                          // Home shorthand
+        /^\/home\/[^/]+\/?$/i,             // Linux home
+        /^C:\\Users\\[^\\]+\\?$/i,         // Windows home
+        /^\/$/,                             // Root
+    ];
+    return !dangerousPatterns.some(pattern => pattern.test(cwd));
+};
+
+// Helper: Verify git root matches requested path (prevent operating in parent git repos)
+const verifyGitRoot = async (cwd: string): Promise<{ valid: boolean; error?: string; gitRoot?: string }> => {
+    try {
+        const { stdout } = await execPromise('git rev-parse --show-toplevel', { cwd });
+        const gitRoot = stdout.trim();
+
+        // Normalize paths for comparison
+        const normalizedCwd = cwd.replace(/\/+$/, '');
+        const normalizedGitRoot = gitRoot.replace(/\/+$/, '');
+
+        if (normalizedCwd !== normalizedGitRoot) {
+            console.error(`[Git] Git root mismatch! Requested: ${cwd}, Git root: ${gitRoot}`);
+            return {
+                valid: false,
+                error: `이 폴더는 상위 폴더의 Git 저장소에 포함되어 있습니다. 프로젝트 폴더에서 'git init'을 먼저 실행하세요.`,
+                gitRoot
+            };
+        }
+        return { valid: true, gitRoot };
+    } catch {
+        // Not a git repo - that's ok for some operations like init
+        return { valid: true };
+    }
+};
+
 // Git Clone
 ipcMain.handle('git:clone', async (_, url: string, targetPath: string) => {
     try {
@@ -1051,6 +1094,17 @@ ipcMain.handle('git:diff', async (_, cwd: string, staged?: boolean) => {
 
 // Git Add
 ipcMain.handle('git:add', async (_, cwd: string, files: string | string[]) => {
+    // Validate cwd
+    if (!isValidGitPath(cwd)) {
+        return { success: false, error: `잘못된 경로입니다: ${cwd || '(없음)'}` };
+    }
+
+    // Verify git root matches requested path
+    const verification = await verifyGitRoot(cwd);
+    if (!verification.valid) {
+        return { success: false, error: verification.error };
+    }
+
     try {
         const fileArg = Array.isArray(files) ? files.map(f => `"${f}"`).join(' ') : files === '.' ? '.' : `"${files}"`;
         const { stdout } = await execPromise(`git add ${fileArg}`, { cwd });
@@ -1063,7 +1117,20 @@ ipcMain.handle('git:add', async (_, cwd: string, files: string | string[]) => {
 
 // Git Commit
 ipcMain.handle('git:commit', async (_, cwd: string, message: string) => {
+    // Validate cwd
+    if (!isValidGitPath(cwd)) {
+        console.error('[Git] Commit blocked: Invalid or dangerous path:', cwd);
+        return { success: false, error: `잘못된 경로입니다: ${cwd || '(없음)'}` };
+    }
+
+    // Verify git root matches requested path
+    const verification = await verifyGitRoot(cwd);
+    if (!verification.valid) {
+        return { success: false, error: verification.error };
+    }
+
     try {
+        console.log('[Git] Committing in:', cwd);
         // Escape quotes in message
         const escapedMessage = message.replace(/"/g, '\\"');
         const { stdout } = await execPromise(`git commit -m "${escapedMessage}"`, { cwd });
@@ -1076,7 +1143,19 @@ ipcMain.handle('git:commit', async (_, cwd: string, message: string) => {
 
 // Git Push
 ipcMain.handle('git:push', async (_, cwd: string, remote?: string, branch?: string) => {
+    // Validate cwd
+    if (!isValidGitPath(cwd)) {
+        return { success: false, error: `잘못된 경로입니다: ${cwd || '(없음)'}` };
+    }
+
+    // Verify git root matches requested path
+    const verification = await verifyGitRoot(cwd);
+    if (!verification.valid) {
+        return { success: false, error: verification.error };
+    }
+
     try {
+        console.log('[Git] Pushing from:', cwd);
         let cmd = 'git push';
         if (remote) cmd += ` ${remote}`;
         if (branch) cmd += ` ${branch}`;
@@ -1188,6 +1267,126 @@ ipcMain.handle('git:current-branch', async (_, cwd: string) => {
         console.error('[Git] Current branch failed:', err.message);
         return { success: false, error: err.message };
     }
+});
+
+// ============================================
+// Project Preview - HTML 파일 미리보기 팝업
+// ============================================
+ipcMain.handle('project:preview', async (_, filePath: string, title?: string) => {
+    try {
+        console.log('[ProjectPreview] Opening:', filePath);
+
+        const previewWindow = new BrowserWindow({
+            width: 1024,
+            height: 768,
+            title: title || 'Project Preview',
+            webPreferences: {
+                nodeIntegration: false,
+                contextIsolation: true,
+            },
+            autoHideMenuBar: true,
+        });
+
+        // Load the HTML file directly
+        await previewWindow.loadFile(filePath);
+
+        return { success: true };
+    } catch (err: any) {
+        console.error('[ProjectPreview] Failed:', err.message);
+        return { success: false, error: err.message };
+    }
+});
+
+// ============================================
+// Project Runner - 프로젝트 실행
+// ============================================
+const runningProcesses = new Map<string, ReturnType<typeof spawn>>();
+
+ipcMain.handle('project:run', async (_, id: string, cwd: string, command: string) => {
+    try {
+        console.log(`[ProjectRunner] Starting: ${command} in ${cwd}`);
+
+        // 기존 프로세스가 있으면 종료
+        if (runningProcesses.has(id)) {
+            const oldProcess = runningProcesses.get(id);
+            oldProcess?.kill();
+            runningProcesses.delete(id);
+        }
+
+        // 명령어 파싱
+        const [cmd, ...args] = command.split(' ');
+
+        // 프로세스 실행
+        const proc = spawn(cmd, args, {
+            cwd,
+            shell: true,
+            env: { ...process.env, FORCE_COLOR: '1' }
+        });
+
+        runningProcesses.set(id, proc);
+
+        // stdout 이벤트
+        proc.stdout?.on('data', (data: Buffer) => {
+            if (mainWindow && !mainWindow.isDestroyed()) {
+                mainWindow.webContents.send('project:output', id, data.toString());
+            }
+        });
+
+        // stderr 이벤트
+        proc.stderr?.on('data', (data: Buffer) => {
+            if (mainWindow && !mainWindow.isDestroyed()) {
+                mainWindow.webContents.send('project:output', id, data.toString());
+            }
+        });
+
+        // exit 이벤트
+        proc.on('exit', (code) => {
+            console.log(`[ProjectRunner] Process exited with code: ${code}`);
+            runningProcesses.delete(id);
+            if (mainWindow && !mainWindow.isDestroyed()) {
+                mainWindow.webContents.send('project:exit', id, code ?? 0);
+            }
+        });
+
+        // error 이벤트
+        proc.on('error', (err) => {
+            console.error(`[ProjectRunner] Process error:`, err);
+            runningProcesses.delete(id);
+            if (mainWindow && !mainWindow.isDestroyed()) {
+                mainWindow.webContents.send('project:error', id, err.message);
+            }
+        });
+
+        return { success: true };
+    } catch (err: any) {
+        console.error('[ProjectRunner] Failed to start:', err.message);
+        return { success: false, error: err.message };
+    }
+});
+
+ipcMain.handle('project:stop', async (_, id: string) => {
+    try {
+        const proc = runningProcesses.get(id);
+        if (proc) {
+            proc.kill('SIGTERM');
+            setTimeout(() => {
+                if (runningProcesses.has(id)) {
+                    proc.kill('SIGKILL');
+                }
+            }, 3000);
+            runningProcesses.delete(id);
+            console.log(`[ProjectRunner] Stopped: ${id}`);
+        }
+        return { success: true };
+    } catch (err: any) {
+        console.error('[ProjectRunner] Failed to stop:', err.message);
+        return { success: false, error: err.message };
+    }
+});
+
+ipcMain.handle('project:status', async (_, id: string) => {
+    const isRunning = runningProcesses.has(id);
+    return { success: true, running: isRunning };
 });
 
 // 9. File Statistics (count by extension)
@@ -2393,63 +2592,12 @@ app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(
     }
 }
 
-// 도구 정의 (공통) - 개발 워크플로우 순서 반영
+// 도구 정의 (공통) - 파일 작업 우선
 const AGENT_TOOL_DEFINITIONS = [
-    // ====== PHASE 1: 설계 도구 (먼저 사용) ======
-    {
-        name: 'create_flowchart',
-        description: 'STEP 1: Create a Mermaid flowchart diagram to visualize the app structure. ALWAYS use this FIRST before coding.',
-        parameters: {
-            type: 'object',
-            properties: {
-                title: { type: 'string', description: 'Diagram title' },
-                mermaid_code: { type: 'string', description: 'Mermaid flowchart syntax (e.g., "flowchart TD\\n  A[Start] --> B[Process]...")' },
-                diagram_type: { type: 'string', enum: ['flowchart', 'sequence', 'class', 'er', 'state'], description: 'Diagram type' }
-            },
-            required: ['title', 'mermaid_code']
-        }
-    },
-    {
-        name: 'design_data_schema',
-        description: 'STEP 2: Design data structure/schema. Use after flowchart, before coding.',
-        parameters: {
-            type: 'object',
-            properties: {
-                title: { type: 'string', description: 'Schema name' },
-                schema: { type: 'string', description: 'TypeScript interface or JSON schema definition' },
-                description: { type: 'string', description: 'What this data represents' }
-            },
-            required: ['title', 'schema']
-        }
-    },
-    {
-        name: 'design_logic',
-        description: 'STEP 3: Design logic flow and algorithms. Use after schema, before coding.',
-        parameters: {
-            type: 'object',
-            properties: {
-                title: { type: 'string', description: 'Logic module name' },
-                pseudocode: { type: 'string', description: 'Pseudocode or algorithm description' },
-                functions: { type: 'array', items: { type: 'string' }, description: 'List of function names to implement' }
-            },
-            required: ['title', 'pseudocode']
-        }
-    },
-    {
-        name: 'switch_view',
-        description: 'Switch to a different view tab (map, logic, data, mermaid)',
-        parameters: {
-            type: 'object',
-            properties: {
-                tab: { type: 'string', enum: ['map', 'logic', 'data', 'mermaid'], description: 'Tab to switch to' }
-            },
-            required: ['tab']
-        }
-    },
-    // ====== PHASE 2: 코딩 도구 (설계 후 사용) ======
+    // ====== 핵심 파일 도구 ======
     {
         name: 'create_file',
-        description: 'STEP 4: Create a new file. Use AFTER completing design (flowchart → schema → logic → code).',
+        description: '새 파일 생성. 파일 생성 요청 시 즉시 사용. 절대 텍스트로 코드를 출력하지 말고 이 도구 사용.',
         parameters: {
             type: 'object',
             properties: {
@@ -2461,7 +2609,7 @@ const AGENT_TOOL_DEFINITIONS = [
     },
     {
         name: 'edit_file',
-        description: 'Modify an existing file',
+        description: '기존 파일 수정. 파일 수정 요청 시 즉시 사용. "지원하지 않습니다" 금지.',
         parameters: {
             type: 'object',
             properties: {
@@ -2858,78 +3006,46 @@ ipcMain.handle('agent:execute', async (_, params: {
             };
         }
 
-        // 시스템 프롬프트 - 설계 → 구현 워크플로우
+        // 시스템 프롬프트 - 도구 사용 강제
         const projectPath = context.projectPath || '/tmp/glowus-agent';
         const systemPrompt: AgentMessage = {
             role: 'system',
-            content: `You are a professional software architect and developer for GlowUS IDE (like Cursor/Antigravity).
-
-## 🚀 STEP 0: 프로젝트 초기화 (빈 폴더일 경우)
-If the project folder is empty or user asks to create a new project:
-1. Use \`check_folder_empty\` to verify
-2. Use \`scaffold_project\` with appropriate template:
-   - "next-app-ts": Next.js + TypeScript (풀스택 웹앱)
-   - "vite-react-ts": Vite + React + TypeScript (SPA)
-   - "vite-vue": Vite + Vue + TypeScript
-   - "express-ts": Express + TypeScript (백엔드 API)
-   - "python-fastapi": FastAPI (Python 백엔드)
-   - "python-flask": Flask (Python 백엔드)
-   - "electron-react": Electron + React (데스크톱 앱)
-   - "empty": 빈 npm 프로젝트
-
-## 🚨 MANDATORY DEVELOPMENT WORKFLOW (순서 엄수!)
-
-### STEP 1: 플로우차트 (create_flowchart)
-- 먼저 앱 구조를 Mermaid 다이어그램으로 시각화
-- User flow, component hierarchy, state flow 등
-
-### STEP 2: 데이터 스키마 (design_data_schema)
-- TypeScript interface로 데이터 구조 정의
-- 어떤 데이터가 필요한지 명확히
-
-### STEP 3: 로직 설계 (design_logic)
-- 핵심 알고리즘을 pseudocode로 작성
-- 구현할 함수 목록 정리
-
-### STEP 4: 코딩 (create_file)
-- 설계가 완료된 후에만 코드 작성
-- 설계 문서를 기반으로 구현
-
-## 예시 1: "새 프로젝트 만들어" (빈 폴더)
-1️⃣ check_folder_empty → isEmpty: true
-2️⃣ scaffold_project: template="next-app-ts"
-3️⃣ 사용자에게 완료 알림
-
-## 예시 2: "테트리스 게임 만들어"
-1️⃣ create_flowchart:
-   - title: "Tetris Game Flow"
-   - mermaid_code: "flowchart TD\\n  A[게임시작] --> B[블록생성]\\n  B --> C{충돌체크}..."
-
-2️⃣ design_data_schema:
-   - title: "Tetris Types"
-   - schema: "interface Block { shape: number[][]; x: number; y: number; }..."
-
-3️⃣ design_logic:
-   - title: "Tetris Logic"
-   - pseudocode: "1. 새 블록 생성\\n2. 타이머로 블록 하강\\n3. 충돌시 고정..."
-   - functions: ["createBlock", "moveDown", "checkCollision", "clearLines"]
-
-4️⃣ create_file:
-   - path: "tetris.html"
-   - content: (설계 기반 전체 코드)
+            content: `당신은 GlowUS IDE의 전문 코딩 에이전트입니다. Cursor나 GitHub Copilot처럼 코드를 직접 수정하고 실행할 수 있습니다.
 
 ## Working Directory: ${projectPath}
 
-## ❌ 절대 하지 말 것:
-- 코드를 텍스트로 출력하지 마라
-- 설계 없이 바로 코딩하지 마라
-- 도구 사용 안하고 설명만 하지 마라
+## 🚨 절대 규칙 (MUST FOLLOW)
+1. **코드를 텍스트로 출력하지 마세요** - 항상 create_file 또는 edit_file 도구 사용
+2. **"지원하지 않습니다" 절대 금지** - 모든 파일 작업 도구가 있습니다
+3. **모든 요청에 도구 사용** - 텍스트 설명만 하지 말고 실제로 실행하세요
+4. **파일 수정 요청 = edit_file 도구 호출** - 예외 없음
+5. **새 파일 생성 요청 = create_file 도구 호출** - 예외 없음
 
-## ✅ 반드시 할 것:
-- 빈 폴더면 먼저 scaffold_project
-- 4단계 순서 엄수
-- 모든 작업은 도구로만
-- 각 단계 완료 후 다음 단계로`
+## 사용 가능한 도구
+- **read_file**: 파일 내용 읽기 (path: 파일 경로)
+- **edit_file**: 파일 수정 (path, old_content, new_content)
+- **create_file**: 새 파일 생성 (path, content)
+- **search_files**: 파일 검색 (pattern)
+- **find_references**: 참조 찾기 (query)
+- **run_terminal**: 터미널 명령 실행 (command)
+- **scaffold_project**: 프로젝트 템플릿 생성 (template)
+
+## 작업 흐름
+1. 파일 수정: read_file → edit_file → 완료 메시지
+2. 새 파일: create_file → 완료 메시지
+3. 버그 수정: search_files → read_file → edit_file
+4. 프로젝트 생성: scaffold_project
+
+## ❌ 절대 하지 말 것
+- "파일 수정 기능은 지원하지 않습니다" ← 거짓말, edit_file 도구 있음
+- 코드를 텍스트로 보여주기 ← create_file/edit_file 사용
+- 도구 없이 설명만 하기 ← 항상 도구로 실행
+- 사용자에게 직접 하라고 하기 ← 당신이 직접 실행
+
+## ✅ 반드시 할 것
+- 파일 작업 요청 → 즉시 도구 호출
+- 코드 작성 요청 → create_file 또는 edit_file
+- 모든 작업은 도구로만 수행`
         };
 
         const allMessages = [systemPrompt, ...messages];

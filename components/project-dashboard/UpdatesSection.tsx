@@ -16,6 +16,7 @@ import {
   Filter,
   Calendar,
   Clock,
+  Loader2,
 } from "lucide-react"
 import { Button } from "@/components/ui/Button"
 
@@ -62,77 +63,49 @@ export function UpdatesSection({ projectId, project }: UpdatesSectionProps) {
 
   useEffect(() => {
     fetchActivities()
-  }, [projectId, timeRange])
+  }, [projectId, timeRange, filter])
 
   const fetchActivities = async () => {
     try {
-      // TODO: Replace with actual API call
-      const sampleActivities: Activity[] = [
-        {
-          id: "1",
-          type: "announcement",
-          title: "스프린트 2 목표 설정 완료",
-          description: "이번 스프린트에서는 결제 시스템 구현과 대시보드 개선에 집중합니다.",
-          user: { name: "김대표", avatar_url: undefined },
-          created_at: new Date(Date.now() - 1000 * 60 * 30).toISOString(), // 30분 전
-        },
-        {
-          id: "2",
-          type: "task_completed",
-          title: "로그인 페이지 UI 완료",
-          user: { name: "이디자인" },
-          created_at: new Date(Date.now() - 1000 * 60 * 60 * 2).toISOString(), // 2시간 전
-        },
-        {
-          id: "3",
-          type: "agent_action",
-          title: "API 문서 자동 생성 완료",
-          description: "총 15개의 엔드포인트 문서가 생성되었습니다.",
-          agent: { name: "Documentation Agent" },
-          created_at: new Date(Date.now() - 1000 * 60 * 60 * 4).toISOString(), // 4시간 전
-        },
-        {
-          id: "4",
-          type: "member_joined",
-          title: "박개발님이 프로젝트에 참여했습니다",
-          user: { name: "박개발" },
-          created_at: new Date(Date.now() - 1000 * 60 * 60 * 24).toISOString(), // 1일 전
-        },
-        {
-          id: "5",
-          type: "milestone",
-          title: "MVP 개발 완료",
-          description: "핵심 기능 개발이 완료되었습니다. 다음 단계: 베타 테스트",
-          user: { name: "시스템" },
-          created_at: new Date(Date.now() - 1000 * 60 * 60 * 24 * 2).toISOString(), // 2일 전
-        },
-        {
-          id: "6",
-          type: "comment",
-          title: "결제 시스템에 대한 코멘트",
-          description: "PG사 연동 관련해서 추가 검토가 필요합니다.",
-          user: { name: "최기획" },
-          created_at: new Date(Date.now() - 1000 * 60 * 60 * 24 * 3).toISOString(), // 3일 전
-        },
-        {
-          id: "7",
-          type: "document",
-          title: "프로젝트 기획서 업데이트",
-          user: { name: "최기획" },
-          created_at: new Date(Date.now() - 1000 * 60 * 60 * 24 * 4).toISOString(), // 4일 전
-        },
-        {
-          id: "8",
-          type: "task_created",
-          title: "결제 시스템 구현",
-          description: "PG 연동 및 결제 플로우 구현",
-          user: { name: "김대표" },
-          created_at: new Date(Date.now() - 1000 * 60 * 60 * 24 * 5).toISOString(), // 5일 전
-        },
-      ]
-      setActivities(sampleActivities)
+      setLoading(true)
+      const params = new URLSearchParams({
+        timeRange,
+        limit: '50',
+      })
+      if (filter) {
+        params.append('type', filter)
+      }
+
+      const res = await fetch(`/api/projects/${projectId}/activities?${params}`)
+
+      if (!res.ok) {
+        throw new Error('활동 목록 조회 실패')
+      }
+
+      const data = await res.json()
+
+      // API 응답을 Activity 형식으로 변환
+      const formattedActivities: Activity[] = data.map((item: any) => ({
+        id: item.id,
+        type: item.type,
+        title: item.title,
+        description: item.description,
+        user: item.user ? {
+          name: item.user.name,
+          avatar_url: item.user.avatar_url,
+        } : undefined,
+        agent: item.agent ? {
+          name: item.agent.name,
+          avatar_url: item.agent.avatar_url,
+        } : undefined,
+        created_at: item.created_at,
+        metadata: item.metadata,
+      }))
+
+      setActivities(formattedActivities)
     } catch (error) {
       console.error("Activities fetch error:", error)
+      setActivities([]) // 에러 시 빈 배열
     } finally {
       setLoading(false)
     }
@@ -223,7 +196,19 @@ export function UpdatesSection({ projectId, project }: UpdatesSectionProps) {
 
       {/* Activity Feed */}
       <div className="bg-zinc-900 border border-zinc-800 rounded-xl">
-        {Object.entries(groupedByDate).map(([date, dateActivities], groupIdx) => (
+        {loading ? (
+          <div className="flex items-center justify-center py-16">
+            <Loader2 className="w-8 h-8 text-zinc-500 animate-spin" />
+          </div>
+        ) : Object.entries(groupedByDate).length === 0 ? (
+          <div className="text-center py-12">
+            <Bell className="w-12 h-12 text-zinc-600 mx-auto mb-3" />
+            <p className="text-zinc-500">아직 활동 내역이 없습니다</p>
+            <p className="text-sm text-zinc-600 mt-2">
+              태스크 완료, 멤버 합류 등의 활동이 자동으로 기록됩니다
+            </p>
+          </div>
+        ) : Object.entries(groupedByDate).map(([date, dateActivities], groupIdx) => (
           <div key={date}>
             {/* Date Header */}
             <div className="px-6 py-3 bg-zinc-800/50 border-b border-zinc-800 sticky top-0">
@@ -294,13 +279,6 @@ export function UpdatesSection({ projectId, project }: UpdatesSectionProps) {
             </div>
           </div>
         ))}
-
-        {filteredActivities.length === 0 && (
-          <div className="text-center py-12">
-            <Bell className="w-12 h-12 text-zinc-600 mx-auto mb-3" />
-            <p className="text-zinc-500">아직 활동 내역이 없습니다</p>
-          </div>
-        )}
       </div>
 
       {/* Activity Summary */}

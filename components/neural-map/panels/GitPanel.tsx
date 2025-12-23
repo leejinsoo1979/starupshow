@@ -23,6 +23,9 @@ import {
   Github,
   Link2,
   FolderGit,
+  X,
+  Lock,
+  Globe,
 } from 'lucide-react'
 import { useNeuralMapStore } from '@/lib/neural-map/store'
 
@@ -69,6 +72,13 @@ export default function GitPanel() {
   })
   const { resolvedTheme } = useTheme()
   const [mounted, setMounted] = useState(false)
+
+  // GitHub 레포 생성 모달 상태
+  const [isRepoModalOpen, setIsRepoModalOpen] = useState(false)
+  const [repoName, setRepoName] = useState('')
+  const [repoDescription, setRepoDescription] = useState('')
+  const [isRepoPrivate, setIsRepoPrivate] = useState(true)
+  const [isCreatingRepo, setIsCreatingRepo] = useState(false)
 
   useEffect(() => {
     setMounted(true)
@@ -234,22 +244,32 @@ export default function GitPanel() {
     }
   }
 
-  // Initialize git and connect to GitHub
+  // GitHub 연결 버튼 클릭 핸들러
   const handleConnectGitHub = async () => {
     if (!projectGitPath || !linkedProjectName) return
 
-    // Check GitHub connection first
+    // GitHub 계정이 연결되지 않았으면 OAuth로 이동
     if (!isGitHubConnected) {
-      // Redirect to GitHub OAuth
       window.location.href = `/api/auth/github?returnUrl=/dashboard-group/neural-map`
       return
     }
 
-    setIsConnectingGitHub(true)
+    // GitHub 계정이 연결되어 있으면 레포 생성 모달 열기
+    const defaultRepoName = linkedProjectName.replace(/[^a-zA-Z0-9-_]/g, '-').toLowerCase()
+    setRepoName(defaultRepoName)
+    setRepoDescription(`${linkedProjectName} - Created with GlowUS`)
+    setIsRepoModalOpen(true)
+  }
+
+  // GitHub 레포지토리 생성 및 연결
+  const handleCreateRepo = async () => {
+    if (!projectGitPath || !repoName.trim()) return
+
+    setIsCreatingRepo(true)
     setError(null)
 
     try {
-      // 1. Initialize git if not already
+      // 1. Git 초기화 (아직 안 되어 있으면)
       if (!isGitRepo && window.electron?.git?.init) {
         const initResult = await window.electron.git.init(projectGitPath)
         if (!initResult?.success) {
@@ -257,16 +277,15 @@ export default function GitPanel() {
         }
       }
 
-      // 2. Create GitHub repository
-      const repoName = linkedProjectName.replace(/[^a-zA-Z0-9-_]/g, '-').toLowerCase()
+      // 2. GitHub 레포지토리 생성
       const createResponse = await fetch('/api/github/repos', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          name: repoName,
-          description: `${linkedProjectName} - Created by GlowUS`,
-          private: true,
-          auto_init: false, // We'll push our own initial commit
+          name: repoName.trim(),
+          description: repoDescription.trim(),
+          private: isRepoPrivate,
+          auto_init: false,
         }),
       })
 
@@ -277,12 +296,26 @@ export default function GitPanel() {
 
       const { repo } = await createResponse.json()
 
-      // 3. Add remote origin
+      // 3. Remote origin 추가
       if (window.electron?.git?.remoteAdd) {
+        // 기존 origin이 있으면 제거
+        try {
+          const remotes = await window.electron.git.remoteList?.(projectGitPath)
+          if (remotes?.output?.includes('origin')) {
+            await window.electron.invoke?.('git:remote-remove', projectGitPath, 'origin')
+          }
+        } catch (e) {
+          // 무시
+        }
         await window.electron.git.remoteAdd(projectGitPath, 'origin', repo.clone_url)
       }
 
-      // 4. Update project with GitHub info
+      // 4. Git config 설정 (GitHub 유저네임)
+      if (window.electron?.git?.config && gitHubUsername) {
+        await window.electron.git.config(projectGitPath, 'user.name', gitHubUsername)
+      }
+
+      // 5. 프로젝트 DB에 GitHub 정보 저장
       if (linkedProjectId) {
         await fetch(`/api/projects/${linkedProjectId}`, {
           method: 'PATCH',
@@ -296,15 +329,19 @@ export default function GitPanel() {
         })
       }
 
-      // 5. Refresh status
+      // 6. 모달 닫고 상태 새로고침
+      setIsRepoModalOpen(false)
       await checkGitRepo()
       await checkRemote()
 
+      // 성공 메시지
+      alert(`GitHub 레포지토리 '${repo.name}'가 생성되었습니다!`)
+
     } catch (err: any) {
-      console.error('[GitPanel] Failed to connect GitHub:', err)
-      setError(err.message || 'GitHub 연동 중 오류가 발생했습니다')
+      console.error('[GitPanel] Failed to create GitHub repo:', err)
+      setError(err.message || 'GitHub 레포지토리 생성 중 오류가 발생했습니다')
     } finally {
-      setIsConnectingGitHub(false)
+      setIsCreatingRepo(false)
     }
   }
 
@@ -425,10 +462,10 @@ export default function GitPanel() {
   }
 
   const handleStageFile = async (filename: string) => {
-    if (!projectPath || !window.electron?.git) return
+    if (!projectGitPath || !window.electron?.git) return
 
     try {
-      await window.electron.git.add?.(projectPath, filename)
+      await window.electron.git.add?.(projectGitPath, filename)
       await refreshGitStatus()
     } catch (err) {
       console.error('Failed to stage file:', err)
@@ -437,11 +474,11 @@ export default function GitPanel() {
   }
 
   const handleUnstageFile = async (filename: string) => {
-    if (!projectPath || !window.electron?.git) return
+    if (!projectGitPath || !window.electron?.git) return
 
     try {
       // Reset specific file
-      await window.electron.invoke?.('git:reset', projectPath, filename)
+      await window.electron.invoke?.('git:reset', projectGitPath, filename)
       await refreshGitStatus()
     } catch (err) {
       console.error('Failed to unstage file:', err)
@@ -450,10 +487,10 @@ export default function GitPanel() {
   }
 
   const handleStageAll = async () => {
-    if (!projectPath || !window.electron?.git) return
+    if (!projectGitPath || !window.electron?.git) return
 
     try {
-      await window.electron.git.add?.(projectPath, '.')
+      await window.electron.git.add?.(projectGitPath, '.')
       await refreshGitStatus()
     } catch (err) {
       console.error('Failed to stage all:', err)
@@ -462,13 +499,13 @@ export default function GitPanel() {
   }
 
   const handleCommit = async () => {
-    if (!projectPath || !window.electron?.git || !commitMessage.trim()) return
+    if (!projectGitPath || !window.electron?.git || !commitMessage.trim()) return
 
     setIsCommitting(true)
     setError(null)
 
     try {
-      const result = await window.electron.git.commit?.(projectPath, commitMessage.trim())
+      const result = await window.electron.git.commit?.(projectGitPath, commitMessage.trim())
       if (result?.success) {
         setCommitMessage('')
         await refreshGitStatus()
@@ -484,13 +521,13 @@ export default function GitPanel() {
   }
 
   const handlePush = async () => {
-    if (!projectPath || !window.electron?.git) return
+    if (!projectGitPath || !window.electron?.git) return
 
     setIsPushing(true)
     setError(null)
 
     try {
-      const result = await window.electron.git.push?.(projectGitPath!)
+      const result = await window.electron.git.push?.(projectGitPath)
       if (!result?.success) {
         setError(result?.error || 'Push 실패')
       }
@@ -504,13 +541,13 @@ export default function GitPanel() {
   }
 
   const handlePull = async () => {
-    if (!projectPath || !window.electron?.git) return
+    if (!projectGitPath || !window.electron?.git) return
 
     setIsPulling(true)
     setError(null)
 
     try {
-      const result = await window.electron.git.pull?.(projectGitPath!)
+      const result = await window.electron.git.pull?.(projectGitPath)
       if (!result?.success) {
         setError(result?.error || 'Pull 실패')
       }
@@ -671,7 +708,30 @@ export default function GitPanel() {
   return (
     <div className={`h-full flex flex-col ${isDark ? 'bg-zinc-900' : 'bg-white'}`}>
       {/* Header */}
-      <div className={`flex items-center justify-between px-4 py-3 border-b ${isDark ? 'border-zinc-800' : 'border-zinc-200'}`}>
+      <div className={`px-4 py-3 border-b ${isDark ? 'border-zinc-800' : 'border-zinc-200'}`}>
+        {/* Project name and path */}
+        <div className="flex items-center justify-between mb-2">
+          <div className="flex items-center gap-2 min-w-0 flex-1">
+            <FolderGit className={`w-4 h-4 flex-shrink-0 ${isDark ? 'text-zinc-400' : 'text-zinc-500'}`} />
+            <span className={`font-medium truncate ${isDark ? 'text-zinc-200' : 'text-zinc-800'}`}>
+              {linkedProjectName || '프로젝트'}
+            </span>
+          </div>
+          <button
+            onClick={refreshGitStatus}
+            disabled={isRefreshing}
+            className={`p-1.5 rounded-lg transition-colors flex-shrink-0 ${
+              isDark ? 'hover:bg-zinc-800' : 'hover:bg-zinc-100'
+            }`}
+          >
+            <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''} ${isDark ? 'text-zinc-400' : 'text-zinc-600'}`} />
+          </button>
+        </div>
+        {/* Path display */}
+        <div className={`text-xs truncate mb-2 ${isDark ? 'text-zinc-500' : 'text-zinc-400'}`} title={projectGitPath || ''}>
+          {projectGitPath || 'No path'}
+        </div>
+        {/* Branch and remote status */}
         <div className="flex items-center gap-2">
           <GitBranch className={`w-4 h-4 ${isDark ? 'text-green-400' : 'text-green-600'}`} />
           <span className={`font-medium ${isDark ? 'text-zinc-200' : 'text-zinc-800'}`}>
@@ -684,15 +744,6 @@ export default function GitPanel() {
             </span>
           )}
         </div>
-        <button
-          onClick={refreshGitStatus}
-          disabled={isRefreshing}
-          className={`p-1.5 rounded-lg transition-colors ${
-            isDark ? 'hover:bg-zinc-800' : 'hover:bg-zinc-100'
-          }`}
-        >
-          <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''} ${isDark ? 'text-zinc-400' : 'text-zinc-600'}`} />
-        </button>
       </div>
 
       {/* No remote - show GitHub connect prompt */}
@@ -983,6 +1034,148 @@ export default function GitPanel() {
           </div>
         </div>
       </div>
+
+      {/* GitHub 레포 생성 모달 */}
+      {isRepoModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+          <div className={`w-full max-w-md mx-4 rounded-xl shadow-2xl ${isDark ? 'bg-zinc-900 border border-zinc-800' : 'bg-white border border-zinc-200'}`}>
+            {/* 모달 헤더 */}
+            <div className={`flex items-center justify-between px-5 py-4 border-b ${isDark ? 'border-zinc-800' : 'border-zinc-200'}`}>
+              <div className="flex items-center gap-2">
+                <Github className={`w-5 h-5 ${isDark ? 'text-zinc-300' : 'text-zinc-700'}`} />
+                <h3 className={`text-lg font-semibold ${isDark ? 'text-zinc-100' : 'text-zinc-900'}`}>
+                  GitHub 레포지토리 생성
+                </h3>
+              </div>
+              <button
+                onClick={() => setIsRepoModalOpen(false)}
+                className={`p-1.5 rounded-lg transition-colors ${isDark ? 'hover:bg-zinc-800' : 'hover:bg-zinc-100'}`}
+              >
+                <X className={`w-5 h-5 ${isDark ? 'text-zinc-400' : 'text-zinc-500'}`} />
+              </button>
+            </div>
+
+            {/* 모달 바디 */}
+            <div className="px-5 py-4 space-y-4">
+              {/* 레포 이름 */}
+              <div>
+                <label className={`block text-sm font-medium mb-1.5 ${isDark ? 'text-zinc-300' : 'text-zinc-700'}`}>
+                  레포지토리 이름 *
+                </label>
+                <input
+                  type="text"
+                  value={repoName}
+                  onChange={(e) => setRepoName(e.target.value.replace(/[^a-zA-Z0-9-_]/g, '-'))}
+                  placeholder="my-awesome-project"
+                  className={`w-full px-3 py-2.5 text-sm rounded-lg border outline-none transition-colors ${
+                    isDark
+                      ? 'bg-zinc-800 border-zinc-700 text-zinc-200 placeholder-zinc-500 focus:border-zinc-500'
+                      : 'bg-white border-zinc-300 text-zinc-800 placeholder-zinc-400 focus:border-zinc-400'
+                  }`}
+                />
+                <p className={`mt-1 text-xs ${isDark ? 'text-zinc-500' : 'text-zinc-400'}`}>
+                  영문, 숫자, 하이픈(-), 언더스코어(_)만 사용 가능
+                </p>
+              </div>
+
+              {/* 설명 */}
+              <div>
+                <label className={`block text-sm font-medium mb-1.5 ${isDark ? 'text-zinc-300' : 'text-zinc-700'}`}>
+                  설명 (선택)
+                </label>
+                <input
+                  type="text"
+                  value={repoDescription}
+                  onChange={(e) => setRepoDescription(e.target.value)}
+                  placeholder="프로젝트에 대한 간단한 설명"
+                  className={`w-full px-3 py-2.5 text-sm rounded-lg border outline-none transition-colors ${
+                    isDark
+                      ? 'bg-zinc-800 border-zinc-700 text-zinc-200 placeholder-zinc-500 focus:border-zinc-500'
+                      : 'bg-white border-zinc-300 text-zinc-800 placeholder-zinc-400 focus:border-zinc-400'
+                  }`}
+                />
+              </div>
+
+              {/* 공개/비공개 선택 */}
+              <div>
+                <label className={`block text-sm font-medium mb-2 ${isDark ? 'text-zinc-300' : 'text-zinc-700'}`}>
+                  공개 설정
+                </label>
+                <div className="flex gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setIsRepoPrivate(true)}
+                    className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg border transition-colors ${
+                      isRepoPrivate
+                        ? 'bg-zinc-800 border-zinc-600 text-white'
+                        : isDark
+                          ? 'bg-zinc-800/50 border-zinc-700 text-zinc-400 hover:border-zinc-600'
+                          : 'bg-zinc-50 border-zinc-200 text-zinc-600 hover:border-zinc-300'
+                    }`}
+                  >
+                    <Lock className="w-4 h-4" />
+                    <span className="text-sm font-medium">Private</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setIsRepoPrivate(false)}
+                    className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg border transition-colors ${
+                      !isRepoPrivate
+                        ? 'bg-zinc-800 border-zinc-600 text-white'
+                        : isDark
+                          ? 'bg-zinc-800/50 border-zinc-700 text-zinc-400 hover:border-zinc-600'
+                          : 'bg-zinc-50 border-zinc-200 text-zinc-600 hover:border-zinc-300'
+                    }`}
+                  >
+                    <Globe className="w-4 h-4" />
+                    <span className="text-sm font-medium">Public</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* 에러 메시지 */}
+              {error && (
+                <div className="flex items-center gap-2 px-3 py-2 bg-red-500/10 border border-red-500/20 rounded-lg">
+                  <AlertCircle className="w-4 h-4 text-red-400 flex-shrink-0" />
+                  <span className="text-xs text-red-400">{error}</span>
+                </div>
+              )}
+            </div>
+
+            {/* 모달 푸터 */}
+            <div className={`flex gap-3 px-5 py-4 border-t ${isDark ? 'border-zinc-800' : 'border-zinc-200'}`}>
+              <button
+                onClick={() => setIsRepoModalOpen(false)}
+                disabled={isCreatingRepo}
+                className={`flex-1 px-4 py-2.5 text-sm font-medium rounded-lg transition-colors ${
+                  isDark
+                    ? 'bg-zinc-800 text-zinc-300 hover:bg-zinc-700'
+                    : 'bg-zinc-100 text-zinc-700 hover:bg-zinc-200'
+                } disabled:opacity-50`}
+              >
+                취소
+              </button>
+              <button
+                onClick={handleCreateRepo}
+                disabled={isCreatingRepo || !repoName.trim()}
+                className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-medium bg-green-600 text-white rounded-lg hover:bg-green-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isCreatingRepo ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    생성 중...
+                  </>
+                ) : (
+                  <>
+                    <Github className="w-4 h-4" />
+                    레포지토리 생성
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
