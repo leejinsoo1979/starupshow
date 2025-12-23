@@ -1,0 +1,337 @@
+'use client'
+
+import React, { useEffect, useRef, useState } from 'react'
+import cytoscape, { Core, NodeSingular } from 'cytoscape'
+import dagre from 'cytoscape-dagre'
+import { Button } from '@/components/ui/button'
+import { Upload, FolderOpen, Loader2 } from 'lucide-react'
+import { buildDependencyGraph, DependencyGraph, planToGraph } from '@/lib/neural-map/code-analyzer'
+import { useNeuralMapStore } from '@/lib/neural-map/store'
+
+// Register dagre layout
+if (typeof cytoscape !== 'undefined') {
+  cytoscape.use(dagre)
+}
+
+interface CytoscapeViewProps {
+  projectPath?: string
+  mapId?: string
+}
+
+export default function CytoscapeView({ projectPath, mapId }: CytoscapeViewProps) {
+  const containerRef = useRef<HTMLDivElement>(null)
+  const cyRef = useRef<Core | null>(null)
+  const [isLoading, setIsLoading] = useState(false)
+  const [graph, setGraph] = useState<DependencyGraph | null>(null)
+  const [mode, setMode] = useState<'forward' | 'backward'>('backward')
+
+  // Initialize Cytoscape
+  useEffect(() => {
+    if (!containerRef.current) return
+
+    const cy = cytoscape({
+      container: containerRef.current,
+      style: [
+        {
+          selector: 'node',
+          style: {
+            'background-color': '#4F46E5',
+            'label': 'data(label)',
+            'width': 80,
+            'height': 80,
+            'text-valign': 'center',
+            'text-halign': 'center',
+            'font-size': '12px',
+            'color': '#fff',
+            'text-outline-width': 2,
+            'text-outline-color': '#4F46E5',
+            'border-width': 2,
+            'border-color': '#312E81',
+          },
+        },
+        {
+          selector: 'node[type="component"]',
+          style: {
+            'background-color': '#10B981',
+            'shape': 'round-rectangle',
+          },
+        },
+        {
+          selector: 'node[type="api"]',
+          style: {
+            'background-color': '#F59E0B',
+            'shape': 'diamond',
+          },
+        },
+        {
+          selector: 'node[type="database"]',
+          style: {
+            'background-color': '#EF4444',
+            'shape': 'barrel',
+          },
+        },
+        {
+          selector: 'node[type="function"]',
+          style: {
+            'background-color': '#8B5CF6',
+            'shape': 'ellipse',
+          },
+        },
+        {
+          selector: 'edge',
+          style: {
+            'width': 2,
+            'line-color': '#94A3B8',
+            'target-arrow-color': '#94A3B8',
+            'target-arrow-shape': 'triangle',
+            'curve-style': 'bezier',
+            'label': 'data(label)',
+            'font-size': '10px',
+            'text-rotation': 'autorotate',
+          },
+        },
+        {
+          selector: 'edge[type="import"]',
+          style: {
+            'line-color': '#3B82F6',
+            'target-arrow-color': '#3B82F6',
+          },
+        },
+        {
+          selector: 'edge[type="calls"]',
+          style: {
+            'line-color': '#8B5CF6',
+            'target-arrow-color': '#8B5CF6',
+            'line-style': 'dashed',
+          },
+        },
+      ],
+      layout: {
+        name: 'dagre',
+        rankDir: 'TB',
+        nodeSep: 50,
+        rankSep: 100,
+      },
+    })
+
+    cyRef.current = cy
+
+    // Add interactivity
+    cy.on('tap', 'node', (evt) => {
+      const node = evt.target as NodeSingular
+      console.log('Node clicked:', node.data())
+    })
+
+    return () => {
+      cy.destroy()
+    }
+  }, [])
+
+  // Load graph data when available
+  useEffect(() => {
+    if (!cyRef.current || !graph) return
+
+    const cy = cyRef.current
+
+    // Clear existing elements
+    cy.elements().remove()
+
+    // Add nodes
+    const nodes = graph.nodes.map((node) => ({
+      data: {
+        id: node.id,
+        label: node.label,
+        type: node.type,
+        ...node.metadata,
+      },
+    }))
+
+    // Add edges
+    const edges = graph.edges.map((edge) => ({
+      data: {
+        id: edge.id,
+        source: edge.source,
+        target: edge.target,
+        type: edge.type,
+        label: edge.label,
+      },
+    }))
+
+    cy.add([...nodes, ...edges])
+
+    // Apply layout
+    cy.layout({
+      name: 'dagre',
+      rankDir: 'TB',
+      nodeSep: 50,
+      rankSep: 100,
+      animate: true,
+      animationDuration: 500,
+    }).run()
+
+    // Fit to view
+    cy.fit(undefined, 50)
+  }, [graph])
+
+  // Scan project folder (Backward mode)
+  const handleScanProject = async () => {
+    if (!projectPath) {
+      alert('프로젝트 경로가 설정되지 않았습니다.')
+      return
+    }
+
+    setIsLoading(true)
+    try {
+      // Check if Electron API is available
+      if (!window.electron?.fs) {
+        throw new Error('Electron API not available')
+      }
+
+      // Scan files using Electron IPC
+      const files = await window.electron.fs.fileStats(projectPath)
+
+      // Filter TypeScript/JavaScript files
+      const codeFiles = files.filter((file: any) =>
+        /\.(ts|tsx|js|jsx)$/.test(file.path) &&
+        !file.path.includes('node_modules')
+      )
+
+      // Read file contents
+      const filesWithContent = await Promise.all(
+        codeFiles.slice(0, 50).map(async (file: any) => {
+          try {
+            const content = await window.electron.fs.readFile(file.path)
+            return {
+              path: file.path,
+              content,
+            }
+          } catch (error) {
+            console.error(`Failed to read ${file.path}:`, error)
+            return null
+          }
+        })
+      )
+
+      const validFiles = filesWithContent.filter(Boolean) as Array<{
+        path: string
+        content: string
+      }>
+
+      // Build dependency graph
+      const dependencyGraph = buildDependencyGraph(validFiles, projectPath)
+      setGraph(dependencyGraph)
+    } catch (error) {
+      console.error('Failed to scan project:', error)
+      alert('프로젝트 스캔 실패: ' + (error as Error).message)
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  // Load AI-generated plan (Forward mode)
+  const handleLoadPlan = () => {
+    // Example AI-generated plan
+    const examplePlan = {
+      components: [
+        { name: 'UserDashboard', type: 'component', props: ['userId', 'theme'] },
+        { name: 'TaskList', type: 'component', props: ['tasks', 'onUpdate'] },
+        { name: 'TaskCard', type: 'component', props: ['task'] },
+      ],
+      apis: [
+        { name: 'getUserTasks', endpoint: '/api/tasks', method: 'GET' },
+        { name: 'updateTask', endpoint: '/api/tasks/:id', method: 'PUT' },
+      ],
+      database: [
+        { table: 'users', fields: ['id', 'name', 'email'] },
+        { table: 'tasks', fields: ['id', 'userId', 'title', 'status'] },
+      ],
+      relationships: [
+        { from: 'UserDashboard', to: 'TaskList', type: 'renders' },
+        { from: 'TaskList', to: 'TaskCard', type: 'renders' },
+        { from: 'TaskList', to: 'getUserTasks', type: 'calls' },
+        { from: 'TaskCard', to: 'updateTask', type: 'calls' },
+        { from: 'getUserTasks', to: 'tasks', type: 'uses' },
+        { from: 'updateTask', to: 'tasks', type: 'saves' },
+      ],
+    }
+
+    const planGraph = planToGraph(examplePlan)
+    setGraph(planGraph)
+    setMode('forward')
+  }
+
+  // Select project folder
+  const handleSelectFolder = async () => {
+    if (!window.electron?.fs) {
+      alert('Electron API가 필요합니다. 데스크톱 앱에서 실행하세요.')
+      return
+    }
+
+    try {
+      const result = await window.electron.fs.selectDirectory()
+      if (result) {
+        console.log('Selected folder:', result.path)
+        // Update project path in store
+        useNeuralMapStore.getState().setProjectPath(result.path)
+      }
+    } catch (error) {
+      console.error('Failed to select folder:', error)
+    }
+  }
+
+  return (
+    <div className="flex h-full flex-col">
+      {/* Toolbar */}
+      <div className="flex items-center gap-2 border-b p-2">
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={handleSelectFolder}
+          disabled={isLoading}
+        >
+          <FolderOpen className="mr-2 h-4 w-4" />
+          폴더 선택
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={handleScanProject}
+          disabled={isLoading || !projectPath}
+        >
+          {isLoading ? (
+            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+          ) : (
+            <Upload className="mr-2 h-4 w-4" />
+          )}
+          프로젝트 분석
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={handleLoadPlan}
+          disabled={isLoading}
+        >
+          AI 계획 불러오기 (예제)
+        </Button>
+        <div className="ml-auto text-xs text-muted-foreground">
+          모드: {mode === 'forward' ? '설계 (Forward)' : '분석 (Backward)'}
+        </div>
+      </div>
+
+      {/* Cytoscape Container */}
+      <div ref={containerRef} className="flex-1 bg-background" />
+
+      {/* Instructions */}
+      {!graph && (
+        <div className="absolute inset-0 flex items-center justify-center">
+          <div className="text-center text-muted-foreground">
+            <p className="mb-2">프로젝트 폴더를 선택하고 "프로젝트 분석"을 클릭하세요.</p>
+            <p className="text-xs">
+              또는 "AI 계획 불러오기"로 예제 설계도를 확인하세요.
+            </p>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}

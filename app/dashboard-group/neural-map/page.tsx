@@ -90,9 +90,9 @@ const LifeStreamView = dynamic(
   }
 )
 
-// Dynamically import Mermaid View
-const MermaidView = dynamic(
-  () => import('@/components/neural-map/canvas/MermaidView').then((mod) => mod.MermaidView),
+// Dynamically import Cytoscape View (AI-powered code diagram)
+const CytoscapeView = dynamic(
+  () => import('@/components/neural-map/canvas/CytoscapeView').then((mod) => mod.default),
   {
     ssr: false,
     loading: () => <CanvasLoadingFallback />,
@@ -130,6 +130,7 @@ export default function NeuralMapPage() {
     isLoading,
     modalType,
     mapId,
+    projectPath,
     setLoading,
     setActiveTab,
     closeModal,
@@ -414,7 +415,7 @@ export default function NeuralMapPage() {
             ) : activeTab === 'browser' ? (
               <BrowserView onShareToAI={handleViewfinderShareToAI} />
             ) : activeTab === 'mermaid' ? (
-              <MermaidView className="absolute inset-0" />
+              <CytoscapeView projectPath={projectPath || undefined} mapId={mapId} />
             ) : (
               <Graph2DView className="absolute inset-0" />
             )}
