@@ -750,8 +750,16 @@ export function FileTreePanel({ mapId }: FileTreePanelProps) {
 
       // Set project path for Mermaid auto-generation
       const projectPath = (dirHandle as any).path as string | undefined
+      console.log('[FileTree] Selected directory:', {
+        name: dirHandle.name,
+        path: projectPath,
+        hasPath: !!projectPath
+      })
       if (projectPath) {
         setProjectPath(projectPath)
+        console.log('[FileTree] ✅ Set projectPath in store:', projectPath)
+      } else {
+        console.warn('[FileTree] ⚠️ No path property in dirHandle:', dirHandle)
       }
 
       // 폴더 스캔 (재귀적)

@@ -1,12 +1,23 @@
 'use client'
 
 import React, { useState, useCallback, useRef, useEffect } from 'react'
-import { ArrowLeft, ArrowRight, RotateCw, X, Globe, MousePointer2, Terminal, MoreHorizontal, Plus, Eye, MessageSquare } from 'lucide-react'
+import { ArrowLeft, ArrowRight, RotateCw, X, Globe, MousePointer2, Terminal, MoreHorizontal, Plus, Eye, MessageSquare, Share2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useTheme } from 'next-themes'
 import { AIViewfinder, useViewfinder } from '../viewfinder'
 
-export function BrowserView() {
+// AI 화면 공유 컨텍스트 타입
+interface AIScreenContext {
+    imageDataUrl: string
+    timestamp: number
+}
+
+interface BrowserViewProps {
+    /** AI에게 화면 공유 시 호출되는 콜백 */
+    onShareToAI?: (context: AIScreenContext) => void
+}
+
+export function BrowserView({ onShareToAI }: BrowserViewProps = {}) {
     // 테마 설정
     const { resolvedTheme } = useTheme()
 
@@ -32,6 +43,8 @@ export function BrowserView() {
     const webviewRef = useRef<any>(null)
     // Webview Node 상태 (useEffect 의존성용)
     const [webviewNode, setWebviewNode] = useState<any>(null)
+    // Webview의 webContentsId (Electron 캡처용)
+    const [webContentsId, setWebContentsId] = useState<number | undefined>(undefined)
 
     // 브라우저 컨테이너 ref (뷰파인더 bounds용)
     const browserContainerRef = useRef<HTMLDivElement>(null)
@@ -43,8 +56,26 @@ export function BrowserView() {
         mode: 'manual'
     })
 
+    // AI 화면 공유 상태
+    const [isAISharingActive, setIsAISharingActive] = useState(false)
+    const [aiShareCount, setAiShareCount] = useState(0)
+
     // 분석 결과 표시용
     const [showAnalysisPanel, setShowAnalysisPanel] = useState(false)
+
+    // AI에게 화면 공유 핸들러
+    const handleShareToAI = useCallback((imageDataUrl: string, timestamp: number) => {
+        setAiShareCount(prev => prev + 1)
+        // 외부 콜백이 있으면 호출 (챗봇 컨텍스트로 전달)
+        onShareToAI?.({ imageDataUrl, timestamp })
+
+        // 콘솔에 로깅 (디버깅용)
+        console.log('[AI Viewfinder] Screen shared to AI:', {
+            timestamp: new Date(timestamp).toISOString(),
+            imageSize: Math.round(imageDataUrl.length / 1024) + 'KB',
+            shareCount: aiShareCount + 1
+        })
+    }, [onShareToAI, aiShareCount])
 
     // 탭 전환 핸들러
     const handleTabChange = (tabId: string) => {
@@ -134,6 +165,17 @@ export function BrowserView() {
             setIsLoading(false)
             if (node.canGoBack) setCanGoBack(node.canGoBack())
             if (node.canGoForward) setCanGoForward(node.canGoForward())
+
+            // Webview의 webContentsId 가져오기 (Electron 캡처용)
+            try {
+                const wcId = node.getWebContentsId?.()
+                if (wcId) {
+                    setWebContentsId(wcId)
+                    console.log('[BrowserView] WebContentsId captured:', wcId)
+                }
+            } catch (e) {
+                console.warn('[BrowserView] Could not get webContentsId:', e)
+            }
         }
 
         // 리스너 등록
@@ -258,7 +300,7 @@ export function BrowserView() {
                     <button
                         onClick={viewfinder.toggle}
                         className={cn(
-                            "p-1.5 rounded-md transition-colors",
+                            "p-1.5 rounded-md transition-colors relative",
                             viewfinder.isActive
                                 ? "bg-blue-500/20 text-blue-500"
                                 : "hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-600 dark:text-zinc-400"
@@ -266,6 +308,12 @@ export function BrowserView() {
                         title="AI Viewfinder"
                     >
                         <Eye className="w-3.5 h-3.5" />
+                        {/* AI 화면 공유 중 표시 */}
+                        {aiShareCount > 0 && viewfinder.isActive && (
+                            <span className="absolute -top-1 -right-1 min-w-[14px] h-[14px] bg-green-500 rounded-full text-[9px] text-white flex items-center justify-center font-bold">
+                                {aiShareCount > 99 ? '99+' : aiShareCount}
+                            </span>
+                        )}
                     </button>
                     {/* 분석 결과 패널 토글 */}
                     {viewfinder.lastAnalysis && (
@@ -314,13 +362,16 @@ export function BrowserView() {
 
                 {/* AI 뷰파인더 */}
                 <AIViewfinder
+                    webContentsId={webContentsId}
                     containerRef={browserContainerRef}
                     isActive={viewfinder.isActive}
                     onCapture={viewfinder.handleCapture}
                     onAnalysis={viewfinder.handleAnalysis}
+                    onShareToAI={handleShareToAI}
                     onClose={viewfinder.close}
                     initialBounds={viewfinder.bounds}
                     mode="manual"
+                    aiContextEnabled={true}
                 />
 
                 {/* 분석 결과 패널 */}

@@ -803,7 +803,84 @@ ipcMain.handle('fs:scan-types', async (_, dirPath: string, options: { extensions
     return types;
 });
 
-// 12. Parse Supabase/Database Schema
+// ==========================================
+// AI Viewfinder - Screen Capture Handlers
+// ==========================================
+
+// 12. Capture Webview Content
+ipcMain.handle('viewfinder:capture-webview', async (_, webContentsId: number, rect?: { x: number; y: number; width: number; height: number }) => {
+    try {
+        const wc = webContents.fromId(webContentsId);
+        if (!wc) {
+            return { success: false, error: 'WebContents not found' };
+        }
+
+        // Capture the webview content
+        const image = await wc.capturePage(rect ? {
+            x: Math.round(rect.x),
+            y: Math.round(rect.y),
+            width: Math.round(rect.width),
+            height: Math.round(rect.height)
+        } : undefined);
+
+        if (image.isEmpty()) {
+            return { success: false, error: 'Captured image is empty' };
+        }
+
+        // Convert to base64 data URL
+        const dataUrl = image.toDataURL();
+        const size = image.getSize();
+
+        return {
+            success: true,
+            dataUrl,
+            width: size.width,
+            height: size.height,
+            timestamp: Date.now()
+        };
+    } catch (err: any) {
+        console.error('Viewfinder capture webview failed:', err);
+        return { success: false, error: err.message };
+    }
+});
+
+// 13. Capture Main Window Content
+ipcMain.handle('viewfinder:capture-window', async (_, rect?: { x: number; y: number; width: number; height: number }) => {
+    try {
+        if (!mainWindow) {
+            return { success: false, error: 'Main window not available' };
+        }
+
+        // Capture the main window content
+        const image = await mainWindow.webContents.capturePage(rect ? {
+            x: Math.round(rect.x),
+            y: Math.round(rect.y),
+            width: Math.round(rect.width),
+            height: Math.round(rect.height)
+        } : undefined);
+
+        if (image.isEmpty()) {
+            return { success: false, error: 'Captured image is empty' };
+        }
+
+        // Convert to base64 data URL
+        const dataUrl = image.toDataURL();
+        const size = image.getSize();
+
+        return {
+            success: true,
+            dataUrl,
+            width: size.width,
+            height: size.height,
+            timestamp: Date.now()
+        };
+    } catch (err: any) {
+        console.error('Viewfinder capture window failed:', err);
+        return { success: false, error: err.message };
+    }
+});
+
+// 14. Parse Supabase/Database Schema
 ipcMain.handle('fs:scan-schema', async (_, dirPath: string) => {
     const tables: any[] = [];
 

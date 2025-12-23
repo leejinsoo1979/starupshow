@@ -36,4 +36,15 @@ contextBridge.exposeInMainWorld('electron', {
         ipcRenderer.on(event, callback);
         return () => ipcRenderer.removeListener(event, callback);
     },
+
+    // AI Viewfinder - 화면 공유
+    viewfinder: {
+        // Webview 캡처 (webContentsId 필요)
+        captureWebview: (webContentsId: number, rect?: { x: number; y: number; width: number; height: number }) =>
+            ipcRenderer.invoke('viewfinder:capture-webview', webContentsId, rect),
+
+        // 메인 윈도우 캡처
+        captureWindow: (rect?: { x: number; y: number; width: number; height: number }) =>
+            ipcRenderer.invoke('viewfinder:capture-window', rect),
+    },
 });

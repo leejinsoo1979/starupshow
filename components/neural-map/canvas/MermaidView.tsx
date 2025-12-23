@@ -127,6 +127,16 @@ export function MermaidView({ className }: MermaidViewProps) {
   const [isRendering, setIsRendering] = useState(false)
   const [autoMode, setAutoMode] = useState(true) // Start with auto mode by default
   const [isLoading, setIsLoading] = useState(false)
+
+  // Debug logging for store state changes
+  useEffect(() => {
+    console.log('[MermaidView] Store state:', {
+      projectPath,
+      hasElectron: !!window.electron,
+      mermaidDiagramType,
+      autoMode
+    })
+  }, [projectPath, mermaidDiagramType, autoMode])
   const [dataSource, setDataSource] = useState<string>('Template')
 
   // Mount check
