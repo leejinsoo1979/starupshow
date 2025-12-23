@@ -60,8 +60,25 @@ declare global {
 
       // Git operations
       git?: {
+        // Existing (for visualization)
         log?: (dirPath: string, options?: { maxCommits?: number }) => Promise<string>
         branches?: (dirPath: string) => Promise<string[]>
+        // New operations for GitHub integration
+        clone?: (url: string, targetPath: string) => Promise<{ success: boolean; stdout?: string; stderr?: string; error?: string }>
+        status?: (cwd: string) => Promise<{ success: boolean; output?: string; error?: string }>
+        diff?: (cwd: string, staged?: boolean) => Promise<{ success: boolean; output?: string; error?: string }>
+        add?: (cwd: string, files: string | string[]) => Promise<{ success: boolean; output?: string; error?: string }>
+        commit?: (cwd: string, message: string) => Promise<{ success: boolean; output?: string; error?: string }>
+        push?: (cwd: string, remote?: string, branch?: string) => Promise<{ success: boolean; output?: string; error?: string }>
+        pull?: (cwd: string, remote?: string, branch?: string) => Promise<{ success: boolean; output?: string; error?: string }>
+        init?: (cwd: string) => Promise<{ success: boolean; output?: string; error?: string }>
+        remoteAdd?: (cwd: string, name: string, url: string) => Promise<{ success: boolean; output?: string; error?: string }>
+        remoteList?: (cwd: string) => Promise<{ success: boolean; output?: string; error?: string }>
+        config?: (cwd: string, key: string, value: string) => Promise<{ success: boolean; output?: string; error?: string }>
+        fetch?: (cwd: string, remote?: string) => Promise<{ success: boolean; output?: string; error?: string }>
+        stash?: (cwd: string, action?: 'push' | 'pop' | 'list') => Promise<{ success: boolean; output?: string; error?: string }>
+        isRepo?: (cwd: string) => Promise<{ success: boolean; isRepo: boolean }>
+        currentBranch?: (cwd: string) => Promise<{ success: boolean; branch?: string; error?: string }>
       }
 
       // Project operations
@@ -97,6 +114,16 @@ declare global {
         kill?: (id: string) => Promise<{ success: boolean }>
         onData?: (callback: (id: string, data: string) => void) => () => void
         onExit?: (callback: (id: string, exitCode: number, signal?: number) => void) => () => void
+      }
+
+      // Project Runner - 프로젝트 실행
+      projectRunner?: {
+        run?: (id: string, cwd: string, command: string) => Promise<{ success: boolean; pid?: number; error?: string }>
+        stop?: (id: string) => Promise<{ success: boolean; error?: string }>
+        status?: (id: string) => Promise<{ running: boolean }>
+        onOutput?: (callback: (id: string, data: string) => void) => () => void
+        onExit?: (callback: (id: string, exitCode: number) => void) => () => void
+        onError?: (callback: (id: string, error: string) => void) => () => void
       }
 
       // DevTools helper

@@ -236,6 +236,7 @@ export default function ProjectDetailPage() {
               stage: project.status === "planning" ? "planning" : project.status === "active" ? "development" : "production",
               members: project.members,
               agents: project.agents,
+              folderPath: (project as any).folder_path || null,
             }}
             onEdit={() => setIsEditOpen(true)}
           />

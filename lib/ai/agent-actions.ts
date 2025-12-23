@@ -212,6 +212,14 @@ declare global {
         onData: (callback: (id: string, data: string) => void) => () => void
         onExit: (callback: (id: string, exitCode: number, signal?: number) => void) => () => void
       }
+      projectRunner: {
+        run: (id: string, cwd: string, command: string) => Promise<{ success: boolean; pid?: number; error?: string }>
+        stop: (id: string) => Promise<{ success: boolean; error?: string }>
+        status: (id: string) => Promise<{ running: boolean }>
+        onOutput: (callback: (id: string, data: string) => void) => () => void
+        onExit: (callback: (id: string, exitCode: number) => void) => () => void
+        onError: (callback: (id: string, error: string) => void) => () => void
+      }
       openWebviewDevTools: (id?: number) => Promise<{ success: boolean; message: string }>
       onMenuEvent: (event: string, callback: () => void) => () => void
       agent: {

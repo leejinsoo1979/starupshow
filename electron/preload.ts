@@ -93,8 +93,25 @@ contextBridge.exposeInMainWorld('electron', {
 
     // Git operations
     git: {
+        // Existing
         log: (dirPath: string, options?: { maxCommits?: number }) => ipcRenderer.invoke('git:log', dirPath, options),
         branches: (dirPath: string) => ipcRenderer.invoke('git:branches', dirPath),
+        // New operations for GitHub integration
+        clone: (url: string, targetPath: string) => ipcRenderer.invoke('git:clone', url, targetPath),
+        status: (cwd: string) => ipcRenderer.invoke('git:status', cwd),
+        diff: (cwd: string, staged?: boolean) => ipcRenderer.invoke('git:diff', cwd, staged),
+        add: (cwd: string, files: string | string[]) => ipcRenderer.invoke('git:add', cwd, files),
+        commit: (cwd: string, message: string) => ipcRenderer.invoke('git:commit', cwd, message),
+        push: (cwd: string, remote?: string, branch?: string) => ipcRenderer.invoke('git:push', cwd, remote, branch),
+        pull: (cwd: string, remote?: string, branch?: string) => ipcRenderer.invoke('git:pull', cwd, remote, branch),
+        init: (cwd: string) => ipcRenderer.invoke('git:init', cwd),
+        remoteAdd: (cwd: string, name: string, url: string) => ipcRenderer.invoke('git:remote-add', cwd, name, url),
+        remoteList: (cwd: string) => ipcRenderer.invoke('git:remote-list', cwd),
+        config: (cwd: string, key: string, value: string) => ipcRenderer.invoke('git:config', cwd, key, value),
+        fetch: (cwd: string, remote?: string) => ipcRenderer.invoke('git:fetch', cwd, remote),
+        stash: (cwd: string, action?: 'push' | 'pop' | 'list') => ipcRenderer.invoke('git:stash', cwd, action),
+        isRepo: (cwd: string) => ipcRenderer.invoke('git:is-repo', cwd),
+        currentBranch: (cwd: string) => ipcRenderer.invoke('git:current-branch', cwd),
     },
 
     // DevTools helper
@@ -132,6 +149,28 @@ contextBridge.exposeInMainWorld('electron', {
             const handler = (_: any, id: string, exitCode: number, signal?: number) => callback(id, exitCode, signal);
             ipcRenderer.on('terminal:exit', handler);
             return () => ipcRenderer.removeListener('terminal:exit', handler);
+        },
+    },
+
+    // Project Runner - 프로젝트 실행
+    projectRunner: {
+        run: (id: string, cwd: string, command: string) => ipcRenderer.invoke('project:run', id, cwd, command),
+        stop: (id: string) => ipcRenderer.invoke('project:stop', id),
+        status: (id: string) => ipcRenderer.invoke('project:status', id),
+        onOutput: (callback: (id: string, data: string) => void) => {
+            const handler = (_: any, id: string, data: string) => callback(id, data);
+            ipcRenderer.on('project:output', handler);
+            return () => ipcRenderer.removeListener('project:output', handler);
+        },
+        onExit: (callback: (id: string, exitCode: number) => void) => {
+            const handler = (_: any, id: string, exitCode: number) => callback(id, exitCode);
+            ipcRenderer.on('project:exit', handler);
+            return () => ipcRenderer.removeListener('project:exit', handler);
+        },
+        onError: (callback: (id: string, error: string) => void) => {
+            const handler = (_: any, id: string, error: string) => callback(id, error);
+            ipcRenderer.on('project:error', handler);
+            return () => ipcRenderer.removeListener('project:error', handler);
         },
     },
 

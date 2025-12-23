@@ -22,6 +22,7 @@ import { BattlefieldMatrix } from "./BattlefieldMatrix"
 import { NetworkRoadmap } from "./NetworkRoadmap"
 import { ActivityLogPanel } from "./ActivityLogPanel"
 import { InvestorPreviewWidget } from "./InvestorPreviewWidget"
+import { ProjectRunner } from "./ProjectRunner"
 
 const stageConfig = {
   planning: { label: "기획", color: "#6B7280", icon: Target },
@@ -43,6 +44,7 @@ interface OverviewSectionProps {
     stage?: string | null
     members?: any[]
     agents?: any[]
+    folderPath?: string | null
   }
   onEdit?: () => void
 }
@@ -219,6 +221,13 @@ export function OverviewSection({ projectId, project, onEdit }: OverviewSectionP
 
         {/* AI Command Center */}
         <AICommandCenter projectId={projectId} />
+
+        {/* Project Runner - Electron Only */}
+        <ProjectRunner
+          projectId={projectId}
+          folderPath={project.folderPath}
+          projectName={project.name}
+        />
 
         {/* Main Content Grid */}
         <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">

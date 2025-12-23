@@ -4,7 +4,7 @@ import { app, BrowserWindow, ipcMain, dialog, shell, Menu, webContents, globalSh
 import * as path from 'path';
 import * as fs from 'fs';
 import * as util from 'util';
-import { fork, ChildProcess, exec } from 'child_process';
+import { fork, ChildProcess, exec, spawn } from 'child_process';
 import * as chokidar from 'chokidar';
 
 // electron-updater는 지연 로딩 (app.whenReady() 이후 사용)
@@ -1007,6 +1007,189 @@ ipcMain.handle('git:branches', async (_, dirPath: string) => {
     }
 });
 
+// ==========================================
+// Git Operations Handlers (for GitHub Integration)
+// ==========================================
+
+// Git Clone
+ipcMain.handle('git:clone', async (_, url: string, targetPath: string) => {
+    try {
+        console.log('[Git] Cloning:', url, 'to', targetPath);
+        const { stdout, stderr } = await execPromise(`git clone "${url}" "${targetPath}"`, {
+            timeout: 300000, // 5 minutes
+            maxBuffer: 50 * 1024 * 1024
+        });
+        return { success: true, stdout, stderr };
+    } catch (err: any) {
+        console.error('[Git] Clone failed:', err.message);
+        return { success: false, error: err.message };
+    }
+});
+
+// Git Status (porcelain format for parsing)
+ipcMain.handle('git:status', async (_, cwd: string) => {
+    try {
+        const { stdout } = await execPromise('git status --porcelain -b', { cwd });
+        return { success: true, output: stdout };
+    } catch (err: any) {
+        console.error('[Git] Status failed:', err.message);
+        return { success: false, error: err.message };
+    }
+});
+
+// Git Diff
+ipcMain.handle('git:diff', async (_, cwd: string, staged?: boolean) => {
+    try {
+        const cmd = staged ? 'git diff --cached' : 'git diff';
+        const { stdout } = await execPromise(cmd, { cwd, maxBuffer: 10 * 1024 * 1024 });
+        return { success: true, output: stdout };
+    } catch (err: any) {
+        console.error('[Git] Diff failed:', err.message);
+        return { success: false, error: err.message };
+    }
+});
+
+// Git Add
+ipcMain.handle('git:add', async (_, cwd: string, files: string | string[]) => {
+    try {
+        const fileArg = Array.isArray(files) ? files.map(f => `"${f}"`).join(' ') : files === '.' ? '.' : `"${files}"`;
+        const { stdout } = await execPromise(`git add ${fileArg}`, { cwd });
+        return { success: true, output: stdout };
+    } catch (err: any) {
+        console.error('[Git] Add failed:', err.message);
+        return { success: false, error: err.message };
+    }
+});
+
+// Git Commit
+ipcMain.handle('git:commit', async (_, cwd: string, message: string) => {
+    try {
+        // Escape quotes in message
+        const escapedMessage = message.replace(/"/g, '\\"');
+        const { stdout } = await execPromise(`git commit -m "${escapedMessage}"`, { cwd });
+        return { success: true, output: stdout };
+    } catch (err: any) {
+        console.error('[Git] Commit failed:', err.message);
+        return { success: false, error: err.message };
+    }
+});
+
+// Git Push
+ipcMain.handle('git:push', async (_, cwd: string, remote?: string, branch?: string) => {
+    try {
+        let cmd = 'git push';
+        if (remote) cmd += ` ${remote}`;
+        if (branch) cmd += ` ${branch}`;
+        const { stdout, stderr } = await execPromise(cmd, { cwd, timeout: 120000 });
+        return { success: true, output: stdout || stderr };
+    } catch (err: any) {
+        console.error('[Git] Push failed:', err.message);
+        return { success: false, error: err.message };
+    }
+});
+
+// Git Pull
+ipcMain.handle('git:pull', async (_, cwd: string, remote?: string, branch?: string) => {
+    try {
+        let cmd = 'git pull';
+        if (remote) cmd += ` ${remote}`;
+        if (branch) cmd += ` ${branch}`;
+        const { stdout, stderr } = await execPromise(cmd, { cwd, timeout: 120000 });
+        return { success: true, output: stdout || stderr };
+    } catch (err: any) {
+        console.error('[Git] Pull failed:', err.message);
+        return { success: false, error: err.message };
+    }
+});
+
+// Git Init
+ipcMain.handle('git:init', async (_, cwd: string) => {
+    try {
+        const { stdout } = await execPromise('git init', { cwd });
+        return { success: true, output: stdout };
+    } catch (err: any) {
+        console.error('[Git] Init failed:', err.message);
+        return { success: false, error: err.message };
+    }
+});
+
+// Git Remote Add
+ipcMain.handle('git:remote-add', async (_, cwd: string, name: string, url: string) => {
+    try {
+        const { stdout } = await execPromise(`git remote add ${name} "${url}"`, { cwd });
+        return { success: true, output: stdout };
+    } catch (err: any) {
+        console.error('[Git] Remote add failed:', err.message);
+        return { success: false, error: err.message };
+    }
+});
+
+// Git Remote List
+ipcMain.handle('git:remote-list', async (_, cwd: string) => {
+    try {
+        const { stdout } = await execPromise('git remote -v', { cwd });
+        return { success: true, output: stdout };
+    } catch (err: any) {
+        console.error('[Git] Remote list failed:', err.message);
+        return { success: false, error: err.message };
+    }
+});
+
+// Git Config (local)
+ipcMain.handle('git:config', async (_, cwd: string, key: string, value: string) => {
+    try {
+        const { stdout } = await execPromise(`git config "${key}" "${value}"`, { cwd });
+        return { success: true, output: stdout };
+    } catch (err: any) {
+        console.error('[Git] Config failed:', err.message);
+        return { success: false, error: err.message };
+    }
+});
+
+// Git Fetch
+ipcMain.handle('git:fetch', async (_, cwd: string, remote?: string) => {
+    try {
+        const cmd = remote ? `git fetch ${remote}` : 'git fetch --all';
+        const { stdout, stderr } = await execPromise(cmd, { cwd, timeout: 60000 });
+        return { success: true, output: stdout || stderr };
+    } catch (err: any) {
+        console.error('[Git] Fetch failed:', err.message);
+        return { success: false, error: err.message };
+    }
+});
+
+// Git Stash
+ipcMain.handle('git:stash', async (_, cwd: string, action: 'push' | 'pop' | 'list' = 'push') => {
+    try {
+        const { stdout } = await execPromise(`git stash ${action}`, { cwd });
+        return { success: true, output: stdout };
+    } catch (err: any) {
+        console.error('[Git] Stash failed:', err.message);
+        return { success: false, error: err.message };
+    }
+});
+
+// Check if directory is a git repo
+ipcMain.handle('git:is-repo', async (_, cwd: string) => {
+    try {
+        await execPromise('git rev-parse --is-inside-work-tree', { cwd });
+        return { success: true, isRepo: true };
+    } catch {
+        return { success: true, isRepo: false };
+    }
+});
+
+// Get current branch
+ipcMain.handle('git:current-branch', async (_, cwd: string) => {
+    try {
+        const { stdout } = await execPromise('git branch --show-current', { cwd });
+        return { success: true, branch: stdout.trim() };
+    } catch (err: any) {
+        console.error('[Git] Current branch failed:', err.message);
+        return { success: false, error: err.message };
+    }
+});
+
 // 9. File Statistics (count by extension)
 ipcMain.handle('fs:file-stats', async (_, dirPath: string) => {
     const stats: Record<string, { count: number; size: number }> = {};
@@ -1522,6 +1705,99 @@ app.on('before-quit', () => {
         ptyProcess.kill();
     });
     terminals.clear();
+    // 프로젝트 러너 프로세스 정리
+    runningProjects.forEach((proc) => {
+        proc.kill();
+    });
+    runningProjects.clear();
+});
+
+// ============================================
+// 16. Project Runner - 프로젝트 실행 (child_process 사용)
+// ============================================
+
+// 실행 중인 프로젝트 프로세스 저장소
+const runningProjects: Map<string, ChildProcess> = new Map();
+
+// 프로젝트 스크립트 실행
+ipcMain.handle('project:run', async (_event, id: string, cwd: string, command: string) => {
+    try {
+        // 이미 실행 중이면 중지
+        if (runningProjects.has(id)) {
+            const oldProc = runningProjects.get(id);
+            oldProc?.kill();
+            runningProjects.delete(id);
+        }
+
+        // 명령어 파싱 (npm run dev -> ['npm', ['run', 'dev']])
+        const parts = command.split(' ');
+        const cmd = parts[0];
+        const args = parts.slice(1);
+
+        // 프로세스 생성
+        const proc = spawn(cmd, args, {
+            cwd,
+            shell: true,
+            env: { ...process.env, FORCE_COLOR: '1' }
+        });
+
+        runningProjects.set(id, proc);
+
+        // stdout 전달
+        proc.stdout?.on('data', (data: Buffer) => {
+            if (mainWindow) {
+                mainWindow.webContents.send('project:output', id, data.toString());
+            }
+        });
+
+        // stderr 전달
+        proc.stderr?.on('data', (data: Buffer) => {
+            if (mainWindow) {
+                mainWindow.webContents.send('project:output', id, data.toString());
+            }
+        });
+
+        // 프로세스 종료
+        proc.on('exit', (code: number | null) => {
+            runningProjects.delete(id);
+            if (mainWindow) {
+                mainWindow.webContents.send('project:exit', id, code ?? 0);
+            }
+        });
+
+        proc.on('error', (err: Error) => {
+            runningProjects.delete(id);
+            if (mainWindow) {
+                mainWindow.webContents.send('project:error', id, err.message);
+            }
+        });
+
+        return { success: true, pid: proc.pid };
+    } catch (error: any) {
+        return { success: false, error: error.message };
+    }
+});
+
+// 프로젝트 중지
+ipcMain.handle('project:stop', async (_event, id: string) => {
+    const proc = runningProjects.get(id);
+    if (proc) {
+        proc.kill('SIGTERM');
+        // 3초 후에도 실행 중이면 강제 종료
+        setTimeout(() => {
+            if (runningProjects.has(id)) {
+                proc.kill('SIGKILL');
+                runningProjects.delete(id);
+            }
+        }, 3000);
+        return { success: true };
+    }
+    return { success: false, error: 'Process not found' };
+});
+
+// 프로젝트 실행 상태 확인
+ipcMain.handle('project:status', async (_event, id: string) => {
+    return { running: runningProjects.has(id) };
 });
 
 // ============================================
