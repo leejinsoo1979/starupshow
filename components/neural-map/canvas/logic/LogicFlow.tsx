@@ -143,7 +143,24 @@ function LogicFlowContent({ className }: { className?: string }) {
     } = useNeuralMapStore()
 
     const [layoutDirection, setLayoutDirection] = useState<'TB' | 'LR'>('TB')
+
+    // PERFORMANCE: Collapse all folders by default
     const [collapsedIds, setCollapsedIds] = useState<Set<string>>(new Set())
+    const [initialized, setInitialized] = useState(false)
+
+    // Initialize collapsed state when graph loads
+    useEffect(() => {
+        if (!graph || initialized) return
+        const rootNode = graph.nodes.find(n => n.type === 'self')
+        // Collapse all folders except root for performance
+        const foldersToCollapse = graph.nodes
+            .filter(n => n.type === 'folder' && n.id !== rootNode?.id)
+            .map(n => n.id)
+        if (foldersToCollapse.length > 0) {
+            setCollapsedIds(new Set(foldersToCollapse))
+            setInitialized(true)
+        }
+    }, [graph, initialized])
 
     // Selection State (Local for toolbar)
     const [localSelectedNodes, setLocalSelectedNodes] = useState<Node[]>([])
@@ -207,8 +224,26 @@ function LogicFlowContent({ className }: { className?: string }) {
             visit(rootId, true)
         }
 
-        const visibleNodes = rfNodes.filter(n => visibleNodeIds.has(n.id))
-        const visibleEdges = rfEdges.filter(e => visibleNodeIds.has(e.source) && visibleNodeIds.has(e.target))
+        let visibleNodes = rfNodes.filter(n => visibleNodeIds.has(n.id))
+
+        // PERFORMANCE: Limit max visible nodes
+        const MAX_NODES = 500
+        if (visibleNodes.length > MAX_NODES) {
+            console.log(`[LogicFlow] Limited from ${visibleNodes.length} to ${MAX_NODES} nodes`)
+            // Prioritize folders and root
+            visibleNodes = visibleNodes
+                .sort((a, b) => {
+                    if (a.data.type === 'self') return -1
+                    if (b.data.type === 'self') return 1
+                    if (a.data.type === 'folder' && b.data.type !== 'folder') return -1
+                    if (b.data.type === 'folder' && a.data.type !== 'folder') return 1
+                    return 0
+                })
+                .slice(0, MAX_NODES)
+        }
+
+        const limitedNodeIds = new Set(visibleNodes.map(n => n.id))
+        const visibleEdges = rfEdges.filter(e => limitedNodeIds.has(e.source) && limitedNodeIds.has(e.target))
 
         // 4. Run Layout
         return getLayoutedElements(visibleNodes, visibleEdges, layoutDirection)
