@@ -1,8 +1,10 @@
 'use client'
 
 import { create } from 'zustand'
+import { type ChatModelId } from '@/lib/ai/models'
 
-export type ChatModel = 'gpt-4o' | 'claude-3-opus' | 'claude-3.5-sonnet' | 'gemini-1.5-pro' | 'grok-4.1-fast' | 'gemini-3-flash'
+// Re-export for backward compatibility
+export type ChatModel = ChatModelId
 
 export interface ChatMessage {
     id: string

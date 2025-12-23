@@ -1,7 +1,8 @@
 'use client'
 
 import React, { useRef, useEffect } from 'react'
-import { useChatStore, ChatModel } from '@/stores/chatStore'
+import { useChatStore } from '@/stores/chatStore'
+import { getModelList, type ChatModelId } from '@/lib/ai/models'
 import {
     Globe,
     Image as ImageIcon,
@@ -10,7 +11,6 @@ import {
     ChevronDown,
     Bot,
     Sparkles,
-    Paperclip,
     AtSign
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -21,14 +21,8 @@ import {
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 
-const MODELS: { id: ChatModel; name: string; icon: any }[] = [
-    { id: 'claude-3.5-sonnet', name: 'Claude 3.5 Sonnet', icon: Sparkles },
-    { id: 'claude-3-opus', name: 'Claude 3 Opus', icon: Sparkles },
-    { id: 'gpt-4o', name: 'GPT-4o', icon: Sparkles },
-    { id: 'gemini-1.5-pro', name: 'Gemini 1.5 Pro', icon: Sparkles },
-    { id: 'grok-4.1-fast', name: 'Grok 4.1 Fast', icon: Sparkles },
-    { id: 'gemini-3-flash', name: 'Gemini 3 Flash', icon: Sparkles },
-]
+// lib/ai/models.ts에서 동적으로 가져옴
+const MODELS = getModelList()
 
 export function ChatInput() {
     const { input, setInput, selectedModel, setSelectedModel, isAgentMode, toggleAgentMode, addMessage, setIsLoading } = useChatStore()
@@ -155,10 +149,10 @@ export function ChatInput() {
                                 {MODELS.map((model) => (
                                     <DropdownMenuItem
                                         key={model.id}
-                                        onClick={() => setSelectedModel(model.id)}
+                                        onClick={() => setSelectedModel(model.id as ChatModelId)}
                                         className="gap-2"
                                     >
-                                        <model.icon className="w-4 h-4" />
+                                        <Sparkles className="w-4 h-4" />
                                         {model.name}
                                     </DropdownMenuItem>
                                 ))}
