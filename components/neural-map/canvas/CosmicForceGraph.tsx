@@ -180,6 +180,20 @@ function getCachedRingGeometry(): THREE.TorusGeometry {
   return ringGeometryCache
 }
 
+// Ring material cache - for selection ring
+const ringMaterialCache = new Map<string, THREE.MeshBasicMaterial>()
+function getCachedRingMaterial(isSelected: boolean): THREE.MeshBasicMaterial {
+  const key = isSelected ? 'selected' : 'hidden'
+  if (!ringMaterialCache.has(key)) {
+    ringMaterialCache.set(key, new THREE.MeshBasicMaterial({
+      color: 0xffffff,
+      transparent: true,
+      opacity: isSelected ? 0.9 : 0,
+    }))
+  }
+  return ringMaterialCache.get(key)!
+}
+
 // Self node star texture cache
 let starTextureCache: THREE.CanvasTexture | null = null
 function getCachedStarTexture(): THREE.CanvasTexture {
@@ -321,6 +335,9 @@ export function CosmicForceGraph({ className }: CosmicForceGraphProps) {
   }, [expandedNodeIds, graph?.nodes])
 
   // Convert graph data to force-graph format
+  // PERFORMANCE: Limit max visible nodes to prevent lag
+  const MAX_VISIBLE_NODES = 500
+
   const convertToGraphData = useCallback(() => {
     if (!graph) return { nodes: [], links: [] }
 
@@ -367,7 +384,24 @@ export function CosmicForceGraph({ className }: CosmicForceGraphProps) {
     })
 
     // 가시성 필터링: 부모가 접혀있으면 숨김
-    const nodes = allNodes.filter(node => isNodeVisible(node.id, node.parentId))
+    const visibleNodes = allNodes.filter(node => isNodeVisible(node.id, node.parentId))
+
+    // PERFORMANCE: Limit nodes - prioritize folders and self node
+    let nodes: GraphNode[]
+    if (visibleNodes.length > MAX_VISIBLE_NODES) {
+      // Sort: self first, then folders, then files by importance
+      const sorted = visibleNodes.sort((a, b) => {
+        if (a.type === 'self') return -1
+        if (b.type === 'self') return 1
+        if (a.type === 'folder' && b.type !== 'folder') return -1
+        if (b.type === 'folder' && a.type !== 'folder') return 1
+        return (b.__node?.importance || 0) - (a.__node?.importance || 0)
+      })
+      nodes = sorted.slice(0, MAX_VISIBLE_NODES)
+      console.log(`[Neural Map] Limited from ${visibleNodes.length} to ${MAX_VISIBLE_NODES} nodes`)
+    } else {
+      nodes = visibleNodes
+    }
 
     // 보이는 노드의 ID Set 생성
     const visibleNodeIds = new Set(nodes.map(n => n.id))
@@ -381,20 +415,15 @@ export function CosmicForceGraph({ className }: CosmicForceGraphProps) {
       if (sourceVisible && targetVisible) {
         const linkKind = edge.type === 'parent_child' ? 'parent' : edge.type === 'imports' ? 'imports' : 'reference'
 
-        // 중요: 데이터 객체에 직접 속성 주입 (라이브러리가 Accessor보다 우선하거나 Accessor 갱신 실패 시 대비)
-        const particles = linkKind === 'imports' ? 4 : 0
-        const particleColor = currentTheme.ui.accentColor
-        const particleWidth = 3
-
+        // PERFORMANCE: Disabled particles - they cause significant lag
         links.push({
           source: edge.source,
           target: edge.target,
           kind: linkKind,
           type: edge.type,
-          // 3D Force Graph 속성 직접 주입
-          particles,
-          particleColor,
-          particleWidth,
+          particles: 0, // Disabled for performance
+          particleColor: currentTheme.ui.accentColor,
+          particleWidth: 0,
           color: linkKind === 'imports' ? (currentTheme.ui.accentColor + '33') : (isDark ? '#ffffff1a' : '#0000001a')
         })
       }
@@ -578,13 +607,9 @@ export function CosmicForceGraph({ className }: CosmicForceGraphProps) {
         const mat = getCachedMaterial(colorNum, emissive)
         const mesh = new THREE.Mesh(geom, mat)
 
-        // Selection Ring - use cached geometry
+        // Selection Ring - use cached geometry and material
         const ringGeom = getCachedRingGeometry()
-        const ringMat = new THREE.MeshBasicMaterial({
-          color: 0xffffff,
-          transparent: true,
-          opacity: isSelected ? 0.9 : 0,
-        })
+        const ringMat = getCachedRingMaterial(isSelected)
         const ring = new THREE.Mesh(ringGeom, ringMat)
         ring.scale.set(baseSize + 3, baseSize + 3, baseSize + 3)
         ring.rotation.x = Math.PI / 2
