@@ -190,7 +190,8 @@ export default function CytoscapeView({ projectPath, mapId }: CytoscapeViewProps
       setAutoScanned(true)
       handleScanProject()
     }
-  }, [projectPath, autoScanned, isLoading, graph, handleScanProject])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [projectPath])
 
   // Load graph data when available
   useEffect(() => {
