@@ -58,7 +58,7 @@ const dropdownMenuItems: MenuItem[] = [
 export function CursorStyleSidebar() {
     const { resolvedTheme } = useTheme()
     const isDark = resolvedTheme === 'dark'
-    const currentMapId = useNeuralMapStore(s => s.currentGraph?.id)
+    const currentMapId = useNeuralMapStore(s => (s.graph as any)?.id)
 
     const [activeItem, setActiveItem] = useState('explorer')
     const [showDropdown, setShowDropdown] = useState(false)

@@ -13,6 +13,7 @@ build/
 
 # Production
 dist/
+dist-electron/
 
 # Misc
 .DS_Store

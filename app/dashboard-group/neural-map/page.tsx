@@ -89,6 +89,15 @@ const LifeStreamView = dynamic(
   }
 )
 
+// Dynamically import Mermaid View
+const MermaidView = dynamic(
+  () => import('@/components/neural-map/canvas/MermaidView').then((mod) => mod.MermaidView),
+  {
+    ssr: false,
+    loading: () => <CanvasLoadingFallback />,
+  }
+)
+
 // Loading fallback for canvas
 function CanvasLoadingFallback() {
   const currentTheme = useNeuralMapStore((s) => s.currentTheme)
@@ -380,6 +389,8 @@ export default function NeuralMapPage() {
               </div>
             ) : activeTab === 'browser' ? (
               <BrowserView />
+            ) : activeTab === 'mermaid' ? (
+              <MermaidView className="absolute inset-0" />
             ) : (
               <Graph2DView className="absolute inset-0" />
             )}
