@@ -291,27 +291,27 @@ export function buildDependencyGraph(
   writeDebugLog(`[CodeAnalyzer] ❌ Failed to parse: ${failCount} files`)
 
   // 2단계: 의존성 관계를 엣지로 변환
-  // Create a map of normalized paths to node IDs for exact matching
-  const pathToNodeMap = new Map<string, string>()
+  // Create multiple maps for flexible matching
+  const exactPathMap = new Map<string, string>() // Exact path -> node ID
+  const filenameMap = new Map<string, string[]>() // Filename -> [node IDs]
+
   nodes.forEach(node => {
-    // Store both with and without extension for matching
-    const normalized = node.id.replace(/\.(ts|tsx|js|jsx)$/, '')
-    pathToNodeMap.set(normalized, node.id)
-    pathToNodeMap.set(node.id, node.id) // Also store with extension
+    // Exact path matching (with and without extension)
+    const withoutExt = node.id.replace(/\.(ts|tsx|js|jsx)$/, '')
+    exactPathMap.set(withoutExt, node.id)
+    exactPathMap.set(node.id, node.id)
+
+    // Filename matching for fallback
+    const filename = node.id.split('/').pop()?.replace(/\.(ts|tsx|js|jsx)$/, '') || ''
+    if (filename) {
+      if (!filenameMap.has(filename)) {
+        filenameMap.set(filename, [])
+      }
+      filenameMap.get(filename)!.push(node.id)
+    }
   })
 
-  writeDebugLog(`[CodeAnalyzer] 📋 Created path map with ${pathToNodeMap.size} entries`)
-
-  // Debug: Log first 10 path map entries
-  const pathMapSample = Array.from(pathToNodeMap.entries()).slice(0, 10)
-  writeDebugLog(`[CodeAnalyzer] 📋 Sample path map entries:`)
-  pathMapSample.forEach(([key, value]) => {
-    writeDebugLog(`  "${key}" -> "${value}"`)
-  })
-
-  let matchedCount = 0
-  let unmatchedCount = 0
-  const unmatchedSamples: string[] = []
+  console.log(`[CodeAnalyzer] 📋 Nodes: ${nodes.length}, Exact paths: ${exactPathMap.size}, Unique filenames: ${filenameMap.size}`)
 
   for (const file of files) {
     const ast = parseCode(file.content, file.path)
@@ -320,73 +320,66 @@ export function buildDependencyGraph(
     const relativePath = file.path.replace(projectRoot, '').replace(/^\//, '')
     const sourceDir = relativePath.split('/').slice(0, -1).join('/')
 
-    // Import edges - resolve paths correctly
+    // Import edges - flexible matching
     const importEdges = extractImports(ast, relativePath)
       .map(edge => {
-        let importPath = edge.target
+        const originalImport = edge.target
+        let importPath = originalImport.replace(/\.(ts|tsx|js|jsx)$/, '')
 
-        // Remove file extensions
-        importPath = importPath.replace(/\.(ts|tsx|js|jsx)$/, '')
-
+        // 1. Try exact path matching first (for @/ aliases and relative imports)
         let resolvedPath = ''
 
-        // 1. Handle alias imports: @/ -> project root
         if (importPath.startsWith('@/')) {
+          // @/components/Button -> components/Button
           resolvedPath = importPath.replace(/^@\//, '')
-        }
-        // 2. Handle relative imports: ./ or ../
-        else if (importPath.startsWith('./') || importPath.startsWith('../')) {
-          // Resolve relative path based on source file's directory
+        } else if (importPath.startsWith('./') || importPath.startsWith('../')) {
+          // Relative path resolution
           const parts = importPath.split('/')
           const dirParts = sourceDir.split('/').filter(Boolean)
 
           for (const part of parts) {
-            if (part === '..') {
-              dirParts.pop()
-            } else if (part === '.') {
-              // Stay in current dir
-            } else {
-              dirParts.push(part)
-            }
+            if (part === '..') dirParts.pop()
+            else if (part !== '.') dirParts.push(part)
           }
 
           resolvedPath = dirParts.join('/')
-        }
-        // 3. External package import (node_modules) - skip
-        else {
-          // If it doesn't start with . or @/, it's likely a node_modules import
+        } else {
+          // External package - skip
           return null
         }
 
-        // Try to find exact match in our node map
-        const targetNodeId = pathToNodeMap.get(resolvedPath)
-
+        // Try exact match
+        let targetNodeId = exactPathMap.get(resolvedPath)
         if (targetNodeId) {
-          matchedCount++
-          return {
-            ...edge,
-            target: targetNodeId
+          return { ...edge, target: targetNodeId }
+        }
+
+        // Try with extensions
+        for (const ext of ['.tsx', '.ts', '.jsx', '.js']) {
+          targetNodeId = exactPathMap.get(resolvedPath + ext)
+          if (targetNodeId) {
+            return { ...edge, target: targetNodeId }
           }
         }
 
-        // If no match, try with common extensions
-        const extensions = ['.tsx', '.ts', '.jsx', '.js', '/index.tsx', '/index.ts', '/index.jsx', '/index.js']
-        for (const ext of extensions) {
-          const withExt = pathToNodeMap.get(resolvedPath + ext)
-          if (withExt) {
-            matchedCount++
-            return {
-              ...edge,
-              target: withExt
-            }
+        // Try with /index
+        for (const ext of ['/index.tsx', '/index.ts', '/index.jsx', '/index.js']) {
+          targetNodeId = exactPathMap.get(resolvedPath + ext)
+          if (targetNodeId) {
+            return { ...edge, target: targetNodeId }
           }
         }
 
-        // No match found - this is likely an external import
-        unmatchedCount++
-        if (unmatchedSamples.length < 10) {
-          unmatchedSamples.push(`${relativePath} -> ${importPath} (resolved: ${resolvedPath})`)
+        // Fallback: Try filename matching (only if unique)
+        const filename = resolvedPath.split('/').pop() || ''
+        const candidates = filenameMap.get(filename) || []
+
+        if (candidates.length === 1) {
+          // Only one file with this name - safe to connect
+          return { ...edge, target: candidates[0] }
         }
+
+        // No unique match found
         return null
       })
       .filter(Boolean) as CodeEdge[]
@@ -394,15 +387,7 @@ export function buildDependencyGraph(
     edges.push(...importEdges)
   }
 
-  writeDebugLog(`[CodeAnalyzer] 🔗 Matched ${matchedCount} imports, ${unmatchedCount} unmatched`)
-  if (unmatchedSamples.length > 0) {
-    writeDebugLog(`[CodeAnalyzer] ❌ Sample unmatched imports:`)
-    unmatchedSamples.forEach(sample => {
-      writeDebugLog(`  ${sample}`)
-    })
-  }
-
-  writeDebugLog(`[CodeAnalyzer] 🔗 Created ${edges.length} edges`)
+  console.log(`[CodeAnalyzer] 🔗 Created ${edges.length} edges from ${nodes.length} nodes`)
 
   return { nodes, edges }
 }
