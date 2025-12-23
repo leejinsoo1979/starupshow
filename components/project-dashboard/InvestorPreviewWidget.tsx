@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { motion } from "framer-motion"
 import {
   Eye,
@@ -9,6 +9,7 @@ import {
   TrendingUp,
   Users,
   DollarSign,
+  Loader2,
 } from "lucide-react"
 
 interface InvestorPreviewWidgetProps {
@@ -16,8 +17,85 @@ interface InvestorPreviewWidgetProps {
   projectName: string
 }
 
+interface ProjectStats {
+  growthRate: number
+  teamEfficiency: number
+  roiPrediction: number
+  loading: boolean
+}
+
 export function InvestorPreviewWidget({ projectId, projectName }: InvestorPreviewWidgetProps) {
   const [isMinimized, setIsMinimized] = useState(false)
+  const [stats, setStats] = useState<ProjectStats>({
+    growthRate: 0,
+    teamEfficiency: 0,
+    roiPrediction: 0,
+    loading: true,
+  })
+
+  useEffect(() => {
+    fetchProjectStats()
+  }, [projectId])
+
+  const fetchProjectStats = async () => {
+    try {
+      setStats(prev => ({ ...prev, loading: true }))
+
+      // Fetch tasks for efficiency calculation
+      const tasksRes = await fetch(`/api/projects/${projectId}/tasks?limit=100`)
+      let totalTasks = 0
+      let completedTasks = 0
+
+      if (tasksRes.ok) {
+        const tasksData = await tasksRes.json()
+        const tasks = tasksData.data || []
+        totalTasks = tasks.length
+        completedTasks = tasks.filter((t: any) => t.status === 'DONE').length
+      }
+
+      // Fetch roadmap for progress calculation
+      const roadmapRes = await fetch(`/api/projects/${projectId}/roadmap`)
+      let totalNodes = 0
+      let completedNodes = 0
+
+      if (roadmapRes.ok) {
+        const roadmapData = await roadmapRes.json()
+        const nodes = roadmapData.raw?.nodes || []
+        totalNodes = nodes.length
+        completedNodes = nodes.filter((n: any) => n.status === 'completed').length
+      }
+
+      // Calculate stats
+      const teamEfficiency = totalTasks > 0
+        ? Math.round((completedTasks / totalTasks) * 100)
+        : 0
+
+      // Growth rate based on completed milestones/nodes
+      const progressRate = totalNodes > 0
+        ? (completedNodes / totalNodes)
+        : 0
+      const growthRate = Math.round(progressRate * 50) // Scale to reasonable %
+
+      // ROI prediction based on efficiency and progress
+      const roiBase = (teamEfficiency / 100) * 2 + (progressRate * 3)
+      const roiPrediction = Math.max(0.5, Math.round(roiBase * 10) / 10)
+
+      setStats({
+        growthRate,
+        teamEfficiency,
+        roiPrediction,
+        loading: false,
+      })
+    } catch (error) {
+      console.error("Stats fetch error:", error)
+      setStats({
+        growthRate: 0,
+        teamEfficiency: 0,
+        roiPrediction: 0,
+        loading: false,
+      })
+    }
+  }
 
   if (isMinimized) {
     return (
@@ -155,27 +233,37 @@ export function InvestorPreviewWidget({ projectId, projectName }: InvestorPrevie
 
       {/* Stats */}
       <div className="px-4 pb-4 space-y-3">
-        <div className="flex items-center justify-between p-2 rounded-lg bg-zinc-800/50">
-          <div className="flex items-center gap-2">
-            <TrendingUp className="w-4 h-4 text-emerald-400" />
-            <span className="text-xs text-zinc-400">성장률</span>
+        {stats.loading ? (
+          <div className="flex items-center justify-center py-4">
+            <Loader2 className="w-5 h-5 text-zinc-500 animate-spin" />
           </div>
-          <span className="text-sm font-semibold text-emerald-400">+24%</span>
-        </div>
-        <div className="flex items-center justify-between p-2 rounded-lg bg-zinc-800/50">
-          <div className="flex items-center gap-2">
-            <Users className="w-4 h-4 text-blue-400" />
-            <span className="text-xs text-zinc-400">팀 효율</span>
-          </div>
-          <span className="text-sm font-semibold text-blue-400">87%</span>
-        </div>
-        <div className="flex items-center justify-between p-2 rounded-lg bg-zinc-800/50">
-          <div className="flex items-center gap-2">
-            <DollarSign className="w-4 h-4 text-amber-400" />
-            <span className="text-xs text-zinc-400">ROI 예측</span>
-          </div>
-          <span className="text-sm font-semibold text-amber-400">3.2x</span>
-        </div>
+        ) : (
+          <>
+            <div className="flex items-center justify-between p-2 rounded-lg bg-zinc-800/50">
+              <div className="flex items-center gap-2">
+                <TrendingUp className="w-4 h-4 text-emerald-400" />
+                <span className="text-xs text-zinc-400">성장률</span>
+              </div>
+              <span className="text-sm font-semibold text-emerald-400">
+                {stats.growthRate > 0 ? '+' : ''}{stats.growthRate}%
+              </span>
+            </div>
+            <div className="flex items-center justify-between p-2 rounded-lg bg-zinc-800/50">
+              <div className="flex items-center gap-2">
+                <Users className="w-4 h-4 text-blue-400" />
+                <span className="text-xs text-zinc-400">팀 효율</span>
+              </div>
+              <span className="text-sm font-semibold text-blue-400">{stats.teamEfficiency}%</span>
+            </div>
+            <div className="flex items-center justify-between p-2 rounded-lg bg-zinc-800/50">
+              <div className="flex items-center gap-2">
+                <DollarSign className="w-4 h-4 text-amber-400" />
+                <span className="text-xs text-zinc-400">ROI 예측</span>
+              </div>
+              <span className="text-sm font-semibold text-amber-400">{stats.roiPrediction}x</span>
+            </div>
+          </>
+        )}
       </div>
 
       {/* Footer */}

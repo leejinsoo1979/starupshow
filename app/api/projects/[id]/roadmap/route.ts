@@ -6,17 +6,16 @@ import type { CreateRoadmapNodeInput, CreateNodeDependencyInput } from '@/types/
 // GET /api/projects/[id]/roadmap - 프로젝트의 모든 노드와 의존성 조회
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id: projectId } = await params
     const supabase = createClientForApi()
     const { user } = await getAuthUser(supabase)
 
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
-
-    const projectId = params.id
 
     // 노드 조회 (관계 없이 기본 데이터만)
     const { data: nodes, error: nodesError } = await (supabase as any)
@@ -88,17 +87,16 @@ export async function GET(
 // POST /api/projects/[id]/roadmap - 새 노드 생성
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id: projectId } = await params
     const supabase = createClientForApi()
     const { user } = await getAuthUser(supabase)
 
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
-
-    const projectId = params.id
     const body: CreateRoadmapNodeInput = await request.json()
 
     // 노드 생성 (개발 모드에서는 created_by 생략)
@@ -156,9 +154,10 @@ export async function POST(
 // PUT /api/projects/[id]/roadmap - 여러 노드 위치 일괄 업데이트 (드래그 후)
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    await params // validate params exist
     const supabase = createClientForApi()
     const { user } = await getAuthUser(supabase)
 

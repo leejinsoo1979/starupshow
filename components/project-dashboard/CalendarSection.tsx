@@ -60,52 +60,73 @@ export function CalendarSection({ projectId, project }: CalendarSectionProps) {
 
   const fetchEvents = async () => {
     try {
-      // TODO: Replace with actual API call
-      const sampleEvents: CalendarEvent[] = [
-        {
-          id: "1",
-          title: "스프린트 2 시작",
-          date: getDateString(new Date()),
-          type: "sprint",
-        },
-        {
-          id: "2",
-          title: "팀 주간 미팅",
-          date: getDateString(addDays(new Date(), 1)),
-          time: "10:00",
-          type: "meeting",
-          attendees: ["김개발", "이디자인", "박기획"],
-        },
-        {
-          id: "3",
-          title: "UI 디자인 완료",
-          date: getDateString(addDays(new Date(), 3)),
-          type: "deadline",
-        },
-        {
-          id: "4",
-          title: "베타 버전 릴리스",
-          date: getDateString(addDays(new Date(), 7)),
-          type: "milestone",
-        },
-        {
-          id: "5",
-          title: "투자자 미팅",
-          date: getDateString(addDays(new Date(), 10)),
-          time: "14:00",
-          type: "meeting",
-          attendees: ["VC 담당자"],
-        },
-        {
-          id: "6",
-          title: "API 문서 작성",
-          date: getDateString(addDays(new Date(), 5)),
-          type: "task",
-        },
-      ]
-      setEvents(sampleEvents)
+      setLoading(true)
+      const calendarEvents: CalendarEvent[] = []
+
+      // 1. Fetch tasks with due dates
+      const tasksRes = await fetch(`/api/projects/${projectId}/tasks?limit=100`)
+      if (tasksRes.ok) {
+        const tasksData = await tasksRes.json()
+        const tasks = tasksData.data || []
+
+        tasks.forEach((task: any) => {
+          // Add task due date as deadline event
+          if (task.due_date) {
+            calendarEvents.push({
+              id: `task-${task.id}`,
+              title: task.title,
+              date: task.due_date.split('T')[0],
+              type: task.status === 'DONE' ? 'task' : 'deadline',
+              description: task.description || undefined,
+            })
+          }
+          // Add task start date if exists
+          if (task.start_date && task.start_date !== task.due_date) {
+            calendarEvents.push({
+              id: `task-start-${task.id}`,
+              title: `[시작] ${task.title}`,
+              date: task.start_date.split('T')[0],
+              type: 'sprint',
+            })
+          }
+        })
+      }
+
+      // 2. Fetch roadmap nodes (milestones)
+      const roadmapRes = await fetch(`/api/projects/${projectId}/roadmap`)
+      if (roadmapRes.ok) {
+        const roadmapData = await roadmapRes.json()
+        const nodes = roadmapData.raw?.nodes || []
+
+        nodes.forEach((node: any) => {
+          // Use completed_at or started_at as milestone dates
+          const milestoneDate = node.completed_at || node.started_at || node.created_at
+          if (milestoneDate) {
+            calendarEvents.push({
+              id: `milestone-${node.id}`,
+              title: node.title,
+              date: milestoneDate.split('T')[0],
+              type: 'milestone',
+              description: node.description || node.goal || undefined,
+            })
+          }
+        })
+      }
+
+      // 3. Add project deadline if exists
+      if (project.deadline) {
+        calendarEvents.push({
+          id: 'project-deadline',
+          title: `${project.name} 최종 마감`,
+          date: project.deadline.split('T')[0],
+          type: 'deadline',
+        })
+      }
+
+      setEvents(calendarEvents)
     } catch (error) {
       console.error("Events fetch error:", error)
+      setEvents([])
     } finally {
       setLoading(false)
     }

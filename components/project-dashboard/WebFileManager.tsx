@@ -58,12 +58,7 @@ export function WebFileManager({ projectId, projectName }: WebFileManagerProps) 
     debounceMs: 300,
   })
 
-  // Electron 환경에서는 렌더링하지 않음
-  if (environment === 'electron' || environment === 'unknown') {
-    return null
-  }
-
-  // 파일 업로드 핸들러
+  // 파일 업로드 핸들러 - hooks는 조건부 리턴 전에 선언해야 함
   const handleFileUpload = useCallback(async (fileList: FileList | null) => {
     if (!fileList || fileList.length === 0) return
 
@@ -103,6 +98,11 @@ export function WebFileManager({ projectId, projectName }: WebFileManagerProps) 
     if (!file.url) return
     window.open(file.url, '_blank')
   }, [])
+
+  // Electron 환경에서는 렌더링하지 않음 - 모든 hooks 선언 후에 조건부 리턴
+  if (environment === 'electron' || environment === 'unknown') {
+    return null
+  }
 
   const FileIcon = (type: string) => {
     const Icon = fileTypeIcons[type] || File

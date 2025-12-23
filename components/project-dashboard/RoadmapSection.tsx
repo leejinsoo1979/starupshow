@@ -127,53 +127,63 @@ export function RoadmapSection({ projectId, project }: RoadmapSectionProps) {
 
   const fetchMilestones = async () => {
     try {
-      // TODO: Replace with actual API call
-      // For now, generate sample milestones based on project data
-      const sampleMilestones: MilestoneData[] = [
-        {
-          id: "1",
-          title: "MVP 개발 완료",
-          description: "핵심 기능 구현 및 기본 UI 완성",
-          target_date: "2024-03-31",
-          status: "completed",
-          progress: 100,
-          tasks_count: 15,
-          completed_tasks: 15,
-        },
-        {
-          id: "2",
-          title: "베타 테스트 시작",
-          description: "초기 사용자 피드백 수집 및 버그 수정",
-          target_date: "2024-06-30",
-          status: "in_progress",
-          progress: 65,
-          tasks_count: 20,
-          completed_tasks: 13,
-        },
-        {
-          id: "3",
-          title: "정식 출시",
-          description: "마케팅 캠페인 및 공개 런칭",
-          target_date: "2024-09-30",
-          status: "upcoming",
-          progress: 0,
-          tasks_count: 25,
-          completed_tasks: 0,
-        },
-        {
-          id: "4",
-          title: "투자 유치",
-          description: "시리즈 A 펀딩 라운드 진행",
-          target_date: "2024-12-31",
-          status: "upcoming",
-          progress: 0,
-          tasks_count: 10,
-          completed_tasks: 0,
-        },
-      ]
-      setMilestones(sampleMilestones)
+      setLoading(true)
+      const res = await fetch(`/api/projects/${projectId}/roadmap`)
+
+      if (!res.ok) {
+        throw new Error("로드맵 데이터를 불러오는데 실패했습니다")
+      }
+
+      const data = await res.json()
+      const rawNodes = data.raw?.nodes || []
+
+      // DB status를 MilestoneData status로 변환
+      const mapStatus = (dbStatus: string): MilestoneData["status"] => {
+        switch (dbStatus) {
+          case "completed":
+            return "completed"
+          case "running":
+            return "in_progress"
+          case "failed":
+            return "delayed"
+          case "pending":
+          case "ready":
+          case "paused":
+          default:
+            return "upcoming"
+        }
+      }
+
+      // 진행률 계산 (상태 기반)
+      const calculateProgress = (status: string): number => {
+        switch (status) {
+          case "completed":
+            return 100
+          case "running":
+            return 50
+          case "ready":
+            return 10
+          default:
+            return 0
+        }
+      }
+
+      // rawNodes를 MilestoneData 형식으로 변환
+      const milestonesData: MilestoneData[] = rawNodes.map((node: any) => ({
+        id: node.id,
+        title: node.title,
+        description: node.description || node.goal || undefined,
+        target_date: node.completed_at || node.started_at || node.created_at || new Date().toISOString(),
+        status: mapStatus(node.status),
+        progress: calculateProgress(node.status),
+        tasks_count: undefined,
+        completed_tasks: undefined,
+      }))
+
+      setMilestones(milestonesData)
     } catch (error) {
       console.error("Milestones fetch error:", error)
+      setMilestones([])
     } finally {
       setLoading(false)
     }
