@@ -733,6 +733,29 @@ export function FileTreePanel({ mapId }: FileTreePanelProps) {
   // 폴더 업로드 - File System Access API (Real Sync)
   const handleNativeFolderUpload = async () => {
     try {
+      // Electron 환경에서는 Electron API 사용
+      if (isElectron() && window.electron?.fs) {
+        const result = await window.electron.fs.selectDirectory()
+        if (!result) return
+
+        setIsExpanded(true)
+
+        // Electron에서는 실제 파일 경로를 바로 사용 가능
+        const electronPath = result.path
+        console.log('[FileTree] Selected directory (Electron):', {
+          name: result.name,
+          path: electronPath,
+        })
+
+        setProjectPath(electronPath)
+        console.log('[FileTree] ✅ Set projectPath in store (Electron):', electronPath)
+
+        // Electron 환경에서는 파일 스캔을 별도로 처리해야 함
+        // 여기서는 projectPath만 설정하고, 실제 파일 스캔은 CytoscapeView에서 수행
+        return
+      }
+
+      // 웹 브라우저 환경 - File System Access API 사용
       const dirHandle = await FileSystemManager.selectDirectory()
       if (!dirHandle) return
 
@@ -748,19 +771,13 @@ export function FileTreePanel({ mapId }: FileTreePanelProps) {
       setIsExpanded(true)
       FileSystemManager.setProjectHandle(dirHandle)
 
-      // Set project path for Mermaid auto-generation
-      const projectPath = (dirHandle as any).path as string | undefined
-      console.log('[FileTree] Selected directory:', {
+      // 웹 환경에서는 dirHandle.name만 사용 가능 (전체 경로 없음)
+      console.log('[FileTree] Selected directory (Web):', {
         name: dirHandle.name,
-        path: projectPath,
-        hasPath: !!projectPath
       })
-      if (projectPath) {
-        setProjectPath(projectPath)
-        console.log('[FileTree] ✅ Set projectPath in store:', projectPath)
-      } else {
-        console.warn('[FileTree] ⚠️ No path property in dirHandle:', dirHandle)
-      }
+      // 웹 환경에서는 projectPath를 폴더 이름으로만 설정
+      setProjectPath(dirHandle.name)
+      console.log('[FileTree] ✅ Set projectPath in store (Web):', dirHandle.name)
 
       // 폴더 스캔 (재귀적)
       console.log('Scanning directory:', dirHandle.name)

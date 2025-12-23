@@ -24,6 +24,7 @@ export default function CytoscapeView({ projectPath, mapId }: CytoscapeViewProps
   const [isLoading, setIsLoading] = useState(false)
   const [graph, setGraph] = useState<DependencyGraph | null>(null)
   const [mode, setMode] = useState<'forward' | 'backward'>('backward')
+  const [autoScanned, setAutoScanned] = useState(false)
 
   // Initialize Cytoscape
   useEffect(() => {
@@ -126,6 +127,15 @@ export default function CytoscapeView({ projectPath, mapId }: CytoscapeViewProps
       cy.destroy()
     }
   }, [])
+
+  // Auto-scan project when projectPath is set
+  useEffect(() => {
+    if (projectPath && !autoScanned && !isLoading && !graph) {
+      console.log('[CytoscapeView] Auto-scanning project:', projectPath)
+      setAutoScanned(true)
+      handleScanProject()
+    }
+  }, [projectPath, autoScanned, isLoading, graph])
 
   // Load graph data when available
   useEffect(() => {
@@ -282,40 +292,48 @@ export default function CytoscapeView({ projectPath, mapId }: CytoscapeViewProps
   return (
     <div className="flex h-full flex-col">
       {/* Toolbar */}
-      <div className="flex items-center gap-2 border-b p-2">
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={handleSelectFolder}
-          disabled={isLoading}
-        >
-          <FolderOpen className="mr-2 h-4 w-4" />
-          폴더 선택
-        </Button>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={handleScanProject}
-          disabled={isLoading || !projectPath}
-        >
-          {isLoading ? (
-            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-          ) : (
-            <Upload className="mr-2 h-4 w-4" />
-          )}
-          프로젝트 분석
-        </Button>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={handleLoadPlan}
-          disabled={isLoading}
-        >
-          AI 계획 불러오기 (예제)
-        </Button>
-        <div className="ml-auto text-xs text-muted-foreground">
-          모드: {mode === 'forward' ? '설계 (Forward)' : '분석 (Backward)'}
+      <div className="flex flex-col gap-2 border-b p-2">
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleSelectFolder}
+            disabled={isLoading}
+          >
+            <FolderOpen className="mr-2 h-4 w-4" />
+            폴더 선택
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleScanProject}
+            disabled={isLoading || !projectPath}
+          >
+            {isLoading ? (
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            ) : (
+              <Upload className="mr-2 h-4 w-4" />
+            )}
+            {graph ? '다시 분석' : '프로젝트 분석'}
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleLoadPlan}
+            disabled={isLoading}
+          >
+            AI 계획 불러오기 (예제)
+          </Button>
+          <div className="ml-auto text-xs text-muted-foreground">
+            모드: {mode === 'forward' ? '설계 (Forward)' : '분석 (Backward)'}
+          </div>
         </div>
+        {projectPath && (
+          <div className="text-xs text-muted-foreground">
+            📂 프로젝트: {projectPath.split('/').pop() || projectPath}
+            {graph && ` • ${graph.nodes.length}개 노드, ${graph.edges.length}개 연결`}
+          </div>
+        )}
       </div>
 
       {/* Cytoscape Container */}
