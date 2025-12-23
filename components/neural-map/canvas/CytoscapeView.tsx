@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useEffect, useRef, useState } from 'react'
+import React, { useEffect, useRef, useState, useCallback } from 'react'
 import cytoscape, { Core, NodeSingular } from 'cytoscape'
 import dagre from 'cytoscape-dagre'
 import { Button } from '@/components/ui/button'
@@ -128,63 +128,8 @@ export default function CytoscapeView({ projectPath, mapId }: CytoscapeViewProps
     }
   }, [])
 
-  // Auto-scan project when projectPath is set
-  useEffect(() => {
-    if (projectPath && !autoScanned && !isLoading && !graph) {
-      console.log('[CytoscapeView] Auto-scanning project:', projectPath)
-      setAutoScanned(true)
-      handleScanProject()
-    }
-  }, [projectPath, autoScanned, isLoading, graph])
-
-  // Load graph data when available
-  useEffect(() => {
-    if (!cyRef.current || !graph) return
-
-    const cy = cyRef.current
-
-    // Clear existing elements
-    cy.elements().remove()
-
-    // Add nodes
-    const nodes = graph.nodes.map((node) => ({
-      data: {
-        id: node.id,
-        label: node.label,
-        type: node.type,
-        ...node.metadata,
-      },
-    }))
-
-    // Add edges
-    const edges = graph.edges.map((edge) => ({
-      data: {
-        id: edge.id,
-        source: edge.source,
-        target: edge.target,
-        type: edge.type,
-        label: edge.label,
-      },
-    }))
-
-    cy.add([...nodes, ...edges])
-
-    // Apply layout
-    cy.layout({
-      name: 'dagre',
-      rankDir: 'TB',
-      nodeSep: 50,
-      rankSep: 100,
-      animate: true,
-      animationDuration: 500,
-    }).run()
-
-    // Fit to view
-    cy.fit(undefined, 50)
-  }, [graph])
-
   // Scan project folder (Backward mode)
-  const handleScanProject = async () => {
+  const handleScanProject = useCallback(async () => {
     if (!projectPath) {
       alert('프로젝트 경로가 설정되지 않았습니다.')
       return
@@ -236,7 +181,62 @@ export default function CytoscapeView({ projectPath, mapId }: CytoscapeViewProps
     } finally {
       setIsLoading(false)
     }
-  }
+  }, [projectPath])
+
+  // Auto-scan project when projectPath is set
+  useEffect(() => {
+    if (projectPath && !autoScanned && !isLoading && !graph) {
+      console.log('[CytoscapeView] Auto-scanning project:', projectPath)
+      setAutoScanned(true)
+      handleScanProject()
+    }
+  }, [projectPath, autoScanned, isLoading, graph, handleScanProject])
+
+  // Load graph data when available
+  useEffect(() => {
+    if (!cyRef.current || !graph) return
+
+    const cy = cyRef.current
+
+    // Clear existing elements
+    cy.elements().remove()
+
+    // Add nodes
+    const nodes = graph.nodes.map((node) => ({
+      data: {
+        id: node.id,
+        label: node.label,
+        type: node.type,
+        ...node.metadata,
+      },
+    }))
+
+    // Add edges
+    const edges = graph.edges.map((edge) => ({
+      data: {
+        id: edge.id,
+        source: edge.source,
+        target: edge.target,
+        type: edge.type,
+        label: edge.label,
+      },
+    }))
+
+    cy.add([...nodes, ...edges])
+
+    // Apply layout
+    cy.layout({
+      name: 'dagre',
+      rankDir: 'TB',
+      nodeSep: 50,
+      rankSep: 100,
+      animate: true,
+      animationDuration: 500,
+    }).run()
+
+    // Fit to view
+    cy.fit(undefined, 50)
+  }, [graph])
 
   // Load AI-generated plan (Forward mode)
   const handleLoadPlan = () => {
