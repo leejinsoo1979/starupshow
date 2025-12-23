@@ -30,25 +30,40 @@ export default function CytoscapeView({ projectPath: projectPathProp, mapId }: C
   // Use prop projectPath or local state
   const projectPath = projectPathProp || localProjectPath
 
-  // Auto-set projectPath from Electron cwd if not provided
+  // Auto-set projectPath from Electron cwd on mount
   useEffect(() => {
-    if (!projectPathProp && !localProjectPath) {
-      const getCwd = async () => {
-        if (typeof window !== 'undefined' && window.electron?.fs?.getCwd) {
-          try {
-            const cwd = await window.electron.fs.getCwd()
-            if (cwd) {
-              console.log('[CytoscapeView] Auto-set projectPath from cwd:', cwd)
-              setLocalProjectPath(cwd)
-            }
-          } catch (err) {
-            console.warn('[CytoscapeView] Failed to get cwd:', err)
-          }
-        }
+    const getCwd = async () => {
+      // If projectPath is already set from prop, use it
+      if (projectPathProp) {
+        console.log('[CytoscapeView] Using projectPath from prop:', projectPathProp)
+        return
       }
-      getCwd()
+
+      // If local projectPath is already set, use it
+      if (localProjectPath) {
+        console.log('[CytoscapeView] Local projectPath already set:', localProjectPath)
+        return
+      }
+
+      // Try to get cwd from Electron
+      if (typeof window !== 'undefined' && window.electron?.fs?.getCwd) {
+        try {
+          const cwd = await window.electron.fs.getCwd()
+          if (cwd) {
+            console.log('[CytoscapeView] ✅ Auto-set projectPath from cwd:', cwd)
+            setLocalProjectPath(cwd)
+          } else {
+            console.warn('[CytoscapeView] ⚠️ getCwd() returned empty')
+          }
+        } catch (err) {
+          console.error('[CytoscapeView] ❌ Failed to get cwd:', err)
+        }
+      } else {
+        console.warn('[CytoscapeView] ⚠️ Electron fs.getCwd API not available')
+      }
     }
-  }, [projectPathProp, localProjectPath])
+    getCwd()
+  }, []) // Run only once on mount
 
   // Initialize Cytoscape
   useEffect(() => {
@@ -243,6 +258,8 @@ export default function CytoscapeView({ projectPath: projectPathProp, mapId }: C
 
   // Auto-scan project when projectPath is set
   useEffect(() => {
+    console.log(`[CytoscapeView] Auto-scan check: projectPath=${projectPath}, autoScanned=${autoScanned}, isLoading=${isLoading}, graph=${!!graph}`)
+
     if (projectPath && !autoScanned && !isLoading && !graph) {
       const msg = `[CytoscapeView] 🚀 Auto-scanning project: ${projectPath}`
       console.log(msg)
@@ -255,6 +272,14 @@ export default function CytoscapeView({ projectPath: projectPathProp, mapId }: C
       }
       setAutoScanned(true)
       handleScanProject()
+    } else if (!projectPath) {
+      console.log('[CytoscapeView] ⚠️ Auto-scan skipped: No projectPath set')
+    } else if (autoScanned) {
+      console.log('[CytoscapeView] ⚠️ Auto-scan skipped: Already scanned')
+    } else if (isLoading) {
+      console.log('[CytoscapeView] ⚠️ Auto-scan skipped: Already loading')
+    } else if (graph) {
+      console.log('[CytoscapeView] ⚠️ Auto-scan skipped: Graph already exists')
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projectPath])
