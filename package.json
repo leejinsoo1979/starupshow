@@ -115,6 +115,7 @@
     "langchain": "^1.1.5",
     "lucide-react": "^0.309.0",
     "mailparser": "^3.9.1",
+    "mermaid": "^11.12.2",
     "motion": "^12.23.25",
     "next": "14.2.0",
     "next-auth": "^4.24.13",
