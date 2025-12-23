@@ -1,5 +1,6 @@
 /**
  * AI Agent Tool Executor - 도구 실행 엔진
+ * Cursor/Antigravity 수준의 코딩 에이전트 도구
  */
 
 import type { ToolCall, ToolResult } from './tools'
@@ -10,6 +11,22 @@ interface NeuralFile {
   path?: string
   content?: string
   type: string
+}
+
+// 파일 수정 결과를 저장할 인터페이스
+interface FileModification {
+  path: string
+  oldContent: string
+  newContent: string
+  timestamp: number
+}
+
+// 터미널 명령 결과 인터페이스
+interface TerminalResult {
+  command: string
+  stdout: string
+  stderr: string
+  exitCode: number
 }
 
 interface ExecutorContext {
@@ -30,11 +47,19 @@ export class ToolExecutor {
   private files: NeuralFile[]
   private projectPath: string | null
   private graph: ExecutorContext['graph']
+  private modifications: FileModification[] = []  // 수정 이력 추적
+  private onFileChange?: (file: NeuralFile) => void  // 파일 변경 콜백
+  private onTerminalCmd?: (cmd: string, cwd?: string) => Promise<TerminalResult>  // 터미널 명령 콜백
 
-  constructor(context: ExecutorContext) {
+  constructor(context: ExecutorContext & {
+    onFileChange?: (file: NeuralFile) => void
+    onTerminalCmd?: (cmd: string, cwd?: string) => Promise<TerminalResult>
+  }) {
     this.files = context.files
     this.projectPath = context.projectPath || null
     this.graph = context.graph
+    this.onFileChange = context.onFileChange
+    this.onTerminalCmd = context.onTerminalCmd
   }
 
   async execute(toolCall: ToolCall): Promise<ToolResult> {
@@ -59,6 +84,22 @@ export class ToolExecutor {
 
         case 'get_project_summary':
           return this.getProjectSummary()
+
+        case 'edit_file':
+          return this.editFile(
+            args.path as string,
+            args.old_content as string,
+            args.new_content as string
+          )
+
+        case 'create_file':
+          return this.createFile(args.path as string, args.content as string)
+
+        case 'run_terminal_cmd':
+          return this.runTerminalCmd(args.command as string, args.cwd as string)
+
+        case 'web_search':
+          return this.webSearch(args.query as string)
 
         default:
           return { success: false, error: `알 수 없는 도구: ${name}` }
@@ -340,6 +381,273 @@ export class ToolExecutor {
           .slice(0, 10)
           .map(([folder, count]) => `${folder}/ (${count})`),
         importantFiles
+      }
+    }
+  }
+
+  // ============================================
+  // 핵심 에이전트 도구: 파일 수정
+  // ============================================
+  private editFile(path: string, oldContent: string, newContent: string): ToolResult {
+    // 파일 찾기
+    const file = this.files.find(f =>
+      f.path === path ||
+      f.path?.endsWith(path) ||
+      f.name === path
+    )
+
+    if (!file) {
+      return {
+        success: false,
+        error: `파일을 찾을 수 없습니다: ${path}`,
+        result: `사용 가능한 파일: ${this.files.slice(0, 10).map(f => f.path || f.name).join(', ')}`
+      }
+    }
+
+    if (!file.content) {
+      return { success: false, error: `파일 내용이 없습니다: ${path}` }
+    }
+
+    // 기존 내용이 파일에 존재하는지 확인
+    if (!file.content.includes(oldContent)) {
+      // 유사한 부분 찾기 시도
+      const lines = file.content.split('\n')
+      const oldLines = oldContent.split('\n')
+      const firstOldLine = oldLines[0].trim()
+
+      const similarLines = lines
+        .map((line, idx) => ({ line: line.trim(), idx }))
+        .filter(({ line }) => line.includes(firstOldLine.slice(0, 20)))
+        .slice(0, 3)
+
+      return {
+        success: false,
+        error: '교체할 코드를 찾을 수 없습니다',
+        result: {
+          hint: '정확한 코드를 제공해주세요',
+          similarMatches: similarLines.map(({ line, idx }) => ({
+            line: idx + 1,
+            content: line.slice(0, 80)
+          }))
+        }
+      }
+    }
+
+    // 수정 이력 저장
+    this.modifications.push({
+      path: file.path || file.name,
+      oldContent: file.content,
+      newContent: file.content.replace(oldContent, newContent),
+      timestamp: Date.now()
+    })
+
+    // 파일 내용 업데이트
+    file.content = file.content.replace(oldContent, newContent)
+
+    // 콜백 호출 (있는 경우)
+    if (this.onFileChange) {
+      this.onFileChange(file)
+    }
+
+    return {
+      success: true,
+      result: {
+        path: file.path || file.name,
+        message: '파일이 성공적으로 수정되었습니다',
+        linesChanged: newContent.split('\n').length - oldContent.split('\n').length,
+        preview: newContent.slice(0, 200) + (newContent.length > 200 ? '...' : '')
+      }
+    }
+  }
+
+  // ============================================
+  // 핵심 에이전트 도구: 파일 생성
+  // ============================================
+  private createFile(path: string, content: string): ToolResult {
+    // 이미 존재하는지 확인
+    const existingFile = this.files.find(f =>
+      f.path === path ||
+      f.path?.endsWith(path)
+    )
+
+    if (existingFile) {
+      return {
+        success: false,
+        error: `파일이 이미 존재합니다: ${path}. edit_file을 사용하세요.`
+      }
+    }
+
+    // 새 파일 생성
+    const newFile: NeuralFile = {
+      id: `new-${Date.now()}`,
+      name: path.split('/').pop() || path,
+      path: path,
+      content: content,
+      type: this.detectFileType(path)
+    }
+
+    // 파일 목록에 추가
+    this.files.push(newFile)
+
+    // 콜백 호출
+    if (this.onFileChange) {
+      this.onFileChange(newFile)
+    }
+
+    return {
+      success: true,
+      result: {
+        path: path,
+        message: '파일이 성공적으로 생성되었습니다',
+        lines: content.split('\n').length,
+        size: content.length
+      }
+    }
+  }
+
+  private detectFileType(path: string): string {
+    const ext = path.split('.').pop()?.toLowerCase()
+    const typeMap: Record<string, string> = {
+      ts: 'typescript',
+      tsx: 'typescriptreact',
+      js: 'javascript',
+      jsx: 'javascriptreact',
+      py: 'python',
+      css: 'css',
+      scss: 'scss',
+      json: 'json',
+      md: 'markdown',
+      html: 'html'
+    }
+    return typeMap[ext || ''] || 'text'
+  }
+
+  // ============================================
+  // 핵심 에이전트 도구: 터미널 명령 실행
+  // ============================================
+  private async runTerminalCmd(command: string, cwd?: string): Promise<ToolResult> {
+    // 위험한 명령어 필터링
+    const dangerousPatterns = [
+      /rm\s+-rf\s+[\/~]/i,
+      /sudo\s+rm/i,
+      /mkfs/i,
+      /dd\s+if=/i,
+      />\s*\/dev\//i,
+      /chmod\s+777\s+\//i
+    ]
+
+    for (const pattern of dangerousPatterns) {
+      if (pattern.test(command)) {
+        return {
+          success: false,
+          error: '보안상 위험한 명령어는 실행할 수 없습니다',
+          result: { blockedCommand: command }
+        }
+      }
+    }
+
+    // 터미널 콜백이 있으면 사용
+    if (this.onTerminalCmd) {
+      try {
+        const result = await this.onTerminalCmd(command, cwd || this.projectPath || undefined)
+        return {
+          success: result.exitCode === 0,
+          result: {
+            command,
+            stdout: result.stdout.slice(0, 5000),
+            stderr: result.stderr.slice(0, 1000),
+            exitCode: result.exitCode
+          }
+        }
+      } catch (error: any) {
+        return {
+          success: false,
+          error: `명령 실행 실패: ${error.message}`
+        }
+      }
+    }
+
+    // 콜백이 없으면 시뮬레이션 모드 (안전)
+    return {
+      success: true,
+      result: {
+        command,
+        mode: 'simulation',
+        message: '터미널 연결이 없어 시뮬레이션 모드로 실행됩니다. 실제 실행을 위해 터미널을 연결하세요.',
+        suggestedOutput: this.simulateCommand(command)
+      }
+    }
+  }
+
+  private simulateCommand(command: string): string {
+    // 기본 명령어 시뮬레이션
+    if (command.startsWith('npm ')) {
+      if (command.includes('install')) return '+ installed packages successfully'
+      if (command.includes('run')) return 'Script started...'
+      if (command.includes('test')) return 'Tests passed'
+    }
+    if (command.startsWith('git ')) {
+      if (command.includes('status')) return 'On branch main\nnothing to commit'
+      if (command.includes('diff')) return 'No changes'
+    }
+    return '(시뮬레이션 결과)'
+  }
+
+  // ============================================
+  // 핵심 에이전트 도구: 웹 검색
+  // ============================================
+  private async webSearch(query: string): Promise<ToolResult> {
+    try {
+      // 내부 API 또는 외부 검색 API 호출
+      // 현재는 시뮬레이션으로 구현
+      return {
+        success: true,
+        result: {
+          query,
+          message: '웹 검색 기능은 API 키 설정 후 사용 가능합니다',
+          suggestion: `"${query}"에 대한 검색을 위해 다음 리소스를 확인하세요:`,
+          resources: [
+            'https://developer.mozilla.org',
+            'https://stackoverflow.com',
+            'https://github.com'
+          ]
+        }
+      }
+    } catch (error: any) {
+      return {
+        success: false,
+        error: `웹 검색 실패: ${error.message}`
+      }
+    }
+  }
+
+  // ============================================
+  // 유틸리티: 수정 이력 조회
+  // ============================================
+  getModifications(): FileModification[] {
+    return this.modifications
+  }
+
+  // 유틸리티: 마지막 수정 되돌리기
+  undoLastModification(): ToolResult {
+    const lastMod = this.modifications.pop()
+    if (!lastMod) {
+      return { success: false, error: '되돌릴 수정 내역이 없습니다' }
+    }
+
+    const file = this.files.find(f => (f.path || f.name) === lastMod.path)
+    if (file) {
+      file.content = lastMod.oldContent
+      if (this.onFileChange) {
+        this.onFileChange(file)
+      }
+    }
+
+    return {
+      success: true,
+      result: {
+        path: lastMod.path,
+        message: '수정이 되돌려졌습니다'
       }
     }
   }

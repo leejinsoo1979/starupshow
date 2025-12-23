@@ -83,21 +83,27 @@ async function runOpenAIAgent(
       tool_calls: assistantMessage.tool_calls
     })
 
-    for (const toolCall of assistantMessage.tool_calls) {
-      const args = JSON.parse(toolCall.function.arguments)
-      toolCallLog.push(`${toolCall.function.name}(${JSON.stringify(args)})`)
+    // 병렬 도구 호출 (Cursor 스타일 - Promise.all)
+    const toolResults = await Promise.all(
+      assistantMessage.tool_calls.map(async (toolCall) => {
+        const args = JSON.parse(toolCall.function.arguments)
+        toolCallLog.push(`${toolCall.function.name}(${JSON.stringify(args)})`)
 
-      const result = await executor.execute({
-        name: toolCall.function.name,
-        arguments: args
-      })
+        const result = await executor.execute({
+          name: toolCall.function.name,
+          arguments: args
+        })
 
-      currentMessages.push({
-        role: 'tool',
-        content: JSON.stringify(result),
-        tool_call_id: toolCall.id
+        return {
+          role: 'tool' as const,
+          content: JSON.stringify(result),
+          tool_call_id: toolCall.id
+        }
       })
-    }
+    )
+
+    // 결과를 메시지에 추가
+    currentMessages.push(...toolResults)
   }
 
   return { content: '최대 반복 횟수에 도달했습니다.', toolCalls: toolCallLog }
@@ -157,23 +163,27 @@ async function runAnthropicAgent(
       }
     }
 
-    // 도구 호출 처리
+    // 도구 호출 처리 (병렬)
     currentMessages.push({ role: 'assistant', content: JSON.stringify(content) })
 
-    for (const toolUse of toolUses) {
-      toolCallLog.push(`${toolUse.name}(${JSON.stringify(toolUse.input)})`)
+    const toolResults = await Promise.all(
+      toolUses.map(async (toolUse: any) => {
+        toolCallLog.push(`${toolUse.name}(${JSON.stringify(toolUse.input)})`)
 
-      const result = await executor.execute({
-        name: toolUse.name,
-        arguments: toolUse.input
-      })
+        const result = await executor.execute({
+          name: toolUse.name,
+          arguments: toolUse.input
+        })
 
-      currentMessages.push({
-        role: 'tool',
-        content: JSON.stringify(result),
-        tool_call_id: toolUse.id
+        return {
+          role: 'tool' as const,
+          content: JSON.stringify(result),
+          tool_call_id: toolUse.id
+        }
       })
-    }
+    )
+
+    currentMessages.push(...toolResults)
   }
 
   return { content: '최대 반복 횟수에 도달했습니다.', toolCalls: toolCallLog }
@@ -232,23 +242,27 @@ async function runGoogleAgent(
       }
     }
 
-    // 함수 호출 처리
+    // 함수 호출 처리 (병렬)
     chatMessages.push({
       role: 'assistant',
       content: textParts.map((p: any) => p.text).join('\n')
     })
 
-    for (const fc of functionCalls) {
-      const { name, args } = fc.functionCall
-      toolCallLog.push(`${name}(${JSON.stringify(args)})`)
+    const functionResults = await Promise.all(
+      functionCalls.map(async (fc: any) => {
+        const { name, args } = fc.functionCall
+        toolCallLog.push(`${name}(${JSON.stringify(args)})`)
 
-      const result = await executor.execute({ name, arguments: args })
+        const result = await executor.execute({ name, arguments: args })
 
-      chatMessages.push({
-        role: 'user',
-        content: `[Tool Result for ${name}]: ${JSON.stringify(result)}`
+        return {
+          role: 'user' as const,
+          content: `[Tool Result for ${name}]: ${JSON.stringify(result)}`
+        }
       })
-    }
+    )
+
+    chatMessages.push(...functionResults)
   }
 
   return { content: '최대 반복 횟수에 도달했습니다.', toolCalls: toolCallLog }

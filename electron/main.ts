@@ -984,11 +984,13 @@ ipcMain.handle('fs:scan-schema', async (_, dirPath: string) => {
 // ============================================
 // 15. Terminal (PTY) - VS Code style
 // ============================================
-import * as pty from 'node-pty';
+// TEMPORARILY DISABLED: node-pty version conflict
+// import * as pty from 'node-pty';
 import * as os from 'os';
 
 // 터미널 인스턴스 저장소
-const terminals: Map<string, pty.IPty> = new Map();
+// const terminals: Map<string, pty.IPty> = new Map();
+const terminals: Map<string, any> = new Map();
 
 // 기본 셸 결정
 function getDefaultShell(): string {
@@ -1048,39 +1050,39 @@ ipcMain.handle('terminal:create', async (event, id: string, cwd?: string) => {
 
 // 터미널 입력
 ipcMain.handle('terminal:write', async (_, id: string, data: string) => {
-    const ptyProcess = terminals.get(id);
-    if (ptyProcess) {
-        ptyProcess.write(data);
-        return { success: true };
-    }
-    return { success: false, error: 'Terminal not found' };
+    // const ptyProcess = terminals.get(id);
+    // if (ptyProcess) {
+    //     ptyProcess.write(data);
+    //     return { success: true };
+    // }
+    return { success: false, error: 'Terminal temporarily disabled' };
 });
 
 // 터미널 리사이즈
 ipcMain.handle('terminal:resize', async (_, id: string, cols: number, rows: number) => {
-    const ptyProcess = terminals.get(id);
-    if (ptyProcess) {
-        ptyProcess.resize(cols, rows);
-        return { success: true };
-    }
-    return { success: false, error: 'Terminal not found' };
+    // const ptyProcess = terminals.get(id);
+    // if (ptyProcess) {
+    //     ptyProcess.resize(cols, rows);
+    //     return { success: true };
+    // }
+    return { success: false, error: 'Terminal temporarily disabled' };
 });
 
 // 터미널 종료
 ipcMain.handle('terminal:kill', async (_, id: string) => {
-    const ptyProcess = terminals.get(id);
-    if (ptyProcess) {
-        ptyProcess.kill();
-        terminals.delete(id);
-        return { success: true };
-    }
-    return { success: false, error: 'Terminal not found' };
+    // const ptyProcess = terminals.get(id);
+    // if (ptyProcess) {
+    //     ptyProcess.kill();
+    //     terminals.delete(id);
+    //     return { success: true };
+    // }
+    return { success: false, error: 'Terminal temporarily disabled' };
 });
 
 // 앱 종료 시 모든 터미널 정리
 app.on('before-quit', () => {
-    terminals.forEach((ptyProcess) => {
-        ptyProcess.kill();
-    });
+    // terminals.forEach((ptyProcess) => {
+    //     ptyProcess.kill();
+    // });
     terminals.clear();
 });
