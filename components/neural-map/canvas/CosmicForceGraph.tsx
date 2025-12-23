@@ -98,6 +98,117 @@ function getExtension(fileName: string): string {
   return fileName.split('.').pop()?.toLowerCase() || ''
 }
 
+// ============================================
+// Performance Optimization: Caches
+// ============================================
+
+// Geometry cache - shared across all nodes
+const geometryCache = new Map<string, THREE.SphereGeometry>()
+function getCachedGeometry(size: number): THREE.SphereGeometry {
+  const key = `sphere-${size.toFixed(1)}`
+  if (!geometryCache.has(key)) {
+    // Lower segment count for performance (24→12)
+    geometryCache.set(key, new THREE.SphereGeometry(size, 12, 12))
+  }
+  return geometryCache.get(key)!
+}
+
+// Material cache - shared by color
+const materialCache = new Map<string, THREE.MeshStandardMaterial>()
+function getCachedMaterial(color: number, emissiveIntensity: number): THREE.MeshStandardMaterial {
+  const key = `mat-${color}-${emissiveIntensity.toFixed(1)}`
+  if (!materialCache.has(key)) {
+    materialCache.set(key, new THREE.MeshStandardMaterial({
+      color,
+      metalness: 0.3,
+      roughness: 0.5,
+      emissive: new THREE.Color(color),
+      emissiveIntensity,
+    }))
+  }
+  return materialCache.get(key)!
+}
+
+// Texture cache for file icons
+const textureCache = new Map<string, THREE.CanvasTexture>()
+function getCachedTexture(ext: string, color: string, IconComp: any): THREE.CanvasTexture | null {
+  const key = `icon-${ext}-${color}`
+  if (textureCache.has(key)) {
+    return textureCache.get(key)!
+  }
+
+  // Create texture only once per extension
+  const canvas = document.createElement('canvas')
+  canvas.width = 64  // Reduced from 128
+  canvas.height = 64
+  const ctx = canvas.getContext('2d')
+  if (!ctx) return null
+
+  try {
+    const isJS = ['js', 'javascript'].includes(ext.toLowerCase())
+    const iconColor = isJS ? '#000000' : '#FFFFFF'
+    const svgString = renderToStaticMarkup(<IconComp size={50} color={iconColor} style={{ display: 'block' }} />)
+    const img = new Image()
+    const svgData = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svgString)}`
+
+    const texture = new THREE.CanvasTexture(canvas)
+
+    img.onload = () => {
+      ctx.clearRect(0, 0, 64, 64)
+      ctx.beginPath()
+      ctx.arc(32, 32, 27, 0, Math.PI * 2)
+      ctx.fillStyle = color
+      ctx.fill()
+      ctx.drawImage(img, 7, 7, 50, 50)
+      texture.needsUpdate = true
+    }
+    img.src = svgData
+
+    textureCache.set(key, texture)
+    return texture
+  } catch (e) {
+    return null
+  }
+}
+
+// Ring geometry cache
+let ringGeometryCache: THREE.TorusGeometry | null = null
+function getCachedRingGeometry(): THREE.TorusGeometry {
+  if (!ringGeometryCache) {
+    ringGeometryCache = new THREE.TorusGeometry(1, 0.08, 8, 24) // Lower segments
+  }
+  return ringGeometryCache
+}
+
+// Self node star texture cache
+let starTextureCache: THREE.CanvasTexture | null = null
+function getCachedStarTexture(): THREE.CanvasTexture {
+  if (starTextureCache) return starTextureCache
+
+  const canvas = document.createElement('canvas')
+  canvas.width = 64
+  canvas.height = 64
+  const ctx = canvas.getContext('2d')
+  if (ctx) {
+    const cx = 32, cy = 32
+    ctx.fillStyle = '#ffd700'
+    ctx.beginPath()
+    for (let i = 0; i < 5; i++) {
+      const oa = (i * 2 * Math.PI / 5) - Math.PI / 2, ia = oa + Math.PI / 5
+      const or = 22, ir = 10
+      i === 0 ? ctx.moveTo(cx + Math.cos(oa) * or, cy + Math.sin(oa) * or) : ctx.lineTo(cx + Math.cos(oa) * or, cy + Math.sin(oa) * or)
+      ctx.lineTo(cx + Math.cos(ia) * ir, cy + Math.sin(ia) * ir)
+    }
+    ctx.closePath()
+    ctx.fill()
+    ctx.strokeStyle = '#ffffff'
+    ctx.lineWidth = 1.5
+    ctx.stroke()
+  }
+  starTextureCache = new THREE.CanvasTexture(canvas)
+  return starTextureCache
+}
+
 // 파일 크기 → 노드 크기 변환 (8~14 범위, 균일하게)
 function fileSizeToNodeSize(size: number, minSize: number, maxSize: number): number {
   if (maxSize === minSize) return 10
@@ -373,6 +484,8 @@ export function CosmicForceGraph({ className }: CosmicForceGraphProps) {
       const Graph = ForceGraph3D()(containerRef.current!)
         .backgroundColor(isDark ? '#070A12' : '#f8fafc')
         .minZoom(0.1)
+        .cooldownTicks(100) // Stop simulation after 100 ticks for performance
+        .warmupTicks(50) // Pre-calculate initial layout
 
       graphRef.current = Graph
       graphInstance = Graph
@@ -397,22 +510,10 @@ export function CosmicForceGraph({ className }: CosmicForceGraphProps) {
       pointLight2.position.set(-100, -50, -100)
       scene.add(pointLight2)
 
-      // Animation Loop
-      animationInterval = setInterval(() => {
-        if (graphRef.current) {
-          const graphData = graphRef.current.graphData()
-          if (graphData.nodes && graphData.nodes.length > 0) {
-            graphData.nodes.forEach((node: any) => {
-              if (node.vx !== undefined) {
-                node.vx += (Math.random() - 0.5) * 0.5
-                node.vy += (Math.random() - 0.5) * 0.5
-                node.vz += (Math.random() - 0.5) * 0.5
-              }
-            })
-            graphRef.current.d3ReheatSimulation()
-          }
-        }
-      }, 3000)
+      // Animation Loop - disabled for performance
+      // Only reheat on explicit user action (expand/collapse)
+      // Continuous reheat was causing severe lag
+      animationInterval = null
 
       // Resize Observer
       handleResize = () => {
@@ -468,57 +569,35 @@ export function CosmicForceGraph({ className }: CosmicForceGraphProps) {
         const isSelected = selectedNodeIds.includes(n.id)
         const baseSize = n.nodeSize || (n.type === 'self' ? 16 : n.depth === 1 ? 9 : 6)
 
-        const geom = new THREE.SphereGeometry(baseSize, 24, 24)
-        const color = getNodeColor(n, isSelected)
-        const mat = new THREE.MeshStandardMaterial({
-          color,
-          metalness: 0.3,
-          roughness: 0.5,
-          emissive: new THREE.Color(color),
-          emissiveIntensity: n.type === 'self' ? 0.8 : 0.5,
-        })
+        // Use cached geometry (12 segments instead of 24)
+        const geom = getCachedGeometry(baseSize)
+        const colorNum = getNodeColor(n, isSelected)
+        const emissive = n.type === 'self' ? 0.8 : 0.5
+
+        // Use cached material
+        const mat = getCachedMaterial(colorNum, emissive)
         const mesh = new THREE.Mesh(geom, mat)
 
-        // Selection Ring
-        const ringGeom = new THREE.TorusGeometry(baseSize + 3, 1, 12, 48)
+        // Selection Ring - use cached geometry
+        const ringGeom = getCachedRingGeometry()
         const ringMat = new THREE.MeshBasicMaterial({
           color: 0xffffff,
           transparent: true,
           opacity: isSelected ? 0.9 : 0,
         })
         const ring = new THREE.Mesh(ringGeom, ringMat)
+        ring.scale.set(baseSize + 3, baseSize + 3, baseSize + 3)
         ring.rotation.x = Math.PI / 2
         mesh.add(ring)
 
-        // File Type Icon
+        // File Type Icon - use cached texture
         if (n.fileType) {
           const ext = n.fileType
-          const color = '#' + (FILE_TYPE_COLORS[ext.toLowerCase()] || 0x6b7280).toString(16).padStart(6, '0')
+          const colorHex = '#' + (FILE_TYPE_COLORS[ext.toLowerCase()] || 0x6b7280).toString(16).padStart(6, '0')
           const IconComp = getIconComponent(ext)
+          const texture = getCachedTexture(ext, colorHex, IconComp)
 
-          // Texture generation
-          const canvas = document.createElement('canvas')
-          canvas.width = 128; canvas.height = 128
-          const ctx = canvas.getContext('2d')
-          if (ctx) {
-            try {
-              const isJS = ['js', 'javascript'].includes(ext.toLowerCase())
-              const iconColor = isJS ? '#000000' : '#FFFFFF'
-              const svgString = renderToStaticMarkup(<IconComp size={100} color={iconColor} style={{ display: 'block' }} />)
-              const img = new Image()
-              const svgData = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svgString)}`
-              img.onload = () => {
-                ctx.clearRect(0, 0, 128, 128)
-                ctx.beginPath()
-                ctx.arc(64, 64, 54, 0, Math.PI * 2)
-                ctx.fillStyle = color
-                ctx.fill()
-                ctx.drawImage(img, 14, 14, 100, 100)
-                texture.needsUpdate = true
-              }
-              img.src = svgData
-            } catch (e) { }
-            const texture = new THREE.CanvasTexture(canvas)
+          if (texture) {
             const spriteMat = new THREE.SpriteMaterial({ map: texture, transparent: true, depthTest: false, depthWrite: false })
             const sprite = new THREE.Sprite(spriteMat)
             sprite.scale.set(baseSize * 1.5, baseSize * 1.5, 1)
@@ -527,29 +606,20 @@ export function CosmicForceGraph({ className }: CosmicForceGraphProps) {
           }
         }
 
-        // Self Node visuals
+        // Self Node visuals - use cached
         if (n.type === 'self') {
-          const glowGeom = new THREE.SphereGeometry(baseSize * 1.5, 24, 24)
+          const glowGeom = getCachedGeometry(baseSize * 1.5)
           const glowMat = new THREE.MeshBasicMaterial({ color: 0xffd700, transparent: true, opacity: 0.15 })
           mesh.add(new THREE.Mesh(glowGeom, glowMat))
-          // Star Icon
-          const starCanvas = document.createElement('canvas'); starCanvas.width = 128; starCanvas.height = 128
-          const starCtx = starCanvas.getContext('2d')
-          if (starCtx) {
-            const cx = 64, cy = 64
-            starCtx.fillStyle = '#ffd700'; starCtx.beginPath();
-            for (let i = 0; i < 5; i++) {
-              const oa = (i * 2 * Math.PI / 5) - Math.PI / 2, ia = oa + Math.PI / 5
-              const or = 45, ir = 20
-              i === 0 ? starCtx.moveTo(cx + Math.cos(oa) * or, cy + Math.sin(oa) * or) : starCtx.lineTo(cx + Math.cos(oa) * or, cy + Math.sin(oa) * or)
-              starCtx.lineTo(cx + Math.cos(ia) * ir, cy + Math.sin(ia) * ir)
-            }
-            starCtx.closePath(); starCtx.fill(); starCtx.strokeStyle = '#ffffff'; starCtx.lineWidth = 3; starCtx.stroke()
-            const st = new THREE.CanvasTexture(starCanvas)
-            const ss = new THREE.Sprite(new THREE.SpriteMaterial({ map: st, transparent: true, depthTest: false, depthWrite: false }))
-            ss.scale.set(baseSize * 1.4, baseSize * 1.4, 1); ss.position.set(0, 0, baseSize * 0.7); mesh.add(ss)
-          }
+
+          // Star Icon - use cached texture
+          const starTexture = getCachedStarTexture()
+          const ss = new THREE.Sprite(new THREE.SpriteMaterial({ map: starTexture, transparent: true, depthTest: false, depthWrite: false }))
+          ss.scale.set(baseSize * 1.4, baseSize * 1.4, 1)
+          ss.position.set(0, 0, baseSize * 0.7)
+          mesh.add(ss)
         }
+
         mesh.userData.__nodeId = n.id
         mesh.userData.__ring = ring
         return mesh
@@ -574,11 +644,11 @@ export function CosmicForceGraph({ className }: CosmicForceGraphProps) {
         if (!targetFile && node.__node?.sourceRef?.fileId) targetFile = files.find(f => f.id === node.__node.sourceRef.fileId)
         if (targetFile) openCodePreview(targetFile)
         Graph.cameraPosition({ x: node.x * 1.3, y: node.y * 1.3, z: (node.z ?? 0) * 1.3 + 150 }, node, 800)
-        Graph.nodeThreeObject(Graph.nodeThreeObject())
+        // Removed redundant nodeThreeObject rebuild - uses cached geometry/materials
       })
       .onBackgroundClick(() => {
         setSelectedNodes([])
-        Graph.nodeThreeObject(Graph.nodeThreeObject())
+        // Removed redundant nodeThreeObject rebuild - uses cached geometry/materials
       })
 
     // Force Settings
@@ -611,11 +681,12 @@ export function CosmicForceGraph({ className }: CosmicForceGraphProps) {
   }, [isSimulationRunning])
 
 
-  // Update selection
+  // Update selection - only update local state, no expensive nodeThreeObject rebuild
   useEffect(() => {
     if (!graphRef.current) return
     setSelectedId(selectedNodeIds[0] || null)
-    graphRef.current.nodeThreeObject(graphRef.current.nodeThreeObject())
+    // Removed: graphRef.current.nodeThreeObject(...) - was causing severe lag
+    // Selection visual is handled by the ring geometry in nodeThreeObject
   }, [selectedNodeIds])
 
   // radialDistance/graphExpanded에 따른 effective 값 계산
