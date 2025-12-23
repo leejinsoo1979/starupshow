@@ -3,7 +3,7 @@ import { autoUpdater } from 'electron-updater';
 import * as path from 'path';
 import * as fs from 'fs';
 import * as util from 'util';
-import { fork, ChildProcess } from 'child_process';
+import { fork, ChildProcess, exec } from 'child_process';
 
 // Log for debugging auto-updates in production
 autoUpdater.logger = console;
@@ -591,4 +591,310 @@ ipcMain.handle('app:open-webview-devtools', async (_, webContentsId?: number) =>
     }
 
     return { success: false, message: 'No suitable webview found' };
+});
+
+// ==========================================
+// Mermaid Data Source Handlers
+// ==========================================
+
+const execPromise = util.promisify(exec);
+
+// 7. Git Log for GitGraph
+ipcMain.handle('git:log', async (_, dirPath: string, options: { maxCommits?: number } = {}) => {
+    const { maxCommits = 50 } = options;
+
+    try {
+        // Custom format: hash|shortHash|message|refs|parents|date|tags
+        const format = '%H|%h|%s|%D|%P|%ci|%(describe:tags)';
+        const { stdout } = await execPromise(
+            `git log --oneline -n ${maxCommits} --format="${format}" --all`,
+            { cwd: dirPath, maxBuffer: 10 * 1024 * 1024 }
+        );
+        return stdout;
+    } catch (err: any) {
+        console.error('Git log failed:', err.message);
+        return '';
+    }
+});
+
+// 8. Git Branch Info
+ipcMain.handle('git:branches', async (_, dirPath: string) => {
+    try {
+        const { stdout } = await execPromise(
+            'git branch -a --format="%(refname:short)|%(objectname:short)|%(upstream:short)"',
+            { cwd: dirPath }
+        );
+        return stdout;
+    } catch (err: any) {
+        console.error('Git branches failed:', err.message);
+        return '';
+    }
+});
+
+// 9. File Statistics (count by extension)
+ipcMain.handle('fs:file-stats', async (_, dirPath: string) => {
+    const stats: Record<string, { count: number; size: number }> = {};
+
+    const scanDir = async (dir: string) => {
+        try {
+            const entries = await readdir(dir, { withFileTypes: true });
+
+            for (const entry of entries) {
+                // Skip system/build directories
+                if (entry.name.startsWith('.') ||
+                    entry.name === 'node_modules' ||
+                    entry.name === 'dist' ||
+                    entry.name === 'build' ||
+                    entry.name === '.next' ||
+                    entry.name === '__pycache__') {
+                    continue;
+                }
+
+                const fullPath = path.join(dir, entry.name);
+
+                if (entry.isDirectory()) {
+                    await scanDir(fullPath);
+                } else if (entry.isFile()) {
+                    const ext = path.extname(entry.name).toLowerCase() || '(no ext)';
+                    const fileStat = await stat(fullPath);
+
+                    if (!stats[ext]) {
+                        stats[ext] = { count: 0, size: 0 };
+                    }
+                    stats[ext].count++;
+                    stats[ext].size += fileStat.size;
+                }
+            }
+        } catch (err) {
+            // Ignore permission errors
+        }
+    };
+
+    await scanDir(dirPath);
+
+    // Convert to array and sort by count
+    return Object.entries(stats)
+        .map(([extension, data]) => ({ extension, ...data }))
+        .sort((a, b) => b.count - a.count);
+});
+
+// 10. Scan API Routes
+ipcMain.handle('fs:scan-api-routes', async (_, dirPath: string) => {
+    const routes: { path: string; method: string; file: string }[] = [];
+    const apiDir = path.join(dirPath, 'app', 'api');
+
+    const scanApiDir = async (dir: string, routePath: string = '/api') => {
+        try {
+            const entries = await readdir(dir, { withFileTypes: true });
+
+            for (const entry of entries) {
+                const fullPath = path.join(dir, entry.name);
+                const newRoutePath = `${routePath}/${entry.name.replace(/\[([^\]]+)\]/g, ':$1')}`;
+
+                if (entry.isDirectory()) {
+                    await scanApiDir(fullPath, newRoutePath);
+                } else if (entry.name === 'route.ts' || entry.name === 'route.js') {
+                    // Read file to detect HTTP methods
+                    try {
+                        const content = await readFile(fullPath, 'utf-8');
+                        const methods = ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'];
+
+                        for (const method of methods) {
+                            // Check for export async function GET/POST/etc or export const GET
+                            if (content.includes(`export async function ${method}`) ||
+                                content.includes(`export function ${method}`) ||
+                                content.includes(`export const ${method}`)) {
+                                routes.push({
+                                    path: routePath.replace('/route', ''),
+                                    method,
+                                    file: fullPath
+                                });
+                            }
+                        }
+                    } catch {}
+                }
+            }
+        } catch {}
+    };
+
+    if (fs.existsSync(apiDir)) {
+        await scanApiDir(apiDir);
+    }
+
+    return routes;
+});
+
+// 11. Scan TypeScript/JavaScript for Classes and Interfaces
+ipcMain.handle('fs:scan-types', async (_, dirPath: string, options: { extensions?: string[] } = {}) => {
+    const { extensions = ['.ts', '.tsx'] } = options;
+    const types: any[] = [];
+
+    const scanDir = async (dir: string) => {
+        try {
+            const entries = await readdir(dir, { withFileTypes: true });
+
+            for (const entry of entries) {
+                if (entry.name.startsWith('.') ||
+                    entry.name === 'node_modules' ||
+                    entry.name === 'dist' ||
+                    entry.name === '.next') {
+                    continue;
+                }
+
+                const fullPath = path.join(dir, entry.name);
+
+                if (entry.isDirectory()) {
+                    await scanDir(fullPath);
+                } else if (entry.isFile()) {
+                    const ext = path.extname(entry.name);
+                    if (extensions.includes(ext)) {
+                        try {
+                            const content = await readFile(fullPath, 'utf-8');
+
+                            // Simple regex parsing for interfaces and classes
+                            // Interface
+                            const interfaceMatches = content.matchAll(/export\s+(?:interface|type)\s+(\w+)\s*(?:<[^>]*>)?\s*(?:extends\s+(\w+))?\s*\{([^}]*)\}/g);
+                            for (const match of interfaceMatches) {
+                                const [, name, extendsName, body] = match;
+                                const properties = body.split('\n')
+                                    .map(line => line.trim())
+                                    .filter(line => line && !line.startsWith('//'))
+                                    .map(line => {
+                                        const propMatch = line.match(/^(\w+)\??:\s*(.+?);?$/);
+                                        if (propMatch) {
+                                            return { name: propMatch[1], type: propMatch[2].replace(/;$/, '') };
+                                        }
+                                        return null;
+                                    })
+                                    .filter(Boolean);
+
+                                types.push({
+                                    name,
+                                    kind: 'interface',
+                                    properties,
+                                    methods: [],
+                                    extends: extendsName,
+                                    file: fullPath
+                                });
+                            }
+
+                            // Class
+                            const classMatches = content.matchAll(/export\s+class\s+(\w+)\s*(?:<[^>]*>)?\s*(?:extends\s+(\w+))?\s*(?:implements\s+([\w,\s]+))?\s*\{/g);
+                            for (const match of classMatches) {
+                                const [, name, extendsName, implementsStr] = match;
+                                types.push({
+                                    name,
+                                    kind: 'class',
+                                    properties: [],
+                                    methods: [],
+                                    extends: extendsName,
+                                    implements: implementsStr?.split(',').map(s => s.trim()),
+                                    file: fullPath
+                                });
+                            }
+                        } catch {}
+                    }
+                }
+            }
+        } catch {}
+    };
+
+    await scanDir(dirPath);
+    return types;
+});
+
+// 12. Parse Supabase/Database Schema
+ipcMain.handle('fs:scan-schema', async (_, dirPath: string) => {
+    const tables: any[] = [];
+
+    // Look for common schema definition files
+    const schemaFiles = [
+        'lib/supabase/types.ts',
+        'types/supabase.ts',
+        'types/database.ts',
+        'prisma/schema.prisma',
+        'supabase/migrations/*.sql'
+    ];
+
+    for (const schemaPattern of schemaFiles) {
+        const schemaPath = path.join(dirPath, schemaPattern.replace('*', ''));
+
+        if (schemaPattern.includes('*')) {
+            // Handle glob patterns (migrations)
+            const migrationDir = path.dirname(path.join(dirPath, schemaPattern));
+            try {
+                if (fs.existsSync(migrationDir)) {
+                    const files = await readdir(migrationDir);
+                    for (const file of files) {
+                        if (file.endsWith('.sql')) {
+                            const content = await readFile(path.join(migrationDir, file), 'utf-8');
+                            // Parse CREATE TABLE statements
+                            const tableMatches = content.matchAll(/CREATE TABLE\s+(?:IF NOT EXISTS\s+)?(?:public\.)?(\w+)\s*\(([\s\S]*?)\);/gi);
+                            for (const match of tableMatches) {
+                                const [, tableName, columnDefs] = match;
+                                const columns = columnDefs.split(',')
+                                    .map(col => col.trim())
+                                    .filter(col => col && !col.startsWith('CONSTRAINT') && !col.startsWith('PRIMARY') && !col.startsWith('FOREIGN'))
+                                    .map(col => {
+                                        const parts = col.split(/\s+/);
+                                        return {
+                                            name: parts[0],
+                                            type: parts[1] || 'unknown',
+                                            isPrimary: col.toUpperCase().includes('PRIMARY KEY'),
+                                            isForeign: col.toUpperCase().includes('REFERENCES')
+                                        };
+                                    });
+                                tables.push({ name: tableName, columns, source: file });
+                            }
+                        }
+                    }
+                }
+            } catch {}
+        } else if (fs.existsSync(schemaPath)) {
+            try {
+                const content = await readFile(schemaPath, 'utf-8');
+
+                if (schemaPath.endsWith('.prisma')) {
+                    // Parse Prisma schema
+                    const modelMatches = content.matchAll(/model\s+(\w+)\s*\{([\s\S]*?)\}/g);
+                    for (const match of modelMatches) {
+                        const [, modelName, body] = match;
+                        const columns = body.split('\n')
+                            .map(line => line.trim())
+                            .filter(line => line && !line.startsWith('//') && !line.startsWith('@@'))
+                            .map(line => {
+                                const parts = line.split(/\s+/);
+                                return {
+                                    name: parts[0],
+                                    type: parts[1] || 'unknown',
+                                    isPrimary: line.includes('@id'),
+                                    isForeign: line.includes('@relation')
+                                };
+                            })
+                            .filter(col => col.name);
+                        tables.push({ name: modelName, columns, source: 'prisma' });
+                    }
+                } else if (schemaPath.includes('supabase') || schemaPath.includes('database')) {
+                    // Parse TypeScript Database types
+                    const tableMatches = content.matchAll(/(\w+):\s*\{\s*Row:\s*\{([^}]+)\}/g);
+                    for (const match of tableMatches) {
+                        const [, tableName, rowDef] = match;
+                        const columns = rowDef.split('\n')
+                            .map(line => line.trim())
+                            .filter(line => line && line.includes(':'))
+                            .map(line => {
+                                const [name, type] = line.split(':').map(s => s.trim());
+                                return {
+                                    name: name.replace(/['"]/g, ''),
+                                    type: type?.replace(/[;,]/g, '') || 'unknown'
+                                };
+                            });
+                        tables.push({ name: tableName, columns, source: 'supabase-types' });
+                    }
+                }
+            } catch {}
+        }
+    }
+
+    return tables;
 });

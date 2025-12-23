@@ -16,6 +16,16 @@ contextBridge.exposeInMainWorld('electron', {
         }) => ipcRenderer.invoke('fs:scan-tree', rootPath, options),
         readFile: (path: string) => ipcRenderer.invoke('fs:read-file', path),
         writeFile: (path: string, content: string) => ipcRenderer.invoke('fs:write-file', path, content),
+        fileStats: (dirPath: string) => ipcRenderer.invoke('fs:file-stats', dirPath),
+        scanApiRoutes: (dirPath: string) => ipcRenderer.invoke('fs:scan-api-routes', dirPath),
+        scanTypes: (dirPath: string, options?: { extensions?: string[] }) => ipcRenderer.invoke('fs:scan-types', dirPath, options),
+        scanSchema: (dirPath: string) => ipcRenderer.invoke('fs:scan-schema', dirPath),
+    },
+
+    // Git operations
+    git: {
+        log: (dirPath: string, options?: { maxCommits?: number }) => ipcRenderer.invoke('git:log', dirPath, options),
+        branches: (dirPath: string) => ipcRenderer.invoke('git:branches', dirPath),
     },
 
     // DevTools helper

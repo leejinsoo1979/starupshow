@@ -265,6 +265,7 @@ export function FileTreePanel({ mapId }: FileTreePanelProps) {
   const toggleNodeExpansion = useNeuralMapStore((s) => s.toggleNodeExpansion)
   const setExpandedNodes = useNeuralMapStore((s) => s.setExpandedNodes)
   const graphExpanded = useNeuralMapStore((s) => s.graphExpanded)
+  const setProjectPath = useNeuralMapStore((s) => s.setProjectPath)
 
   // API
   const { uploadFile, deleteFile, createNode, createEdge, analyzeFile, removeNode } = useNeuralMapApi(mapId)
@@ -746,6 +747,12 @@ export function FileTreePanel({ mapId }: FileTreePanelProps) {
 
       setIsExpanded(true)
       FileSystemManager.setProjectHandle(dirHandle)
+
+      // Set project path for Mermaid auto-generation
+      const projectPath = (dirHandle as any).path as string | undefined
+      if (projectPath) {
+        setProjectPath(projectPath)
+      }
 
       // 폴더 스캔 (재귀적)
       console.log('Scanning directory:', dirHandle.name)

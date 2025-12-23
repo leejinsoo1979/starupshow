@@ -16,6 +16,7 @@ import type {
   NeuralCluster,
   NeuralFile,
   ViewTab,
+  MermaidDiagramType,
   RightPanelTab,
   ModalType,
   HistoryAction,
@@ -67,6 +68,7 @@ interface NeuralMapState {
 
   // View
   activeTab: ViewTab
+  mermaidDiagramType: MermaidDiagramType
   rightPanelTab: RightPanelTab
 
   // Panels
@@ -130,6 +132,9 @@ interface NeuralMapState {
   terminals: import('./types').TerminalInstance[]
   activeTerminalId: string | null
   activeGroupId: string | null
+
+  // Project Path (for Mermaid auto-generation)
+  projectPath: string | null
 }
 
 // ============================================
@@ -171,6 +176,7 @@ interface NeuralMapActions {
 
   // View
   setActiveTab: (tab: ViewTab) => void
+  setMermaidDiagramType: (type: MermaidDiagramType) => void
   setRightPanelTab: (tab: RightPanelTab) => void
 
   // Panels
@@ -255,6 +261,9 @@ interface NeuralMapActions {
 
   // Reset layout
   resetLayout: () => void
+
+  // Project Path
+  setProjectPath: (path: string | null) => void
 }
 
 // ============================================
@@ -272,6 +281,7 @@ const initialState: NeuralMapState = {
   hoveredNodeId: null,
 
   activeTab: 'map',
+  mermaidDiagramType: 'flowchart',
   rightPanelTab: 'inspector',
 
   leftPanelWidth: PANEL_SIZES.left.default,
@@ -328,6 +338,8 @@ const initialState: NeuralMapState = {
   terminals: [],
   activeTerminalId: null,
   activeGroupId: null,
+
+  projectPath: null,
 }
 
 // ============================================
@@ -515,6 +527,11 @@ export const useNeuralMapStore = create<NeuralMapState & NeuralMapActions>()(
         setActiveTab: (tab) =>
           set((state) => {
             state.activeTab = tab
+          }),
+
+        setMermaidDiagramType: (type) =>
+          set((state) => {
+            state.mermaidDiagramType = type
           }),
 
         setRightPanelTab: (tab) =>
@@ -1197,6 +1214,12 @@ export const useNeuralMapStore = create<NeuralMapState & NeuralMapActions>()(
             // 시뮬레이션 재가열을 위해 alpha 값 리셋 (NeuralMapCanvas/CosmicForceGraph에서 감지)
             state.isSimulationRunning = true
             state.simulationAlpha = 1
+          }),
+
+        // Project Path
+        setProjectPath: (path) =>
+          set((state) => {
+            state.projectPath = path
           }),
       })),
       {
