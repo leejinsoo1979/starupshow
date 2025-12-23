@@ -302,7 +302,25 @@ export function FileTreePanel({ mapId }: FileTreePanelProps) {
   const [isCreatingProject, setIsCreatingProject] = useState(false)
   const [newProjectName, setNewProjectName] = useState('')
   const [isCreatingProjectLoading, setIsCreatingProjectLoading] = useState(false)
+  const [createGitHubRepo, setCreateGitHubRepo] = useState(false)
+  const [isGitHubConnected, setIsGitHubConnected] = useState(false)
   const projectNameInputRef = useRef<HTMLInputElement>(null)
+
+  // GitHub 연결 상태 확인
+  useEffect(() => {
+    const checkGitHubConnection = async () => {
+      try {
+        const res = await fetch('/api/github')
+        if (res.ok) {
+          const data = await res.json()
+          setIsGitHubConnected(data.connected)
+        }
+      } catch (err) {
+        console.error('Failed to check GitHub connection:', err)
+      }
+    }
+    checkGitHubConnection()
+  }, [])
 
   // 이름 변경 상태
   const [renamingItem, setRenamingItem] = useState<{
@@ -503,7 +521,42 @@ export function FileTreePanel({ mapId }: FileTreePanelProps) {
         }
       }
 
-      // 2. Supabase에 프로젝트 메타데이터 저장
+      // 2. GitHub 레포지토리 생성 (옵션)
+      let githubData: { owner: string; repo: string; clone_url: string; default_branch: string } | null = null
+      if (createGitHubRepo && isGitHubConnected) {
+        try {
+          const repoName = trimmedName.toLowerCase().replace(/[^a-z0-9-_]/g, '-')
+          const repoRes = await fetch('/api/github/repos', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              name: repoName,
+              description: `${trimmedName} - Created with GlowUS`,
+              private: true,
+              auto_init: true,
+            }),
+          })
+
+          if (repoRes.ok) {
+            const repoResult = await repoRes.json()
+            githubData = {
+              owner: repoResult.repo.owner.login,
+              repo: repoResult.repo.name,
+              clone_url: repoResult.repo.clone_url,
+              default_branch: repoResult.repo.default_branch,
+            }
+            console.log('[FileTree] GitHub repo created:', githubData)
+          } else {
+            const errorData = await repoRes.json()
+            console.warn('[FileTree] GitHub repo creation failed:', errorData)
+            // 레포 생성 실패해도 계속 진행 (선택적 기능)
+          }
+        } catch (githubErr) {
+          console.warn('[FileTree] GitHub repo creation error:', githubErr)
+        }
+      }
+
+      // 3. Supabase에 프로젝트 메타데이터 저장
       const response = await fetch('/api/projects', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -512,6 +565,11 @@ export function FileTreePanel({ mapId }: FileTreePanelProps) {
           description: '',
           status: 'active',
           folder_path: folderPath || null,
+          github_owner: githubData?.owner || null,
+          github_repo: githubData?.repo || null,
+          github_clone_url: githubData?.clone_url || null,
+          github_default_branch: githubData?.default_branch || null,
+          github_connected_at: githubData ? new Date().toISOString() : null,
         }),
       })
 
@@ -523,7 +581,20 @@ export function FileTreePanel({ mapId }: FileTreePanelProps) {
       const newProject = await response.json()
       console.log('[FileTree] Project created in cloud:', newProject)
 
-      // 3. 프로젝트 경로로 이동 및 Neural Map에 연결
+      // 4. Git 초기화 및 원격 연결 (GitHub 레포가 있는 경우)
+      if (folderPath && githubData && window.electron?.git) {
+        try {
+          // Git 초기화
+          await window.electron.git.init?.(folderPath)
+          // 원격 저장소 연결
+          await window.electron.git.remoteAdd?.(folderPath, 'origin', githubData.clone_url)
+          console.log('[FileTree] Git initialized and remote added')
+        } catch (gitErr) {
+          console.warn('[FileTree] Git initialization error:', gitErr)
+        }
+      }
+
+      // 5. 프로젝트 경로로 이동 및 Neural Map에 연결
       if (folderPath) {
         setProjectPath(folderPath)
       }
@@ -531,14 +602,16 @@ export function FileTreePanel({ mapId }: FileTreePanelProps) {
         setLinkedProject(newProject.id, trimmedName)
       }
 
-      // 4. 모달 닫기
+      // 6. 모달 닫기
       setIsCreatingProject(false)
       setNewProjectName('')
+      setCreateGitHubRepo(false)
 
       console.log('[FileTree] Project linked to Neural Map:', {
         id: newProject.id,
         name: trimmedName,
         folderPath,
+        github: githubData,
       })
     } catch (err) {
       console.error('[FileTree] Error creating project:', err)
@@ -546,7 +619,7 @@ export function FileTreePanel({ mapId }: FileTreePanelProps) {
     } finally {
       setIsCreatingProjectLoading(false)
     }
-  }, [newProjectName, setProjectPath, setLinkedProject])
+  }, [newProjectName, setProjectPath, setLinkedProject, createGitHubRepo, isGitHubConnected])
 
   // 컨텍스트 메뉴 열기
   const handleContextMenu = useCallback((
@@ -2314,6 +2387,44 @@ export function FileTreePanel({ mapId }: FileTreePanelProps) {
                   borderColor: newProjectName.trim() ? currentAccent.color : undefined
                 }}
               />
+
+              {/* GitHub 레포지토리 생성 옵션 */}
+              {isGitHubConnected && (
+                <label className={cn(
+                  'flex items-center gap-3 mt-4 p-3 rounded-lg cursor-pointer transition-colors',
+                  isDark
+                    ? 'hover:bg-[#2d2d2d]'
+                    : 'hover:bg-zinc-50'
+                )}>
+                  <input
+                    type="checkbox"
+                    checked={createGitHubRepo}
+                    onChange={(e) => setCreateGitHubRepo(e.target.checked)}
+                    className="w-4 h-4 rounded accent-current"
+                    style={{ accentColor: currentAccent.color }}
+                  />
+                  <div className="flex items-center gap-2">
+                    <GitBranch className="w-4 h-4" style={{ color: currentAccent.color }} />
+                    <span className={cn(
+                      'text-sm',
+                      isDark ? 'text-zinc-300' : 'text-zinc-700'
+                    )}>
+                      GitHub 레포지토리 생성
+                    </span>
+                  </div>
+                </label>
+              )}
+
+              {!isGitHubConnected && (
+                <p className={cn(
+                  'text-xs mt-4 flex items-center gap-2',
+                  isDark ? 'text-zinc-500' : 'text-zinc-400'
+                )}>
+                  <GitBranch className="w-3.5 h-3.5" />
+                  설정에서 GitHub 계정을 연결하면 레포지토리를 함께 생성할 수 있습니다.
+                </p>
+              )}
+
               <div className="flex gap-3 mt-6">
                 <button
                   onClick={() => setIsCreatingProject(false)}

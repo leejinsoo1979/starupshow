@@ -241,8 +241,52 @@ export interface Project {
   color: string
   owner_id: string | null
   folder_path: string | null  // Local file system path for the project workspace
+  // GitHub Integration
+  github_owner: string | null
+  github_repo: string | null
+  github_default_branch: string | null
+  github_clone_url: string | null
+  github_connected_at: string | null
   created_at: string
   updated_at: string
+}
+
+// ============================================
+// GitHub Integration Types
+// ============================================
+
+export interface UserGitHubConnection {
+  id: string
+  user_id: string
+  github_user_id: string
+  github_username: string
+  github_email: string | null
+  github_avatar_url: string | null
+  access_token: string
+  refresh_token: string | null
+  token_expires_at: string | null
+  scopes: string[]
+  created_at: string
+  updated_at: string
+}
+
+export interface GitHubRepository {
+  id: number
+  name: string
+  full_name: string
+  description: string | null
+  private: boolean
+  html_url: string
+  clone_url: string
+  ssh_url: string
+  default_branch: string
+  owner: {
+    login: string
+    avatar_url: string
+  }
+  created_at: string
+  updated_at: string
+  pushed_at: string
 }
 
 export interface ProjectMember {
@@ -678,11 +722,22 @@ export interface CreateProjectInput {
   tags?: string[]
   color?: string
   folder_path?: string  // Local file system path for the project workspace
+  // GitHub Integration
+  github_owner?: string
+  github_repo?: string
+  github_default_branch?: string
+  github_clone_url?: string
 }
 
 export interface UpdateProjectInput extends Partial<Omit<CreateProjectInput, 'team_id'>> {
   progress?: number
   folder_path?: string  // Local file system path for the project workspace
+  // GitHub Integration
+  github_owner?: string
+  github_repo?: string
+  github_default_branch?: string
+  github_clone_url?: string
+  github_connected_at?: string
 }
 
 export interface AddProjectMemberInput {

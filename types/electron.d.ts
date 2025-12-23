@@ -1,7 +1,37 @@
 // Global Electron API type definitions
 // This file consolidates all window.electron interface declarations
 
-import type { FileStats, TypeInfo, TableInfo, APIRoute } from '@/lib/neural-map/mermaid-generators'
+// Inline types (from mermaid-generators.ts) to avoid module/global scope issues
+interface FileStats {
+  name: string
+  path: string
+  extension: string
+  size: number
+  lines?: number
+  imports?: string[]
+  exports?: string[]
+}
+
+interface TypeInfo {
+  name: string
+  kind: 'interface' | 'type' | 'enum' | 'class'
+  properties?: { name: string; type: string; optional?: boolean }[]
+  extends?: string[]
+  file: string
+}
+
+interface TableInfo {
+  name: string
+  columns: { name: string; type: string; nullable?: boolean; isPrimary?: boolean; isForeign?: boolean; references?: string }[]
+  file: string
+}
+
+interface APIRoute {
+  path: string
+  method: string
+  file: string
+  handler?: string
+}
 
 declare global {
   interface Window {

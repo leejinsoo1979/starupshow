@@ -13,6 +13,7 @@ import {
   GitBranch, // Logic
   FlaskConical, // Test
   Globe, // Browser
+  GitCommit, // Git
   ChevronDown,
   Workflow, // Flowchart
   ArrowLeftRight, // Sequence
@@ -30,6 +31,7 @@ const viewTabs: { id: ViewTab; label: string; icon: typeof Network; description:
   { id: 'logic', label: 'Logic', icon: GitBranch, description: '로직 흐름 및 파일 구조' },
   { id: 'test', label: 'Test', icon: FlaskConical, description: '품질 검증 및 테스트' },
   { id: 'browser', label: 'Browser', icon: Globe, description: '웹 브라우저' },
+  { id: 'git', label: 'Git', icon: GitCommit, description: 'Git 버전 관리' },
 ]
 
 const mermaidDiagrams: { id: MermaidDiagramType; label: string; icon: typeof Workflow; description: string }[] = [

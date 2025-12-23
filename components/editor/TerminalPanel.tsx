@@ -151,29 +151,45 @@ export const TerminalPanel = forwardRef<TerminalPanelRef, TerminalPanelProps>(({
   }, [panelHeight])
 
 
-  // 높이 리사이즈 이벤트
+  // 높이 리사이즈 이벤트 (최적화: RAF 사용)
   useEffect(() => {
+    let rafId: number | null = null
+    let lastY = 0
+
     const handleMouseMove = (e: MouseEvent) => {
       if (!isResizing) return
+      lastY = e.clientY
 
-      const delta = startYRef.current - e.clientY
-      const newHeight = Math.min(Math.max(startHeightRef.current + delta, 150), window.innerHeight - 200)
-      setPanelHeight(newHeight)
-      onHeightChange?.(newHeight)
+      if (rafId === null) {
+        rafId = requestAnimationFrame(() => {
+          const delta = startYRef.current - lastY
+          const newHeight = Math.min(Math.max(startHeightRef.current + delta, 150), window.innerHeight - 200)
+          setPanelHeight(newHeight)
+          onHeightChange?.(newHeight)
+          rafId = null
+        })
+      }
     }
 
     const handleMouseUp = () => {
+      if (rafId !== null) {
+        cancelAnimationFrame(rafId)
+        rafId = null
+      }
       setIsResizing(false)
     }
 
     if (isResizing) {
-      document.addEventListener('mousemove', handleMouseMove)
+      document.addEventListener('mousemove', handleMouseMove, { passive: true })
       document.addEventListener('mouseup', handleMouseUp)
       document.body.style.cursor = 'ns-resize'
       document.body.style.userSelect = 'none'
     }
 
     return () => {
+      if (rafId !== null) {
+        cancelAnimationFrame(rafId)
+      }
       document.removeEventListener('mousemove', handleMouseMove)
       document.removeEventListener('mouseup', handleMouseUp)
       document.body.style.cursor = ''
@@ -181,29 +197,45 @@ export const TerminalPanel = forwardRef<TerminalPanelRef, TerminalPanelProps>(({
     }
   }, [isResizing, onHeightChange])
 
-  // 사이드바 너비 리사이즈 이벤트
+  // 사이드바 너비 리사이즈 이벤트 (최적화: RAF 사용)
   useEffect(() => {
+    let rafId: number | null = null
+    let lastX = 0
+
     const handleMouseMove = (e: MouseEvent) => {
       if (!isResizingSidebar) return
+      lastX = e.clientX
 
-      // 오른쪽 사이드바이므로: 왼쪽으로 드래그하면 넓어지고, 오른쪽으로 드래그하면 좁아짐
-      const delta = startXRef.current - e.clientX
-      const newWidth = Math.min(Math.max(startWidthRef.current + delta, 80), window.innerWidth * 0.5)
-      setSidebarWidth(newWidth)
+      if (rafId === null) {
+        rafId = requestAnimationFrame(() => {
+          // 오른쪽 사이드바이므로: 왼쪽으로 드래그하면 넓어지고, 오른쪽으로 드래그하면 좁아짐
+          const delta = startXRef.current - lastX
+          const newWidth = Math.min(Math.max(startWidthRef.current + delta, 80), window.innerWidth * 0.5)
+          setSidebarWidth(newWidth)
+          rafId = null
+        })
+      }
     }
 
     const handleMouseUp = () => {
+      if (rafId !== null) {
+        cancelAnimationFrame(rafId)
+        rafId = null
+      }
       setIsResizingSidebar(false)
     }
 
     if (isResizingSidebar) {
-      document.addEventListener('mousemove', handleMouseMove)
+      document.addEventListener('mousemove', handleMouseMove, { passive: true })
       document.addEventListener('mouseup', handleMouseUp)
       document.body.style.cursor = 'ew-resize'
       document.body.style.userSelect = 'none'
     }
 
     return () => {
+      if (rafId !== null) {
+        cancelAnimationFrame(rafId)
+      }
       document.removeEventListener('mousemove', handleMouseMove)
       document.removeEventListener('mouseup', handleMouseUp)
       document.body.style.cursor = ''
@@ -228,51 +260,70 @@ export const TerminalPanel = forwardRef<TerminalPanelRef, TerminalPanelProps>(({
     }
   }, [])
 
-  // 분할 터미널 리사이즈 이벤트
+  // 분할 터미널 리사이즈 이벤트 (최적화: RAF 사용)
   useEffect(() => {
+    let rafId: number | null = null
+    let lastX = 0
+
     const handleMouseMove = (e: MouseEvent) => {
       if (resizingSplitIndex === null) return
+      lastX = e.clientX
 
-      const delta = e.clientX - splitStartXRef.current
-      const startWidths = splitStartWidthsRef.current
+      if (rafId === null) {
+        rafId = requestAnimationFrame(() => {
+          const delta = lastX - splitStartXRef.current
+          const startWidths = splitStartWidthsRef.current
 
-      if (startWidths.length < 2) return
+          if (startWidths.length < 2) {
+            rafId = null
+            return
+          }
 
-      const leftIndex = resizingSplitIndex
-      const rightIndex = resizingSplitIndex + 1
+          const leftIndex = resizingSplitIndex
+          const rightIndex = resizingSplitIndex + 1
 
-      const minWidth = 100
-      const leftNewWidth = Math.max(startWidths[leftIndex] + delta, minWidth)
-      const rightNewWidth = Math.max(startWidths[rightIndex] - delta, minWidth)
+          const minWidth = 100
+          const leftNewWidth = Math.max(startWidths[leftIndex] + delta, minWidth)
+          const rightNewWidth = Math.max(startWidths[rightIndex] - delta, minWidth)
 
-      const totalWidth = startWidths.reduce((a, b) => a + b, 0)
-      const newWidths: Record<string, number> = {}
+          const totalWidth = startWidths.reduce((a, b) => a + b, 0)
+          const newWidths: Record<string, number> = {}
 
-      splitTerminals.forEach((terminal, i) => {
-        if (i === leftIndex) {
-          newWidths[terminal.id] = (leftNewWidth / totalWidth) * 100
-        } else if (i === rightIndex) {
-          newWidths[terminal.id] = (rightNewWidth / totalWidth) * 100
-        } else {
-          newWidths[terminal.id] = (startWidths[i] / totalWidth) * 100
-        }
-      })
+          splitTerminals.forEach((terminal, i) => {
+            if (i === leftIndex) {
+              newWidths[terminal.id] = (leftNewWidth / totalWidth) * 100
+            } else if (i === rightIndex) {
+              newWidths[terminal.id] = (rightNewWidth / totalWidth) * 100
+            } else {
+              newWidths[terminal.id] = (startWidths[i] / totalWidth) * 100
+            }
+          })
 
-      setSplitWidths(newWidths)
+          setSplitWidths(newWidths)
+          rafId = null
+        })
+      }
     }
 
     const handleMouseUp = () => {
+      if (rafId !== null) {
+        cancelAnimationFrame(rafId)
+        rafId = null
+      }
       setResizingSplitIndex(null)
     }
 
     if (resizingSplitIndex !== null) {
-      document.addEventListener('mousemove', handleMouseMove)
+      document.addEventListener('mousemove', handleMouseMove, { passive: true })
       document.addEventListener('mouseup', handleMouseUp)
       document.body.style.cursor = 'ew-resize'
       document.body.style.userSelect = 'none'
     }
 
     return () => {
+      if (rafId !== null) {
+        cancelAnimationFrame(rafId)
+      }
       document.removeEventListener('mousemove', handleMouseMove)
       document.removeEventListener('mouseup', handleMouseUp)
       document.body.style.cursor = ''

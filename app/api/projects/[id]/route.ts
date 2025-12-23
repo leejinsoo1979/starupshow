@@ -100,6 +100,12 @@ export async function PATCH(
       'tags',
       'color',
       'folder_path',  // 로컬 폴더 경로
+      // GitHub integration fields
+      'github_owner',
+      'github_repo',
+      'github_default_branch',
+      'github_clone_url',
+      'github_connected_at',
     ]
 
     const updates: Record<string, unknown> = {}

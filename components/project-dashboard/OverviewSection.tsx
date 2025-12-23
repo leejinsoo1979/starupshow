@@ -71,6 +71,7 @@ export function OverviewSection({ projectId, project, onEdit }: OverviewSectionP
     agentCount: project.agents?.length || 0,
   })
   const [loading, setLoading] = useState(true)
+  const [linkedFolderPath, setLinkedFolderPath] = useState<string | null | undefined>(project.folderPath)
 
   // 🔄 실시간 파일 동기화 - 프로젝트 폴더가 있으면 자동으로 파일 워처 시작
   const { files, refresh: refreshFiles } = useProjectFileSync({
@@ -235,8 +236,9 @@ export function OverviewSection({ projectId, project, onEdit }: OverviewSectionP
         {/* Project Runner - Electron Only */}
         <ProjectRunner
           projectId={projectId}
-          folderPath={project.folderPath}
+          folderPath={linkedFolderPath}
           projectName={project.name}
+          onFolderLinked={(path) => setLinkedFolderPath(path)}
         />
 
         {/* Main Content Grid */}

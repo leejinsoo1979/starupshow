@@ -184,7 +184,22 @@ declare global {
       }
       git: {
         log: (dirPath: string, options?: { maxCommits?: number }) => Promise<string>
-        branches: (dirPath: string) => Promise<string>
+        branches: (dirPath: string) => Promise<string[]>
+        clone?: (url: string, targetPath: string) => Promise<{ success: boolean; stdout?: string; stderr?: string; error?: string }>
+        status?: (cwd: string) => Promise<{ success: boolean; output?: string; error?: string }>
+        diff?: (cwd: string, staged?: boolean) => Promise<{ success: boolean; output?: string; error?: string }>
+        add?: (cwd: string, files: string | string[]) => Promise<{ success: boolean; output?: string; error?: string }>
+        commit?: (cwd: string, message: string) => Promise<{ success: boolean; output?: string; error?: string }>
+        push?: (cwd: string, remote?: string, branch?: string) => Promise<{ success: boolean; output?: string; error?: string }>
+        pull?: (cwd: string, remote?: string, branch?: string) => Promise<{ success: boolean; output?: string; error?: string }>
+        init?: (cwd: string) => Promise<{ success: boolean; output?: string; error?: string }>
+        remoteAdd?: (cwd: string, name: string, url: string) => Promise<{ success: boolean; output?: string; error?: string }>
+        remoteList?: (cwd: string) => Promise<{ success: boolean; output?: string; error?: string }>
+        config?: (cwd: string, key: string, value: string) => Promise<{ success: boolean; output?: string; error?: string }>
+        fetch?: (cwd: string, remote?: string) => Promise<{ success: boolean; output?: string; error?: string }>
+        stash?: (cwd: string, action?: 'push' | 'pop' | 'list') => Promise<{ success: boolean; output?: string; error?: string }>
+        isRepo?: (cwd: string) => Promise<{ success: boolean; isRepo: boolean }>
+        currentBranch?: (cwd: string) => Promise<{ success: boolean; branch?: string; error?: string }>
       }
       viewfinder: {
         captureWebview: (webContentsId: number, rect?: { x: number; y: number; width: number; height: number }) => Promise<{

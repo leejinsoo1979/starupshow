@@ -15,6 +15,7 @@ import {
   Check,
   AlertCircle,
   FolderOpen,
+  Link2,
 } from "lucide-react"
 import { Button } from "@/components/ui/Button"
 
@@ -22,6 +23,7 @@ interface ProjectRunnerProps {
   projectId: string
   folderPath?: string | null
   projectName: string
+  onFolderLinked?: (path: string) => void
 }
 
 interface ProjectConfig {
@@ -34,16 +36,23 @@ interface ProjectConfig {
 
 type RunStatus = "idle" | "starting" | "running" | "stopping" | "error"
 
-export function ProjectRunner({ projectId, folderPath, projectName }: ProjectRunnerProps) {
+export function ProjectRunner({ projectId, folderPath: initialFolderPath, projectName, onFolderLinked }: ProjectRunnerProps) {
   const [isExpanded, setIsExpanded] = useState(false)
   const [config, setConfig] = useState<ProjectConfig | null>(null)
   const [status, setStatus] = useState<RunStatus>("idle")
   const [output, setOutput] = useState<string[]>([])
   const [selectedScript, setSelectedScript] = useState<string>("dev")
   const [isElectron, setIsElectron] = useState(false)
+  const [folderPath, setFolderPath] = useState<string | null | undefined>(initialFolderPath)
+  const [isLinking, setIsLinking] = useState(false)
   const runnerId = useRef<string>(`runner-${projectId}`)
   const outputRef = useRef<HTMLDivElement>(null)
   const cleanupRef = useRef<(() => void) | null>(null)
+
+  // Sync with prop changes
+  useEffect(() => {
+    setFolderPath(initialFolderPath)
+  }, [initialFolderPath])
 
   // Check if running in Electron
   useEffect(() => {
@@ -212,17 +221,69 @@ export function ProjectRunner({ projectId, folderPath, projectName }: ProjectRun
     setOutput([])
   }
 
-  // Don't render if not in Electron or no folder path
+  // Select and link a folder
+  const selectFolder = async () => {
+    if (!window.electron?.fs?.selectDirectory) return
+
+    setIsLinking(true)
+    try {
+      const result = await window.electron.fs.selectDirectory()
+      if (result?.path) {
+        // Update local state
+        setFolderPath(result.path)
+
+        // Save to database via API
+        const response = await fetch(`/api/projects/${projectId}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ folder_path: result.path })
+        })
+
+        if (response.ok) {
+          onFolderLinked?.(result.path)
+        }
+      }
+    } catch (error) {
+      console.error('Failed to select folder:', error)
+    } finally {
+      setIsLinking(false)
+    }
+  }
+
+  // Don't render if not in Electron
   if (!isElectron) {
     return null
   }
 
+  // Show folder selection UI if no folder path
   if (!folderPath) {
     return (
-      <div className="bg-zinc-900/50 border border-zinc-800 rounded-xl p-4">
-        <div className="flex items-center gap-3 text-zinc-500">
-          <FolderOpen className="w-5 h-5" />
-          <span className="text-sm">프로젝트 폴더가 연결되지 않았습니다</span>
+      <div className="bg-zinc-900/50 border border-zinc-800 rounded-xl p-6">
+        <div className="flex flex-col items-center gap-4 text-center">
+          <div className="w-12 h-12 rounded-xl bg-violet-500/10 flex items-center justify-center">
+            <FolderOpen className="w-6 h-6 text-violet-400" />
+          </div>
+          <div>
+            <h3 className="text-sm font-medium text-zinc-200 mb-1">프로젝트 폴더 연결</h3>
+            <p className="text-xs text-zinc-500">로컬 폴더를 연결하면 프로젝트를 실행할 수 있습니다</p>
+          </div>
+          <Button
+            onClick={selectFolder}
+            disabled={isLinking}
+            className="bg-violet-600 hover:bg-violet-500 text-white"
+          >
+            {isLinking ? (
+              <>
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                연결 중...
+              </>
+            ) : (
+              <>
+                <Link2 className="w-4 h-4 mr-2" />
+                폴더 선택
+              </>
+            )}
+          </Button>
         </div>
       </div>
     )
