@@ -271,6 +271,7 @@ export function CosmicForceGraph({ className }: CosmicForceGraphProps) {
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [isClient, setIsClient] = useState(false)
   const [threeInstance, setThreeInstance] = useState<any>(null)
+  const zoomLevelRef = useRef<number>(500) // Track camera distance for LOD
 
   // Store
   const graph = useNeuralMapStore((s) => s.graph)
@@ -582,43 +583,71 @@ export function CosmicForceGraph({ className }: CosmicForceGraphProps) {
     const Graph = graphRef.current
     const { nodes, links } = convertToGraphData()
 
+    // Track zoom for LOD (Level of Detail)
+    Graph.onZoom(() => {
+      const camera = Graph.camera()
+      if (camera) {
+        zoomLevelRef.current = camera.position.length()
+      }
+    })
+
     Graph
       .backgroundColor(isDark ? '#070A12' : '#f8fafc')
-      .nodeLabel((n: any) => `
+      .nodeLabel((n: any) => {
+        // Hide labels when zoomed out (camera distance > 400)
+        if (zoomLevelRef.current > 400) return ''
+        return `
           <div style="
             font: 12px/1.4 -apple-system, BlinkMacSystemFont, sans-serif;
-            background: rgba(0,0,0,0.8);
+            background: rgba(0,0,0,0.85);
             padding: 8px 12px;
             border-radius: 8px;
-            border: 1px solid rgba(255,255,255,0.1);
+            border: 1px solid rgba(255,255,255,0.15);
+            backdrop-filter: blur(4px);
           ">
             <b style="color: #fff;">${n.label}</b><br/>
             <span style="color: rgba(255,255,255,0.6);">type: ${n.type}</span>
           </div>
-        `)
+        `
+      })
       .nodeThreeObject((n: any) => {
         const isSelected = selectedNodeIds.includes(n.id)
         const baseSize = n.nodeSize || (n.type === 'self' ? 16 : n.depth === 1 ? 9 : 6)
+        const isZoomedOut = zoomLevelRef.current > 400
 
         // Use cached geometry (12 segments instead of 24)
         const geom = getCachedGeometry(baseSize)
         const colorNum = getNodeColor(n, isSelected)
-        const emissive = n.type === 'self' ? 0.8 : 0.5
+        // Increase emissive when zoomed out for twinkling star effect
+        const emissive = isZoomedOut ? 0.9 : (n.type === 'self' ? 0.8 : 0.5)
 
         // Use cached material
         const mat = getCachedMaterial(colorNum, emissive)
         const mesh = new THREE.Mesh(geom, mat)
 
-        // Selection Ring - use cached geometry and material
-        const ringGeom = getCachedRingGeometry()
-        const ringMat = getCachedRingMaterial(isSelected)
-        const ring = new THREE.Mesh(ringGeom, ringMat)
-        ring.scale.set(baseSize + 3, baseSize + 3, baseSize + 3)
-        ring.rotation.x = Math.PI / 2
-        mesh.add(ring)
+        // Add outer glow for star-like appearance when zoomed out
+        if (isZoomedOut) {
+          const glowGeom = getCachedGeometry(baseSize * 1.3)
+          const glowMat = new THREE.MeshBasicMaterial({
+            color: colorNum,
+            transparent: true,
+            opacity: 0.2 + Math.random() * 0.1, // Slight random twinkle
+          })
+          mesh.add(new THREE.Mesh(glowGeom, glowMat))
+        }
 
-        // File Type Icon - use cached texture
-        if (n.fileType) {
+        // Selection Ring - only show when zoomed in
+        if (!isZoomedOut) {
+          const ringGeom = getCachedRingGeometry()
+          const ringMat = getCachedRingMaterial(isSelected)
+          const ring = new THREE.Mesh(ringGeom, ringMat)
+          ring.scale.set(baseSize + 3, baseSize + 3, baseSize + 3)
+          ring.rotation.x = Math.PI / 2
+          mesh.add(ring)
+        }
+
+        // File Type Icon - only show when zoomed in
+        if (!isZoomedOut && n.fileType) {
           const ext = n.fileType
           const colorHex = '#' + (FILE_TYPE_COLORS[ext.toLowerCase()] || 0x6b7280).toString(16).padStart(6, '0')
           const IconComp = getIconComponent(ext)
@@ -633,22 +662,23 @@ export function CosmicForceGraph({ className }: CosmicForceGraphProps) {
           }
         }
 
-        // Self Node visuals - use cached
+        // Self Node visuals - always show but simplified when zoomed out
         if (n.type === 'self') {
           const glowGeom = getCachedGeometry(baseSize * 1.5)
-          const glowMat = new THREE.MeshBasicMaterial({ color: 0xffd700, transparent: true, opacity: 0.15 })
+          const glowMat = new THREE.MeshBasicMaterial({ color: 0xffd700, transparent: true, opacity: isZoomedOut ? 0.3 : 0.15 })
           mesh.add(new THREE.Mesh(glowGeom, glowMat))
 
-          // Star Icon - use cached texture
-          const starTexture = getCachedStarTexture()
-          const ss = new THREE.Sprite(new THREE.SpriteMaterial({ map: starTexture, transparent: true, depthTest: false, depthWrite: false }))
-          ss.scale.set(baseSize * 1.4, baseSize * 1.4, 1)
-          ss.position.set(0, 0, baseSize * 0.7)
-          mesh.add(ss)
+          // Star Icon - only show when zoomed in
+          if (!isZoomedOut) {
+            const starTexture = getCachedStarTexture()
+            const ss = new THREE.Sprite(new THREE.SpriteMaterial({ map: starTexture, transparent: true, depthTest: false, depthWrite: false }))
+            ss.scale.set(baseSize * 1.4, baseSize * 1.4, 1)
+            ss.position.set(0, 0, baseSize * 0.7)
+            mesh.add(ss)
+          }
         }
 
         mesh.userData.__nodeId = n.id
-        mesh.userData.__ring = ring
         return mesh
       })
       .linkOpacity((l: any) => l.kind === 'imports' ? 0.6 : 0.3)
