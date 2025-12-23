@@ -18,13 +18,37 @@ interface CytoscapeViewProps {
   mapId?: string
 }
 
-export default function CytoscapeView({ projectPath, mapId }: CytoscapeViewProps) {
+export default function CytoscapeView({ projectPath: projectPathProp, mapId }: CytoscapeViewProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const cyRef = useRef<Core | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [graph, setGraph] = useState<DependencyGraph | null>(null)
   const [mode, setMode] = useState<'forward' | 'backward'>('backward')
   const [autoScanned, setAutoScanned] = useState(false)
+  const [localProjectPath, setLocalProjectPath] = useState<string | null>(null)
+
+  // Use prop projectPath or local state
+  const projectPath = projectPathProp || localProjectPath
+
+  // Auto-set projectPath from Electron cwd if not provided
+  useEffect(() => {
+    if (!projectPathProp && !localProjectPath) {
+      const getCwd = async () => {
+        if (typeof window !== 'undefined' && window.electron?.fs?.getCwd) {
+          try {
+            const cwd = await window.electron.fs.getCwd()
+            if (cwd) {
+              console.log('[CytoscapeView] Auto-set projectPath from cwd:', cwd)
+              setLocalProjectPath(cwd)
+            }
+          } catch (err) {
+            console.warn('[CytoscapeView] Failed to get cwd:', err)
+          }
+        }
+      }
+      getCwd()
+    }
+  }, [projectPathProp, localProjectPath])
 
   // Initialize Cytoscape
   useEffect(() => {
