@@ -36,6 +36,9 @@ import {
 // Terminal Panel
 import { TerminalPanel } from '@/components/editor'
 
+// MCP Bridge for Claude Code CLI integration
+import { useMcpBridge } from '@/lib/neural-map/hooks/useMcpBridge'
+
 // Dynamically import 3D Canvas (uses browser APIs)
 const NeuralMapCanvas = dynamic(
   () => import('@/components/neural-map/canvas/NeuralMapCanvas').then((mod) => mod.NeuralMapCanvas),
@@ -90,9 +93,18 @@ const LifeStreamView = dynamic(
   }
 )
 
-// Dynamically import Cytoscape View (AI-powered code diagram)
+// Dynamically import Cytoscape View (AI-powered code diagram - flowchart only)
 const CytoscapeView = dynamic(
   () => import('@/components/neural-map/canvas/CytoscapeView').then((mod) => mod.default),
+  {
+    ssr: false,
+    loading: () => <CanvasLoadingFallback />,
+  }
+)
+
+// Dynamically import Mermaid View (all other diagram types)
+const MermaidView = dynamic(
+  () => import('@/components/neural-map/canvas/MermaidView').then((mod) => mod.default),
   {
     ssr: false,
     loading: () => <CanvasLoadingFallback />,
@@ -123,6 +135,7 @@ export default function NeuralMapPage() {
   const {
     graph,
     activeTab,
+    mermaidDiagramType,
     selectedNodeIds,
     rightPanelCollapsed,
     editorOpen,
@@ -148,6 +161,9 @@ export default function NeuralMapPage() {
   const { setPendingImage } = useChatStore()
   const setNeuralMapRightPanelTab = useNeuralMapStore((s) => s.setRightPanelTab)
   const setProjectPath = useNeuralMapStore((s) => s.setProjectPath)
+
+  // MCP Bridge for Claude Code CLI control
+  const { isConnected: mcpConnected } = useMcpBridge()
 
   // Viewfinder → Chat 연결 핸들러
   const handleViewfinderShareToAI = useCallback((context: { imageDataUrl: string; timestamp: number }) => {
@@ -439,7 +455,12 @@ export default function NeuralMapPage() {
             ) : activeTab === 'browser' ? (
               <BrowserView onShareToAI={handleViewfinderShareToAI} />
             ) : activeTab === 'mermaid' ? (
-              <CytoscapeView projectPath={projectPath ?? undefined} mapId={mapId ?? undefined} />
+              // Use Cytoscape for flowchart (code dependencies), Mermaid for others
+              mermaidDiagramType === 'flowchart' ? (
+                <CytoscapeView projectPath={projectPath ?? undefined} mapId={mapId ?? undefined} />
+              ) : (
+                <MermaidView className="absolute inset-0" />
+              )
             ) : (
               <Graph2DView className="absolute inset-0" />
             )}
