@@ -279,48 +279,85 @@ export function buildDependencyGraph(
   console.log(`[CodeAnalyzer] ❌ Failed to parse: ${failCount} files`)
 
   // 2단계: 의존성 관계를 엣지로 변환
-  // Create a map of file paths for quick lookup (just filename to full path)
-  const fileNameMap = new Map<string, string[]>()
+  // Create a map of normalized paths to node IDs for exact matching
+  const pathToNodeMap = new Map<string, string>()
   nodes.forEach(node => {
-    const fileName = node.id.split('/').pop()?.replace(/\.(ts|tsx|js|jsx)$/, '') || ''
-    if (!fileNameMap.has(fileName)) {
-      fileNameMap.set(fileName, [])
-    }
-    fileNameMap.get(fileName)!.push(node.id)
+    // Store both with and without extension for matching
+    const normalized = node.id.replace(/\.(ts|tsx|js|jsx)$/, '')
+    pathToNodeMap.set(normalized, node.id)
+    pathToNodeMap.set(node.id, node.id) // Also store with extension
   })
+
+  console.log(`[CodeAnalyzer] 📋 Created path map with ${pathToNodeMap.size} entries`)
 
   for (const file of files) {
     const ast = parseCode(file.content, file.path)
     if (!ast) continue
 
     const relativePath = file.path.replace(projectRoot, '').replace(/^\//, '')
+    const sourceDir = relativePath.split('/').slice(0, -1).join('/')
 
-    // Import edges - try to match import paths to actual files
+    // Import edges - resolve paths correctly
     const importEdges = extractImports(ast, relativePath)
       .map(edge => {
-        let targetPath = edge.target
-          // Handle alias imports: @/... -> remove @/
-          .replace(/^@\//, '')
-          // Handle relative imports: ./... or ../...
-          .replace(/^\.\//, '')
-          .replace(/^\.\.\//, '')
-          // Remove file extensions
-          .replace(/\.(ts|tsx|js|jsx)$/, '')
+        let importPath = edge.target
 
-        // Get the last part of the path (filename without extension)
-        const targetFileName = targetPath.split('/').pop() || ''
+        // Remove file extensions
+        importPath = importPath.replace(/\.(ts|tsx|js|jsx)$/, '')
 
-        // Try to find matching node
-        const matchingNodes = fileNameMap.get(targetFileName) || []
+        let resolvedPath = ''
 
-        if (matchingNodes.length > 0) {
-          // Use the first matching node as target
+        // 1. Handle alias imports: @/ -> project root
+        if (importPath.startsWith('@/')) {
+          resolvedPath = importPath.replace(/^@\//, '')
+        }
+        // 2. Handle relative imports: ./ or ../
+        else if (importPath.startsWith('./') || importPath.startsWith('../')) {
+          // Resolve relative path based on source file's directory
+          const parts = importPath.split('/')
+          const dirParts = sourceDir.split('/').filter(Boolean)
+
+          for (const part of parts) {
+            if (part === '..') {
+              dirParts.pop()
+            } else if (part === '.') {
+              // Stay in current dir
+            } else {
+              dirParts.push(part)
+            }
+          }
+
+          resolvedPath = dirParts.join('/')
+        }
+        // 3. External package import (node_modules) - skip
+        else {
+          // If it doesn't start with . or @/, it's likely a node_modules import
+          return null
+        }
+
+        // Try to find exact match in our node map
+        const targetNodeId = pathToNodeMap.get(resolvedPath)
+
+        if (targetNodeId) {
           return {
             ...edge,
-            target: matchingNodes[0]
+            target: targetNodeId
           }
         }
 
+        // If no match, try with common extensions
+        const extensions = ['.tsx', '.ts', '.jsx', '.js', '/index.tsx', '/index.ts', '/index.jsx', '/index.js']
+        for (const ext of extensions) {
+          const withExt = pathToNodeMap.get(resolvedPath + ext)
+          if (withExt) {
+            return {
+              ...edge,
+              target: withExt
+            }
+          }
+        }
+
+        // No match found - this is likely an external import
         return null
       })
       .filter(Boolean) as CodeEdge[]
