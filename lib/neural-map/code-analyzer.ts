@@ -290,6 +290,14 @@ export function buildDependencyGraph(
 
   console.log(`[CodeAnalyzer] 📋 Created path map with ${pathToNodeMap.size} entries`)
 
+  // Debug: Log first 10 path map entries
+  const pathMapSample = Array.from(pathToNodeMap.entries()).slice(0, 10)
+  console.log(`[CodeAnalyzer] 📋 Sample path map entries:`, pathMapSample)
+
+  let matchedCount = 0
+  let unmatchedCount = 0
+  const unmatchedSamples: string[] = []
+
   for (const file of files) {
     const ast = parseCode(file.content, file.path)
     if (!ast) continue
@@ -339,6 +347,7 @@ export function buildDependencyGraph(
         const targetNodeId = pathToNodeMap.get(resolvedPath)
 
         if (targetNodeId) {
+          matchedCount++
           return {
             ...edge,
             target: targetNodeId
@@ -350,6 +359,7 @@ export function buildDependencyGraph(
         for (const ext of extensions) {
           const withExt = pathToNodeMap.get(resolvedPath + ext)
           if (withExt) {
+            matchedCount++
             return {
               ...edge,
               target: withExt
@@ -358,11 +368,20 @@ export function buildDependencyGraph(
         }
 
         // No match found - this is likely an external import
+        unmatchedCount++
+        if (unmatchedSamples.length < 10) {
+          unmatchedSamples.push(`${relativePath} -> ${importPath} (resolved: ${resolvedPath})`)
+        }
         return null
       })
       .filter(Boolean) as CodeEdge[]
 
     edges.push(...importEdges)
+  }
+
+  console.log(`[CodeAnalyzer] 🔗 Matched ${matchedCount} imports, ${unmatchedCount} unmatched`)
+  if (unmatchedSamples.length > 0) {
+    console.log(`[CodeAnalyzer] ❌ Sample unmatched imports:`, unmatchedSamples)
   }
 
   console.log(`[CodeAnalyzer] 🔗 Created ${edges.length} edges`)
