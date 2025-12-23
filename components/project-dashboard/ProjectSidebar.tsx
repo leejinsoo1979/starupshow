@@ -17,6 +17,8 @@ import {
   Rocket,
   Play,
   GitBranch,
+  Brain,
+  Sparkles,
 } from "lucide-react"
 
 export type ProjectSection =
@@ -30,6 +32,7 @@ export type ProjectSection =
   | "updates"
   | "documents"
   | "budget"
+  | "ai-intelligence"
   | "settings"
 
 interface MenuItem {
@@ -74,6 +77,12 @@ const menuGroups = [
     items: [
       { id: "documents" as ProjectSection, label: "문서", icon: FileText, color: "#6366F1" },
       { id: "team" as ProjectSection, label: "조직 구성", icon: Users, color: "#22C55E" },
+    ],
+  },
+  {
+    title: "AI",
+    items: [
+      { id: "ai-intelligence" as ProjectSection, label: "AI 인텔리전스", icon: Brain, color: "#A855F7", description: "토큰 사용량 & ROI" },
     ],
   },
   {

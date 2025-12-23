@@ -28,6 +28,7 @@ import {
   WorkflowSection,
   CalendarSection,
   UpdatesSection,
+  AIIntelligenceDashboard,
   type ProjectSection,
 } from "@/components/project-dashboard"
 import {
@@ -568,6 +569,9 @@ export default function ProjectDetailPage() {
             </div>
           </div>
         )
+
+      case "ai-intelligence":
+        return <AIIntelligenceDashboard projectId={projectId} />
 
       case "settings":
         return (
