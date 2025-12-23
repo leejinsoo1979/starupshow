@@ -38,8 +38,11 @@ interface GitCommitInfo {
 }
 
 export default function GitPanel() {
-  const { projectPath } = useNeuralMapStore()
+  // linkedProjectId = 사용자가 선택한 프로젝트 ID
+  // projectPath는 linkedProjectId가 있을 때만 사용해야 함
+  const { projectPath, linkedProjectId, linkedProjectName } = useNeuralMapStore()
   const [isGitRepo, setIsGitRepo] = useState(false)
+  const [projectGitPath, setProjectGitPath] = useState<string | null>(null)
   const [currentBranch, setCurrentBranch] = useState<string | null>(null)
   const [status, setStatus] = useState<GitStatus>({ staged: [], unstaged: [], untracked: [] })
   const [commits, setCommits] = useState<GitCommitInfo[]>([])
@@ -71,36 +74,87 @@ export default function GitPanel() {
       /^\/Users\/[^/]+\/?$/i,           // User home directory
       /^\/Users\/[^/]+\/Documents\/?$/i, // Documents folder
       /^\/Users\/[^/]+\/Desktop\/?$/i,   // Desktop folder
-      /^\/Users\/[^/]+\/Downloads\/?$/i, // Downloads folder
+      /^\/Users\/[^/]+\/Downloads\/?$/i, // Downloads folder (단, GlowUS 앱 제외)
       /^~\/?$/i,                          // Home shorthand
       /^\/home\/[^/]+\/?$/i,             // Linux home
       /^C:\\Users\\[^\\]+\\?$/i,         // Windows home
     ]
+    // GlowUS 앱 폴더 자체도 차단 (사용자 프로젝트만 허용)
+    if (path.includes('GlowUS') && !linkedProjectId) {
+      return true
+    }
     return dangerousPatterns.some(pattern => pattern.test(path))
   }
 
-  const checkGitRepo = useCallback(async () => {
-    if (!projectPath || !window.electron?.git) {
-      setIsGitRepo(false)
-      setIsLoading(false)
-      return
-    }
-
-    // Block dangerous paths
-    if (isDangerousPath(projectPath)) {
-      console.error('[GitPanel] Blocked dangerous path:', projectPath)
-      setError('개인 폴더에서는 Git을 사용할 수 없습니다. 프로젝트 폴더를 선택하세요.')
+  // 프로젝트의 실제 Git 경로 가져오기
+  const fetchProjectGitPath = useCallback(async () => {
+    if (!linkedProjectId) {
+      setProjectGitPath(null)
       setIsGitRepo(false)
       setIsLoading(false)
       return
     }
 
     try {
-      const result = await window.electron.git.isRepo?.(projectPath)
+      const response = await fetch(`/api/projects/${linkedProjectId}`)
+      if (response.ok) {
+        const project = await response.json()
+        const folderPath = project.folder_path
+
+        if (folderPath) {
+          setProjectGitPath(folderPath)
+          console.log('[GitPanel] Using project folder_path:', folderPath)
+        } else {
+          setProjectGitPath(null)
+          setError('프로젝트에 연결된 폴더가 없습니다. 먼저 폴더를 연결하세요.')
+          setIsLoading(false)
+        }
+      }
+    } catch (err) {
+      console.error('[GitPanel] Failed to fetch project:', err)
+      setProjectGitPath(null)
+      setIsLoading(false)
+    }
+  }, [linkedProjectId])
+
+  // linkedProjectId 변경 시 프로젝트 정보 가져오기
+  useEffect(() => {
+    fetchProjectGitPath()
+  }, [fetchProjectGitPath])
+
+  const checkGitRepo = useCallback(async () => {
+    // linkedProjectId가 없으면 Git 패널 비활성화
+    if (!linkedProjectId) {
+      setIsGitRepo(false)
+      setIsLoading(false)
+      setError('프로젝트를 먼저 선택하세요.')
+      return
+    }
+
+    // projectGitPath가 없으면 대기
+    if (!projectGitPath || !window.electron?.git) {
+      setIsGitRepo(false)
+      setIsLoading(false)
+      return
+    }
+
+    // Block dangerous paths
+    if (isDangerousPath(projectGitPath)) {
+      console.error('[GitPanel] Blocked dangerous path:', projectGitPath)
+      setError('이 폴더에서는 Git을 사용할 수 없습니다.')
+      setIsGitRepo(false)
+      setIsLoading(false)
+      return
+    }
+
+    try {
+      const result = await window.electron.git.isRepo?.(projectGitPath)
       setIsGitRepo(result?.isRepo || false)
 
       if (result?.isRepo) {
         await refreshGitStatus()
+      } else {
+        setError('이 폴더는 Git 저장소가 아닙니다.')
       }
     } catch (err) {
       console.error('Failed to check git repo:', err)
@@ -108,34 +162,35 @@ export default function GitPanel() {
     } finally {
       setIsLoading(false)
     }
-  }, [projectPath])
+  }, [linkedProjectId, projectGitPath])
 
   useEffect(() => {
     checkGitRepo()
   }, [checkGitRepo])
 
   const refreshGitStatus = async () => {
-    if (!projectPath || !window.electron?.git) return
+    // projectGitPath만 사용 (사용자 프로젝트의 실제 경로)
+    if (!projectGitPath || !linkedProjectId || !window.electron?.git) return
 
     setIsRefreshing(true)
     setError(null)
 
     try {
       // Get current branch
-      const branchResult = await window.electron.git.currentBranch?.(projectPath)
+      const branchResult = await window.electron.git.currentBranch?.(projectGitPath)
       if (branchResult?.success) {
         setCurrentBranch(branchResult.branch || 'main')
       }
 
       // Get status
-      const statusResult = await window.electron.git.status?.(projectPath)
+      const statusResult = await window.electron.git.status?.(projectGitPath)
       if (statusResult?.success && statusResult.output) {
         const parsedStatus = parseGitStatus(statusResult.output)
         setStatus(parsedStatus)
       }
 
       // Get recent commits
-      const logResult = await window.electron.git.log?.(projectPath, { maxCommits: 10 })
+      const logResult = await window.electron.git.log?.(projectGitPath, { maxCommits: 10 })
       if (logResult) {
         const parsedCommits = parseGitLog(logResult)
         setCommits(parsedCommits)
@@ -292,7 +347,7 @@ export default function GitPanel() {
     setError(null)
 
     try {
-      const result = await window.electron.git.push?.(projectPath)
+      const result = await window.electron.git.push?.(projectGitPath!)
       if (!result?.success) {
         setError(result?.error || 'Push 실패')
       }
@@ -312,7 +367,7 @@ export default function GitPanel() {
     setError(null)
 
     try {
-      const result = await window.electron.git.pull?.(projectPath)
+      const result = await window.electron.git.pull?.(projectGitPath!)
       if (!result?.success) {
         setError(result?.error || 'Pull 실패')
       }
@@ -352,12 +407,31 @@ export default function GitPanel() {
     )
   }
 
-  if (!projectPath) {
+  // 프로젝트가 선택되지 않은 경우
+  if (!linkedProjectId) {
     return (
       <div className={`h-full flex flex-col items-center justify-center p-6 ${isDark ? 'bg-zinc-900' : 'bg-white'}`}>
         <GitBranch className={`w-12 h-12 mb-4 ${isDark ? 'text-zinc-600' : 'text-zinc-400'}`} />
         <p className={`text-center ${isDark ? 'text-zinc-400' : 'text-zinc-600'}`}>
-          프로젝트 폴더를 선택해주세요
+          프로젝트를 먼저 선택해주세요
+        </p>
+        <p className={`text-center text-sm mt-2 ${isDark ? 'text-zinc-500' : 'text-zinc-500'}`}>
+          Neural Map에서 프로젝트를 연결하면<br />해당 프로젝트의 Git을 사용할 수 있습니다
+        </p>
+      </div>
+    )
+  }
+
+  // 프로젝트에 폴더가 연결되지 않은 경우
+  if (!projectGitPath) {
+    return (
+      <div className={`h-full flex flex-col items-center justify-center p-6 ${isDark ? 'bg-zinc-900' : 'bg-white'}`}>
+        <GitBranch className={`w-12 h-12 mb-4 ${isDark ? 'text-zinc-600' : 'text-zinc-400'}`} />
+        <p className={`text-center ${isDark ? 'text-zinc-400' : 'text-zinc-600'}`}>
+          프로젝트에 폴더가 연결되지 않았습니다
+        </p>
+        <p className={`text-center text-sm mt-2 ${isDark ? 'text-zinc-500' : 'text-zinc-500'}`}>
+          프로젝트 대시보드에서 로컬 폴더를 연결하세요
         </p>
       </div>
     )
@@ -372,8 +446,8 @@ export default function GitPanel() {
         </p>
         <button
           onClick={async () => {
-            if (window.electron?.git?.init) {
-              await window.electron.git.init(projectPath)
+            if (window.electron?.git?.init && projectGitPath) {
+              await window.electron.git.init(projectGitPath)
               await checkGitRepo()
             }
           }}

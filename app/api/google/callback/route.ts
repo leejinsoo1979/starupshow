@@ -62,7 +62,7 @@ export async function GET(request: NextRequest) {
 
     // 기존 연결 확인
     const { data: existing } = await supabase
-      .from('user_google_connections')
+      .from('user_google_connections' as any)
       .select('id')
       .eq('user_id', stateData.userId)
       .single()
@@ -82,15 +82,12 @@ export async function GET(request: NextRequest) {
 
     if (existing) {
       // 업데이트
-      await supabase
-        .from('user_google_connections')
-        .update(connectionData)
-        .eq('id', existing.id)
+      // @ts-ignore - 새 테이블, 타입 생성 필요
+      await supabase.from('user_google_connections').update(connectionData).eq('id', (existing as any).id)
     } else {
       // 새로 생성
-      await supabase
-        .from('user_google_connections')
-        .insert(connectionData)
+      // @ts-ignore - 새 테이블, 타입 생성 필요
+      await supabase.from('user_google_connections').insert(connectionData)
     }
 
     // 성공 - 원래 페이지로 리다이렉트

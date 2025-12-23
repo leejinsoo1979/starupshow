@@ -473,15 +473,31 @@ export function FileTreePanel({ mapId }: FileTreePanelProps) {
 
     const newFolderName = newItemName.trim()
 
-    // 로컬 폴더가 있으면 파일 시스템에 폴더 생성
-    if (projectPath && window.electron?.fs) {
+    // 파일 시스템에 폴더 생성 (Electron 또는 GCS)
+    if (projectPath) {
       try {
-        const folderPath = `${projectPath}/${newFolderName}`
-        // fs.mkdir 사용 (타입 단언)
-        const fs = window.electron.fs as any
-        if (fs.mkdir) {
-          await fs.mkdir(folderPath)
-          console.log('[FileTree] Created new folder:', folderPath)
+        if (isWeb()) {
+          // Web 모드: GCS에 .keep 파일로 폴더 표시
+          const response = await fetch('/api/gcs', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              path: `${newFolderName}/.keep`,
+              content: '',
+              projectId: projectPath,
+            }),
+          })
+          if (response.ok) {
+            console.log('[FileTree] 🌐 Created folder in GCS:', newFolderName)
+          }
+        } else if (window.electron?.fs) {
+          // Electron 모드: 로컬에 폴더 생성
+          const folderPath = `${projectPath}/${newFolderName}`
+          const fs = window.electron.fs as any
+          if (fs.mkdir) {
+            await fs.mkdir(folderPath)
+            console.log('[FileTree] Created new folder:', folderPath)
+          }
         }
       } catch (err) {
         console.error('[FileTree] Failed to create folder:', err)
@@ -494,24 +510,6 @@ export function FileTreePanel({ mapId }: FileTreePanelProps) {
     setIsCreatingNew(null)
     setNewItemName('')
   }, [newItemName, projectPath])
-
-  // 새로고침 핸들러
-  const handleRefresh = useCallback(async () => {
-    if (projectPath && window.electron?.fs) {
-      console.log('[FileTree] Refreshing...')
-      try {
-        // readDirectory 사용 (기존 API)
-        const fs = window.electron.fs
-        if (fs.readDirectory) {
-          await fs.readDirectory(projectPath, {})
-        }
-        // 파일 필터링 및 처리는 loadLocalFolder에서 처리됨
-        window.dispatchEvent(new CustomEvent('folder-refresh', { detail: { path: projectPath } }))
-      } catch (err) {
-        console.error('[FileTree] Refresh failed:', err)
-      }
-    }
-  }, [projectPath])
 
   // 모두 접기 핸들러
   const handleCollapseAll = useCallback(() => {
@@ -1641,6 +1639,29 @@ export function FileTreePanel({ mapId }: FileTreePanelProps) {
   // ref로 최신 함수 참조 유지 (useEffect에서 사용)
   const loadFolderFromPathRef = useRef(loadFolderFromPath)
   loadFolderFromPathRef.current = loadFolderFromPath
+
+  // 새로고침 핸들러 (loadFolderFromPath 이후 정의)
+  const handleRefresh = useCallback(async () => {
+    if (projectPath) {
+      console.log('[FileTree] Refreshing...')
+      try {
+        if (isWeb()) {
+          // Web 모드: GCS에서 다시 로드
+          await loadFolderFromPath(projectPath)
+        } else if (window.electron?.fs) {
+          // Electron 모드: readDirectory 사용 (기존 API)
+          const fs = window.electron.fs
+          if (fs.readDirectory) {
+            await fs.readDirectory(projectPath, {})
+          }
+          // 파일 필터링 및 처리는 loadLocalFolder에서 처리됨
+          window.dispatchEvent(new CustomEvent('folder-refresh', { detail: { path: projectPath } }))
+        }
+      } catch (err) {
+        console.error('[FileTree] Refresh failed:', err)
+      }
+    }
+  }, [projectPath, loadFolderFromPath])
 
   // 폴더 업로드 - File System Access API (Real Sync)
   const handleNativeFolderUpload = async () => {

@@ -73,7 +73,7 @@ function buildTree(items: any[], basePrefix: string): TreeNode[] {
     let current = root
     let currentPath = basePrefix
 
-    parts.forEach((part, index) => {
+    parts.forEach((part: string, index: number) => {
       currentPath += part + (index < parts.length - 1 ? '/' : '')
 
       if (!current[part]) {

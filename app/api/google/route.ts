@@ -12,7 +12,7 @@ export async function GET() {
     }
 
     const { data: connection, error } = await supabase
-      .from('user_google_connections')
+      .from('user_google_connections' as any)
       .select('*')
       .eq('user_id', user.id)
       .single()
@@ -26,11 +26,12 @@ export async function GET() {
       return NextResponse.json({ connected: false })
     }
 
+    const conn = connection as any
     return NextResponse.json({
       connected: true,
-      email: connection.google_email,
-      name: connection.google_name,
-      avatar: connection.google_avatar_url,
+      email: conn.google_email,
+      name: conn.google_name,
+      avatar: conn.google_avatar_url,
     })
   } catch (error: any) {
     console.error('Google connection error:', error)
@@ -50,7 +51,7 @@ export async function DELETE() {
 
     // 연결 정보 삭제
     const { error } = await supabase
-      .from('user_google_connections')
+      .from('user_google_connections' as any)
       .delete()
       .eq('user_id', user.id)
 
@@ -60,16 +61,13 @@ export async function DELETE() {
     }
 
     // 프로젝트에서 GCS 설정 제거
-    await supabase
-      .from('projects')
-      .update({
-        gcs_bucket: null,
-        gcs_prefix: null,
-        storage_type: 'local',
-        gcs_connected_at: null,
-      })
-      .eq('user_id', user.id)
-      .eq('storage_type', 'gcs')
+    // @ts-ignore - 새 필드, 타입 생성 필요
+    await supabase.from('projects').update({
+      gcs_bucket: null,
+      gcs_prefix: null,
+      storage_type: 'local',
+      gcs_connected_at: null,
+    }).eq('user_id', user.id).eq('storage_type', 'gcs')
 
     return NextResponse.json({ success: true })
   } catch (error: any) {
