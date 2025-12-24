@@ -1,7 +1,8 @@
 "use client"
 
+import { useState } from "react"
 import { motion, AnimatePresence } from "framer-motion"
-import { X, Bell, AlertTriangle, CheckCircle, MessageCircle, Sparkles } from "lucide-react"
+import { X, Bell, AlertTriangle, CheckCircle, Sparkles, Send, Loader2 } from "lucide-react"
 import { useAgentNotification, AgentNotification } from "@/lib/contexts/AgentNotificationContext"
 import { useThemeStore, accentColors } from "@/stores/themeStore"
 
@@ -13,9 +14,15 @@ const typeIcons = {
 }
 
 function NotificationItem({ notification, index }: { notification: AgentNotification; index: number }) {
-  const { dismissNotification } = useAgentNotification()
+  const { dismissNotification, showAgentNotification } = useAgentNotification()
   const { accentColor: themeAccent } = useThemeStore()
   const { agent, message, type, emotion, actions } = notification
+
+  // 답장 모드 상태
+  const [isReplyMode, setIsReplyMode] = useState(false)
+  const [replyText, setReplyText] = useState("")
+  const [isProcessing, setIsProcessing] = useState(false)
+  const [agentResponse, setAgentResponse] = useState<string | null>(null)
 
   // 테마 색상 가져오기
   const themeColorData = accentColors.find(c => c.id === themeAccent)
@@ -29,6 +36,48 @@ function NotificationItem({ notification, index }: { notification: AgentNotifica
   const Icon = typeIcons[type]
   // 테마 색상 사용 (에이전트 색상 대신)
   const accentColor = themeColor
+
+  // 답장 전송 처리
+  const handleSendReply = async () => {
+    if (!replyText.trim() || isProcessing) return
+
+    setIsProcessing(true)
+    try {
+      // 에이전트에게 메시지 전송
+      const response = await fetch(`/api/agents/${agent.id}/chat`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          message: replyText,
+          context: `사용자가 "${message}"에 대해 답장했습니다: "${replyText}"`,
+        }),
+      })
+
+      if (response.ok) {
+        const data = await response.json()
+        const agentReply = data.response || data.message || "알겠습니다. 처리하겠습니다."
+        setAgentResponse(agentReply)
+
+        // 2초 후 닫고 에이전트 응답 알림 표시
+        setTimeout(() => {
+          dismissNotification(notification.id)
+          showAgentNotification(agent, agentReply, {
+            type: "info",
+            actions: [
+              { label: "확인", onClick: () => {} },
+            ],
+          })
+        }, 1500)
+      } else {
+        setAgentResponse("죄송합니다. 응답을 처리하는 중 오류가 발생했습니다.")
+      }
+    } catch (error) {
+      console.error("Reply error:", error)
+      setAgentResponse("네트워크 오류가 발생했습니다.")
+    } finally {
+      setIsProcessing(false)
+    }
+  }
 
   return (
     <>
@@ -146,51 +195,114 @@ function NotificationItem({ notification, index }: { notification: AgentNotifica
                 {message}
               </p>
             </div>
+
+            {/* 에이전트 응답 표시 */}
+            <AnimatePresence>
+              {agentResponse && (
+                <motion.div
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0 }}
+                  className="mt-3 rounded-2xl p-4 border"
+                  style={{
+                    backgroundColor: `${accentColor}15`,
+                    borderColor: `${accentColor}30`,
+                  }}
+                >
+                  <p className="text-sm leading-relaxed text-center" style={{ color: accentColor }}>
+                    {agentResponse}
+                  </p>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </motion.div>
 
-          {/* 액션 버튼 섹션 */}
-          <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.4 }}
-            className="px-6 pb-6"
-          >
-            {actions && actions.length > 0 ? (
-              <div className="flex gap-3">
-                {actions.map((action, idx) => (
-                  <button
-                    key={idx}
-                    onClick={() => {
-                      action.onClick()
-                      dismissNotification(notification.id)
-                    }}
-                    className={`flex-1 py-3 px-4 text-sm font-semibold rounded-xl transition-all ${
-                      idx === 0
-                        ? "text-white shadow-lg hover:shadow-xl hover:scale-[1.02] active:scale-[0.98]"
-                        : "bg-zinc-800 text-zinc-300 hover:bg-zinc-700 hover:text-white"
-                    }`}
-                    style={idx === 0 ? {
-                      background: `linear-gradient(135deg, ${accentColor}, ${accentColor}cc)`,
-                      boxShadow: `0 4px 20px ${accentColor}40`,
-                    } : {}}
-                  >
-                    {action.label}
-                  </button>
-                ))}
-              </div>
-            ) : (
-              <button
-                onClick={() => dismissNotification(notification.id)}
-                className="w-full py-3 px-4 text-sm font-semibold rounded-xl text-white transition-all hover:scale-[1.02] active:scale-[0.98]"
-                style={{
-                  background: `linear-gradient(135deg, ${accentColor}, ${accentColor}cc)`,
-                  boxShadow: `0 4px 20px ${accentColor}40`,
-                }}
+          {/* 답장 입력 섹션 */}
+          <AnimatePresence>
+            {isReplyMode && !agentResponse && (
+              <motion.div
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: "auto" }}
+                exit={{ opacity: 0, height: 0 }}
+                className="px-6 pb-4"
               >
-                확인
-              </button>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={replyText}
+                    onChange={(e) => setReplyText(e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && handleSendReply()}
+                    placeholder={`${agent.name}에게 답장...`}
+                    className="flex-1 px-4 py-3 bg-zinc-800 border border-zinc-700 rounded-xl text-sm text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-zinc-600"
+                    autoFocus
+                    disabled={isProcessing}
+                  />
+                  <button
+                    onClick={handleSendReply}
+                    disabled={!replyText.trim() || isProcessing}
+                    className="px-4 py-3 rounded-xl text-white transition-all hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50 disabled:hover:scale-100"
+                    style={{
+                      background: `linear-gradient(135deg, ${accentColor}, ${accentColor}cc)`,
+                    }}
+                  >
+                    {isProcessing ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <Send className="w-4 h-4" />
+                    )}
+                  </button>
+                </div>
+              </motion.div>
             )}
-          </motion.div>
+          </AnimatePresence>
+
+          {/* 액션 버튼 섹션 */}
+          {!isReplyMode && !agentResponse && (
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.4 }}
+              className="px-6 pb-6"
+            >
+              <div className="flex gap-3">
+                <button
+                  onClick={() => dismissNotification(notification.id)}
+                  className="flex-1 py-3 px-4 text-sm font-semibold rounded-xl text-white transition-all hover:scale-[1.02] active:scale-[0.98]"
+                  style={{
+                    background: `linear-gradient(135deg, ${accentColor}, ${accentColor}cc)`,
+                    boxShadow: `0 4px 20px ${accentColor}40`,
+                  }}
+                >
+                  확인
+                </button>
+                <button
+                  onClick={() => setIsReplyMode(true)}
+                  className="flex-1 py-3 px-4 text-sm font-semibold rounded-xl bg-zinc-800 text-zinc-300 hover:bg-zinc-700 hover:text-white transition-all"
+                >
+                  답장
+                </button>
+              </div>
+            </motion.div>
+          )}
+
+          {/* 답장 모드에서 취소 버튼 */}
+          {isReplyMode && !agentResponse && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              className="px-6 pb-6"
+            >
+              <button
+                onClick={() => {
+                  setIsReplyMode(false)
+                  setReplyText("")
+                }}
+                className="w-full py-2 text-sm text-zinc-500 hover:text-zinc-300 transition-colors"
+              >
+                취소
+              </button>
+            </motion.div>
+          )}
 
         </div>
         </motion.div>
