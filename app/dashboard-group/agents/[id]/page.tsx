@@ -62,7 +62,6 @@ import {
   Phone,
   PhoneOff,
   Volume2,
-  Play,
   Square,
   Waves,
   UserCircle,
