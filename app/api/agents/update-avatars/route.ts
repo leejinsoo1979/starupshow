@@ -1,6 +1,9 @@
 import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 
+// 여성 에이전트 이름 목록
+const FEMALE_AGENTS = ['레이첼', 'rachel', '애니', 'ani', 'annie']
+
 // POST: Update all agent avatars to lorelei style (except Amy)
 export async function POST() {
   try {
@@ -28,30 +31,32 @@ export async function POST() {
         continue
       }
 
-      // 이미 lorelei 스타일이면 스킵
-      if (agent.avatar_url?.includes('lorelei')) {
+      // 커스텀 업로드 이미지가 있으면 스킵 (supabase storage 이미지 등)
+      if (agent.avatar_url &&
+          !agent.avatar_url.includes('dicebear')) {
         skipped++
         continue
       }
 
-      // bottts 스타일이거나 avatar가 없는 경우만 업데이트
-      if (
-        !agent.avatar_url ||
-        agent.avatar_url.includes('bottts') ||
-        agent.avatar_url.includes('dicebear')
-      ) {
-        const newAvatarUrl = `https://api.dicebear.com/7.x/lorelei/svg?seed=${encodeURIComponent(agent.name)}`
+      // 여성 에이전트 체크
+      const isFemale = FEMALE_AGENTS.some(name => nameLower.includes(name))
 
-        const { error: updateError } = await (adminClient as any)
-          .from('deployed_agents')
-          .update({ avatar_url: newAvatarUrl })
-          .eq('id', agent.id)
+      // 여성 에이전트: 여성스러운 시드 사용
+      // 남성 에이전트: 기본 이름 시드 사용
+      const seed = isFemale
+        ? `${agent.name}-female-${Date.now()}`
+        : agent.name
 
-        if (!updateError) {
-          updated++
-        }
-      } else {
-        skipped++
+      const newAvatarUrl = `https://api.dicebear.com/7.x/lorelei/svg?seed=${encodeURIComponent(seed)}`
+
+      const { error: updateError } = await (adminClient as any)
+        .from('deployed_agents')
+        .update({ avatar_url: newAvatarUrl })
+        .eq('id', agent.id)
+
+      if (!updateError) {
+        updated++
+        console.log(`Updated ${agent.name} (${isFemale ? 'female' : 'male'})`)
       }
     }
 

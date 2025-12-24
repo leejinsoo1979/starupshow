@@ -226,11 +226,21 @@ function extractCapabilitiesFromNodes(nodes: Record<string, unknown>[]): string[
   return capabilities
 }
 
+// 여성 에이전트 이름 목록
+const FEMALE_AGENTS = ['레이첼', 'rachel', '애니', 'ani', 'annie', '소피아', 'sophia', '엠마', 'emma', '올리비아', 'olivia']
+
 // Helper: Generate avatar URL (DiceBear lorelei avatars - 사람 얼굴 스타일)
 function generateAvatarUrl(name: string): string {
   // DiceBear lorelei style - generates unique human-like avatars
-  const seed = encodeURIComponent(name)
-  return `https://api.dicebear.com/7.x/lorelei/svg?seed=${seed}`
+  const nameLower = name.toLowerCase()
+  const isFemale = FEMALE_AGENTS.some(n => nameLower.includes(n))
+
+  // 여성 에이전트는 여성스러운 시드 사용
+  const seed = isFemale
+    ? `${name}-female`
+    : name
+
+  return `https://api.dicebear.com/7.x/lorelei/svg?seed=${encodeURIComponent(seed)}`
 }
 
 // Helper: Generate system prompt
