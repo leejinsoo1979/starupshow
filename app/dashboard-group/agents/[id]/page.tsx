@@ -3725,22 +3725,16 @@ export default function AgentProfilePage() {
         setIsVoiceConnecting(false)
 
         // 🔥 에이전트가 먼저 인사하도록 설정
+        // 인사 트리거 없이 바로 응답 생성 요청 (instructions에 인사 지시 포함됨)
         setTimeout(() => {
-          console.log('[VoiceCall] Requesting agent greeting...')
-          // 인사 요청 메시지 생성
-          ws.send(JSON.stringify({
-            type: 'conversation.item.create',
-            item: {
-              type: 'message',
-              role: 'user',
-              content: [{ type: 'input_text', text: '(통화가 연결되었습니다. 자연스럽게 인사해주세요.)' }]
-            }
-          }))
-          // 음성 응답 요청
+          console.log('[VoiceCall] Requesting agent greeting (no trigger message)...')
+          // 🔥 response.create만 호출 - instructions에 "통화 시작 시 먼저 인사" 지시가 있어야 함
           ws.send(JSON.stringify({
             type: 'response.create',
             response: {
-              modalities: ['text', 'audio']
+              modalities: ['text', 'audio'],
+              // instructions override for greeting (xAI 지원 시)
+              instructions: '통화가 방금 연결되었습니다. 사용자에게 자연스럽게 먼저 인사해주세요. 짧고 친근하게.'
             }
           }))
           // 인사 후 마이크 시작
