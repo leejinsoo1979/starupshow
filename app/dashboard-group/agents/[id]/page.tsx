@@ -76,6 +76,7 @@ import { getAppLogo } from '@/components/icons/app-logos'
 import { AgentOSPanel } from '@/components/agent/AgentOSPanel'
 import { BrainMapLayout } from '@/components/brain-map/BrainMapLayout'
 import { useThemeStore, accentColors } from '@/stores/themeStore'
+import { GrokVoiceChat } from '@/components/voice/GrokVoiceChat'
 
 type TabType = 'about' | 'chat' | 'history' | 'workspace' | 'brainmap' | 'knowledge' | 'integrations' | 'apis' | 'workflow' | 'settings'
 
@@ -2109,6 +2110,9 @@ export default function AgentProfilePage() {
 
   // 프롬프트 섹션 확장 상태
   const [expandedPromptSections, setExpandedPromptSections] = useState<Record<string, boolean>>({})
+
+  // 음성 통화 모달 상태
+  const [showVoiceCall, setShowVoiceCall] = useState(false)
 
   // Image upload states
   const [uploading, setUploading] = useState(false)
@@ -4433,7 +4437,7 @@ export default function AgentProfilePage() {
           {/* 채팅 / 보이스 버튼 */}
           <div className="flex gap-2">
             <button
-              onClick={() => router.push(`/dashboard-group/messenger?invite=${agentId}`)}
+              onClick={() => setActiveTab('chat')}
               className="flex-1 h-10 rounded-xl text-white text-sm font-medium transition-colors flex items-center justify-center gap-2"
               style={{ backgroundColor: userAccentColor }}
             >
@@ -4441,7 +4445,7 @@ export default function AgentProfilePage() {
               채팅
             </button>
             <button
-              onClick={() => router.push(`/dashboard-group/messenger?invite=${agentId}&mode=voice`)}
+              onClick={() => setShowVoiceCall(true)}
               className="flex-1 h-10 rounded-xl text-sm font-medium transition-colors flex items-center justify-center gap-2"
               style={{
                 backgroundColor: `${userAccentColor}20`,
@@ -7197,43 +7201,84 @@ export default function AgentProfilePage() {
                   <div className="space-y-6">
                     {/* 음성 선택 */}
                     <div>
-                      <label className={cn('text-sm font-medium block mb-3', isDark ? 'text-zinc-300' : 'text-zinc-700')}>
-                        🎤 음성 선택
+                      <label className={cn('text-sm font-medium flex items-center gap-2 mb-3', isDark ? 'text-zinc-300' : 'text-zinc-700')}>
+                        <Volume2 className="w-4 h-4" />
+                        음성 선택
                       </label>
                       <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
                         {VOICE_OPTIONS.map((voice) => (
-                          <button
+                          <div
                             key={voice.id}
-                            onClick={() => setEditForm({ ...editForm, voice: voice.id })}
                             className={cn(
-                              'p-3 rounded-xl border-2 text-left transition-all',
+                              'relative p-3 rounded-xl border-2 transition-all cursor-pointer',
                               editForm.voice === voice.id
                                 ? 'border-accent bg-accent/10'
                                 : isDark
                                   ? 'border-zinc-700 hover:border-zinc-600 bg-zinc-900'
                                   : 'border-zinc-200 hover:border-zinc-300 bg-white'
                             )}
+                            onClick={() => setEditForm({ ...editForm, voice: voice.id })}
                           >
-                            <div className="flex items-center gap-2 mb-1">
-                              <span className="text-lg">
-                                {voice.gender === 'female' ? '👩' : voice.gender === 'male' ? '👨' : '🧑'}
-                              </span>
-                              <span className={cn('font-medium', isDark ? 'text-white' : 'text-zinc-900')}>
-                                {voice.name}
-                              </span>
+                            <div className="flex items-center justify-between mb-1">
+                              <div className="flex items-center gap-2">
+                                <div className={cn(
+                                  'w-8 h-8 rounded-full flex items-center justify-center',
+                                  voice.gender === 'female'
+                                    ? 'bg-pink-500/20 text-pink-500'
+                                    : voice.gender === 'male'
+                                      ? 'bg-blue-500/20 text-blue-500'
+                                      : 'bg-purple-500/20 text-purple-500'
+                                )}>
+                                  <UserCircle className="w-5 h-5" />
+                                </div>
+                                <span className={cn('font-medium', isDark ? 'text-white' : 'text-zinc-900')}>
+                                  {voice.name}
+                                </span>
+                              </div>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  previewVoice(voice.id)
+                                }}
+                                className={cn(
+                                  'w-8 h-8 rounded-full flex items-center justify-center transition-all',
+                                  previewingVoice === voice.id
+                                    ? 'bg-accent text-white'
+                                    : isDark
+                                      ? 'bg-zinc-800 hover:bg-zinc-700 text-zinc-400'
+                                      : 'bg-zinc-100 hover:bg-zinc-200 text-zinc-500'
+                                )}
+                                title={previewingVoice === voice.id ? '정지' : '미리듣기'}
+                              >
+                                {previewingVoice === voice.id ? (
+                                  <Square className="w-3 h-3" />
+                                ) : (
+                                  <Play className="w-3 h-3 ml-0.5" />
+                                )}
+                              </button>
                             </div>
-                            <p className={cn('text-xs', isDark ? 'text-zinc-400' : 'text-zinc-500')}>
+                            <p className={cn('text-xs pl-10', isDark ? 'text-zinc-400' : 'text-zinc-500')}>
                               {voice.description}
                             </p>
-                          </button>
+                            {editForm.voice === voice.id && (
+                              <div className="absolute top-2 right-12">
+                                <Check className="w-4 h-4 text-accent" />
+                              </div>
+                            )}
+                          </div>
                         ))}
                       </div>
+                      <p className={cn('text-xs mt-2 flex items-center gap-1', isDark ? 'text-zinc-500' : 'text-zinc-400')}>
+                        <Waves className="w-3 h-3" />
+                        미리듣기: "반갑습니다. 주인님"
+                      </p>
                     </div>
 
                     {/* 대화 스타일 */}
                     <div>
-                      <label className={cn('text-sm font-medium block mb-3', isDark ? 'text-zinc-300' : 'text-zinc-700')}>
-                        💬 대화 스타일
+                      <label className={cn('text-sm font-medium flex items-center gap-2 mb-3', isDark ? 'text-zinc-300' : 'text-zinc-700')}>
+                        <MessageSquare className="w-4 h-4" />
+                        대화 스타일
                       </label>
                       <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
                         {CONVERSATION_STYLES.map((style) => (
@@ -7241,7 +7286,7 @@ export default function AgentProfilePage() {
                             key={style.id}
                             onClick={() => setEditForm({ ...editForm, conversation_style: style.id })}
                             className={cn(
-                              'p-3 rounded-xl border-2 text-left transition-all',
+                              'p-3 rounded-xl border-2 text-left transition-all relative',
                               editForm.conversation_style === style.id
                                 ? 'border-accent bg-accent/10'
                                 : isDark
@@ -7255,6 +7300,11 @@ export default function AgentProfilePage() {
                             <p className={cn('text-xs', isDark ? 'text-zinc-400' : 'text-zinc-500')}>
                               {style.description}
                             </p>
+                            {editForm.conversation_style === style.id && (
+                              <div className="absolute top-2 right-2">
+                                <Check className="w-4 h-4 text-accent" />
+                              </div>
+                            )}
                           </button>
                         ))}
                       </div>
@@ -7262,8 +7312,9 @@ export default function AgentProfilePage() {
 
                     {/* VAD 감도 */}
                     <div>
-                      <label className={cn('text-sm font-medium block mb-3', isDark ? 'text-zinc-300' : 'text-zinc-700')}>
-                        🎚️ 음성 인식 감도
+                      <label className={cn('text-sm font-medium flex items-center gap-2 mb-3', isDark ? 'text-zinc-300' : 'text-zinc-700')}>
+                        <Gauge className="w-4 h-4" />
+                        음성 인식 감도
                       </label>
                       <div className="flex gap-3">
                         {VAD_SENSITIVITY_OPTIONS.map((option) => (
@@ -7271,7 +7322,7 @@ export default function AgentProfilePage() {
                             key={option.id}
                             onClick={() => setEditForm({ ...editForm, vad_sensitivity: option.id })}
                             className={cn(
-                              'flex-1 p-3 rounded-xl border-2 text-center transition-all',
+                              'flex-1 p-3 rounded-xl border-2 text-center transition-all relative',
                               editForm.vad_sensitivity === option.id
                                 ? 'border-accent bg-accent/10'
                                 : isDark
@@ -7285,6 +7336,11 @@ export default function AgentProfilePage() {
                             <p className={cn('text-xs mt-1', isDark ? 'text-zinc-400' : 'text-zinc-500')}>
                               {option.description}
                             </p>
+                            {editForm.vad_sensitivity === option.id && (
+                              <div className="absolute top-2 right-2">
+                                <Check className="w-4 h-4 text-accent" />
+                              </div>
+                            )}
                           </button>
                         ))}
                       </div>
@@ -7292,7 +7348,10 @@ export default function AgentProfilePage() {
 
                     <div className="flex justify-end gap-2 pt-4">
                       <button
-                        onClick={cancelEditing}
+                        onClick={() => {
+                          stopVoicePreview()
+                          cancelEditing()
+                        }}
                         className={cn(
                           'px-4 py-2 rounded-lg text-sm',
                           isDark ? 'bg-zinc-700 hover:bg-zinc-600' : 'bg-zinc-200 hover:bg-zinc-300'
@@ -7320,18 +7379,27 @@ export default function AgentProfilePage() {
                       return (
                         <>
                           <div className={cn('p-4 rounded-lg', isDark ? 'bg-zinc-900' : 'bg-white')}>
-                            <p className={cn('text-xs uppercase mb-1', isDark ? 'text-zinc-500' : 'text-zinc-400')}>
+                            <p className={cn('text-xs uppercase mb-1 flex items-center gap-1', isDark ? 'text-zinc-500' : 'text-zinc-400')}>
+                              <Volume2 className="w-3 h-3" />
                               음성
                             </p>
                             <p className={cn('font-medium flex items-center gap-2', isDark ? 'text-zinc-200' : 'text-zinc-800')}>
-                              <span>
-                                {selectedVoice?.gender === 'female' ? '👩' : selectedVoice?.gender === 'male' ? '👨' : '🧑'}
-                              </span>
+                              <div className={cn(
+                                'w-6 h-6 rounded-full flex items-center justify-center',
+                                selectedVoice?.gender === 'female'
+                                  ? 'bg-pink-500/20 text-pink-500'
+                                  : selectedVoice?.gender === 'male'
+                                    ? 'bg-blue-500/20 text-blue-500'
+                                    : 'bg-purple-500/20 text-purple-500'
+                              )}>
+                                <UserCircle className="w-4 h-4" />
+                              </div>
                               {selectedVoice?.name || 'Sol'}
                             </p>
                           </div>
                           <div className={cn('p-4 rounded-lg', isDark ? 'bg-zinc-900' : 'bg-white')}>
-                            <p className={cn('text-xs uppercase mb-1', isDark ? 'text-zinc-500' : 'text-zinc-400')}>
+                            <p className={cn('text-xs uppercase mb-1 flex items-center gap-1', isDark ? 'text-zinc-500' : 'text-zinc-400')}>
+                              <MessageSquare className="w-3 h-3" />
                               대화 스타일
                             </p>
                             <p className={cn('font-medium', isDark ? 'text-zinc-200' : 'text-zinc-800')}>
@@ -7339,7 +7407,8 @@ export default function AgentProfilePage() {
                             </p>
                           </div>
                           <div className={cn('p-4 rounded-lg', isDark ? 'bg-zinc-900' : 'bg-white')}>
-                            <p className={cn('text-xs uppercase mb-1', isDark ? 'text-zinc-500' : 'text-zinc-400')}>
+                            <p className={cn('text-xs uppercase mb-1 flex items-center gap-1', isDark ? 'text-zinc-500' : 'text-zinc-400')}>
+                              <Gauge className="w-3 h-3" />
                               인식 감도
                             </p>
                             <p className={cn('font-medium', isDark ? 'text-zinc-200' : 'text-zinc-800')}>
@@ -7911,6 +7980,31 @@ export default function AgentProfilePage() {
                 보내기
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* 음성 통화 모달 */}
+      {showVoiceCall && agent && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm" onClick={() => setShowVoiceCall(false)}>
+          <div
+            className="w-full max-w-md mx-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <GrokVoiceChat
+              agentName={agent.name}
+              agentInstructions={agent.system_prompt || `You are ${agent.name}, a helpful AI assistant. Respond naturally in Korean.`}
+              voice="Eve"
+              onTranscript={(text, role) => {
+                console.log(`[${role}] ${text}`)
+              }}
+            />
+            <button
+              onClick={() => setShowVoiceCall(false)}
+              className="w-full mt-4 py-3 rounded-xl bg-zinc-800 text-zinc-300 hover:bg-zinc-700 transition-colors font-medium"
+            >
+              닫기
+            </button>
           </div>
         </div>
       )}
