@@ -1,70 +1,95 @@
 "use client"
 
+import { useState, useEffect } from "react"
 import { useAgentNotification, AgentInfo } from "@/lib/contexts/AgentNotificationContext"
 import { Button } from "@/components/ui/Button"
-import { Bot, Sparkles } from "lucide-react"
-
-// 프리셋 에이전트들
-const presetAgents: Record<string, AgentInfo> = {
-  amy: {
-    id: "amy-001",
-    name: "Amy",
-    avatar_url: "/agent_image.jpg",
-    accentColor: "#06b6d4",
-  },
-  rachel: {
-    id: "rachel-001",
-    name: "Rachel",
-    avatar_url: "https://api.dicebear.com/7.x/lorelei/svg?seed=Rachel&backgroundColor=a855f7",
-    accentColor: "#a855f7",
-  },
-  jeremy: {
-    id: "jeremy-001",
-    name: "Jeremy",
-    avatar_url: "https://api.dicebear.com/7.x/lorelei/svg?seed=Jeremy&backgroundColor=22c55e",
-    accentColor: "#22c55e",
-  },
-  antigravity: {
-    id: "antigravity-001",
-    name: "Antigravity",
-    avatar_url: "https://api.dicebear.com/7.x/lorelei/svg?seed=Antigravity&backgroundColor=f59e0b",
-    accentColor: "#f59e0b",
-  },
-}
+import { Bot, Sparkles, Loader2 } from "lucide-react"
+import { useThemeStore, accentColors } from "@/stores/themeStore"
 
 // 샘플 메시지들
 const sampleMessages = {
-  amy: [
-    { message: "안녕하세요! 오늘 오후 3시에 팀 미팅이 예정되어 있어요.", type: "info" as const },
-    { message: "긴급: 투자자 미팅이 내일로 앞당겨졌습니다!", type: "alert" as const },
-    { message: "주간 리포트 작성이 완료되었습니다. 확인해주세요.", type: "task" as const },
+  greeting: [
+    "반가워요! 오늘 하루도 화이팅이에요! 무엇을 도와드릴까요?",
+    "안녕하세요! 좋은 하루 보내고 계신가요?",
+    "오늘도 함께 일할 수 있어서 기뻐요!",
   ],
-  rachel: [
-    { message: "시장 분석 결과가 준비되었습니다. 흥미로운 인사이트가 있어요.", type: "info" as const },
-    { message: "경쟁사 동향에 주목할 필요가 있습니다.", type: "alert" as const },
+  info: [
+    "오늘 오후 3시에 팀 미팅이 예정되어 있어요.",
+    "새로운 메시지가 도착했습니다.",
+    "프로젝트 진행률이 75%에 도달했어요!",
   ],
-  jeremy: [
-    { message: "새로운 기능 구현이 완료되었습니다. 테스트 부탁드려요!", type: "task" as const },
-    { message: "코드 리뷰 요청이 3건 대기 중입니다.", type: "info" as const },
+  alert: [
+    "긴급: 투자자 미팅이 내일로 앞당겨졌습니다!",
+    "마감 기한이 내일입니다. 확인해주세요!",
+    "중요한 업데이트가 있습니다.",
   ],
-  antigravity: [
-    { message: "시스템 상태가 정상입니다. 모든 서비스가 원활하게 운영 중이에요.", type: "info" as const },
-    { message: "새로운 업데이트가 준비되었습니다.", type: "task" as const },
+  task: [
+    "주간 리포트 작성이 완료되었습니다. 확인해주세요.",
+    "코드 리뷰 요청이 대기 중입니다.",
+    "새로운 태스크가 할당되었습니다.",
   ],
 }
 
 export function AgentNotificationDemo() {
   const { showAgentNotification } = useAgentNotification()
+  const { accentColor } = useThemeStore()
+  const [agents, setAgents] = useState<AgentInfo[]>([])
+  const [loading, setLoading] = useState(true)
+
+  // 테마 색상 가져오기
+  const themeColorData = accentColors.find(c => c.id === accentColor)
+  const themeColor = themeColorData?.color || "#3b82f6"
+
+  // 에이전트 목록 가져오기
+  useEffect(() => {
+    const fetchAgents = async () => {
+      try {
+        const res = await fetch("/api/agents")
+        if (res.ok) {
+          const data = await res.json()
+          // avatar_url이 있는 에이전트들만 필터링
+          const agentsWithAvatar = data.map((agent: any) => ({
+            id: agent.id,
+            name: agent.name,
+            avatar_url: agent.avatar_url,
+            emotion_avatars: agent.emotion_avatars,
+          }))
+          setAgents(agentsWithAvatar)
+        }
+      } catch (err) {
+        console.error("Failed to fetch agents:", err)
+      } finally {
+        setLoading(false)
+      }
+    }
+    fetchAgents()
+  }, [])
+
+  const getRandomMessage = (type: keyof typeof sampleMessages) => {
+    const messages = sampleMessages[type]
+    return messages[Math.floor(Math.random() * messages.length)]
+  }
+
+  const getRandomAgent = (): AgentInfo => {
+    if (agents.length > 0) {
+      return agents[Math.floor(Math.random() * agents.length)]
+    }
+    // 폴백: 기본 에이전트
+    return {
+      id: "default",
+      name: "AI 어시스턴트",
+      avatar_url: null,
+    }
+  }
 
   const triggerRandomNotification = () => {
-    const agentNames = Object.keys(presetAgents)
-    const randomAgentName = agentNames[Math.floor(Math.random() * agentNames.length)]
-    const agent = presetAgents[randomAgentName]
-    const messages = sampleMessages[randomAgentName as keyof typeof sampleMessages]
-    const randomMessage = messages[Math.floor(Math.random() * messages.length)]
+    const agent = getRandomAgent()
+    const types: (keyof typeof sampleMessages)[] = ["info", "alert", "task"]
+    const randomType = types[Math.floor(Math.random() * types.length)]
+    const message = getRandomMessage(randomType)
 
-    showAgentNotification(agent, randomMessage.message, {
-      type: randomMessage.type,
+    showAgentNotification(agent, message, {
+      type: randomType,
       actions: [
         { label: "확인", onClick: () => console.log("확인 클릭") },
         { label: "나중에", onClick: () => console.log("나중에 클릭") },
@@ -72,8 +97,9 @@ export function AgentNotificationDemo() {
     })
   }
 
-  const triggerAmyGreeting = () => {
-    showAgentNotification(presetAgents.amy, "반가워요! 오늘 하루도 화이팅이에요! 무엇을 도와드릴까요?", {
+  const triggerGreeting = () => {
+    const agent = agents.length > 0 ? agents[0] : getRandomAgent()
+    showAgentNotification(agent, getRandomMessage("greeting"), {
       type: "greeting",
       actions: [
         { label: "일정 확인", onClick: () => console.log("일정 확인") },
@@ -82,15 +108,29 @@ export function AgentNotificationDemo() {
     })
   }
 
+  if (loading) {
+    return (
+      <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50">
+        <Loader2 className="w-5 h-5 animate-spin text-zinc-500" />
+      </div>
+    )
+  }
+
+  const firstAgentName = agents.length > 0 ? agents[0].name : "에이전트"
+
   return (
     <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex gap-3">
       <Button
-        onClick={triggerAmyGreeting}
+        onClick={triggerGreeting}
         size="sm"
-        className="bg-gradient-to-r from-cyan-600 to-cyan-500 hover:from-cyan-500 hover:to-cyan-400 text-white shadow-lg shadow-cyan-500/25 rounded-full px-5"
+        className="text-white shadow-lg rounded-full px-5"
+        style={{
+          background: `linear-gradient(135deg, ${themeColor}, ${themeColor}cc)`,
+          boxShadow: `0 4px 20px ${themeColor}40`,
+        }}
       >
         <Sparkles className="w-4 h-4 mr-2" />
-        Amy 인사
+        {firstAgentName} 인사
       </Button>
       <Button
         onClick={triggerRandomNotification}
@@ -106,25 +146,55 @@ export function AgentNotificationDemo() {
 }
 
 // 편의 훅: 앱 어디서든 에이전트 알림 보내기
-export function useAmyNotification() {
+export function useAgentNotificationHelper() {
   const { showAgentNotification } = useAgentNotification()
+  const [agents, setAgents] = useState<AgentInfo[]>([])
+
+  useEffect(() => {
+    const fetchAgents = async () => {
+      try {
+        const res = await fetch("/api/agents")
+        if (res.ok) {
+          const data = await res.json()
+          setAgents(data.map((agent: any) => ({
+            id: agent.id,
+            name: agent.name,
+            avatar_url: agent.avatar_url,
+            emotion_avatars: agent.emotion_avatars,
+          })))
+        }
+      } catch (err) {
+        console.error("Failed to fetch agents:", err)
+      }
+    }
+    fetchAgents()
+  }, [])
+
+  const getAgent = (name?: string): AgentInfo => {
+    if (name) {
+      const found = agents.find(a => a.name.toLowerCase().includes(name.toLowerCase()))
+      if (found) return found
+    }
+    return agents[0] || { id: "default", name: "AI", avatar_url: null }
+  }
 
   return {
-    greet: (message?: string) => {
+    greet: (agentName?: string, message?: string) => {
+      const agent = getAgent(agentName)
       showAgentNotification(
-        presetAgents.amy,
+        agent,
         message || "안녕하세요! 무엇을 도와드릴까요?",
         { type: "greeting" }
       )
     },
-    info: (message: string) => {
-      showAgentNotification(presetAgents.amy, message, { type: "info" })
+    info: (agentName: string | undefined, message: string) => {
+      showAgentNotification(getAgent(agentName), message, { type: "info" })
     },
-    alert: (message: string) => {
-      showAgentNotification(presetAgents.amy, message, { type: "alert" })
+    alert: (agentName: string | undefined, message: string) => {
+      showAgentNotification(getAgent(agentName), message, { type: "alert" })
     },
-    task: (message: string, actions?: { label: string; onClick: () => void }[]) => {
-      showAgentNotification(presetAgents.amy, message, { type: "task", actions })
+    task: (agentName: string | undefined, message: string, actions?: { label: string; onClick: () => void }[]) => {
+      showAgentNotification(getAgent(agentName), message, { type: "task", actions })
     },
   }
 }

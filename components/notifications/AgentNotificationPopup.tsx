@@ -3,6 +3,7 @@
 import { motion, AnimatePresence } from "framer-motion"
 import { X, Bell, AlertTriangle, CheckCircle, MessageCircle, Sparkles } from "lucide-react"
 import { useAgentNotification, AgentNotification } from "@/lib/contexts/AgentNotificationContext"
+import { useThemeStore, accentColors } from "@/stores/themeStore"
 
 const typeIcons = {
   info: Bell,
@@ -13,7 +14,12 @@ const typeIcons = {
 
 function NotificationItem({ notification, index }: { notification: AgentNotification; index: number }) {
   const { dismissNotification } = useAgentNotification()
+  const { accentColor: themeAccent } = useThemeStore()
   const { agent, message, type, emotion, actions } = notification
+
+  // 테마 색상 가져오기
+  const themeColorData = accentColors.find(c => c.id === themeAccent)
+  const themeColor = themeColorData?.color || "#3b82f6"
 
   // 아바타 URL 결정
   const avatarUrl = emotion && agent.emotion_avatars?.[emotion]
@@ -21,7 +27,8 @@ function NotificationItem({ notification, index }: { notification: AgentNotifica
     : agent.avatar_url || `https://api.dicebear.com/7.x/lorelei/svg?seed=${agent.name}`
 
   const Icon = typeIcons[type]
-  const accentColor = agent.accentColor || "#06b6d4"
+  // 테마 색상 사용 (에이전트 색상 대신)
+  const accentColor = themeColor
 
   return (
     <>
