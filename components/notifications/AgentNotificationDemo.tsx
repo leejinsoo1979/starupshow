@@ -92,7 +92,7 @@ export function AgentNotificationDemo() {
       type: randomType,
       actions: [
         { label: "확인", onClick: () => console.log("확인 클릭") },
-        { label: "나중에", onClick: () => console.log("나중에 클릭") },
+        { label: "답장", onClick: () => console.log("답장 클릭") },
       ],
     })
   }
@@ -102,8 +102,8 @@ export function AgentNotificationDemo() {
     showAgentNotification(agent, getRandomMessage("greeting"), {
       type: "greeting",
       actions: [
-        { label: "일정 확인", onClick: () => console.log("일정 확인") },
-        { label: "할 일 보기", onClick: () => console.log("할 일 보기") },
+        { label: "확인", onClick: () => console.log("확인 클릭") },
+        { label: "답장", onClick: () => console.log("답장 클릭") },
       ],
     })
   }
