@@ -2178,6 +2178,7 @@ export default function AgentProfilePage() {
   const voiceTranscriptRef = useRef<string>('')  // AI's current response transcript
   const userSpeechTranscriptRef = useRef<string>('')  // User's speech transcript
   const [isAgentSpeaking, setIsAgentSpeaking] = useState(false)  // For GIF animation
+  const isAgentSpeakingRef = useRef(false)  // 🔥 Ref version for audio processor (closure issue)
 
   // 감정 아바타 상태
   const [emotionAvatars, setEmotionAvatars] = useState<EmotionAvatars>({})
@@ -3237,11 +3238,7 @@ export default function AgentProfilePage() {
       const nextChunk = audioQueueRef.current.shift()!
       playAudioChunk(nextChunk)
     } else {
-      // 🔥 재생 끝난 후 500ms 딜레이 - 잔향/에코 방지
-      setTimeout(() => {
-        isPlayingRef.current = false
-        console.log('[VoiceAudio] 🔇 Playback ended, mic resumed after delay')
-      }, 500)
+      isPlayingRef.current = false
     }
   }
 
@@ -3273,6 +3270,8 @@ export default function AgentProfilePage() {
         // AI starts responding - reset transcript and show speaking animation
         voiceTranscriptRef.current = ''
         setIsAgentSpeaking(true)
+        isAgentSpeakingRef.current = true  // 🔥 Ref 동기화
+        console.log('[VoiceEvent] 🎤 Agent started speaking, mic blocked')
         break
 
       case 'response.audio.delta':
@@ -3354,6 +3353,11 @@ export default function AgentProfilePage() {
       case 'response.done':
         // AI finished responding - add transcript to chat
         setIsAgentSpeaking(false)
+        // 🔥 재생 끝난 후 딜레이 주고 마이크 재개 (에코 방지)
+        setTimeout(() => {
+          isAgentSpeakingRef.current = false
+          console.log('[VoiceEvent] 🎤 Agent stopped speaking, mic resumed')
+        }, 800)  // 800ms 딜레이로 잔향 차단
 
         // 🔥 response.done에서 직접 transcript 추출 시도 (xAI format)
         let finalTranscript = voiceTranscriptRef.current.trim()
@@ -3425,6 +3429,7 @@ export default function AgentProfilePage() {
       case 'error':
         console.error('Voice error:', event.error)
         setIsAgentSpeaking(false)
+        isAgentSpeakingRef.current = false  // 🔥 에러 시 즉시 마이크 재개
         break
 
       // 🔥 xAI Realtime API 전용 이벤트 핸들링 (OpenAI와 다름!)
@@ -3565,7 +3570,8 @@ export default function AgentProfilePage() {
 
       processor.onaudioprocess = (e) => {
         // 🔥 에이전트가 말하는 중이면 마이크 입력 차단 (에코 방지)
-        if (isMuted || isPlayingRef.current || !wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return
+        // isAgentSpeakingRef 사용 (서버 이벤트 기반, 더 안정적)
+        if (isMuted || isAgentSpeakingRef.current || !wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return
 
         const inputData = e.inputBuffer.getChannelData(0)
         const pcm16 = new Int16Array(inputData.length)
