@@ -1,10 +1,12 @@
 "use client"
 
-import { useState, useRef, useEffect } from "react"
+import { useState, useRef, useEffect, useCallback } from "react"
 import { motion, AnimatePresence } from "framer-motion"
-import { X, Bell, AlertTriangle, CheckCircle, Sparkles, Send, Loader2, Mic, MicOff } from "lucide-react"
+import { X, Bell, AlertTriangle, CheckCircle, Sparkles, Send, Loader2, Mic, MicOff, MessageSquare, Phone, PhoneOff, Volume2 } from "lucide-react"
 import { useAgentNotification, AgentNotification } from "@/lib/contexts/AgentNotificationContext"
 import { useThemeStore, accentColors } from "@/stores/themeStore"
+
+type ReplyMode = "none" | "chat" | "voice"
 
 // Web Speech API 타입
 interface SpeechRecognitionEvent extends Event {
@@ -63,15 +65,26 @@ function NotificationItem({ notification, index }: { notification: AgentNotifica
   const { agent, message, type, emotion, actions } = notification
 
   // 답장 모드 상태
-  const [isReplyMode, setIsReplyMode] = useState(false)
+  const [replyMode, setReplyMode] = useState<ReplyMode>("none")
   const [replyText, setReplyText] = useState("")
   const [isProcessing, setIsProcessing] = useState(false)
   const [agentResponse, setAgentResponse] = useState<string | null>(null)
 
-  // 음성 인식 상태
+  // 음성 인식 상태 (채팅 모드용 STT)
   const [isListening, setIsListening] = useState(false)
   const [speechSupported, setSpeechSupported] = useState(false)
   const recognitionRef = useRef<SpeechRecognition | null>(null)
+
+  // 실시간 음성 대화 상태 (보이스 모드용)
+  const [voiceStatus, setVoiceStatus] = useState<"disconnected" | "connecting" | "connected">("disconnected")
+  const [voiceTranscript, setVoiceTranscript] = useState("")
+  const [voiceResponse, setVoiceResponse] = useState("")
+  const wsRef = useRef<WebSocket | null>(null)
+  const audioContextRef = useRef<AudioContext | null>(null)
+  const mediaStreamRef = useRef<MediaStream | null>(null)
+  const processorRef = useRef<ScriptProcessorNode | null>(null)
+  const audioQueueRef = useRef<Float32Array[]>([])
+  const isPlayingRef = useRef(false)
 
   // 음성 인식 초기화
   useEffect(() => {
@@ -123,7 +136,7 @@ function NotificationItem({ notification, index }: { notification: AgentNotifica
     }
   }, [])
 
-  // 음성 인식 토글
+  // 음성 인식 토글 (채팅 모드용)
   const toggleListening = () => {
     if (!recognitionRef.current) return
 
@@ -136,6 +149,238 @@ function NotificationItem({ notification, index }: { notification: AgentNotifica
       setIsListening(true)
     }
   }
+
+  // ========== 보이스 모드 기능 ==========
+
+  // 오디오 재생
+  const playAudioChunk = useCallback((base64Audio: string) => {
+    if (!audioContextRef.current) return
+
+    try {
+      const binaryString = atob(base64Audio)
+      const bytes = new Uint8Array(binaryString.length)
+      for (let i = 0; i < binaryString.length; i++) {
+        bytes[i] = binaryString.charCodeAt(i)
+      }
+
+      const pcm16 = new Int16Array(bytes.buffer)
+      const float32 = new Float32Array(pcm16.length)
+      for (let i = 0; i < pcm16.length; i++) {
+        float32[i] = pcm16[i] / 32768.0
+      }
+
+      audioQueueRef.current.push(float32)
+
+      if (!isPlayingRef.current) {
+        playNextChunk()
+      }
+    } catch (e) {
+      console.error("[Voice] Audio decode error:", e)
+    }
+  }, [])
+
+  const playNextChunk = useCallback(() => {
+    if (!audioContextRef.current || audioQueueRef.current.length === 0) {
+      isPlayingRef.current = false
+      return
+    }
+
+    isPlayingRef.current = true
+    const chunk = audioQueueRef.current.shift()!
+
+    const buffer = audioContextRef.current.createBuffer(1, chunk.length, 24000)
+    buffer.getChannelData(0).set(chunk)
+
+    const source = audioContextRef.current.createBufferSource()
+    source.buffer = buffer
+    source.connect(audioContextRef.current.destination)
+    source.onended = () => playNextChunk()
+    source.start()
+  }, [])
+
+  // 서버 이벤트 처리
+  const handleServerEvent = useCallback((data: any) => {
+    switch (data.type) {
+      case "input_audio_buffer.speech_started":
+        setVoiceTranscript("듣는 중...")
+        break
+
+      case "conversation.item.input_audio_transcription.completed":
+        setVoiceTranscript(data.transcript || "")
+        break
+
+      case "response.audio.delta":
+        if (data.delta) {
+          playAudioChunk(data.delta)
+        }
+        break
+
+      case "response.audio_transcript.delta":
+        setVoiceResponse(prev => prev + (data.delta || ""))
+        break
+
+      case "response.audio_transcript.done":
+        setVoiceResponse("")
+        break
+
+      case "error":
+        console.error("[Voice] Server error:", data.error)
+        break
+    }
+  }, [playAudioChunk])
+
+  // 마이크 시작
+  const startMicrophone = useCallback(async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          sampleRate: 24000,
+          channelCount: 1,
+          echoCancellation: true,
+          noiseSuppression: true,
+        },
+      })
+
+      mediaStreamRef.current = stream
+
+      if (!audioContextRef.current) {
+        audioContextRef.current = new AudioContext({ sampleRate: 24000 })
+      }
+
+      const source = audioContextRef.current.createMediaStreamSource(stream)
+      const processor = audioContextRef.current.createScriptProcessor(4096, 1, 1)
+      processorRef.current = processor
+
+      processor.onaudioprocess = (e) => {
+        if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return
+
+        const inputData = e.inputBuffer.getChannelData(0)
+        const pcm16 = new Int16Array(inputData.length)
+        for (let i = 0; i < inputData.length; i++) {
+          const s = Math.max(-1, Math.min(1, inputData[i]))
+          pcm16[i] = s < 0 ? s * 0x8000 : s * 0x7FFF
+        }
+
+        const base64 = btoa(String.fromCharCode(...new Uint8Array(pcm16.buffer)))
+        wsRef.current.send(JSON.stringify({
+          type: "input_audio_buffer.append",
+          audio: base64,
+        }))
+      }
+
+      source.connect(processor)
+      processor.connect(audioContextRef.current.destination)
+    } catch (error) {
+      console.error("[Voice] Microphone error:", error)
+    }
+  }, [])
+
+  // 마이크 중지
+  const stopMicrophone = useCallback(() => {
+    if (processorRef.current) {
+      processorRef.current.disconnect()
+      processorRef.current = null
+    }
+    if (mediaStreamRef.current) {
+      mediaStreamRef.current.getTracks().forEach(track => track.stop())
+      mediaStreamRef.current = null
+    }
+  }, [])
+
+  // 보이스 모드 시작
+  const startVoiceMode = useCallback(async () => {
+    if (voiceStatus === "connecting" || voiceStatus === "connected") return
+
+    setVoiceStatus("connecting")
+    setVoiceTranscript("")
+    setVoiceResponse("")
+
+    try {
+      // 토큰 발급
+      const tokenRes = await fetch("/api/grok-voice/token", { method: "POST" })
+      if (!tokenRes.ok) throw new Error("Failed to get token")
+
+      const tokenData = await tokenRes.json()
+
+      // AudioContext 생성
+      audioContextRef.current = new AudioContext({ sampleRate: 24000 })
+
+      // WebSocket 연결
+      const ws = new WebSocket("wss://api.x.ai/v1/realtime")
+      wsRef.current = ws
+
+      ws.onopen = () => {
+        // 세션 설정 - 에이전트 정보 사용
+        ws.send(JSON.stringify({
+          type: "session.update",
+          session: {
+            modalities: ["text", "audio"],
+            instructions: `You are ${agent.name}, a friendly Korean AI assistant. The user just received this notification: "${message}". Respond naturally in Korean and help them with any follow-up questions or tasks.`,
+            voice: "sage",
+            input_audio_format: "pcm16",
+            output_audio_format: "pcm16",
+            input_audio_transcription: { model: "whisper-1" },
+            turn_detection: {
+              type: "server_vad",
+              threshold: 0.5,
+              prefix_padding_ms: 300,
+              silence_duration_ms: 500,
+            },
+          },
+        }))
+
+        setVoiceStatus("connected")
+        startMicrophone()
+      }
+
+      ws.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data)
+          handleServerEvent(data)
+        } catch (e) {
+          console.error("[Voice] Parse error:", e)
+        }
+      }
+
+      ws.onerror = () => {
+        setVoiceStatus("disconnected")
+      }
+
+      ws.onclose = () => {
+        setVoiceStatus("disconnected")
+        stopMicrophone()
+      }
+
+    } catch (error) {
+      console.error("[Voice] Connection error:", error)
+      setVoiceStatus("disconnected")
+    }
+  }, [voiceStatus, agent.name, message, handleServerEvent, startMicrophone, stopMicrophone])
+
+  // 보이스 모드 종료
+  const stopVoiceMode = useCallback(() => {
+    if (wsRef.current) {
+      wsRef.current.close()
+      wsRef.current = null
+    }
+    stopMicrophone()
+    if (audioContextRef.current) {
+      audioContextRef.current.close()
+      audioContextRef.current = null
+    }
+    setVoiceStatus("disconnected")
+    setReplyMode("chat") // 채팅 모드로 전환
+  }, [stopMicrophone])
+
+  // 컴포넌트 언마운트 시 정리
+  useEffect(() => {
+    return () => {
+      if (wsRef.current) {
+        wsRef.current.close()
+      }
+      stopMicrophone()
+    }
+  }, [stopMicrophone])
 
   // 테마 색상 가져오기
   const themeColorData = accentColors.find(c => c.id === themeAccent)
@@ -330,9 +575,92 @@ function NotificationItem({ notification, index }: { notification: AgentNotifica
             </AnimatePresence>
           </motion.div>
 
-          {/* 답장 입력 섹션 */}
+          {/* 보이스 모드 UI */}
           <AnimatePresence>
-            {isReplyMode && !agentResponse && (
+            {replyMode === "voice" && (
+              <motion.div
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: "auto" }}
+                exit={{ opacity: 0, height: 0 }}
+                className="px-6 pb-4"
+              >
+                {/* 연결 상태 표시 */}
+                <div className="flex flex-col items-center py-6">
+                  {voiceStatus === "connecting" && (
+                    <div className="flex flex-col items-center gap-3">
+                      <Loader2 className="w-8 h-8 animate-spin" style={{ color: accentColor }} />
+                      <span className="text-sm text-zinc-400">연결 중...</span>
+                    </div>
+                  )}
+
+                  {voiceStatus === "connected" && (
+                    <>
+                      {/* 음성 파형 애니메이션 */}
+                      <div className="flex items-center gap-1 mb-4">
+                        {[...Array(5)].map((_, i) => (
+                          <motion.div
+                            key={i}
+                            animate={{
+                              height: [8, 24, 8],
+                            }}
+                            transition={{
+                              repeat: Infinity,
+                              duration: 0.8,
+                              delay: i * 0.1,
+                            }}
+                            className="w-1 rounded-full"
+                            style={{ backgroundColor: accentColor }}
+                          />
+                        ))}
+                      </div>
+
+                      {/* 사용자 말 */}
+                      {voiceTranscript && (
+                        <p className="text-sm text-zinc-400 mb-2 text-center">
+                          나: {voiceTranscript}
+                        </p>
+                      )}
+
+                      {/* 에이전트 응답 */}
+                      {voiceResponse && (
+                        <p className="text-sm text-center" style={{ color: accentColor }}>
+                          {agent.name}: {voiceResponse}
+                        </p>
+                      )}
+
+                      {!voiceTranscript && !voiceResponse && (
+                        <p className="text-sm text-zinc-500 text-center">
+                          말씀해 주세요...
+                        </p>
+                      )}
+                    </>
+                  )}
+
+                  {voiceStatus === "disconnected" && (
+                    <div className="flex flex-col items-center gap-3">
+                      <Volume2 className="w-8 h-8 text-zinc-500" />
+                      <span className="text-sm text-zinc-400">음성 대화를 시작합니다</span>
+                    </div>
+                  )}
+                </div>
+
+                {/* 통화 종료 버튼 */}
+                {voiceStatus === "connected" && (
+                  <button
+                    onClick={stopVoiceMode}
+                    className="w-full py-3 px-4 text-sm font-semibold rounded-xl bg-red-500/20 text-red-400 hover:bg-red-500/30 transition-all flex items-center justify-center gap-2"
+                  >
+                    <PhoneOff className="w-4 h-4" />
+                    통화 종료
+                  </button>
+                )}
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          {/* 채팅 모드 입력 섹션 */}
+          <AnimatePresence>
+            {replyMode === "chat" && !agentResponse && (
               <motion.div
                 initial={{ opacity: 0, height: 0 }}
                 animate={{ opacity: 1, height: "auto" }}
@@ -359,7 +687,19 @@ function NotificationItem({ notification, index }: { notification: AgentNotifica
                 )}
 
                 <div className="flex gap-2">
-                  {/* 마이크 버튼 */}
+                  {/* 음성 모드 전환 버튼 */}
+                  <button
+                    onClick={() => {
+                      setReplyMode("voice")
+                      startVoiceMode()
+                    }}
+                    className="px-4 py-3 rounded-xl bg-zinc-800 text-zinc-400 hover:text-zinc-200 transition-all hover:scale-[1.02] active:scale-[0.98]"
+                    title="음성 대화로 전환"
+                  >
+                    <Phone className="w-4 h-4" />
+                  </button>
+
+                  {/* 마이크 버튼 (텍스트 입력용 STT) */}
                   {speechSupported && (
                     <button
                       onClick={toggleListening}
@@ -416,37 +756,52 @@ function NotificationItem({ notification, index }: { notification: AgentNotifica
             )}
           </AnimatePresence>
 
-          {/* 액션 버튼 섹션 */}
-          {!isReplyMode && !agentResponse && (
+          {/* 초기 모드 선택 버튼 (채팅 / 보이스) */}
+          {replyMode === "none" && !agentResponse && (
             <motion.div
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.4 }}
               className="px-6 pb-6"
             >
+              {/* 대화하기 버튼 */}
+              <button
+                onClick={() => dismissNotification(notification.id)}
+                className="w-full py-3 px-4 text-sm font-semibold rounded-xl text-white transition-all hover:scale-[1.02] active:scale-[0.98] mb-3 flex items-center justify-center gap-2"
+                style={{
+                  background: `linear-gradient(135deg, ${accentColor}, ${accentColor}cc)`,
+                  boxShadow: `0 4px 20px ${accentColor}40`,
+                }}
+              >
+                <MessageSquare className="w-4 h-4" />
+                확인
+              </button>
+
+              {/* 채팅 / 보이스 선택 */}
               <div className="flex gap-3">
                 <button
-                  onClick={() => dismissNotification(notification.id)}
-                  className="flex-1 py-3 px-4 text-sm font-semibold rounded-xl text-white transition-all hover:scale-[1.02] active:scale-[0.98]"
-                  style={{
-                    background: `linear-gradient(135deg, ${accentColor}, ${accentColor}cc)`,
-                    boxShadow: `0 4px 20px ${accentColor}40`,
-                  }}
+                  onClick={() => setReplyMode("chat")}
+                  className="flex-1 py-3 px-4 text-sm font-semibold rounded-xl bg-zinc-800 text-zinc-300 hover:bg-zinc-700 hover:text-white transition-all flex items-center justify-center gap-2"
                 >
-                  확인
+                  <MessageSquare className="w-4 h-4" />
+                  채팅
                 </button>
                 <button
-                  onClick={() => setIsReplyMode(true)}
-                  className="flex-1 py-3 px-4 text-sm font-semibold rounded-xl bg-zinc-800 text-zinc-300 hover:bg-zinc-700 hover:text-white transition-all"
+                  onClick={() => {
+                    setReplyMode("voice")
+                    startVoiceMode()
+                  }}
+                  className="flex-1 py-3 px-4 text-sm font-semibold rounded-xl bg-zinc-800 text-zinc-300 hover:bg-zinc-700 hover:text-white transition-all flex items-center justify-center gap-2"
                 >
-                  답장
+                  <Phone className="w-4 h-4" />
+                  보이스
                 </button>
               </div>
             </motion.div>
           )}
 
-          {/* 답장 모드에서 취소 버튼 */}
-          {isReplyMode && !agentResponse && (
+          {/* 채팅/보이스 모드에서 취소 버튼 */}
+          {replyMode !== "none" && !agentResponse && voiceStatus !== "connected" && (
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -454,8 +809,11 @@ function NotificationItem({ notification, index }: { notification: AgentNotifica
             >
               <button
                 onClick={() => {
-                  setIsReplyMode(false)
+                  setReplyMode("none")
                   setReplyText("")
+                  if (voiceStatus !== "disconnected") {
+                    stopVoiceMode()
+                  }
                 }}
                 className="w-full py-2 text-sm text-zinc-500 hover:text-zinc-300 transition-colors"
               >
