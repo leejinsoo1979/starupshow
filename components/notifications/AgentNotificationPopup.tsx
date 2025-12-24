@@ -1,10 +1,54 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useRef, useEffect } from "react"
 import { motion, AnimatePresence } from "framer-motion"
-import { X, Bell, AlertTriangle, CheckCircle, Sparkles, Send, Loader2 } from "lucide-react"
+import { X, Bell, AlertTriangle, CheckCircle, Sparkles, Send, Loader2, Mic, MicOff } from "lucide-react"
 import { useAgentNotification, AgentNotification } from "@/lib/contexts/AgentNotificationContext"
 import { useThemeStore, accentColors } from "@/stores/themeStore"
+
+// Web Speech API 타입
+interface SpeechRecognitionEvent extends Event {
+  results: SpeechRecognitionResultList
+  resultIndex: number
+}
+
+interface SpeechRecognitionResultList {
+  length: number
+  item(index: number): SpeechRecognitionResult
+  [index: number]: SpeechRecognitionResult
+}
+
+interface SpeechRecognitionResult {
+  isFinal: boolean
+  length: number
+  item(index: number): SpeechRecognitionAlternative
+  [index: number]: SpeechRecognitionAlternative
+}
+
+interface SpeechRecognitionAlternative {
+  transcript: string
+  confidence: number
+}
+
+interface SpeechRecognition extends EventTarget {
+  continuous: boolean
+  interimResults: boolean
+  lang: string
+  start(): void
+  stop(): void
+  abort(): void
+  onresult: ((event: SpeechRecognitionEvent) => void) | null
+  onerror: ((event: Event) => void) | null
+  onend: (() => void) | null
+  onstart: (() => void) | null
+}
+
+declare global {
+  interface Window {
+    SpeechRecognition: new () => SpeechRecognition
+    webkitSpeechRecognition: new () => SpeechRecognition
+  }
+}
 
 const typeIcons = {
   info: Bell,
@@ -23,6 +67,75 @@ function NotificationItem({ notification, index }: { notification: AgentNotifica
   const [replyText, setReplyText] = useState("")
   const [isProcessing, setIsProcessing] = useState(false)
   const [agentResponse, setAgentResponse] = useState<string | null>(null)
+
+  // 음성 인식 상태
+  const [isListening, setIsListening] = useState(false)
+  const [speechSupported, setSpeechSupported] = useState(false)
+  const recognitionRef = useRef<SpeechRecognition | null>(null)
+
+  // 음성 인식 초기화
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const SpeechRecognitionAPI = window.SpeechRecognition || window.webkitSpeechRecognition
+      if (SpeechRecognitionAPI) {
+        setSpeechSupported(true)
+        const recognition = new SpeechRecognitionAPI()
+        recognition.continuous = false
+        recognition.interimResults = true
+        recognition.lang = "ko-KR"
+
+        recognition.onresult = (event: SpeechRecognitionEvent) => {
+          let finalTranscript = ""
+          let interimTranscript = ""
+
+          for (let i = event.resultIndex; i < event.results.length; i++) {
+            const transcript = event.results[i][0].transcript
+            if (event.results[i].isFinal) {
+              finalTranscript += transcript
+            } else {
+              interimTranscript += transcript
+            }
+          }
+
+          if (finalTranscript) {
+            setReplyText(prev => prev + finalTranscript)
+          } else if (interimTranscript) {
+            // 실시간 미리보기 (선택적)
+          }
+        }
+
+        recognition.onend = () => {
+          setIsListening(false)
+        }
+
+        recognition.onerror = () => {
+          setIsListening(false)
+        }
+
+        recognitionRef.current = recognition
+      }
+    }
+
+    return () => {
+      if (recognitionRef.current) {
+        recognitionRef.current.abort()
+      }
+    }
+  }, [])
+
+  // 음성 인식 토글
+  const toggleListening = () => {
+    if (!recognitionRef.current) return
+
+    if (isListening) {
+      recognitionRef.current.stop()
+      setIsListening(false)
+    } else {
+      setReplyText("") // 새로 시작할 때 초기화
+      recognitionRef.current.start()
+      setIsListening(true)
+    }
+  }
 
   // 테마 색상 가져오기
   const themeColorData = accentColors.find(c => c.id === themeAccent)
@@ -226,16 +339,63 @@ function NotificationItem({ notification, index }: { notification: AgentNotifica
                 exit={{ opacity: 0, height: 0 }}
                 className="px-6 pb-4"
               >
+                {/* 음성 인식 중 표시 */}
+                {isListening && (
+                  <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    className="mb-3 flex items-center justify-center gap-2 py-2"
+                  >
+                    <motion.div
+                      animate={{ scale: [1, 1.2, 1] }}
+                      transition={{ repeat: Infinity, duration: 1 }}
+                      className="w-3 h-3 rounded-full"
+                      style={{ backgroundColor: accentColor }}
+                    />
+                    <span className="text-sm" style={{ color: accentColor }}>
+                      음성을 듣고 있습니다...
+                    </span>
+                  </motion.div>
+                )}
+
                 <div className="flex gap-2">
+                  {/* 마이크 버튼 */}
+                  {speechSupported && (
+                    <button
+                      onClick={toggleListening}
+                      disabled={isProcessing}
+                      className={`px-4 py-3 rounded-xl transition-all hover:scale-[1.02] active:scale-[0.98] ${
+                        isListening
+                          ? "text-white"
+                          : "bg-zinc-800 text-zinc-400 hover:text-zinc-200"
+                      }`}
+                      style={isListening ? {
+                        background: `linear-gradient(135deg, ${accentColor}, ${accentColor}cc)`,
+                        boxShadow: `0 0 20px ${accentColor}50`,
+                      } : {}}
+                    >
+                      {isListening ? (
+                        <motion.div
+                          animate={{ scale: [1, 1.1, 1] }}
+                          transition={{ repeat: Infinity, duration: 0.5 }}
+                        >
+                          <MicOff className="w-4 h-4" />
+                        </motion.div>
+                      ) : (
+                        <Mic className="w-4 h-4" />
+                      )}
+                    </button>
+                  )}
+
                   <input
                     type="text"
                     value={replyText}
                     onChange={(e) => setReplyText(e.target.value)}
                     onKeyDown={(e) => e.key === "Enter" && handleSendReply()}
-                    placeholder={`${agent.name}에게 답장...`}
+                    placeholder={isListening ? "말씀하세요..." : `${agent.name}에게 답장...`}
                     className="flex-1 px-4 py-3 bg-zinc-800 border border-zinc-700 rounded-xl text-sm text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-zinc-600"
-                    autoFocus
-                    disabled={isProcessing}
+                    autoFocus={!isListening}
+                    disabled={isProcessing || isListening}
                   />
                   <button
                     onClick={handleSendReply}
