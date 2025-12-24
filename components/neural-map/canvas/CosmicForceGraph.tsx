@@ -271,6 +271,7 @@ export function CosmicForceGraph({ className }: CosmicForceGraphProps) {
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [isClient, setIsClient] = useState(false)
   const [threeInstance, setThreeInstance] = useState<any>(null)
+  const [webglError, setWebglError] = useState<string | null>(null)
   const zoomLevelRef = useRef<number>(500) // Track camera distance for LOD
 
   // Store
@@ -512,15 +513,22 @@ export function CosmicForceGraph({ className }: CosmicForceGraphProps) {
       // Prevent race conditions if unmounted
       if (!containerRef.current) return
 
-      const ForceGraph3D = ForceGraph3DModule.default
-      const Graph = ForceGraph3D()(containerRef.current!)
-        .backgroundColor(isDark ? '#070A12' : '#f8fafc')
-        .minZoom(0.1)
-        .cooldownTicks(100) // Stop simulation after 100 ticks for performance
-        .warmupTicks(50) // Pre-calculate initial layout
+      let Graph: any
+      try {
+        const ForceGraph3D = ForceGraph3DModule.default
+        Graph = ForceGraph3D()(containerRef.current!)
+          .backgroundColor(isDark ? '#070A12' : '#f8fafc')
+          .minZoom(0.1)
+          .cooldownTicks(100) // Stop simulation after 100 ticks for performance
+          .warmupTicks(50) // Pre-calculate initial layout
 
-      graphRef.current = Graph
-      graphInstance = Graph
+        graphRef.current = Graph
+        graphInstance = Graph
+      } catch (err: any) {
+        console.error('[CosmicForceGraph] WebGL initialization failed:', err)
+        setWebglError(err.message || 'WebGL 초기화 실패')
+        return
+      }
 
       // Scene Setup
       const scene = Graph.scene()
@@ -813,6 +821,26 @@ export function CosmicForceGraph({ className }: CosmicForceGraphProps) {
     return (
       <div className={cn('w-full h-full flex items-center justify-center', className)}>
         <div className="text-zinc-500">Loading 3D view...</div>
+      </div>
+    )
+  }
+
+  // WebGL 에러 시 2D 뷰로 전환 안내
+  if (webglError) {
+    return (
+      <div className={cn('w-full h-full flex flex-col items-center justify-center gap-4', className)}
+        style={{ background: isDark ? '#070A12' : '#f8fafc' }}>
+        <div className="text-amber-500 text-lg">⚠️ 3D 렌더링 실패</div>
+        <div className="text-zinc-500 text-sm text-center max-w-md">
+          WebGL 컨텍스트를 생성할 수 없습니다.<br/>
+          브라우저를 새로고침하거나 다른 탭을 닫아보세요.
+        </div>
+        <button
+          onClick={() => window.location.reload()}
+          className="px-4 py-2 bg-zinc-700 hover:bg-zinc-600 text-white rounded-lg text-sm"
+        >
+          새로고침
+        </button>
       </div>
     )
   }
