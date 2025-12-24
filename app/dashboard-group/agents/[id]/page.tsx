@@ -3209,6 +3209,13 @@ export default function AgentProfilePage() {
 
   // Play audio chunk from queue
   const playAudioChunk = (pcm16Data: Int16Array) => {
+    // 🔥 통화 종료 상태면 재생 안 함
+    if (!wsRef.current) {
+      audioQueueRef.current = []
+      isPlayingRef.current = false
+      return
+    }
+
     if (!audioContextRef.current) {
       console.warn('[VoiceAudio] ❌ No AudioContext!')
       return
@@ -3236,6 +3243,13 @@ export default function AgentProfilePage() {
 
   // Play next chunk in queue
   const playNextChunk = () => {
+    // 🔥 통화 종료 상태면 큐 비우고 종료
+    if (!wsRef.current) {
+      audioQueueRef.current = []
+      isPlayingRef.current = false
+      return
+    }
+
     if (audioQueueRef.current.length > 0) {
       const nextChunk = audioQueueRef.current.shift()!
       playAudioChunk(nextChunk)
@@ -3246,6 +3260,11 @@ export default function AgentProfilePage() {
 
   // Handle voice server events
   const handleVoiceServerEvent = (event: any) => {
+    // 🔥 통화 종료 상태면 이벤트 무시
+    if (!wsRef.current) {
+      return
+    }
+
     // 🔥 모든 이벤트 로깅 (디버그용)
     const eventType = event.type || 'unknown'
     console.log('[VoiceEvent]', eventType, JSON.stringify(event).substring(0, 500))
@@ -3663,6 +3682,11 @@ export default function AgentProfilePage() {
       }
 
       ws.onmessage = (event) => {
+        // 🔥 통화 종료 후 메시지 무시 (wsRef.current가 null이면 종료된 상태)
+        if (!wsRef.current) {
+          console.log('[VoiceCall] Ignoring message - call ended')
+          return
+        }
         try {
           const data = JSON.parse(event.data)
           handleVoiceServerEvent(data)
