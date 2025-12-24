@@ -226,13 +226,11 @@ function extractCapabilitiesFromNodes(nodes: Record<string, unknown>[]): string[
   return capabilities
 }
 
-// Helper: Generate avatar URL (DiceBear robot avatars)
+// Helper: Generate avatar URL (DiceBear lorelei avatars - 사람 얼굴 스타일)
 function generateAvatarUrl(name: string): string {
-  // DiceBear bottts style - generates unique robot avatars
+  // DiceBear lorelei style - generates unique human-like avatars
   const seed = encodeURIComponent(name)
-  const backgroundColor = ['3B82F6', '10B981', 'F59E0B', 'EF4444', '8B5CF6', 'EC4899']
-  const randomBg = backgroundColor[Math.floor(Math.random() * backgroundColor.length)]
-  return `https://api.dicebear.com/7.x/bottts/svg?seed=${seed}&backgroundColor=${randomBg}`
+  return `https://api.dicebear.com/7.x/lorelei/svg?seed=${seed}`
 }
 
 // Helper: Generate system prompt
