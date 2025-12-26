@@ -171,8 +171,9 @@ export default function DashboardLayout({
         <TwoLevelSidebar />
         <CommitModal />
         <GlobalAgentSidebar isOpen={agentSidebarOpen} onToggle={toggleAgentSidebar} />
-        <AgentNotificationPopup />
-        <MainAssistantButton />
+        {/* 우측하단 에이전트 비서 임시 비활성화 */}
+        {/* <AgentNotificationPopup /> */}
+        {/* <MainAssistantButton /> */}
         <main
         className={cn(
           (isFullWidthPage || isElectron) ? "flex flex-col" : "pt-16",

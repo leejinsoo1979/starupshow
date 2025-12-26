@@ -33,6 +33,7 @@ import {
   Orbit,
 } from 'lucide-react'
 import { TbBrandWechat } from 'react-icons/tb'
+import { GrConnect } from 'react-icons/gr'
 
 const navigation = [
   { name: '대시보드', href: '/dashboard-group', icon: LayoutDashboard },
@@ -46,6 +47,7 @@ const navigation = [
   { name: 'AI 에이전트', href: '/dashboard-group/agents', icon: BrainCircuit },
   { name: '뉴럴맵', href: '/dashboard-group/neural-map', icon: Orbit },
   { name: '리포트', href: '/dashboard-group/reports', icon: FileText },
+  { name: '커넥트', href: '/dashboard-group/connect', icon: GrConnect },
   { name: '팀 관리', href: '/dashboard-group/team', icon: Users },
   { name: 'AI 인사이트', href: '/dashboard-group/insights', icon: Sparkles },
 ]
