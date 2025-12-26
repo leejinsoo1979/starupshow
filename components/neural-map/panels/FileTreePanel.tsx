@@ -260,6 +260,7 @@ export function FileTreePanel({ mapId }: FileTreePanelProps) {
   const graph = useNeuralMapStore((s) => s.graph)
   const setSelectedNodes = useNeuralMapStore((s) => s.setSelectedNodes)
   const focusOnNode = useNeuralMapStore((s) => s.focusOnNode)
+  const setFocusNodeId = useNeuralMapStore((s) => s.setFocusNodeId)
   const openEditor = useNeuralMapStore((s) => s.openEditor)
   const buildGraphFromFilesAsync = useNeuralMapStore((s) => s.buildGraphFromFilesAsync)
   const openCodePreview = useNeuralMapStore((s) => s.openCodePreview)
@@ -1204,7 +1205,8 @@ export function FileTreePanel({ mapId }: FileTreePanelProps) {
     const node = findNodeByFileName(file.name)
     if (node) {
       setSelectedNodes([node.id])
-      focusOnNode(node.id)
+      // 🎯 2D 그래프에서 해당 노드를 화면 중심으로 이동
+      setFocusNodeId(node.id)
     }
   }
 
