@@ -177,8 +177,8 @@ export const SPEED_PRESETS = [
   { label: '3x', value: 3 },
 ] as const
 
-// 기본 스텝 지속 시간 (ms)
-export const BASE_STEP_DURATION = 1000
+// 기본 스텝 지속 시간 (ms) - 카메라 애니메이션(1200ms)보다 길게 설정
+export const BASE_STEP_DURATION = 1800
 
 // 애니메이션 색상
 export const SIMULATION_COLORS = {

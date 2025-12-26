@@ -387,6 +387,43 @@ export function Graph2DView({ className }: Graph2DViewProps) {
     return { nodes, links }
   }, [graph, files, fileMap, fileSizeRange, expandedNodeIds, radialDistance])
 
+  // 선택된 노드와 연결된 노드 ID 계산 (강조 표시용)
+  const connectedNodeIds = useMemo(() => {
+    if (selectedNodeIds.length === 0 || !graph?.edges) return new Set<string>()
+
+    const connected = new Set<string>(selectedNodeIds)
+
+    // 선택된 노드와 직접 연결된 모든 노드 찾기
+    graph.edges.forEach(edge => {
+      selectedNodeIds.forEach(selectedId => {
+        if (edge.source === selectedId) {
+          connected.add(edge.target)
+        }
+        if (edge.target === selectedId) {
+          connected.add(edge.source)
+        }
+      })
+    })
+
+    // 부모-자식 관계도 포함 (폴더 구조)
+    graph.nodes.forEach(node => {
+      const nodeWithParent = node as any
+      selectedNodeIds.forEach(selectedId => {
+        // 선택된 노드의 부모
+        if (nodeWithParent.parentId === selectedId) {
+          connected.add(node.id)
+        }
+        // 선택된 노드가 자식인 경우 부모도 포함
+        const selectedNode = graph.nodes.find(n => n.id === selectedId) as any
+        if (selectedNode?.parentId === node.id) {
+          connected.add(node.id)
+        }
+      })
+    })
+
+    return connected
+  }, [selectedNodeIds, graph?.edges, graph?.nodes])
+
   // 디버그: graphData 내용 출력
   console.log('[Graph2DView] graphData nodes:', graphData.nodes.map(n => ({ id: n.id, name: n.name, x: n.x, y: n.y, type: n.type })))
 
@@ -395,22 +432,62 @@ export function Graph2DView({ className }: Graph2DViewProps) {
     if (node?.id) {
       setSelectedNodes([node.id])
 
-      // 1. Try direct ID match
-      let targetFile = files.find(f => f.id === node.id)
+      // 폴더 노드는 파일을 열지 않음
+      if (node.type === 'folder' || node.type === 'self') {
+        return
+      }
 
-      // 2. Try sourceRef if available (from neural node data)
+      // 다양한 방법으로 파일 매칭 시도
+      let targetFile = null
+
+      // 1. Try direct ID match
+      targetFile = files.find(f => f.id === node.id)
+
+      // 2. Try by name (node.name 또는 node.title)
+      if (!targetFile && node.name) {
+        targetFile = files.find(f => f.name === node.name || f.name === node.name + '.md')
+      }
+      if (!targetFile && node.title) {
+        targetFile = files.find(f => f.name === node.title || f.name === node.title + '.md')
+      }
+
+      // 3. Try by path matching
+      if (!targetFile && node.name) {
+        targetFile = files.find(f => f.path?.endsWith(node.name) || f.path?.includes(node.name))
+      }
+
+      // 4. Try sourceRef if available (from neural node data)
       if (!targetFile && node.sourceRef?.fileId) {
         targetFile = files.find(f => f.id === node.sourceRef.fileId)
       }
 
-      // 3. Legacy support: 'node-' prefix
+      // 5. Try fileId property
+      if (!targetFile && node.fileId) {
+        targetFile = files.find(f => f.id === node.fileId)
+      }
+
+      // 6. Legacy support: 'node-' prefix
       if (!targetFile && (node.id as string).startsWith('node-')) {
         const fileId = (node.id as string).replace('node-', '')
         targetFile = files.find(f => f.id === fileId)
       }
 
+      // 7. Try matching by title in files
+      if (!targetFile) {
+        const nodeTitle = node.title || node.name
+        if (nodeTitle) {
+          targetFile = files.find(f =>
+            f.name.replace(/\.\w+$/, '') === nodeTitle ||
+            f.name === nodeTitle
+          )
+        }
+      }
+
       if (targetFile) {
+        console.log('[Graph2DView] Opening file:', targetFile.name, targetFile.id)
         openCodePreview(targetFile)
+      } else {
+        console.log('[Graph2DView] No file found for node:', node.id, node.name, node.title)
       }
     }
   }, [setSelectedNodes, files, openCodePreview])
@@ -454,9 +531,30 @@ export function Graph2DView({ className }: Graph2DViewProps) {
     const isSelected = selectedNodeIds.includes(node.id)
     const isHovered = hoveredNodeRef.current === node.id
 
+    // 노드가 선택된 것과 연결되어 있는지 확인 (종속성 강조)
+    const hasSelection = selectedNodeIds.length > 0
+    const isConnected = connectedNodeIds.has(node.id)
+    const isDimmed = hasSelection && !isConnected && !isSelected && !isHovered
+
+    // 🌌 은하 효과: 줌아웃 시 반짝이는 별처럼 보이게
+    const isGalaxyMode = globalScale < 1.2
+    const time = Date.now() / 1000
+    // 각 노드마다 고유한 반짝임 패턴 (노드 ID 해시 기반)
+    const nodeHash = node.id.split('').reduce((a: number, c: string) => a + c.charCodeAt(0), 0)
+    const twinkleSpeed = 1.5 + (nodeHash % 10) / 5 // 1.5~3.5 속도 변화
+    const twinklePhase = (nodeHash % 100) / 100 * Math.PI * 2 // 위상 차이
+    const twinkle = Math.sin(time * twinkleSpeed + twinklePhase) * 0.5 + 0.5 // 0~1
+
     // 노드 크기 (고정 크기, 줌에 따라 자연스럽게 스케일)
     const baseSize = node.val || 4
-    const actualSize = baseSize
+    // 연결된 노드는 약간 크게 표시
+    let sizeMultiplier = isSelected ? 1.3 : (isConnected && hasSelection) ? 1.15 : 1
+
+    // 은하 모드: 반짝임에 따라 크기 변화
+    if (isGalaxyMode && !isSelected && !isHovered) {
+      sizeMultiplier *= 0.8 + twinkle * 0.4 // 0.8~1.2 크기 변화
+    }
+    const actualSize = baseSize * sizeMultiplier
 
     // 색상 결정
     let fillColor = node.color || '#6b7280'
@@ -465,15 +563,30 @@ export function Graph2DView({ className }: Graph2DViewProps) {
       fillColor = FILE_TYPE_COLORS[node.fileType.toLowerCase()] || '#6b7280'
     }
 
-    if (isSelected || isHovered) {
-      // 선택 시 테두리로 강조하되, 배경색은 유지하거나 약간 밝게
-      // 여기서는 원래 색상 유지하고 테두리 그림자 추가
+    // 연결되지 않은 노드는 매우 흐리게 처리
+    if (isDimmed) {
+      ctx.globalAlpha = 0.08
+    } else if (isGalaxyMode && !isSelected && !isHovered) {
+      // 은하 모드: 반짝임에 따라 투명도 변화
+      ctx.globalAlpha = 0.5 + twinkle * 0.5 // 0.5~1.0
     }
 
     // 그림자/글로우 효과
-    if (isSelected || isHovered) {
+    if (isSelected) {
+      // 선택된 노드: 강한 글로우
+      ctx.shadowColor = '#ffffff'
+      ctx.shadowBlur = 20 / globalScale
+    } else if (isHovered) {
       ctx.shadowColor = fillColor
       ctx.shadowBlur = 15 / globalScale
+    } else if (isConnected && hasSelection) {
+      // 연결된 노드: 테마색 글로우로 강조
+      ctx.shadowColor = fillColor
+      ctx.shadowBlur = 12 / globalScale
+    } else if (isGalaxyMode) {
+      // 🌟 은하 모드: 별처럼 반짝이는 글로우
+      ctx.shadowColor = fillColor
+      ctx.shadowBlur = (8 + twinkle * 15) / globalScale // 반짝일 때 더 강한 글로우
     } else {
       ctx.shadowBlur = 0
     }
@@ -484,8 +597,43 @@ export function Graph2DView({ className }: Graph2DViewProps) {
     ctx.fillStyle = fillColor
     ctx.fill()
 
-    // 테두리 (선택/호버 시)
-    if (isSelected || isHovered) {
+    // 🌌 은하 모드: 밝은 별에 십자 광선 효과
+    if (isGalaxyMode && twinkle > 0.7 && !isDimmed) {
+      const rayLength = actualSize * (1.5 + twinkle)
+      const rayAlpha = (twinkle - 0.7) / 0.3 * 0.6 // 0~0.6
+
+      ctx.save()
+      ctx.strokeStyle = fillColor
+      ctx.globalAlpha = rayAlpha
+      ctx.lineWidth = 1 / globalScale
+
+      // 수직 광선
+      ctx.beginPath()
+      ctx.moveTo(node.x, node.y - rayLength)
+      ctx.lineTo(node.x, node.y + rayLength)
+      ctx.stroke()
+
+      // 수평 광선
+      ctx.beginPath()
+      ctx.moveTo(node.x - rayLength, node.y)
+      ctx.lineTo(node.x + rayLength, node.y)
+      ctx.stroke()
+
+      ctx.restore()
+    }
+
+    // 테두리 (선택/호버/연결 시)
+    if (isSelected) {
+      // 선택된 노드: 두꺼운 흰색 테두리
+      ctx.strokeStyle = '#ffffff'
+      ctx.lineWidth = 3 / globalScale
+      ctx.stroke()
+    } else if (isConnected && hasSelection) {
+      // 연결된 노드: 얇은 흰색 테두리로 강조
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.8)'
+      ctx.lineWidth = 2 / globalScale
+      ctx.stroke()
+    } else if (isHovered) {
       ctx.strokeStyle = '#ffffff'
       ctx.lineWidth = 2 / globalScale
       ctx.stroke()
@@ -560,18 +708,18 @@ export function Graph2DView({ className }: Graph2DViewProps) {
       drawFileTypeIcon(ctx, node.fileType, node.x, node.y, iconSize, iconColor)
     }
 
-    // 라벨 그리기 - 줌 레벨에 따라 표시/숨김 (Obsidian 스타일)
-    // globalScale < 0.5: 라벨 숨김
-    // globalScale 0.5~1.0: 페이드 인
-    // globalScale > 1.0: 완전 표시
-    const labelOpacity = globalScale < 0.5
+    // 라벨 그리기 - 줌 레벨에 따라 표시/숨김 (깔끔한 원거리 뷰)
+    // globalScale < 1.8: 라벨 숨김 (원거리에서는 노드만 표시)
+    // globalScale 1.8~3.0: 페이드 인
+    // globalScale > 3.0: 완전 표시
+    const labelOpacity = globalScale < 1.8
       ? 0
-      : globalScale < 1.0
-        ? (globalScale - 0.5) * 2 // 0.5~1.0 사이에서 0~1로 페이드
+      : globalScale < 3.0
+        ? (globalScale - 1.8) / 1.2 // 1.8~3.0 사이에서 0~1로 페이드
         : 1
 
-    // 선택되거나 호버된 노드는 항상 라벨 표시
-    const shouldShowLabel = labelOpacity > 0 || isSelected || isHovered
+    // 선택되거나 호버된 노드는 항상 라벨 표시 (연결된 노드도)
+    const shouldShowLabel = labelOpacity > 0 || isSelected || isHovered || (isConnected && hasSelection)
 
     if (shouldShowLabel) {
       ctx.font = `${fontSize}px -apple-system, BlinkMacSystemFont, sans-serif`
@@ -597,7 +745,10 @@ export function Graph2DView({ className }: Graph2DViewProps) {
 
       ctx.fillText(displayLabel, node.x, node.y + actualSize + 4)
     }
-  }, [selectedNodeIds, isDark])
+
+    // 알파 값 리셋 (다음 노드 렌더링에 영향 방지)
+    ctx.globalAlpha = 1
+  }, [selectedNodeIds, connectedNodeIds, isDark])
 
   // 링크 캔버스 렌더링
   const linkCanvasObject = useCallback((link: any, ctx: CanvasRenderingContext2D, globalScale: number) => {
@@ -605,6 +756,22 @@ export function Graph2DView({ className }: Graph2DViewProps) {
     const end = link.target
 
     if (!start || !end || typeof start.x !== 'number') return
+
+    // 선택된 노드가 있을 때 연결되지 않은 링크는 흐리게 처리
+    const hasSelection = selectedNodeIds.length > 0
+    const sourceId = typeof start === 'string' ? start : start.id
+    const targetId = typeof end === 'string' ? end : end.id
+    const isLinkConnected = connectedNodeIds.has(sourceId) || connectedNodeIds.has(targetId)
+    const isLinkDimmed = hasSelection && !isLinkConnected
+
+    if (isLinkDimmed) {
+      ctx.globalAlpha = 0.05
+    }
+
+    // 연결된 링크인지 확인 (양쪽 노드가 모두 연결된 노드인 경우)
+    const isLinkHighlighted = hasSelection &&
+      (selectedNodeIds.includes(sourceId) || selectedNodeIds.includes(targetId)) &&
+      (connectedNodeIds.has(sourceId) && connectedNodeIds.has(targetId))
 
     const isImport = link.type === 'imports'
     const isSemantic = link.type === 'semantic'
@@ -617,27 +784,35 @@ export function Graph2DView({ className }: Graph2DViewProps) {
     if (isImport) {
       // 의존성 라인: 테마 색상, 얇고 세련되게, 점선, 강한 발광
       ctx.strokeStyle = accentColor
-      ctx.lineWidth = 1.5 / globalScale // 3.5 -> 1.5
+      ctx.lineWidth = isLinkHighlighted ? 2.5 / globalScale : 1.5 / globalScale
       ctx.setLineDash([4 / globalScale, 4 / globalScale]) // 점선 간격 조정
 
-      // 빛나는 효과 (Glow) 강화
-      ctx.shadowBlur = 15 // 발광 강도 증가
+      // 빛나는 효과 (Glow) 강화 - 연결된 링크는 더 강하게
+      ctx.shadowBlur = isLinkHighlighted ? 20 : 15
       ctx.shadowColor = accentColor
     } else if (isSemantic) {
       // 기능적 라인
       ctx.strokeStyle = isDark ? 'rgba(148, 163, 184, 0.4)' : 'rgba(100, 116, 139, 0.5)'
-      ctx.lineWidth = 1.0 / globalScale
+      ctx.lineWidth = isLinkHighlighted ? 1.5 / globalScale : 1.0 / globalScale
       ctx.setLineDash([2 / globalScale, 2 / globalScale])
-      ctx.shadowBlur = 0
+      ctx.shadowBlur = isLinkHighlighted ? 10 : 0
+      ctx.shadowColor = accentColor
     } else {
       // 구조 라인(폴더-파일): 테마 색상을 따르되 은은하게 (투명도 조절)
-      // accentColor는 hex string이므로 투명도를 주려면 globalAlpha를 쓰거나 rgba로 변환해야 함
-      // 간단하게 globalAlpha 사용
-      ctx.globalAlpha = isDark ? 0.3 : 0.4
-      ctx.strokeStyle = accentColor
-      ctx.lineWidth = 1.0 / globalScale
+      if (isLinkHighlighted) {
+        // 연결된 링크는 더 밝게 강조
+        ctx.globalAlpha = 1
+        ctx.strokeStyle = accentColor
+        ctx.lineWidth = 2.0 / globalScale
+        ctx.shadowBlur = 12
+        ctx.shadowColor = accentColor
+      } else {
+        ctx.globalAlpha = isDark ? 0.3 : 0.4
+        ctx.strokeStyle = accentColor
+        ctx.lineWidth = 1.0 / globalScale
+        ctx.shadowBlur = 0
+      }
       ctx.setLineDash([])
-      ctx.shadowBlur = 0
     }
 
     ctx.stroke()
@@ -696,7 +871,7 @@ export function Graph2DView({ className }: Graph2DViewProps) {
     // 그림자 효과 초기화
     ctx.shadowBlur = 0
     ctx.shadowColor = 'transparent'
-  }, [isDark, currentTheme])
+  }, [isDark, currentTheme, selectedNodeIds, connectedNodeIds])
 
   // 그래프 로드 후 자동 줌 맞춤 (SELF 노드 중심)
   useEffect(() => {

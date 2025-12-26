@@ -152,7 +152,7 @@ function SchemaFlowInner({ className }: { className?: string }) {
     // 시뮬레이션 컨트롤러 표시 상태
     const [showSimulation, setShowSimulation] = useState(false)
 
-    // 카메라 이동 함수
+    // 카메라 이동 함수 - 시네마틱 애니메이션
     const moveCameraToNodes = useCallback((nodeIds: string[]) => {
         if (nodeIds.length === 0) return
 
@@ -161,17 +161,33 @@ function SchemaFlowInner({ className }: { className?: string }) {
         if (targetNodes.length === 0) return
 
         // 노드들의 중심점 계산
-        const padding = 100
+        const padding = 150
         const minX = Math.min(...targetNodes.map(n => n.position.x)) - padding
         const maxX = Math.max(...targetNodes.map(n => n.position.x + (n.width || 240))) + padding
         const minY = Math.min(...targetNodes.map(n => n.position.y)) - padding
         const maxY = Math.max(...targetNodes.map(n => n.position.y + (n.height || 200))) + padding
 
-        // fitBounds로 해당 영역으로 카메라 이동 (부드러운 애니메이션)
-        reactFlowInstance.fitBounds(
-            { x: minX, y: minY, width: maxX - minX, height: maxY - minY },
-            { duration: 500, padding: 0.2 }
-        )
+        // 중심점 계산
+        const centerX = (minX + maxX) / 2
+        const centerY = (minY + maxY) / 2
+
+        // 단일 노드인 경우 setCenter로 부드럽게 이동
+        if (targetNodes.length === 1) {
+            const node = targetNodes[0]
+            const nodeCenterX = node.position.x + (node.width || 240) / 2
+            const nodeCenterY = node.position.y + (node.height || 200) / 2
+
+            reactFlowInstance.setCenter(nodeCenterX, nodeCenterY, {
+                duration: 1200,
+                zoom: 1.2,
+            })
+        } else {
+            // 여러 노드인 경우 fitBounds 사용 (느린 시네마틱 이동)
+            reactFlowInstance.fitBounds(
+                { x: minX, y: minY, width: maxX - minX, height: maxY - minY },
+                { duration: 1000, padding: 0.3 }
+            )
+        }
     }, [reactFlowInstance])
 
     // 프로젝트 파일에서 스키마 파싱
@@ -275,6 +291,9 @@ function SchemaFlowInner({ className }: { className?: string }) {
         operation?: 'create' | 'read' | 'update' | 'delete'
     }>({ mode: 'fk-flow' })
 
+    // 카메라 이동 타이머 ref
+    const cameraTimerRef = useRef<NodeJS.Timeout | null>(null)
+
     // 시뮬레이션에서 노드 하이라이트 처리 + 카메라 이동
     const handleNodeHighlight = useCallback((highlightedNodeIds: Set<string>, visitedNodeIds: Set<string>) => {
         // 노드 하이라이트 스타일 적용 + 시뮬레이션 모드 상태
@@ -297,10 +316,17 @@ function SchemaFlowInner({ className }: { className?: string }) {
             }))
         )
 
-        // 카메라를 하이라이트된 노드로 이동
+        // 이전 카메라 타이머 취소
+        if (cameraTimerRef.current) {
+            clearTimeout(cameraTimerRef.current)
+        }
+
+        // 카메라를 하이라이트된 노드로 이동 (약간의 딜레이로 시네마틱 효과)
         const nodeIdsArray = Array.from(highlightedNodeIds)
         if (nodeIdsArray.length > 0) {
-            moveCameraToNodes(nodeIdsArray)
+            cameraTimerRef.current = setTimeout(() => {
+                moveCameraToNodes(nodeIdsArray)
+            }, 200) // 200ms 딜레이 후 카메라 이동 시작
         }
     }, [setNodes, simulationHighlight, moveCameraToNodes, showSimulation])
 
