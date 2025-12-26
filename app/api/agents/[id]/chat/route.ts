@@ -5,6 +5,7 @@ import { isDevMode, DEV_USER } from '@/lib/dev-user'
 import { createClient } from '@/lib/supabase/server'
 import { generateAgentChatResponse } from '@/lib/langchain/agent-chat'
 import { generateSuperAgentResponse, SuperAgentMessage } from '@/lib/ai/super-agent-chat'
+import { runAutonomousAgent } from '@/lib/ai/autonomous-agent'
 import {
   loadAgentWorkContext,
   formatContextForPrompt,
@@ -13,6 +14,112 @@ import {
   processAgentConversation,
 } from '@/lib/agent/work-memory'
 import { getLLMConfigForAgent } from '@/lib/llm/user-keys'
+
+// 이모티콘 키워드 매칭 (keywords 필드 또는 name으로 매칭)
+async function findEmoticonForResponse(
+  adminClient: any,
+  userId: string,
+  responseText: string
+): Promise<string | null> {
+  try {
+    // 사용자의 이모티콘 조회 (keywords 컬럼은 없을 수 있음)
+    const { data: emoticons, error } = await adminClient
+      .from('user_emoticons')
+      .select('name, image_url, image_urls')
+      .eq('user_id', userId)
+
+    if (error) {
+      console.error('[Emoticon] Query error:', error.message)
+      return null
+    }
+    if (!emoticons || emoticons.length === 0) return null
+
+    // 유니코드 정규화 (NFC로 통일 - 한글 자모 분리 문제 해결)
+    const normalizedResponse = responseText.toLowerCase().normalize('NFC')
+
+    // 1. 이모티콘 이름으로 직접 매칭
+    for (const emo of emoticons) {
+      const normalizedName = (emo.name?.toLowerCase() || '').normalize('NFC')
+      if (normalizedName && normalizedResponse.includes(normalizedName)) {
+        const images = emo.image_urls?.length > 0 ? emo.image_urls : [emo.image_url]
+        return images[Math.floor(Math.random() * images.length)]
+      }
+    }
+
+    // 2. 특정 감정 키워드 매칭 (기본 매핑)
+    const emotionKeywords: { [key: string]: string[] } = {
+      '안녕': ['인사', '반가'],
+      '사랑': ['좋아', '사랑', '❤', '💕'],
+      '슬픔': ['슬프', '우울', '😢', '😭'],
+      '화남': ['화나', '짜증', '😤', '😡'],
+      '웃음': ['ㅋㅋ', 'ㅎㅎ', '웃', '😂', '🤣'],
+      '찰싹': ['때려', '찰싹', '스팽', '엉덩이', '맞', '짝'],
+    }
+
+    for (const emo of emoticons) {
+      const emoName = (emo.name?.toLowerCase() || '').normalize('NFC')
+
+      for (const [emotionName, keywords] of Object.entries(emotionKeywords)) {
+        const normalizedEmotionName = emotionName.normalize('NFC')
+        const normalizedKeywords = keywords.map(k => k.normalize('NFC'))
+
+        // 이모티콘 이름에 감정키워드가 포함되어 있는지 확인
+        const nameMatch = emoName.includes(normalizedEmotionName) ||
+                         normalizedKeywords.some(k => emoName.includes(k))
+
+        if (nameMatch) {
+          // 응답에 관련 키워드가 있으면 매칭
+          const keywordMatch = normalizedKeywords.some(k => normalizedResponse.includes(k))
+          if (keywordMatch) {
+            const images = emo.image_urls?.length > 0 ? emo.image_urls : [emo.image_url]
+            return images[Math.floor(Math.random() * images.length)]
+          }
+        }
+      }
+    }
+
+    return null
+  } catch (err) {
+    console.error('[Emoticon] Match error:', err)
+    return null
+  }
+}
+
+// 🔥 자율 에이전트 모드 감지 (복잡한 멀티스텝 작업)
+function shouldUseAutonomousAgent(message: string): boolean {
+  const autonomousPatterns = [
+    // API 연동 및 개발 요청
+    /api\s*(연동|연결|통합)/i,
+    /연동해서.*만들/i,
+    /연결해서.*개발/i,
+    /(정부24|공공데이터|open\s*api)/i,
+    // 크롤링/스크래핑 요청
+    /(크롤링|스크래핑|긁어|수집해)/i,
+    /(뉴스|데이터|정보)\s*(가져|긁어|수집)/i,
+    // 앱/프로그램 개발 요청
+    /앱\s*(만들|개발|구현)/i,
+    /프로그램\s*(만들|개발|구현)/i,
+    /서비스\s*(만들|개발|구현)/i,
+    /기능\s*(구현|개발|추가).*해/i,
+    // 자동화 요청
+    /자동화\s*(해|시켜)/i,
+    /자동으로\s*(처리|실행)/i,
+    // 복잡한 작업 지시
+    /단계별로.*진행/i,
+    /처음부터\s*끝까지/i,
+    /완성해/i,
+    /풀스택/i,
+    // 영어 패턴
+    /build\s*(an?\s*)?(app|application|service|api)/i,
+    /create\s*(an?\s*)?(app|application|service|api)/i,
+    /develop\s*(an?\s*)?(feature|functionality)/i,
+    /integrate\s*with/i,
+    /automate/i,
+    /scrape|crawl/i,
+  ]
+
+  return autonomousPatterns.some(p => p.test(message))
+}
 
 // 슈퍼에이전트 모드 감지 (도구 사용이 필요한 요청)
 function shouldUseSuperAgent(message: string, capabilities: string[] = []): boolean {
@@ -107,9 +214,6 @@ export async function POST(
       return NextResponse.json({ error: '메시지가 필요합니다' }, { status: 400 })
     }
 
-    // 인텐트 감지 (프로젝트 생성 등)
-    const { actionType, extractedData } = detectIntent(message)
-
     // 이미지 검증 (최대 4장, 각각 10MB 미만)
     const validImages: string[] = []
     if (images && Array.isArray(images)) {
@@ -131,9 +235,15 @@ export async function POST(
       return NextResponse.json({ error: '에이전트를 찾을 수 없습니다' }, { status: 404 })
     }
 
+    // 🔥 자율 에이전트 모드 확인 (복잡한 멀티스텝 작업)
+    const useAutonomousAgent = body.autonomousMode === true ||
+                               shouldUseAutonomousAgent(message)
+
     // 🔥 슈퍼에이전트 모드 확인 (Tool Calling 사용)
-    const useSuperAgent = body.superAgentMode === true ||
-                          shouldUseSuperAgent(message, agent.capabilities || [])
+    const useSuperAgent = !useAutonomousAgent && (
+      body.superAgentMode === true ||
+      shouldUseSuperAgent(message, agent.capabilities || [])
+    )
 
     // 에이전트 정체성 조회
     const { data: identity } = await (adminClient as any)
@@ -255,8 +365,31 @@ export async function POST(
 
       const userName = userProfile?.name || user.email?.split('@')[0] || '사용자'
 
+      // 🚀 자율 에이전트 모드: 복잡한 멀티스텝 작업 (ReAct 패턴)
+      if (useAutonomousAgent) {
+        console.log('[AgentChat] 🚀 Using Autonomous Agent mode (ReAct pattern)')
+
+        const autonomousResponsePromise = runAutonomousAgent(
+          message,
+          {
+            name: agent.name,
+            provider: (agent.llm_provider || 'grok') as any,
+            model: agent.model || undefined,
+            apiKey: userApiKey || undefined,
+          },
+          body.projectPath || undefined
+        )
+
+        const autonomousResult = await Promise.race([autonomousResponsePromise, timeoutPromise])
+        response = autonomousResult.message
+        actions = autonomousResult.actions
+        toolsUsed = autonomousResult.task.results.map(r => r.tool)
+
+        console.log(`[AgentChat] 🤖 Autonomous task completed: ${autonomousResult.isComplete}`)
+        console.log(`[AgentChat] 📋 Steps executed: ${autonomousResult.task.results.length}`)
+      }
       // 🔥 슈퍼에이전트 모드: Tool Calling 사용
-      if (useSuperAgent) {
+      else if (useSuperAgent) {
         console.log('[AgentChat] 🚀 Using Super Agent mode with Tool Calling')
 
         // 채팅 히스토리를 SuperAgentMessage 형식으로 변환
@@ -343,12 +476,17 @@ export async function POST(
       topicDomain: 'general',
     }).catch(err => console.error('[AgentOS] Process error:', err))
 
-    // 🔥 슈퍼에이전트 응답: 액션 포함
+    // 이모티콘 매칭
+    const gifUrl = await findEmoticonForResponse(adminClient, user.id, response)
+
+    // 🔥 에이전트 응답: 액션 포함
     return NextResponse.json({
       response,
+      gif_url: gifUrl,
       actions: actions.length > 0 ? actions : undefined,
       toolsUsed: toolsUsed.length > 0 ? toolsUsed : undefined,
       superAgentMode: useSuperAgent,
+      autonomousMode: useAutonomousAgent,
     })
   } catch (error) {
     console.error('Agent chat error:', error)

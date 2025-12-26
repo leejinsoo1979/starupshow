@@ -375,6 +375,8 @@ function ToolCard({ tool, onEdit }: { tool: ToolItem, onEdit: () => void }) {
             onClick={() => {
                 if (tool.id === 'ai-summary-perfect') {
                     window.location.href = '/dashboard-group/apps/ai-summary'
+                } else if (tool.id === 'image-gen') {
+                    window.location.href = '/dashboard-group/apps/image-gen'
                 }
             }}
             onMouseLeave={() => setIsMenuOpen(false)}

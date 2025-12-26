@@ -157,7 +157,7 @@ async function createWindow() {
         // WebAuthn/패스키 요청 비활성화 (무한 로딩 방지)
         mainWindow.webContents.session.setPermissionRequestHandler((_webContents, permission, callback) => {
             // 알림, 미디어 등 기본 권한만 허용
-            const allowedPermissions = ['notifications', 'media', 'clipboard-read', 'clipboard-sanitized-write'];
+            const allowedPermissions = ['notifications', 'media', 'microphone', 'audioCapture', 'clipboard-read', 'clipboard-sanitized-write'];
             if (allowedPermissions.includes(permission)) {
                 callback(true);
             } else {

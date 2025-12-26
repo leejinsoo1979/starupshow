@@ -150,7 +150,11 @@ export async function POST(req: NextRequest) {
 
         console.log('[Grok] Total time:', Date.now() - startTime, 'ms')
 
-        return new NextResponse(wavBuffer, {
+        // Buffer를 새 ArrayBuffer로 복사하여 NextResponse에 전달
+        const arrayBuffer = new ArrayBuffer(wavBuffer.length)
+        new Uint8Array(arrayBuffer).set(wavBuffer)
+
+        return new NextResponse(arrayBuffer, {
             headers: {
                 'Content-Type': 'audio/wav',
                 'Content-Length': wavBuffer.length.toString(),
@@ -159,6 +163,82 @@ export async function POST(req: NextRequest) {
     } catch (error: any) {
         console.error('[Grok Error]:', error.message)
         // 에러 시 연결 초기화
+        cachedWs = null
+        wsReady = false
+        return NextResponse.json({ error: error.message }, { status: 500 })
+    }
+}
+
+// GET 요청도 지원 (모바일에서 downloadAsync 사용)
+export async function GET(req: NextRequest) {
+    const { searchParams } = new URL(req.url)
+    const text = searchParams.get('text')
+    const voice = searchParams.get('voice') || 'Eve'
+
+    if (!text) {
+        return NextResponse.json({ error: 'Text is required' }, { status: 400 })
+    }
+
+    const XAI_API_KEY = process.env.XAI_API_KEY
+    if (!XAI_API_KEY) {
+        return NextResponse.json({ error: 'XAI API key not configured' }, { status: 500 })
+    }
+
+    try {
+        const startTime = Date.now()
+        const ws = await getWebSocket(XAI_API_KEY, voice)
+        console.log('[Grok GET] Connection ready in', Date.now() - startTime, 'ms')
+
+        const audioChunks: Buffer[] = []
+
+        await new Promise<void>((resolve, reject) => {
+            const messageHandler = (data: Buffer) => {
+                try {
+                    const msg = JSON.parse(data.toString())
+                    if (msg.type === 'response.output_audio.delta') {
+                        audioChunks.push(Buffer.from(msg.delta, 'base64'))
+                    }
+                    if (msg.type === 'response.completed' || msg.type === 'response.done') {
+                        ws.off('message', messageHandler)
+                        resolve()
+                    }
+                    if (msg.type === 'error') {
+                        ws.off('message', messageHandler)
+                        reject(new Error(msg.error?.message || 'Unknown error'))
+                    }
+                } catch (e) {}
+            }
+
+            ws.on('message', messageHandler)
+
+            ws.send(JSON.stringify({
+                type: 'conversation.item.create',
+                item: { type: 'message', role: 'user', content: [{ type: 'input_text', text }] }
+            }))
+            ws.send(JSON.stringify({ type: 'response.create' }))
+
+            setTimeout(() => {
+                ws.off('message', messageHandler)
+                reject(new Error('Timeout'))
+            }, 30000)
+        })
+
+        const pcmData = Buffer.concat(audioChunks)
+        const wavBuffer = pcmToWav(pcmData, 24000, 1, 16)
+
+        console.log('[Grok GET] Total time:', Date.now() - startTime, 'ms')
+
+        const arrayBuffer = new ArrayBuffer(wavBuffer.length)
+        new Uint8Array(arrayBuffer).set(wavBuffer)
+
+        return new NextResponse(arrayBuffer, {
+            headers: {
+                'Content-Type': 'audio/wav',
+                'Content-Length': wavBuffer.length.toString(),
+            },
+        })
+    } catch (error: any) {
+        console.error('[Grok GET Error]:', error.message)
         cachedWs = null
         wsReady = false
         return NextResponse.json({ error: error.message }, { status: 500 })

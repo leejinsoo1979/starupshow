@@ -203,11 +203,11 @@ export default function CytoscapeView({ projectPath: projectPathProp, mapId }: C
         throw new Error('Electron API not available')
       }
 
-      // Scan files using Electron IPC with content included
+      // Scan files using Electron IPC with content included (스키마 파일 포함)
       log('[CytoscapeView] 📋 Scanning project files...')
       const result = await (electronFs as any).scanTree(projectPath, {
         includeContent: true,
-        contentExtensions: ['.ts', '.tsx', '.js', '.jsx'],
+        contentExtensions: ['.ts', '.tsx', '.js', '.jsx', '.json', '.md', '.sql', '.prisma', '.graphql', '.gql', '.yaml', '.yml'],
         includeSystemFiles: false,
       })
 

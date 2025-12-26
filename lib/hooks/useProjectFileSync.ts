@@ -25,8 +25,10 @@ interface UseProjectFileSyncOptions {
 interface ScanResult {
   path: string
   name: string
-  type: 'file' | 'directory'
+  kind: 'file' | 'directory' // Electron API는 'kind'를 반환
   children?: ScanResult[]
+  content?: string // 파일 내용 (includeContent: true일 때)
+  size?: number
 }
 
 interface StorageFile {
@@ -137,9 +139,19 @@ export function useProjectFileSync({
       console.log('[useProjectFileSync] 🔍 Scanning local folder:', dirPath)
       setIsLoading(true)
 
+      // ✅ includeContent: true로 파일 내용도 함께 스캔
       const scanResult = await electron.fs.scanTree(dirPath, {
         showHidden: false,
         maxDepth: 10,
+        includeContent: true, // 파일 내용 포함
+        contentExtensions: [
+          '.ts', '.tsx', '.js', '.jsx', '.json', '.md', '.mdx',
+          '.css', '.scss', '.html', '.vue', '.svelte',
+          '.py', '.go', '.rs', '.java', '.rb', '.php',
+          '.sql', '.prisma', '.graphql', '.gql',
+          '.yaml', '.yml', '.toml', '.env', '.gitignore',
+          '.txt', '.csv', '.xml'
+        ],
       })
 
       if (!scanResult?.tree) {
@@ -151,7 +163,7 @@ export function useProjectFileSync({
       const timestamp = Date.now()
 
       const flattenTree = (node: ScanResult, depth = 0) => {
-        if (node.type === 'file') {
+        if (node.kind === 'file') {
           neuralFiles.push({
             id: `local-${timestamp}-${neuralFiles.length}`,
             name: node.name,
@@ -159,8 +171,9 @@ export function useProjectFileSync({
             type: getFileType(node.name),
             mapId: '',
             url: '',
-            size: 0,
+            size: node.size || 0,
             createdAt: new Date().toISOString(),
+            content: node.content, // ✅ 파일 내용 포함
           })
         }
         if (node.children) {
@@ -169,7 +182,9 @@ export function useProjectFileSync({
       }
 
       flattenTree(scanResult.tree)
-      console.log(`[useProjectFileSync] ✅ Scanned ${neuralFiles.length} local files`)
+
+      const filesWithContent = neuralFiles.filter(f => f.content).length
+      console.log(`[useProjectFileSync] ✅ Scanned ${neuralFiles.length} local files (${filesWithContent} with content)`)
 
       return neuralFiles
     } catch (err) {
@@ -199,6 +214,16 @@ export function useProjectFileSync({
   // WEB: Supabase Storage
   // ==============================
 
+  // 텍스트 기반 파일 확장자 목록
+  const TEXT_EXTENSIONS = [
+    'ts', 'tsx', 'js', 'jsx', 'json', 'md', 'mdx',
+    'css', 'scss', 'html', 'vue', 'svelte',
+    'py', 'go', 'rs', 'java', 'rb', 'php',
+    'sql', 'prisma', 'graphql', 'gql',
+    'yaml', 'yml', 'toml', 'env', 'gitignore',
+    'txt', 'csv', 'xml', 'sh', 'bash'
+  ]
+
   const fetchStorageFiles = useCallback(async () => {
     if (!supabaseRef.current) return []
 
@@ -213,7 +238,7 @@ export function useProjectFileSync({
 
       const storageFiles: StorageFile[] = await response.json()
 
-      // NeuralFile 형식으로 변환
+      // NeuralFile 형식으로 변환 (일단 메타데이터만)
       const neuralFiles: NeuralFile[] = storageFiles
         .filter(f => !f.name.startsWith('.')) // 숨김 파일 제외
         .map((file) => ({
@@ -227,8 +252,33 @@ export function useProjectFileSync({
           createdAt: file.createdAt,
         }))
 
-      console.log(`[useProjectFileSync] ✅ Fetched ${neuralFiles.length} Storage files`)
-      return neuralFiles
+      console.log(`[useProjectFileSync] ✅ Fetched ${neuralFiles.length} Storage files, now loading contents...`)
+
+      // ✅ 텍스트 파일의 내용을 병렬로 다운로드
+      const filesWithContent = await Promise.all(
+        neuralFiles.map(async (file) => {
+          const ext = file.name.split('.').pop()?.toLowerCase() || ''
+
+          // 텍스트 파일만 내용 다운로드 (크기 제한: 500KB)
+          if (TEXT_EXTENSIONS.includes(ext) && file.url && file.size < 500000) {
+            try {
+              const contentResponse = await fetch(file.url)
+              if (contentResponse.ok) {
+                const content = await contentResponse.text()
+                return { ...file, content }
+              }
+            } catch (err) {
+              console.warn(`[useProjectFileSync] Failed to fetch content for ${file.name}:`, err)
+            }
+          }
+          return file
+        })
+      )
+
+      const loadedCount = filesWithContent.filter(f => f.content).length
+      console.log(`[useProjectFileSync] ✅ Loaded content for ${loadedCount}/${neuralFiles.length} files`)
+
+      return filesWithContent
     } catch (err) {
       console.error('[useProjectFileSync] Storage fetch error:', err)
       setError(err instanceof Error ? err.message : 'Fetch error')

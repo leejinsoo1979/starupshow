@@ -2,54 +2,27 @@
 
 import { useState, useRef, useCallback, useEffect } from "react"
 import { motion, AnimatePresence } from "framer-motion"
-import { Mic, MicOff, Phone, PhoneOff, Volume2, Loader2 } from "lucide-react"
-import { Button } from "@/components/ui/Button"
+import { Mic, MicOff, Phone, PhoneOff, Volume2, Loader2, Sparkles } from "lucide-react"
 
-interface GrokVoiceChatProps {
+interface GeminiVoiceChatProps {
+  agentId: string
   agentName?: string
-  agentInstructions?: string
-  voice?: "sol" | "tara" | "cove" | "puck" | "charon" | "vale" | "alloy" | "echo" | "fable" | "onyx" | "nova" | "shimmer"
   avatarUrl?: string
   onTranscript?: (text: string, role: "user" | "assistant") => void
 }
 
 type ConnectionStatus = "disconnected" | "connecting" | "connected" | "error"
 
-// 에이전트 이름별 기본 음성 매핑 (Grok 음성만 사용)
-// Grok 음성: sol(차분 여성), tara(활기 여성), cove(따뜻 남성), puck(유쾌 남성), charon(깊은 남성), vale(중성)
-const AGENT_VOICE_MAP: Record<string, string> = {
-  "에이미": "tara",
-  "amy": "tara",
-  "레이첼": "sol",
-  "rachel": "sol",
-  "소피아": "tara",
-  "sophia": "tara",
-  "애니": "vale",
-  "ani": "vale",
-  "제레미": "charon",
-  "jeremy": "charon",
-  "마이클": "cove",
-  "michael": "cove",
-}
-
-// 에이전트 이름으로 음성 결정
-function getVoiceForAgentName(name: string, defaultVoice: string = "tara"): string {
-  const nameLower = name.toLowerCase()
-  return AGENT_VOICE_MAP[name] || AGENT_VOICE_MAP[nameLower] || defaultVoice
-}
-
-export function GrokVoiceChat({
-  agentName = "에이미",
-  agentInstructions = "You are Amy (에이미), a friendly Korean AI assistant. Speak naturally in Korean with a warm, cheerful tone. Keep responses concise and helpful.",
-  voice,
+export function GeminiVoiceChat({
+  agentId,
+  agentName = "레이첼",
   avatarUrl,
   onTranscript,
-}: GrokVoiceChatProps) {
-  // voice가 직접 전달되면 사용, 아니면 에이전트 이름으로 결정
-  const effectiveVoice = voice || getVoiceForAgentName(agentName)
+}: GeminiVoiceChatProps) {
   const [status, setStatus] = useState<ConnectionStatus>("disconnected")
   const [isMuted, setIsMuted] = useState(false)
   const [isListening, setIsListening] = useState(false)
+  const [isSpeaking, setIsSpeaking] = useState(false)
   const [transcript, setTranscript] = useState<string>("")
   const [response, setResponse] = useState<string>("")
 
@@ -59,6 +32,7 @@ export function GrokVoiceChat({
   const processorRef = useRef<ScriptProcessorNode | null>(null)
   const audioQueueRef = useRef<Float32Array[]>([])
   const isPlayingRef = useRef(false)
+  const systemPromptRef = useRef<string>("")
 
   // 연결 사운드 재생
   const playConnectionSound = useCallback(() => {
@@ -70,10 +44,10 @@ export function GrokVoiceChat({
       oscillator.connect(gainNode)
       gainNode.connect(ctx.destination)
 
-      // 상승하는 2음 멜로디 (연결 성공 느낌)
+      // 상승하는 2음 멜로디
       oscillator.type = 'sine'
-      oscillator.frequency.setValueAtTime(523.25, ctx.currentTime) // C5
-      oscillator.frequency.setValueAtTime(659.25, ctx.currentTime + 0.15) // E5
+      oscillator.frequency.setValueAtTime(440, ctx.currentTime) // A4
+      oscillator.frequency.setValueAtTime(554.37, ctx.currentTime + 0.15) // C#5
 
       gainNode.gain.setValueAtTime(0.3, ctx.currentTime)
       gainNode.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.4)
@@ -81,27 +55,19 @@ export function GrokVoiceChat({
       oscillator.start(ctx.currentTime)
       oscillator.stop(ctx.currentTime + 0.4)
 
-      // 정리
       setTimeout(() => ctx.close(), 500)
     } catch (e) {
-      console.log('[GrokVoice] Connection sound skipped')
+      console.log('[GeminiVoice] Connection sound skipped')
     }
   }, [])
 
-  // 오디오 재생
-  const playAudioChunk = useCallback((base64Audio: string) => {
+  // PCM 오디오 재생
+  const playAudioChunk = useCallback((audioData: ArrayBuffer) => {
     if (!audioContextRef.current) return
 
     try {
-      // Base64 디코딩
-      const binaryString = atob(base64Audio)
-      const bytes = new Uint8Array(binaryString.length)
-      for (let i = 0; i < binaryString.length; i++) {
-        bytes[i] = binaryString.charCodeAt(i)
-      }
-
       // PCM 16-bit to Float32
-      const pcm16 = new Int16Array(bytes.buffer)
+      const pcm16 = new Int16Array(audioData)
       const float32 = new Float32Array(pcm16.length)
       for (let i = 0; i < pcm16.length; i++) {
         float32[i] = pcm16[i] / 32768.0
@@ -113,19 +79,22 @@ export function GrokVoiceChat({
         playNextChunk()
       }
     } catch (e) {
-      console.error("[GrokVoice] Audio decode error:", e)
+      console.error("[GeminiVoice] Audio decode error:", e)
     }
   }, [])
 
   const playNextChunk = useCallback(() => {
     if (!audioContextRef.current || audioQueueRef.current.length === 0) {
       isPlayingRef.current = false
+      setIsSpeaking(false)
       return
     }
 
     isPlayingRef.current = true
+    setIsSpeaking(true)
     const chunk = audioQueueRef.current.shift()!
 
+    // Gemini Live는 24kHz로 출력
     const buffer = audioContextRef.current.createBuffer(1, chunk.length, 24000)
     buffer.getChannelData(0).set(chunk)
 
@@ -145,161 +114,173 @@ export function GrokVoiceChat({
     setResponse("")
 
     try {
-      // Ephemeral token 발급
-      const tokenRes = await fetch("/api/grok-voice/token", { method: "POST" })
+      // 세션 정보 가져오기
+      const sessionRes = await fetch(`/api/gemini-voice/session?agentId=${agentId}`)
 
-      if (!tokenRes.ok) {
-        throw new Error("Failed to get token")
+      if (!sessionRes.ok) {
+        const err = await sessionRes.json()
+        throw new Error(err.error || "Failed to get session")
       }
 
-      const tokenData = await tokenRes.json()
-      const token = tokenData.client_secret
+      const sessionData = await sessionRes.json()
+      const { wsUrl, systemPrompt, voiceSettings } = sessionData
+      systemPromptRef.current = systemPrompt
+      const voiceName = voiceSettings?.voice || "Puck"
 
-      if (!token) {
-        console.error("[GrokVoice] No ephemeral token received")
-        setStatus("error")
-        return
-      }
-
-      console.log("[GrokVoice] Token received:", token.substring(0, 30) + "...")
+      console.log("[GeminiVoice] Session received for:", sessionData.agent?.name, "voice:", voiceName)
 
       // AudioContext 생성
       audioContextRef.current = new AudioContext({ sampleRate: 24000 })
 
-      // WebSocket 연결 - OpenAI 호환 형식으로 토큰 전달
-      const ws = new WebSocket(
-        "wss://api.x.ai/v1/realtime?model=grok-3-fast-realtime",
-        ["realtime", `openai-insecure-api-key.${token}`, "openai-beta.realtime-v1"]
-      )
+      // WebSocket 연결
+      const ws = new WebSocket(wsUrl)
+      ws.binaryType = 'arraybuffer'
       wsRef.current = ws
 
       ws.onopen = () => {
-        console.log("[GrokVoice] Connected, using voice:", effectiveVoice)
+        console.log("[GeminiVoice] WebSocket connected")
 
-        // 세션 설정
-        ws.send(JSON.stringify({
-          type: "session.update",
-          session: {
-            modalities: ["text", "audio"],
-            instructions: agentInstructions,
-            voice: effectiveVoice.toLowerCase(),
-            input_audio_format: "pcm16",
-            output_audio_format: "pcm16",
-            input_audio_transcription: {
-              model: "whisper-1"
+        // Gemini Live 세션 설정 메시지
+        const setupMessage = {
+          setup: {
+            model: "models/gemini-2.0-flash-exp",
+            generationConfig: {
+              responseModalities: ["AUDIO"],
+              speechConfig: {
+                voiceConfig: {
+                  prebuiltVoiceConfig: {
+                    voiceName: voiceName  // Puck, Charon, Kore, Fenrir, Aoede 등
+                  }
+                }
+              }
             },
-            turn_detection: {
-              type: "server_vad",
-              threshold: 0.5,
-              prefix_padding_ms: 300,
-              silence_duration_ms: 500,
-            },
-          },
-        }))
-
-        setStatus("connected")
-        playConnectionSound()
-
-        // 🔥 에이전트가 먼저 인사
-        setTimeout(() => {
-          console.log("[GrokVoice] Requesting agent greeting...")
-          ws.send(JSON.stringify({
-            type: "conversation.item.create",
-            item: {
-              type: "message",
-              role: "user",
-              content: [{ type: "input_text", text: "(통화가 연결되었습니다. 자연스럽게 인사해주세요.)" }]
+            systemInstruction: {
+              parts: [{ text: systemPromptRef.current }]
             }
-          }))
-          ws.send(JSON.stringify({
-            type: "response.create",
-            response: { modalities: ["text", "audio"] }
-          }))
-          // 인사 후 마이크 시작
-          setTimeout(() => startMicrophone(), 500)
-        }, 300)
+          }
+        }
+
+        ws.send(JSON.stringify(setupMessage))
+        console.log("[GeminiVoice] Setup message sent")
       }
 
       ws.onmessage = (event) => {
         try {
-          const data = JSON.parse(event.data)
-          handleServerEvent(data)
+          if (event.data instanceof ArrayBuffer) {
+            // Binary audio data
+            playAudioChunk(event.data)
+          } else {
+            // JSON message
+            const data = JSON.parse(event.data)
+            handleServerMessage(data)
+          }
         } catch (e) {
-          console.error("[GrokVoice] Parse error:", e)
+          console.error("[GeminiVoice] Message parse error:", e)
         }
       }
 
       ws.onerror = (error) => {
-        console.error("[GrokVoice] WebSocket error:", error)
+        console.error("[GeminiVoice] WebSocket error:", error)
         setStatus("error")
       }
 
-      ws.onclose = () => {
-        console.log("[GrokVoice] Disconnected")
+      ws.onclose = (event) => {
+        console.log("[GeminiVoice] WebSocket closed:", event.code, event.reason)
         setStatus("disconnected")
         stopMicrophone()
       }
 
     } catch (error) {
-      console.error("[GrokVoice] Connection error:", error)
+      console.error("[GeminiVoice] Connection error:", error)
       setStatus("error")
     }
-  }, [status, agentInstructions, effectiveVoice, playConnectionSound])
+  }, [status, agentId, playAudioChunk])
 
-  // 서버 이벤트 처리
-  const handleServerEvent = useCallback((data: any) => {
-    switch (data.type) {
-      case "session.created":
-        console.log("[GrokVoice] Session created:", data.session?.id)
-        break
+  // 서버 메시지 처리
+  const handleServerMessage = useCallback((data: any) => {
+    console.log("[GeminiVoice] Server message:", data.type || Object.keys(data))
 
-      case "input_audio_buffer.speech_started":
-        setIsListening(true)
-        break
+    // setupComplete 이벤트
+    if (data.setupComplete) {
+      console.log("[GeminiVoice] Setup complete!")
+      setStatus("connected")
+      playConnectionSound()
 
-      case "input_audio_buffer.speech_stopped":
-        setIsListening(false)
-        break
+      // 마이크 시작
+      setTimeout(() => startMicrophone(), 500)
 
-      case "conversation.item.input_audio_transcription.completed":
-        const userText = data.transcript || ""
-        setTranscript(userText)
-        onTranscript?.(userText, "user")
-        break
-
-      // xAI API: response.output_audio.delta 형식
-      case "response.output_audio.delta":
-        if (data.delta) {
-          playAudioChunk(data.delta)
-        }
-        break
-
-      case "response.output_audio_transcript.delta":
-        setResponse(prev => prev + (data.delta || ""))
-        break
-
-      case "response.output_audio_transcript.done":
-        const fullText = data.transcript || response
-        onTranscript?.(fullText, "assistant")
-        setResponse("")
-        break
-
-      case "response.done":
-        console.log("[GrokVoice] Response complete")
-        break
-
-      case "error":
-        console.error("[GrokVoice] Server error:", data.error)
-        break
+      // 인사 요청
+      setTimeout(() => {
+        sendTextMessage("(통화가 연결되었습니다. 자연스럽게 인사해주세요.)")
+      }, 800)
     }
-  }, [response, onTranscript, playAudioChunk])
+
+    // 서버 컨텐츠 (텍스트/오디오)
+    if (data.serverContent) {
+      const content = data.serverContent
+
+      // 모델 턴 시작
+      if (content.modelTurn) {
+        const parts = content.modelTurn.parts || []
+        for (const part of parts) {
+          if (part.text) {
+            setResponse(prev => prev + part.text)
+          }
+          if (part.inlineData?.mimeType?.startsWith('audio/')) {
+            // Base64 오디오 데이터
+            const audioBytes = atob(part.inlineData.data)
+            const buffer = new ArrayBuffer(audioBytes.length)
+            const view = new Uint8Array(buffer)
+            for (let i = 0; i < audioBytes.length; i++) {
+              view[i] = audioBytes.charCodeAt(i)
+            }
+            playAudioChunk(buffer)
+          }
+        }
+      }
+
+      // 턴 완료
+      if (content.turnComplete) {
+        if (response) {
+          onTranscript?.(response, "assistant")
+          setResponse("")
+        }
+      }
+    }
+
+    // 사용자 입력 텍스트 변환
+    if (data.toolCallCancellation || data.interruptedResponse) {
+      // 인터럽트 처리
+      audioQueueRef.current = []
+      setIsSpeaking(false)
+    }
+
+  }, [response, onTranscript, playConnectionSound, playAudioChunk])
+
+  // 텍스트 메시지 전송
+  const sendTextMessage = useCallback((text: string) => {
+    if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return
+
+    const message = {
+      clientContent: {
+        turns: [{
+          role: "user",
+          parts: [{ text }]
+        }],
+        turnComplete: true
+      }
+    }
+
+    wsRef.current.send(JSON.stringify(message))
+    console.log("[GeminiVoice] Text sent:", text)
+  }, [])
 
   // 마이크 시작
   const startMicrophone = useCallback(async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: {
-          sampleRate: 24000,
+          sampleRate: 16000,
           channelCount: 1,
           echoCancellation: true,
           noiseSuppression: true,
@@ -309,10 +290,12 @@ export function GrokVoiceChat({
       mediaStreamRef.current = stream
 
       if (!audioContextRef.current) {
-        audioContextRef.current = new AudioContext({ sampleRate: 24000 })
+        audioContextRef.current = new AudioContext({ sampleRate: 16000 })
       }
 
       const source = audioContextRef.current.createMediaStreamSource(stream)
+
+      // ScriptProcessor 사용 (AudioWorklet 대신 간단하게)
       const processor = audioContextRef.current.createScriptProcessor(4096, 1, 1)
       processorRef.current = processor
 
@@ -334,21 +317,28 @@ export function GrokVoiceChat({
         for (let i = 0; i < bytes.byteLength; i++) {
           binary += String.fromCharCode(bytes[i])
         }
-        const base64 = btoa(binary)
+        const base64Audio = btoa(binary)
 
-        // 전송
-        wsRef.current.send(JSON.stringify({
-          type: "input_audio_buffer.append",
-          audio: base64,
-        }))
+        // Gemini Live 오디오 전송 형식
+        const audioMessage = {
+          realtimeInput: {
+            mediaChunks: [{
+              mimeType: "audio/pcm;rate=16000",
+              data: base64Audio
+            }]
+          }
+        }
+
+        wsRef.current.send(JSON.stringify(audioMessage))
+        setIsListening(true)
       }
 
       source.connect(processor)
       processor.connect(audioContextRef.current.destination)
 
-      console.log("[GrokVoice] Microphone started")
+      console.log("[GeminiVoice] Microphone started")
     } catch (error) {
-      console.error("[GrokVoice] Microphone error:", error)
+      console.error("[GeminiVoice] Microphone error:", error)
     }
   }, [isMuted])
 
@@ -364,7 +354,8 @@ export function GrokVoiceChat({
       mediaStreamRef.current = null
     }
 
-    console.log("[GrokVoice] Microphone stopped")
+    setIsListening(false)
+    console.log("[GeminiVoice] Microphone stopped")
   }, [])
 
   // 연결 해제
@@ -417,13 +408,13 @@ export function GrokVoiceChat({
           {status === "connected" && (
             <>
               <motion.div
-                className="absolute inset-0 rounded-full border-2 border-emerald-500/30"
+                className="absolute inset-0 rounded-full border-2 border-blue-500/30"
                 animate={{ scale: [1, 1.5, 1.5], opacity: [0.5, 0, 0] }}
                 transition={{ duration: 2, repeat: Infinity, ease: "easeOut" }}
                 style={{ width: 160, height: 160, top: -20, left: -20 }}
               />
               <motion.div
-                className="absolute inset-0 rounded-full border-2 border-emerald-500/20"
+                className="absolute inset-0 rounded-full border-2 border-blue-500/20"
                 animate={{ scale: [1, 1.8, 1.8], opacity: [0.3, 0, 0] }}
                 transition={{ duration: 2, repeat: Infinity, ease: "easeOut", delay: 0.5 }}
                 style={{ width: 160, height: 160, top: -20, left: -20 }}
@@ -437,39 +428,47 @@ export function GrokVoiceChat({
               <img
                 src={avatarUrl}
                 alt={agentName}
-                className={`w-full h-full rounded-full object-cover shadow-2xl shadow-purple-500/25 ${status === "connected" ? "ring-4 ring-emerald-500/50" : ""}`}
+                className={`w-full h-full rounded-full object-cover shadow-2xl shadow-blue-500/25 ${status === "connected" ? "ring-4 ring-blue-500/50" : ""}`}
               />
             ) : (
-              <div className={`w-full h-full rounded-full bg-gradient-to-br from-violet-500 via-purple-500 to-fuchsia-500 flex items-center justify-center text-white font-bold text-4xl shadow-2xl shadow-purple-500/25 ${status === "connected" ? "ring-4 ring-emerald-500/50" : ""}`}>
+              <div className={`w-full h-full rounded-full bg-gradient-to-br from-blue-500 via-indigo-500 to-violet-500 flex items-center justify-center text-white font-bold text-4xl shadow-2xl shadow-blue-500/25 ${status === "connected" ? "ring-4 ring-blue-500/50" : ""}`}>
                 {agentName.charAt(0)}
               </div>
             )}
 
             {/* Status indicator */}
             <div className={`absolute -bottom-1 -right-1 w-6 h-6 rounded-full border-4 border-zinc-900 ${statusColors[status]}`} />
+
+            {/* Gemini badge */}
+            <div className="absolute -top-1 -right-1 w-7 h-7 rounded-full bg-gradient-to-br from-blue-500 to-cyan-400 flex items-center justify-center shadow-lg">
+              <Sparkles className="w-4 h-4 text-white" />
+            </div>
           </div>
         </div>
 
         {/* Agent Name & Status */}
         <h2 className="text-2xl font-bold text-white mb-1">{agentName}</h2>
-        <p className={`text-sm mb-8 ${status === "connected" ? "text-emerald-400" : "text-zinc-500"}`}>
+        <p className={`text-sm mb-2 ${status === "connected" ? "text-blue-400" : "text-zinc-500"}`}>
           {statusLabels[status]}
         </p>
+        <p className="text-xs text-zinc-600 mb-6">Gemini Live</p>
 
         {/* Voice Activity Visualization */}
         {status === "connected" && (
           <div className="flex items-center gap-1 mb-8 h-12">
-            {[...Array(5)].map((_, i) => (
+            {[...Array(7)].map((_, i) => (
               <motion.div
                 key={i}
-                className={`w-1.5 rounded-full ${isListening ? "bg-emerald-500" : "bg-zinc-700"}`}
-                animate={isListening ? {
-                  height: [12, 32, 12],
+                className={`w-1.5 rounded-full ${
+                  isSpeaking ? "bg-blue-500" : isListening ? "bg-emerald-500" : "bg-zinc-700"
+                }`}
+                animate={(isSpeaking || isListening) ? {
+                  height: [12, 28 + Math.random() * 12, 12],
                 } : { height: 12 }}
                 transition={{
-                  duration: 0.5,
+                  duration: 0.4,
                   repeat: Infinity,
-                  delay: i * 0.1,
+                  delay: i * 0.08,
                   ease: "easeInOut"
                 }}
               />
@@ -488,7 +487,7 @@ export function GrokVoiceChat({
                 exit={{ opacity: 0, y: -10 }}
                 className="text-right mb-3"
               >
-                <span className="inline-block px-4 py-2 bg-blue-600 rounded-2xl rounded-br-sm text-white text-sm">
+                <span className="inline-block px-4 py-2 bg-emerald-600 rounded-2xl rounded-br-sm text-white text-sm">
                   {transcript}
                 </span>
               </motion.div>
@@ -543,7 +542,7 @@ export function GrokVoiceChat({
           {status === "disconnected" || status === "error" ? (
             <button
               onClick={connect}
-              className="w-20 h-20 rounded-full bg-gradient-to-br from-emerald-500 to-emerald-600 hover:from-emerald-400 hover:to-emerald-500 text-white shadow-lg shadow-emerald-500/30 flex items-center justify-center transition-all hover:scale-105 active:scale-95"
+              className="w-20 h-20 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 hover:from-blue-400 hover:to-indigo-500 text-white shadow-lg shadow-blue-500/30 flex items-center justify-center transition-all hover:scale-105 active:scale-95"
             >
               <Phone className="w-8 h-8" />
             </button>
@@ -580,7 +579,7 @@ export function GrokVoiceChat({
         <div className="mt-4 flex items-center justify-center gap-2">
           <div className={`w-2 h-2 rounded-full ${statusColors[status]}`} />
           <span className="text-xs text-zinc-500">
-            {status === "connected" ? "음성 통화 중 • $0.05/분" : "Grok Voice API"}
+            {status === "connected" ? "음성 통화 중 • ~$0.05/분" : "Gemini Live API"}
           </span>
         </div>
       </div>

@@ -188,24 +188,13 @@ export function getDailyNoteTemplate(date: Date = new Date()): string {
     weekday: 'long',
   })
 
-  return `---
-date: ${date.toISOString().split('T')[0]}
-tags: [daily]
----
+  return `# ${dateStr}
 
-# ${dateStr}
-
-## 📝 오늘의 할 일
+## Tasks
 - [ ]
 
-## 💡 아이디어
--
+## Notes
 
-## 📖 메모
--
-
-## 🔗 관련 노트
--
 `
 }
 
@@ -222,112 +211,79 @@ export interface NoteTemplate {
 export const NOTE_TEMPLATES: NoteTemplate[] = [
   {
     id: 'blank',
-    name: '빈 노트',
-    icon: '📄',
+    name: 'Blank',
+    icon: '',
     content: '',
   },
   {
     id: 'daily',
     name: 'Daily Note',
-    icon: '📅',
+    icon: '',
     content: getDailyNoteTemplate(),
   },
   {
     id: 'meeting',
-    name: '회의록',
-    icon: '🤝',
-    content: `---
-tags: [meeting]
----
+    name: 'Meeting',
+    icon: '',
+    content: `# Meeting Notes
 
-# 회의록
+**Date:**
+**Attendees:**
 
-## 📋 기본 정보
-- **일시**: ${new Date().toLocaleDateString('ko-KR')}
-- **참석자**:
-- **장소**:
-
-## 📌 안건
+## Agenda
 1.
 
-## 💬 논의 내용
+## Discussion
 
 
-## ✅ 결정 사항
+## Action Items
 - [ ]
-
-## 📎 다음 단계
--
 `,
   },
   {
     id: 'project',
-    name: '프로젝트',
-    icon: '🚀',
-    content: `---
-tags: [project]
----
+    name: 'Project',
+    icon: '',
+    content: `# Project Title
 
-# 프로젝트명
-
-## 🎯 목표
+## Overview
 
 
-## 📋 할 일
+## Goals
+-
+
+## Tasks
 - [ ]
 - [ ]
-- [ ]
 
-## 📝 진행 상황
-
-
-## 🔗 관련 노트
-- [[]]
+## Notes
 `,
   },
   {
     id: 'idea',
-    name: '아이디어',
-    icon: '💡',
-    content: `---
-tags: [idea]
----
+    name: 'Idea',
+    icon: '',
+    content: `# Idea
 
-# 아이디어 제목
-
-## 💭 핵심 아이디어
+## Summary
 
 
-## 🤔 왜 이게 중요한가?
+## Details
 
 
-## 📝 세부 사항
-
-
-## 🔗 관련 자료
--
+## Related
 `,
   },
   {
     id: 'zettel',
     name: 'Zettelkasten',
-    icon: '🗃️',
-    content: `---
-tags: []
----
-
-#
-
-<!-- 하나의 아이디어만 작성하세요 -->
+    icon: '',
+    content: `#
 
 
 
 ---
-## 🔗 연결
-- [[]]
-
-## 📚 출처
--
+Links: [[]]
 `,
   },
 ]

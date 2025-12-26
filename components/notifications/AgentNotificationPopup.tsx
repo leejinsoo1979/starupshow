@@ -2,9 +2,10 @@
 
 import { useState, useRef, useEffect, useCallback } from "react"
 import { motion, AnimatePresence } from "framer-motion"
-import { X, Bell, AlertTriangle, CheckCircle, Sparkles, Send, Loader2, Mic, MicOff, Volume2, VolumeX } from "lucide-react"
+import { X, Bell, AlertTriangle, CheckCircle, Sparkles, Send, Loader2, Mic, Volume2, VolumeX } from "lucide-react"
 import { useAgentNotification, AgentNotification } from "@/lib/contexts/AgentNotificationContext"
 import { useThemeStore, accentColors } from "@/stores/themeStore"
+import { executeActions, convertToolAction, formatActionResultsForChat } from "@/lib/ai/agent-actions"
 
 // 여성 에이전트 이름 목록
 const FEMALE_AGENTS = ['에이미', 'amy', '레이첼', 'rachel', '애니', 'ani', '소피아', 'sophia']
@@ -72,31 +73,28 @@ function NotificationItem({ notification, index }: { notification: AgentNotifica
   const { accentColor: themeAccent } = useThemeStore()
   const { agent, message, type, emotion } = notification
 
-  // 채팅 상태
-  const [showReply, setShowReply] = useState(false)
+  // 채팅 상태 - 팝업 뜨면 바로 답장 모드
+  const [showReply, setShowReply] = useState(true)
   const [replyText, setReplyText] = useState("")
   const [isProcessing, setIsProcessing] = useState(false)
   const [agentResponse, setAgentResponse] = useState<string | null>(null)
 
-  // 음성 인식 상태 (STT)
+  // 음성 인식 상태 (STT - Whisper API)
   const [isListening, setIsListening] = useState(false)
-  const [speechSupported, setSpeechSupported] = useState(false)
-  const recognitionRef = useRef<SpeechRecognition | null>(null)
-  const isListeningRef = useRef(false) // 재시작 로직용
-  const restartCountRef = useRef(0) // 재시작 횟수 추적
-  const maxRestarts = 50 // 최대 재시작 횟수
+  const isListeningRef = useRef(false)
+  const mediaStreamRef = useRef<MediaStream | null>(null)
 
   // TTS 상태
   const [isSpeaking, setIsSpeaking] = useState(false)
   const [speakingText, setSpeakingText] = useState("") // 실시간 말하는 텍스트
   const [ttsMode, setTtsMode] = useState<"native" | "grok">("grok") // 기본: AI 음성 (Grok)
   const ttsPlayedRef = useRef(false) // ref로 변경하여 리렌더링 방지
-  const audioContextRef = useRef<AudioContext | null>(null)
-  const audioQueueRef = useRef<Float32Array[]>([])
-  const isPlayingRef = useRef(false)
-  const wsRef = useRef<WebSocket | null>(null)
   const speakMessageRef = useRef<((text: string) => Promise<void>) | null>(null)
   const speechSynthRef = useRef<SpeechSynthesisUtterance | null>(null)
+  const [micReady, setMicReady] = useState(false) // TTS 끝나면 마이크 버튼 강조
+  const autoStartSTTRef = useRef(true) // TTS 끝나면 자동 STT 시작
+  const startRecognitionRef = useRef<(() => void) | null>(null)
+  const currentAudioRef = useRef<HTMLAudioElement | null>(null)
 
   // 테마 색상
   const themeColorData = accentColors.find(c => c.id === themeAccent)
@@ -117,76 +115,6 @@ function NotificationItem({ notification, index }: { notification: AgentNotifica
   const Icon = typeIcons[type]
 
   // ========== TTS: 메시지 음성 재생 ==========
-  const playAudioChunk = useCallback(async (base64Audio: string) => {
-    if (!audioContextRef.current) {
-      console.warn("[TTS] No audio context")
-      return
-    }
-
-    // AudioContext가 suspended 상태면 resume
-    if (audioContextRef.current.state === "suspended") {
-      console.log("[TTS] Resuming audio context...")
-      await audioContextRef.current.resume()
-    }
-
-    try {
-      const binaryString = atob(base64Audio)
-      const bytes = new Uint8Array(binaryString.length)
-      for (let i = 0; i < binaryString.length; i++) {
-        bytes[i] = binaryString.charCodeAt(i)
-      }
-
-      const pcm16 = new Int16Array(bytes.buffer)
-      const float32 = new Float32Array(pcm16.length)
-      for (let i = 0; i < pcm16.length; i++) {
-        float32[i] = pcm16[i] / 32768.0
-      }
-
-      audioQueueRef.current.push(float32)
-      console.log("[TTS] Audio chunk queued, queue size:", audioQueueRef.current.length)
-
-      if (!isPlayingRef.current) {
-        playNextChunk()
-      }
-    } catch (e) {
-      console.error("[TTS] Audio decode error:", e)
-    }
-  }, [])
-
-  const playNextChunk = useCallback(() => {
-    if (!audioContextRef.current) {
-      console.warn("[TTS] No audio context in playNextChunk")
-      isPlayingRef.current = false
-      return
-    }
-
-    if (audioQueueRef.current.length === 0) {
-      console.log("[TTS] Queue empty, waiting for more chunks...")
-      isPlayingRef.current = false
-      return
-    }
-
-    isPlayingRef.current = true
-    const chunk = audioQueueRef.current.shift()!
-    console.log("[TTS] Playing chunk, remaining:", audioQueueRef.current.length)
-
-    try {
-      const buffer = audioContextRef.current.createBuffer(1, chunk.length, 24000)
-      buffer.getChannelData(0).set(chunk)
-
-      const source = audioContextRef.current.createBufferSource()
-      source.buffer = buffer
-      source.connect(audioContextRef.current.destination)
-      source.onended = () => {
-        // 다음 청크 재생
-        playNextChunk()
-      }
-      source.start()
-    } catch (e) {
-      console.error("[TTS] Playback error:", e)
-      isPlayingRef.current = false
-    }
-  }, [])
 
   // 브라우저 네이티브 TTS (안정적, 끊기지 않음)
   const speakNative = useCallback((text: string) => {
@@ -225,8 +153,16 @@ function NotificationItem({ notification, index }: { notification: AgentNotifica
     utterance.onend = () => {
       console.log("[TTS Native] Speech ended")
       clearInterval(intervalId)
-      setSpeakingText(text) // 전체 텍스트 표시
+      setSpeakingText(text)
       setIsSpeaking(false)
+      // TTS 끝나면 자동으로 마이크 시작
+      if (autoStartSTTRef.current && startRecognitionRef.current) {
+        console.log("[TTS->STT] Auto-starting STT...")
+        setMicReady(true)
+        isListeningRef.current = true
+        setIsListening(true)
+        setTimeout(() => startRecognitionRef.current?.(), 100)
+      }
     }
 
     utterance.onerror = (e) => {
@@ -241,129 +177,87 @@ function NotificationItem({ notification, index }: { notification: AgentNotifica
     console.log("[TTS Native] Speaking:", text)
   }, [])
 
-  // Grok TTS (자연스러운 음성, 불안정할 수 있음)
+  // 🔥 Grok TTS (REST API - 안정적)
   const speakGrok = useCallback(async (text: string) => {
-    console.log("[TTS Grok] Starting...")
+    console.log("[TTS Grok] 🚀 Starting with REST API for:", text.substring(0, 30) + "...")
 
     try {
-      const tokenRes = await fetch("/api/grok-voice/token", { method: "POST" })
-      if (!tokenRes.ok) throw new Error("Failed to get token")
-      const tokenData = await tokenRes.json()
+      const voiceSettings = agent.voice_settings || {}
+      const selectedVoice = voiceSettings.voice || "tara"
 
-      audioContextRef.current = new AudioContext({ sampleRate: 24000 })
+      console.log(`[TTS Grok] 🎙️ Using voice: ${selectedVoice}, agent:`, agent.name)
 
-      const ws = new WebSocket(
-        "wss://api.x.ai/v1/realtime?model=grok-3-fast-realtime",
-        ["realtime", `openai-insecure-api-key.${tokenData.client_secret}`, "openai-beta.realtime-v1"]
-      )
-      wsRef.current = ws
+      // 🔥 REST API 사용 (WebSocket보다 안정적)
+      console.log("[TTS Grok] 📡 Calling /api/voice/grok...")
+      const response = await fetch("/api/voice/grok", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text, voice: selectedVoice }),
+      })
 
-      ws.onopen = () => {
-        const voiceSettings = agent.voice_settings || {}
-        const selectedVoice = voiceSettings.voice || "tara"
-        const conversationStyle = voiceSettings.conversation_style || "friendly"
+      console.log("[TTS Grok] 📥 Response status:", response.status)
 
-        const toneMap: Record<string, string> = {
-          professional: '차분하고 전문적인 어조로',
-          friendly: '밝고 친근한 어조로',
-          casual: '편안하고 자연스러운 어조로',
-          empathetic: '따뜻하고 공감하는 어조로',
-          concise: '명확하고 또박또박',
-        }
-        const tone = toneMap[conversationStyle] || toneMap.friendly
-
-        console.log(`[TTS Grok] Using voice: ${selectedVoice}, style: ${conversationStyle}`)
-
-        ws.send(JSON.stringify({
-          type: "session.update",
-          session: {
-            modalities: ["text", "audio"],
-            instructions: `You are a text-to-speech engine. Read the following Korean text exactly as written, character by character, word by word. Do not add, remove, or change any words. Speak in a ${tone} tone. Just read: "${text}"`,
-            voice: selectedVoice,
-            input_audio_format: "pcm16",
-            output_audio_format: "pcm16",
-          },
-        }))
-
-        setTimeout(() => {
-          ws.send(JSON.stringify({
-            type: "conversation.item.create",
-            item: {
-              type: "message",
-              role: "user",
-              content: [{ type: "input_text", text: `Read this exactly: ${text}` }]
-            }
-          }))
-          ws.send(JSON.stringify({
-            type: "response.create",
-            response: { modalities: ["text", "audio"] }
-          }))
-        }, 200)
+      if (!response.ok) {
+        const errorText = await response.text()
+        console.error("[TTS Grok] ❌ API Error:", errorText)
+        throw new Error(`TTS API failed: ${response.status} - ${errorText}`)
       }
 
-      ws.onmessage = (event) => {
-        try {
-          const data = JSON.parse(event.data)
+      // 오디오 재생
+      const audioBlob = await response.blob()
+      const audioUrl = URL.createObjectURL(audioBlob)
+      const audio = new Audio(audioUrl)
+      currentAudioRef.current = audio
 
-          if ((data.type === "response.output_audio.delta" || data.type === "response.audio.delta") && data.delta) {
-            playAudioChunk(data.delta)
-          }
+      // 실시간 텍스트 표시
+      let currentIndex = 0
+      const chars = text.split("")
+      const intervalId = setInterval(() => {
+        if (currentIndex < chars.length) {
+          setSpeakingText(prev => prev + chars[currentIndex])
+          currentIndex++
+        } else {
+          clearInterval(intervalId)
+        }
+      }, 50)
 
-          if (data.type === "response.output_audio_transcript.delta" && data.delta) {
-            setSpeakingText(prev => prev + data.delta)
-          }
-          if (data.type === "response.audio_transcript.delta" && data.delta) {
-            setSpeakingText(prev => prev + data.delta)
-          }
-          if (data.type === "response.text.delta" && data.delta) {
-            setSpeakingText(prev => prev + data.delta)
-          }
+      audio.onended = () => {
+        console.log("[TTS Grok] Audio playback ended")
+        clearInterval(intervalId)
+        setSpeakingText(text)
+        URL.revokeObjectURL(audioUrl)
+        setIsSpeaking(false)
 
-          if (data.type === "response.done") {
-            console.log("[TTS Grok] Response done, waiting for audio...")
-            const checkAudioDone = () => {
-              if (audioQueueRef.current.length === 0 && !isPlayingRef.current) {
-                setTimeout(() => ws.close(), 500)
-              } else {
-                setTimeout(checkAudioDone, 200)
-              }
-            }
-            setTimeout(checkAudioDone, 2000)
-          }
-        } catch (e) {
-          console.error("[TTS Grok] Parse error:", e)
+        // TTS 끝나면 자동으로 마이크 시작
+        if (autoStartSTTRef.current && startRecognitionRef.current) {
+          console.log("[TTS->STT] Auto-starting STT...")
+          setMicReady(true)
+          isListeningRef.current = true
+          setIsListening(true)
+          setTimeout(() => startRecognitionRef.current?.(), 100)
         }
       }
 
-      ws.onerror = (err) => {
-        console.error("[TTS Grok] WebSocket error:", err)
+      audio.onerror = () => {
+        console.error("[TTS Grok] Audio playback error")
+        clearInterval(intervalId)
+        URL.revokeObjectURL(audioUrl)
         setIsSpeaking(false)
         setSpeakingText("")
       }
 
-      ws.onclose = () => {
-        console.log("[TTS Grok] WebSocket closed")
-        const waitForAudio = () => {
-          if (audioQueueRef.current.length === 0 && !isPlayingRef.current) {
-            setIsSpeaking(false)
-            if (audioContextRef.current) {
-              setTimeout(() => {
-                audioContextRef.current?.close()
-                audioContextRef.current = null
-              }, 1000)
-            }
-          } else {
-            setTimeout(waitForAudio, 200)
-          }
-        }
-        setTimeout(waitForAudio, 500)
-      }
+      await audio.play()
+      console.log("[TTS Grok] Audio playing...")
+
     } catch (error) {
       console.error("[TTS Grok] Error:", error)
       setIsSpeaking(false)
       setSpeakingText("")
+      // 🔥 Grok 실패 시 네이티브 TTS로 폴백
+      console.log("[TTS] Falling back to native TTS...")
+      speakNative(text)
     }
-  }, [agent.voice_settings, playAudioChunk])
+  }, [agent.voice_settings, speakNative])
 
   // 이모지 제거 함수
   const removeEmojis = (text: string): string => {
@@ -406,15 +300,17 @@ function NotificationItem({ notification, index }: { notification: AgentNotifica
 
   // TTS로 메시지 읽기 (모드에 따라 분기)
   const speakMessage = useCallback(async (text: string) => {
+    console.log("[TTS] 🎯 speakMessage called! isVoiceCallActive:", isVoiceCallActive, "isSpeaking:", isSpeaking, "ttsMode:", ttsMode)
+
     // 🔥 음성통화 중이면 알림 TTS 비활성화 (중복 음성 방지)
     if (isVoiceCallActive) {
-      console.log("[TTS] Voice call active, skipping notification TTS")
+      console.log("[TTS] ⚠️ Voice call active, skipping notification TTS")
       return
     }
 
     // 이모지 제거
     const cleanText = removeEmojis(text)
-    console.log("[TTS] speakMessage called with:", cleanText, "mode:", ttsMode, "isSpeaking:", isSpeaking)
+    console.log("[TTS] 📝 Clean text:", cleanText.substring(0, 50) + "...")
 
     if (isSpeaking) {
       console.log("[TTS] Already speaking, skipping")
@@ -436,35 +332,42 @@ function NotificationItem({ notification, index }: { notification: AgentNotifica
     }
   }, [isSpeaking, ttsMode, speakNative, speakGrok, isVoiceCallActive])
 
-  // speakMessage를 ref에 저장
+  // speakMessage를 ref에 저장 (즉시 + useEffect로 업데이트)
+  // 🔥 즉시 할당하여 초기 마운트 시에도 ref가 설정되도록 함
+  speakMessageRef.current = speakMessage
+
   useEffect(() => {
     speakMessageRef.current = speakMessage
+    console.log("[TTS] speakMessageRef updated")
   }, [speakMessage])
 
   // 팝업이 열리면 자동으로 TTS 재생 (한 번만 실행)
   useEffect(() => {
     if (!ttsPlayedRef.current && message) {
       ttsPlayedRef.current = true
-      console.log("[TTS] Auto-triggering TTS for message:", message)
-      // 약간의 딜레이 후 재생
+      console.log("[TTS] 🔊 Auto-triggering TTS for message:", message)
+
+      // 🔥 ref를 사용하여 최신 speakMessage 호출 (의존성 변경으로 인한 타이머 취소 방지)
       const timer = setTimeout(() => {
-        console.log("[TTS] Calling speakMessage now...")
+        console.log("[TTS] 🎤 Calling speakMessage now via ref...")
         if (speakMessageRef.current) {
           speakMessageRef.current(message)
+        } else {
+          console.error("[TTS] ❌ speakMessageRef.current is null!")
         }
-      }, 1200)
-      // cleanup 하지 않음 - 타이머가 실행되도록 함
+      }, 300) // 300ms로 단축 (빠른 응답)
+
+      return () => clearTimeout(timer)
     }
-  }, [message]) // speakMessage를 의존성에서 제거
+  }, [message]) // speakMessage 제거하여 타이머 취소 방지
 
   // 정리
   useEffect(() => {
     return () => {
-      if (wsRef.current) {
-        wsRef.current.close()
-      }
-      if (audioContextRef.current) {
-        audioContextRef.current.close()
+      // 현재 재생 중인 오디오 중지
+      if (currentAudioRef.current) {
+        currentAudioRef.current.pause()
+        currentAudioRef.current = null
       }
       // 네이티브 TTS도 취소
       if (typeof window !== "undefined" && window.speechSynthesis) {
@@ -473,186 +376,136 @@ function NotificationItem({ notification, index }: { notification: AgentNotifica
     }
   }, [])
 
-  // ========== STT: 음성 인식 ==========
-  // 음성 인식 시작 함수
-  const startRecognition = useCallback(() => {
-    if (typeof window === "undefined") return
+  // ========== STT: MediaRecorder + Whisper API ==========
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null)
+  const audioChunksRef = useRef<Blob[]>([])
 
-    const SpeechRecognitionAPI = window.SpeechRecognition || window.webkitSpeechRecognition
-    if (!SpeechRecognitionAPI) {
-      console.error("[STT] Speech Recognition not supported")
-      return
-    }
+  // 녹음 시작
+  const startRecognition = useCallback(async () => {
+    console.log("[STT] Starting...")
 
-    // 기존 인식 정리
-    if (recognitionRef.current) {
-      try {
-        recognitionRef.current.abort()
-      } catch (e) {}
-      recognitionRef.current = null
-    }
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      mediaStreamRef.current = stream
+      console.log("[STT] Mic OK")
 
-    // 재시작 횟수 리셋 (새로 시작할 때)
-    restartCountRef.current = 0
-
-    const createAndStartRecognition = () => {
-      const recognition = new SpeechRecognitionAPI()
-      recognition.continuous = true
-      recognition.interimResults = true
-      recognition.lang = "ko-KR"
-      recognition.maxAlternatives = 1
-
-      recognition.onstart = () => {
-        console.log("[STT] Recognition started successfully")
-        restartCountRef.current = 0 // 성공적으로 시작하면 카운터 리셋
-      }
-
-      recognition.onaudiostart = () => {
-        console.log("[STT] Audio capture started - microphone active")
-      }
-
-      recognition.onspeechstart = () => {
-        console.log("[STT] Speech detected")
-      }
-
-      recognition.onresult = (event: SpeechRecognitionEvent) => {
-        let finalTranscript = ""
-        let interimTranscript = ""
-
-        for (let i = event.resultIndex; i < event.results.length; i++) {
-          const result = event.results[i]
-          if (result.isFinal) {
-            finalTranscript += result[0].transcript
-          } else {
-            interimTranscript += result[0].transcript
+      // mimeType 호환성 확인
+      let mimeType = 'audio/webm'
+      if (!MediaRecorder.isTypeSupported('audio/webm')) {
+        mimeType = 'audio/mp4'
+        if (!MediaRecorder.isTypeSupported('audio/mp4')) {
+          mimeType = 'audio/ogg'
+          if (!MediaRecorder.isTypeSupported('audio/ogg')) {
+            mimeType = '' // 기본값 사용
           }
         }
+      }
+      console.log("[STT] Using mimeType:", mimeType || "default")
 
-        if (finalTranscript) {
-          console.log("[STT] Final transcript:", finalTranscript)
-          setReplyText(prev => prev + finalTranscript + " ")
-        }
-        if (interimTranscript) {
-          console.log("[STT] Interim:", interimTranscript)
+      const mediaRecorder = mimeType
+        ? new MediaRecorder(stream, { mimeType })
+        : new MediaRecorder(stream)
+      mediaRecorderRef.current = mediaRecorder
+      audioChunksRef.current = []
+
+      mediaRecorder.ondataavailable = (e) => {
+        if (e.data.size > 0) {
+          audioChunksRef.current.push(e.data)
         }
       }
 
-      recognition.onend = () => {
-        console.log("[STT] Recognition ended, should continue:", isListeningRef.current, "restart count:", restartCountRef.current)
+      mediaRecorder.onstop = async () => {
+        console.log("[STT] Sending to Whisper...")
 
-        // 사용자가 멈추지 않았고 재시작 한도 내면 재시작
-        if (isListeningRef.current && restartCountRef.current < maxRestarts) {
-          restartCountRef.current++
-          console.log("[STT] Scheduling restart #", restartCountRef.current)
+        const audioBlob = new Blob(audioChunksRef.current, { type: mediaRecorder.mimeType || 'audio/webm' })
 
-          // 새 recognition 객체 생성하여 재시작
-          setTimeout(() => {
-            if (isListeningRef.current) {
-              console.log("[STT] Restarting with new recognition object...")
-              createAndStartRecognition()
+        if (audioBlob.size < 1000) {
+          console.log("[STT] Audio too short")
+          return
+        }
+
+        try {
+          const baseType = audioBlob.type.split(';')[0]
+          let ext = 'webm'
+          if (baseType.includes('webm')) ext = 'webm'
+          else if (baseType.includes('mp4') || baseType.includes('m4a')) ext = 'm4a'
+          else if (baseType.includes('ogg')) ext = 'ogg'
+          else if (baseType.includes('mpeg') || baseType.includes('mp3')) ext = 'mp3'
+          else if (baseType.includes('wav')) ext = 'wav'
+
+          const formData = new FormData()
+          formData.append('audio', audioBlob, `audio.${ext}`)
+
+          const res = await fetch('/api/voice/stt', {
+            method: 'POST',
+            body: formData,
+          })
+
+          if (res.ok) {
+            const data = await res.json()
+            if (data.text) {
+              console.log("[STT] ✅", data.text)
+              setReplyText(prev => prev + data.text)
             }
-          }, 300) // 더 긴 딜레이
-        } else {
-          if (restartCountRef.current >= maxRestarts) {
-            console.warn("[STT] Max restarts reached, stopping")
+          } else {
+            console.error("[STT] API error:", await res.text())
           }
-          setIsListening(false)
+        } catch (err) {
+          console.error("[STT] Error:", err)
         }
       }
 
-      recognition.onerror = (event: any) => {
-        console.error("[STT] Error:", event.error, event.message)
+      mediaRecorder.start(1000)
+      console.log("[STT] Recording...")
 
-        // 무시해도 되는 에러들
-        if (event.error === 'no-speech') {
-          console.log("[STT] No speech detected, will auto-restart via onend")
-          return
-        }
-        if (event.error === 'aborted') {
-          console.log("[STT] Recognition aborted")
-          return
-        }
-
-        // 권한 에러
-        if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
-          alert("마이크 권한을 허용해주세요. 브라우저 설정에서 마이크 권한을 확인하세요.")
-          isListeningRef.current = false
-          setIsListening(false)
-          return
-        }
-
-        // 네트워크 에러 - 재시도
-        if (event.error === 'network') {
-          console.warn("[STT] Network error, will retry via onend")
-          return
-        }
-
-        // audio-capture 에러 - 마이크 사용 중
-        if (event.error === 'audio-capture') {
-          console.warn("[STT] Audio capture error - mic may be in use")
-          return
-        }
-      }
-
-      recognitionRef.current = recognition
-
-      try {
-        recognition.start()
-        console.log("[STT] Recognition.start() called")
-      } catch (e: any) {
-        console.error("[STT] Start error:", e.message)
-        // 이미 시작된 경우 재시도
-        if (e.message?.includes('already started')) {
-          console.log("[STT] Already started, ignoring")
-        } else {
-          isListeningRef.current = false
-          setIsListening(false)
-        }
-      }
+    } catch (error: any) {
+      console.error("[STT] Error:", error)
+      isListeningRef.current = false
+      setIsListening(false)
     }
-
-    // 첫 시작
-    createAndStartRecognition()
   }, [])
 
-  // 음성 인식 중지 함수
+  // 녹음 중지 및 변환
   const stopRecognition = useCallback(() => {
-    console.log("[STT] Stopping recognition...")
+    console.log("[STT] Stopping...")
     isListeningRef.current = false
-    restartCountRef.current = 0
-    if (recognitionRef.current) {
-      try {
-        recognitionRef.current.abort() // stop() 대신 abort() 사용 - 즉시 중단
-      } catch (e) {}
-      recognitionRef.current = null
+
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+      mediaRecorderRef.current.stop()
     }
+
+    if (mediaStreamRef.current) {
+      mediaStreamRef.current.getTracks().forEach(track => track.stop())
+      mediaStreamRef.current = null
+    }
+
     setIsListening(false)
   }, [])
 
-  // 초기화: speechSupported 체크
+  // startRecognition을 ref에 저장 (TTS 완료 후 호출용)
   useEffect(() => {
-    if (typeof window !== "undefined") {
-      const SpeechRecognitionAPI = window.SpeechRecognition || window.webkitSpeechRecognition
-      setSpeechSupported(!!SpeechRecognitionAPI)
-    }
+    startRecognitionRef.current = startRecognition
+  }, [startRecognition])
 
+  // 컴포넌트 언마운트 시 정리
+  useEffect(() => {
     return () => {
-      if (recognitionRef.current) {
-        try {
-          recognitionRef.current.abort()
-        } catch (e) {}
-      }
+      stopRecognition()
     }
-  }, [])
+  }, [stopRecognition])
 
   // 음성 인식 토글
-  const toggleListening = () => {
+  const toggleListening = async () => {
+    console.log("[STT Toggle] Current state:", { isListening })
+
     if (isListening) {
+      console.log("[STT Toggle] Stopping...")
       stopRecognition()
     } else {
+      console.log("[STT Toggle] Starting Grok STT...")
       isListeningRef.current = true
       setIsListening(true)
-      startRecognition()
+      await startRecognition()
     }
   }
 
@@ -674,7 +527,39 @@ function NotificationItem({ notification, index }: { notification: AgentNotifica
       if (response.ok) {
         const data = await response.json()
         const agentReply = data.response || data.message || "알겠습니다."
-        setAgentResponse(agentReply)
+
+        // 🔥 에이전트가 반환한 액션들 실행 (프로젝트 생성, 파일 작성 등)
+        if (data.actions && data.actions.length > 0) {
+          console.log("[AgentChat] 🚀 Executing agent actions:", data.actions)
+          try {
+            // ToolAction → AgentAction 변환 후 실행
+            const agentActions = data.actions
+              .map((action: any) => convertToolAction(action))
+              .filter((a: any) => a !== null)
+
+            if (agentActions.length > 0) {
+              const results = await executeActions(agentActions)
+              const actionSummary = formatActionResultsForChat(results)
+
+              // 실행 결과를 응답에 추가
+              if (actionSummary) {
+                setAgentResponse(`${agentReply}\n\n📋 실행 결과:\n${actionSummary}`)
+              } else {
+                setAgentResponse(agentReply)
+              }
+
+              console.log("[AgentChat] ✅ Actions executed:", results)
+            } else {
+              setAgentResponse(agentReply)
+            }
+          } catch (actionError) {
+            console.error("[AgentChat] ❌ Action execution failed:", actionError)
+            setAgentResponse(`${agentReply}\n\n⚠️ 일부 작업 실행 중 오류가 발생했습니다.`)
+          }
+        } else {
+          setAgentResponse(agentReply)
+        }
+
         setReplyText("")
 
         // 에이전트 응답도 TTS로 읽기
@@ -824,7 +709,10 @@ function NotificationItem({ notification, index }: { notification: AgentNotifica
                     </div>
                     <button
                       onClick={() => {
-                        if (wsRef.current) wsRef.current.close()
+                        if (currentAudioRef.current) {
+                          currentAudioRef.current.pause()
+                          currentAudioRef.current = null
+                        }
                         if (window.speechSynthesis) window.speechSynthesis.cancel()
                         setIsSpeaking(false)
                         setSpeakingText("")
@@ -921,7 +809,10 @@ function NotificationItem({ notification, index }: { notification: AgentNotifica
                         </div>
                         <button
                           onClick={() => {
-                            if (wsRef.current) wsRef.current.close()
+                            if (currentAudioRef.current) {
+                              currentAudioRef.current.pause()
+                              currentAudioRef.current = null
+                            }
                             if (window.speechSynthesis) window.speechSynthesis.cancel()
                             setIsSpeaking(false)
                             setSpeakingText("")
@@ -1023,33 +914,41 @@ function NotificationItem({ notification, index }: { notification: AgentNotifica
               )}
 
               <div className="flex gap-2">
-                {/* 마이크 버튼 (STT) */}
-                {speechSupported && (
-                  <button
-                    onClick={toggleListening}
+                {/* 마이크 버튼 (STT - Grok) */}
+                <motion.button
+                  onClick={() => {
+                    setMicReady(false)
+                    toggleListening()
+                  }}
                     disabled={isProcessing}
+                    animate={micReady && !isListening ? {
+                      scale: [1, 1.1, 1],
+                      boxShadow: [`0 0 0px ${themeColor}`, `0 0 25px ${themeColor}`, `0 0 0px ${themeColor}`]
+                    } : {}}
+                    transition={micReady && !isListening ? { repeat: Infinity, duration: 1 } : {}}
                     className={`px-4 py-3 rounded-xl transition-all hover:scale-[1.02] active:scale-[0.98] ${
                       isListening
                         ? "text-white"
-                        : "bg-zinc-800 text-zinc-400 hover:text-zinc-200"
+                        : micReady
+                          ? "text-white"
+                          : "bg-zinc-800 text-zinc-400 hover:text-zinc-200"
                     }`}
-                    style={isListening ? {
+                    style={isListening || micReady ? {
                       background: `linear-gradient(135deg, ${themeColor}, ${themeColor}cc)`,
-                      boxShadow: `0 0 20px ${themeColor}50`,
+                      boxShadow: isListening ? `0 0 20px ${themeColor}50` : undefined,
                     } : {}}
                   >
                     {isListening ? (
                       <motion.div
-                        animate={{ scale: [1, 1.1, 1] }}
-                        transition={{ repeat: Infinity, duration: 0.5 }}
+                        animate={{ scale: [1, 1.2, 1] }}
+                        transition={{ repeat: Infinity, duration: 0.8 }}
                       >
-                        <MicOff className="w-5 h-5" />
+                        <Mic className="w-5 h-5" />
                       </motion.div>
                     ) : (
                       <Mic className="w-5 h-5" />
                     )}
-                  </button>
-                )}
+                </motion.button>
 
                 {/* 텍스트 입력 */}
                 <input

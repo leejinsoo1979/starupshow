@@ -1577,7 +1577,8 @@ export function FileTreePanel({ mapId }: FileTreePanelProps) {
       const scanResult = await electron.fs.scanTree(dirPath, {
         includeSystemFiles: showHiddenFiles,
         includeContent: true,
-        contentExtensions: ['.ts', '.tsx', '.js', '.jsx', '.json', '.md', '.css', '.html', '.py', '.java', '.go', '.rs']
+        // 스키마 파일 확장자 포함: .sql, .prisma, .graphql, .gql, .yaml, .yml
+        contentExtensions: ['.ts', '.tsx', '.js', '.jsx', '.json', '.md', '.css', '.html', '.py', '.java', '.go', '.rs', '.sql', '.prisma', '.graphql', '.gql', '.yaml', '.yml']
       })
 
       console.timeEnd('Batch Scan Tree')
@@ -1589,7 +1590,8 @@ export function FileTreePanel({ mapId }: FileTreePanelProps) {
       const getFileType = (ext: string) => {
         const imageExts = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'ico']
         const mdExts = ['md', 'markdown', 'mdx']
-        const codeExts = ['ts', 'tsx', 'js', 'jsx', 'json', 'css', 'html', 'py', 'java', 'c', 'cpp', 'h', 'rs', 'go']
+        // 스키마 파일 확장자 포함: sql, prisma, graphql, gql, yaml, yml
+        const codeExts = ['ts', 'tsx', 'js', 'jsx', 'json', 'css', 'html', 'py', 'java', 'c', 'cpp', 'h', 'rs', 'go', 'sql', 'prisma', 'graphql', 'gql', 'yaml', 'yml']
         if (imageExts.includes(ext)) return 'image'
         if (mdExts.includes(ext)) return 'markdown'
         if (codeExts.includes(ext)) return 'code'
@@ -1719,7 +1721,8 @@ export function FileTreePanel({ mapId }: FileTreePanelProps) {
         const imageExts = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'ico', 'bmp']
         const videoExts = ['mp4', 'webm', 'mov', 'avi', 'mkv']
         const mdExts = ['md', 'markdown', 'mdx']
-        const codeExts = ['ts', 'tsx', 'js', 'jsx', 'json', 'css', 'scss', 'html', 'py', 'go', 'rs', 'java', 'c', 'cpp', 'h']
+        // 스키마 파일 확장자 포함: sql, prisma, graphql, gql, yaml, yml
+        const codeExts = ['ts', 'tsx', 'js', 'jsx', 'json', 'css', 'scss', 'html', 'py', 'go', 'rs', 'java', 'c', 'cpp', 'h', 'sql', 'prisma', 'graphql', 'gql', 'yaml', 'yml']
 
         if (ext === 'pdf') return 'pdf'
         if (imageExts.includes(ext)) return 'image'

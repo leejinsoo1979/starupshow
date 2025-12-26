@@ -1,4 +1,4 @@
-import React, { memo } from 'react'
+import React, { memo, useEffect, useState } from 'react'
 import { Handle, Position, NodeProps } from 'reactflow'
 import { MoreHorizontal, Key, Link } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -14,15 +14,85 @@ export interface TableNodeData {
     label: string
     columns: SchemaColumn[]
     onEdit?: (id: string) => void
+    // 시뮬레이션 상태
+    isHighlighted?: boolean
+    highlightColor?: string
+    highlightIntensity?: number // 0-1
+    // 가시성 상태 (시뮬레이션용)
+    simulationMode?: boolean // 시뮬레이션 모드 활성화
+    isVisited?: boolean // 데이터가 한번이라도 흐른 노드
+    isActive?: boolean // 현재 활성화된 노드
+    appearDelay?: number // 등장 딜레이 (ms)
 }
 
 const TableNode = ({ data, selected }: NodeProps<TableNodeData>) => {
+    const {
+        isHighlighted,
+        highlightColor = '#22c55e',
+        highlightIntensity = 1,
+        simulationMode = false,
+        isVisited = true,
+        isActive = false,
+        appearDelay = 0,
+    } = data
+
+    // 등장 애니메이션 상태
+    const [hasAppeared, setHasAppeared] = useState(!simulationMode)
+    const [isAppearing, setIsAppearing] = useState(false)
+
+    // 시뮬레이션 모드에서 노드가 방문되면 등장 애니메이션
+    useEffect(() => {
+        if (simulationMode && isVisited && !hasAppeared) {
+            const timer = setTimeout(() => {
+                setIsAppearing(true)
+                setTimeout(() => {
+                    setHasAppeared(true)
+                    setIsAppearing(false)
+                }, 400)
+            }, appearDelay)
+            return () => clearTimeout(timer)
+        }
+        if (!simulationMode) {
+            setHasAppeared(true)
+        }
+    }, [simulationMode, isVisited, hasAppeared, appearDelay])
+
+    // 하이라이트 스타일 계산
+    const highlightStyle = isHighlighted ? {
+        boxShadow: `0 0 ${20 * highlightIntensity}px ${8 * highlightIntensity}px ${highlightColor}60,
+                    0 0 ${40 * highlightIntensity}px ${16 * highlightIntensity}px ${highlightColor}30`,
+        borderColor: highlightColor,
+        transform: `scale(${1 + 0.02 * highlightIntensity})`,
+    } : {}
+
+    // 시뮬레이션 모드 스타일 (미방문 노드는 희미하게)
+    const simulationStyle = simulationMode ? {
+        opacity: hasAppeared ? 1 : 0.15,
+        transform: isAppearing
+            ? 'scale(1.1)'
+            : hasAppeared
+                ? (isActive ? 'scale(1.05)' : 'scale(1)')
+                : 'scale(0.9)',
+        filter: hasAppeared ? 'none' : 'grayscale(0.8)',
+    } : {}
+
+    // 병합된 스타일
+    const mergedStyle = {
+        ...simulationStyle,
+        ...highlightStyle,
+        transition: 'all 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
+    }
+
     return (
         <div
             className={cn(
-                'min-w-[240px] rounded-lg border bg-white shadow-sm transition-all dark:bg-zinc-900',
-                selected ? 'border-blue-500 ring-2 ring-blue-500/20' : 'border-zinc-200 dark:border-zinc-800'
+                'min-w-[240px] rounded-lg border bg-white shadow-sm dark:bg-zinc-900',
+                selected ? 'border-blue-500 ring-2 ring-blue-500/20' : 'border-zinc-200 dark:border-zinc-800',
+                isHighlighted && 'z-10',
+                isActive && 'ring-2',
+                isAppearing && 'animate-pulse'
             )}
+            style={mergedStyle}
         >
             {/* Target Handle (Left) */}
             <Handle

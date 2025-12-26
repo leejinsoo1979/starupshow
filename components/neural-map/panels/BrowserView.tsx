@@ -1,10 +1,13 @@
 'use client'
 
 import React, { useState, useCallback, useRef, useEffect } from 'react'
-import { ArrowLeft, ArrowRight, RotateCw, X, Globe, MousePointer2, Terminal, MoreHorizontal, Plus, Eye, MessageSquare, Share2 } from 'lucide-react'
+import { ArrowLeft, ArrowRight, RotateCw, X, Globe, MousePointer2, Terminal, MoreHorizontal, Plus, Eye, MessageSquare, Share2, ExternalLink } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useTheme } from 'next-themes'
 import { AIViewfinder, useViewfinder } from '../viewfinder'
+
+// Electron 환경인지 감지
+const isElectron = typeof window !== 'undefined' && !!(window as any).electron
 
 // AI 화면 공유 컨텍스트 타입
 interface AIScreenContext {
@@ -39,8 +42,10 @@ export function BrowserView({ onShareToAI }: BrowserViewProps = {}) {
     // 현재 활성 탭
     const activeTab = tabs.find(t => t.id === activeTabId) || tabs[0]
 
-    // Webview Ref
+    // Webview Ref (Electron)
     const webviewRef = useRef<any>(null)
+    // iframe Ref (Web)
+    const iframeRef = useRef<HTMLIFrameElement>(null)
     // Webview Node 상태 (useEffect 의존성용)
     const [webviewNode, setWebviewNode] = useState<any>(null)
     // Webview의 webContentsId (Electron 캡처용)
@@ -209,18 +214,49 @@ export function BrowserView({ onShareToAI }: BrowserViewProps = {}) {
             if (!/^https?:\/\//i.test(targetUrl)) {
                 targetUrl = 'https://' + targetUrl
             }
-            if (webviewRef.current) {
+
+            if (isElectron && webviewRef.current) {
                 webviewRef.current.loadURL(targetUrl)
             } else {
-                // Fallback
+                // 웹: 탭 URL 업데이트 (iframe src 변경)
+                setTabs(prev => prev.map(t =>
+                    t.id === activeTabId ? { ...t, url: targetUrl, title: targetUrl } : t
+                ))
                 setUrl(targetUrl)
+                setIsLoading(true)
             }
         }
     }
 
-    const goBack = () => webviewRef.current?.canGoBack() && webviewRef.current.goBack()
-    const goForward = () => webviewRef.current?.canGoForward() && webviewRef.current.goForward()
-    const reload = () => webviewRef.current?.reload() && webviewRef.current.reload()
+    // 네비게이션 함수들
+    const goBack = () => {
+        if (isElectron) {
+            webviewRef.current?.canGoBack() && webviewRef.current.goBack()
+        } else {
+            // 웹에서는 iframe history 접근 불가 - 버튼 비활성화됨
+        }
+    }
+    const goForward = () => {
+        if (isElectron) {
+            webviewRef.current?.canGoForward() && webviewRef.current.goForward()
+        }
+    }
+    const reload = () => {
+        if (isElectron) {
+            webviewRef.current?.reload()
+        } else {
+            // 웹: iframe 새로고침
+            if (iframeRef.current) {
+                setIsLoading(true)
+                iframeRef.current.src = iframeRef.current.src
+            }
+        }
+    }
+
+    // 새 탭에서 열기 (웹용)
+    const openInNewTab = () => {
+        window.open(activeTab.url, '_blank')
+    }
 
     const openDevTools = async () => {
         const webview = webviewRef.current
@@ -279,9 +315,16 @@ export function BrowserView({ onShareToAI }: BrowserViewProps = {}) {
             {/* 툴바 (주소창 등) */}
             <div className="h-10 border-b border-zinc-200 dark:border-zinc-800 flex items-center gap-2 px-3 bg-white dark:bg-zinc-950 shrink-0 electron-no-drag relative z-20 shadow-sm">
                 <div className="flex items-center gap-1">
-                    <button onClick={goBack} disabled={!canGoBack} className={cn("p-1.5 rounded-md transition-colors", canGoBack ? "hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-600 dark:text-zinc-400" : "text-zinc-300 dark:text-zinc-700 cursor-not-allowed")}><ArrowLeft className="w-3.5 h-3.5" /></button>
-                    <button onClick={goForward} disabled={!canGoForward} className={cn("p-1.5 rounded-md transition-colors", canGoForward ? "hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-600 dark:text-zinc-400" : "text-zinc-300 dark:text-zinc-700 cursor-not-allowed")}><ArrowRight className="w-3.5 h-3.5" /></button>
+                    {/* Electron에서만 뒤로/앞으로 활성화 */}
+                    <button onClick={goBack} disabled={!isElectron || !canGoBack} className={cn("p-1.5 rounded-md transition-colors", (isElectron && canGoBack) ? "hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-600 dark:text-zinc-400" : "text-zinc-300 dark:text-zinc-700 cursor-not-allowed")}><ArrowLeft className="w-3.5 h-3.5" /></button>
+                    <button onClick={goForward} disabled={!isElectron || !canGoForward} className={cn("p-1.5 rounded-md transition-colors", (isElectron && canGoForward) ? "hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-600 dark:text-zinc-400" : "text-zinc-300 dark:text-zinc-700 cursor-not-allowed")}><ArrowRight className="w-3.5 h-3.5" /></button>
                     <button onClick={reload} className="p-1.5 rounded-md hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-600 dark:text-zinc-400 transition-colors"><RotateCw className={cn("w-3.5 h-3.5", isLoading && "animate-spin")} /></button>
+                    {/* 웹에서 새 탭에서 열기 버튼 */}
+                    {!isElectron && (
+                        <button onClick={openInNewTab} className="p-1.5 rounded-md hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-600 dark:text-zinc-400 transition-colors" title="새 탭에서 열기">
+                            <ExternalLink className="w-3.5 h-3.5" />
+                        </button>
+                    )}
                 </div>
 
                 <div className="flex-1 flex items-center bg-zinc-100 dark:bg-zinc-800/50 rounded-full px-3 h-7 mx-2 border border-transparent focus-within:border-blue-500/50 transition-colors electron-no-drag">
@@ -340,22 +383,68 @@ export function BrowserView({ onShareToAI }: BrowserViewProps = {}) {
             </div>
 
             <div ref={browserContainerRef} className="flex-1 relative bg-white dark:bg-zinc-950 overflow-hidden">
-                {/* @ts-ignore */}
-                <webview
-                    ref={setWebviewRef}
-                    src={activeTab.url} // 초기 로드용, 이후엔 loadURL로 제어
-                    className="w-full h-full"
-                // allowpopups removed to strictly block OS windows
-                />
+                {/* Electron: webview, Web: iframe */}
+                {isElectron ? (
+                    // @ts-ignore - Electron webview
+                    <webview
+                        ref={setWebviewRef}
+                        src={activeTab.url}
+                        className="w-full h-full"
+                    />
+                ) : (
+                    // 웹 브라우저용 - iframe 제한 안내
+                    <div className="w-full h-full flex flex-col">
+                        {/* 안내 배너 */}
+                        <div className="flex items-center justify-between px-3 py-2 bg-amber-500/10 border-b border-amber-500/20">
+                            <span className="text-xs text-amber-600 dark:text-amber-400">
+                                ⚠️ 웹 브라우저에서는 보안 제한으로 일부 사이트가 표시되지 않을 수 있습니다
+                            </span>
+                            <button
+                                onClick={() => window.open(activeTab.url, '_blank')}
+                                className="flex items-center gap-1 px-2 py-1 text-xs bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors"
+                            >
+                                <ExternalLink className="w-3 h-3" />
+                                새 탭에서 열기
+                            </button>
+                        </div>
+                        {/* iframe */}
+                        <iframe
+                            ref={iframeRef as any}
+                            src={activeTab.url}
+                            className="flex-1 w-full border-0"
+                            sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox allow-top-navigation"
+                            allow="accelerometer; camera; encrypted-media; geolocation; gyroscope; microphone; midi"
+                            referrerPolicy="no-referrer-when-downgrade"
+                            onLoad={() => {
+                                setIsLoading(false)
+                                setError(null)
+                            }}
+                            onError={() => {
+                                setError('이 사이트는 iframe 삽입을 차단합니다. 새 탭에서 열어주세요.')
+                                setIsLoading(false)
+                            }}
+                        />
+                    </div>
+                )}
 
                 {isLoading && <div className="absolute top-0 left-0 w-full h-0.5 z-10"><div className="h-full bg-blue-500 animate-[progress_1s_ease-in-out_infinite]" /></div>}
 
                 {error && (
                     <div className="absolute inset-0 flex items-center justify-center bg-zinc-50/90 dark:bg-zinc-950/90 backdrop-blur-sm z-20">
                         <div className="text-center p-6">
-                            <X className="w-6 h-6 text-red-500 mx-auto mb-4" />
-                            <p className="text-sm text-zinc-500 mb-4">{error}</p>
-                            <button onClick={reload} className="px-4 py-2 bg-blue-500 text-white rounded-md text-sm">Try Again</button>
+                            <Globe className="w-10 h-10 text-zinc-400 mx-auto mb-4" />
+                            <p className="text-sm text-zinc-600 dark:text-zinc-400 mb-2 font-medium">페이지를 표시할 수 없습니다</p>
+                            <p className="text-xs text-zinc-500 mb-4">{error}</p>
+                            <div className="flex gap-2 justify-center">
+                                <button
+                                    onClick={() => window.open(activeTab.url, '_blank')}
+                                    className="px-4 py-2 bg-blue-500 text-white rounded-md text-sm flex items-center gap-2 hover:bg-blue-600 transition-colors"
+                                >
+                                    <ExternalLink className="w-4 h-4" />
+                                    새 탭에서 열기
+                                </button>
+                                <button onClick={reload} className="px-4 py-2 bg-zinc-200 dark:bg-zinc-700 text-zinc-700 dark:text-zinc-300 rounded-md text-sm hover:bg-zinc-300 dark:hover:bg-zinc-600 transition-colors">다시 시도</button>
+                            </div>
                         </div>
                     </div>
                 )}

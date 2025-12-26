@@ -12,7 +12,7 @@ import {
   Clock, Play, Square, Timer, Target, Swords, Presentation,
   MessageSquare, Crown, Shield, Zap, BarChart3, AlertTriangle,
   CheckCircle2, XCircle, ArrowRight, Mic, MicOff, Volume2,
-  Film, Share2, MonitorPlay
+  Film, Share2, MonitorPlay, Eye, Scan
 } from 'lucide-react'
 import { Button } from '@/components/ui'
 import { useChatRooms, useChatRoom, usePresence, useMeeting, useSharedViewer } from '@/hooks/useChat'
@@ -23,14 +23,18 @@ import { useAuth } from '@/hooks/useAuth'
 import { PROVIDER_INFO, LLMProvider } from '@/lib/llm/models'
 import { useThemeStore, accentColors } from '@/stores/themeStore'
 import { useVoice, OpenAIVoice } from '@/hooks/useVoice'
+import { useSpeakerTTS } from '@/components/voice/SpeakerMode'
+import { AIViewfinder, ViewfinderCaptureResult } from '@/components/neural-map/viewfinder/AIViewfinder'
+import { Globe } from 'lucide-react'
 
-// 에이전트 역할별 음성 매핑
-const ROLE_VOICES: Record<string, OpenAIVoice> = {
-  strategist: 'onyx',
-  analyst: 'nova',
-  executor: 'alloy',
-  critic: 'fable',
-  mediator: 'shimmer',
+// 에이전트 역할별 음성 매핑 (Grok 음성만 사용)
+// Grok 음성: sol(차분 여성), tara(활기 여성), cove(따뜻 남성), puck(유쾌 남성), charon(깊은 남성), vale(중성)
+const ROLE_VOICES: Record<string, string> = {
+  strategist: 'charon',
+  analyst: 'sol',
+  executor: 'cove',
+  critic: 'puck',
+  mediator: 'vale',
 }
 
 // 참여자별 고유 색상 팔레트 (Enterprise 스타일)
@@ -116,7 +120,33 @@ export default function MessengerPage() {
   const [showRightSidebar, setShowRightSidebar] = useState(true)
   const [confirmKick, setConfirmKick] = useState<{ participantId: string; name: string } | null>(null)
   const [showMeetingModal, setShowMeetingModal] = useState(false)
+  const [showViewfinder, setShowViewfinder] = useState(false)  // 🔭 뷰파인더 모달
   const [isNearBottom, setIsNearBottom] = useState(true) // 스크롤이 아래쪽인지
+
+  // 📐 뷰어 패널 리사이즈
+  const [viewerWidthPx, setViewerWidthPx] = useState(400) // 픽셀 (px)
+  const isResizingRef = useRef(false)
+  const containerRef = useRef<HTMLDivElement>(null)
+
+  // 🔭 공유된 문서들 (AI 비전 분석 포함)
+  interface SharedDocWithAnalysis {
+    id: string
+    name: string
+    type: 'image' | 'pdf' | 'document' | 'url'
+    content: string  // URL
+    mimeType?: string
+    analysis?: string  // AI가 분석한 내용
+    timestamp: Date
+    analyzing?: boolean
+  }
+  const [sharedDocuments, setSharedDocuments] = useState<SharedDocWithAnalysis[]>([])
+  const [isAnalyzingDocument, setIsAnalyzingDocument] = useState(false)
+
+  // 🔊 스피커 모드 (에이전트 메시지 TTS + 사용자 음성 입력)
+  const [speakerMode, setSpeakerMode] = useState(false)
+  const { playTTS, clearQueue, isSpeaking, currentSpeaker } = useSpeakerTTS()
+  const lastMessageIdRef = useRef<string | null>(null)
+
   const scrollRef = useRef<HTMLDivElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const imageInputRef = useRef<HTMLInputElement>(null)
@@ -157,6 +187,7 @@ export default function MessengerPage() {
 
   // 현재 사용자 ID (DEV 모드 or 실제 로그인)
   const currentUserId = isDevMode() ? DEV_USER.id : authUser?.id || null
+  const currentUserName = isDevMode() ? DEV_USER.name : authUser?.name || authUser?.email || 'You'
 
   // 룸 모드 감지
   const roomMode = useMemo(() => detectRoomMode(activeRoom), [activeRoom])
@@ -233,7 +264,47 @@ export default function MessengerPage() {
     }
   }, [activeRoomId])
 
-  // 에이전트 메시지 수신 시 자동 재생
+  // 📐 뷰어 패널 리사이즈 핸들러
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!isResizingRef.current || !containerRef.current) return
+
+      const containerRect = containerRef.current.getBoundingClientRect()
+      // 사이드바 너비(260px)를 제외한 가용 영역에서 계산
+      const sidebarWidth = showRightSidebar ? 260 : 0
+      const availableWidth = containerRect.width - sidebarWidth
+      const mouseX = e.clientX - containerRect.left
+
+      // 최소 250px, 최대 (가용 영역 - 300px)
+      const minWidth = 250
+      const maxWidth = availableWidth - 300
+      if (mouseX >= minWidth && mouseX <= maxWidth) {
+        setViewerWidthPx(mouseX)
+      }
+    }
+
+    const handleMouseUp = () => {
+      isResizingRef.current = false
+      document.body.style.cursor = ''
+      document.body.style.userSelect = ''
+    }
+
+    document.addEventListener('mousemove', handleMouseMove)
+    document.addEventListener('mouseup', handleMouseUp)
+
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove)
+      document.removeEventListener('mouseup', handleMouseUp)
+    }
+  }, [showRightSidebar])
+
+  const startResize = () => {
+    isResizingRef.current = true
+    document.body.style.cursor = 'col-resize'
+    document.body.style.userSelect = 'none'
+  }
+
+  // 에이전트 메시지 수신 시 자동 재생 (기존 방식 - 회의 모드)
   useEffect(() => {
     if (!isVoiceEnabled || messages.length === 0) return
 
@@ -249,6 +320,71 @@ export default function MessengerPage() {
       lastMessage.metadata = { ...lastMessage.metadata, speech_played: true }
     }
   }, [messages, isVoiceEnabled, meetingConfig, playSpeech])
+
+  // 🔊 스피커 모드 켤 때: 현재 마지막 메시지 ID 기록 (이전 메시지 읽지 않도록)
+  useEffect(() => {
+    if (speakerMode && messages.length > 0) {
+      // 스피커 모드 켜는 순간의 마지막 메시지 ID 저장
+      const lastMessage = messages[messages.length - 1]
+      if (!lastMessageIdRef.current) {
+        lastMessageIdRef.current = lastMessage.id
+        console.log('[SpeakerMode] 🔊 Mode enabled, skipping existing messages until:', lastMessage.id)
+      }
+    }
+  }, [speakerMode, messages.length])
+
+  // 🔊 스피커 모드: 새 에이전트 메시지 수신 시 TTS 재생
+  useEffect(() => {
+    if (!speakerMode || messages.length === 0) return
+
+    const lastMessage = messages[messages.length - 1]
+
+    // 이미 처리한 메시지면 스킵
+    if (lastMessage.id === lastMessageIdRef.current) return
+
+    // 에이전트 메시지만 TTS (새로 도착한 것만)
+    if (lastMessage.sender_type === 'agent') {
+      const agentName = lastMessage.sender_agent?.name || '에이전트'
+      // 🔧 TTS용 텍스트 정리 (마크다운, 이모지, 코드블록 제거)
+      const cleanText = lastMessage.content
+        .replace(/```[\s\S]*?```/g, '') // 코드블록 제거
+        .replace(/`[^`]+`/g, '') // 인라인 코드 제거
+        .replace(/\*\*([^*]+)\*\*/g, '$1') // **볼드** → 볼드
+        .replace(/\*([^*]+)\*/g, '$1') // *이탤릭* → 이탤릭
+        .replace(/__([^_]+)__/g, '$1') // __밑줄__ → 밑줄
+        .replace(/~~([^~]+)~~/g, '$1') // ~~취소선~~ → 취소선
+        .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1') // [링크](url) → 링크
+        .replace(/^#+\s*/gm, '') // # 헤딩 제거
+        .replace(/^[-*]\s+/gm, '') // 리스트 마커 제거
+        .replace(/^\d+\.\s+/gm, '') // 숫자 리스트 마커 제거
+        .replace(/[^\p{L}\p{N}\p{P}\p{Z}]/gu, '') // 이모지 제거
+        .replace(/\s+/g, ' ') // 다중 공백 정리
+        .trim()
+
+      if (cleanText) {
+        console.log('[SpeakerMode] 🔊 Playing:', agentName, cleanText.slice(0, 50))
+        playTTS(cleanText, agentName)
+      }
+    }
+
+    // 항상 마지막 메시지 ID 업데이트 (에이전트든 유저든)
+    lastMessageIdRef.current = lastMessage.id
+  }, [messages, speakerMode, playTTS])
+
+  // 스피커 모드 끄면 TTS 큐 비우기 + ref 초기화
+  useEffect(() => {
+    if (!speakerMode) {
+      clearQueue()
+      lastMessageIdRef.current = null  // 다음에 켤 때 다시 초기화되도록
+    }
+  }, [speakerMode, clearQueue])
+
+  // 🎤 음성 입력 → 텍스트 메시지 전송
+  const handleVoiceInput = async (text: string) => {
+    if (!text.trim() || !activeRoomId) return
+    console.log('[SpeakerMode] 🎤 Voice input:', text)
+    await sendMessage(text)
+  }
 
   // 에이전트 멘션 (프로필 클릭 시)
   const mentionAgent = (agentName: string) => {
@@ -389,17 +525,196 @@ export default function MessengerPage() {
 
       setShowSharedViewer(true)
 
+      // 🔭 AI 비전 분석을 위해 공유 문서 목록에 추가
+      const docId = `doc-${Date.now()}`
+      const newDoc: SharedDocWithAnalysis = {
+        id: docId,
+        name: fileName,
+        type: isImage ? 'image' : isPdf ? 'pdf' : 'document',
+        content: url,
+        mimeType: fileType,
+        timestamp: new Date(),
+        analyzing: true,  // 분석 중 표시
+      }
+      setSharedDocuments(prev => [...prev, newDoc])
+
       // 시스템 메시지로 공유 알림
       await sendMessage(`[공유 시작] ${fileName}`, {
         message_type: 'system' as any,
         metadata: { shared_file: true, url, fileName, fileType },
       })
+
+      // 🔭 AI 비전으로 문서 분석 (이미지/PDF만)
+      if (isImage || isPdf) {
+        setIsAnalyzingDocument(true)
+        try {
+          const visionRes = await fetch('/api/skills/viewfinder', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              imageUrl: url,
+              mimeType: fileType,
+              prompt: `이 자료를 회의 참석자들이 이해할 수 있도록 분석해줘. 주요 내용, 핵심 포인트, 논의할 사항을 정리해줘.`,
+              provider: 'openai',  // GPT-4o 사용
+            }),
+          })
+
+          if (visionRes.ok) {
+            const { analysis } = await visionRes.json()
+            // 분석 결과 업데이트
+            setSharedDocuments(prev =>
+              prev.map(doc =>
+                doc.id === docId
+                  ? { ...doc, analysis, analyzing: false }
+                  : doc
+              )
+            )
+
+            // 분석 결과를 시스템 메시지로 공유
+            await sendMessage(`[AI 분석] ${fileName}\n\n${analysis}`, {
+              message_type: 'system' as any,
+              metadata: { ai_analysis: true, documentId: docId },
+            })
+          }
+        } catch (analysisErr) {
+          console.error('Vision analysis failed:', analysisErr)
+          setSharedDocuments(prev =>
+            prev.map(doc =>
+              doc.id === docId ? { ...doc, analyzing: false } : doc
+            )
+          )
+        } finally {
+          setIsAnalyzingDocument(false)
+        }
+      }
     } catch (err) {
       console.error('Share file failed:', err)
       alert(err instanceof Error ? err.message : '파일 공유에 실패했습니다')
     } finally {
       setUploading(false)
       if (shareInputRef.current) shareInputRef.current.value = ''
+    }
+  }
+
+  // 🔭 MeetingVoiceChat에서 파일/뷰파인더 캡처 공유 핸들러
+  const handleMeetingShareFile = async (
+    input: File | { dataUrl: string; name: string; type: string }
+  ) => {
+    if (!activeRoomId) return
+
+    try {
+      setUploading(true)
+
+      let url: string
+      let fileName: string
+      let fileType: string
+      let isImage = false
+      let isPdf = false
+
+      // 1. File 객체인 경우: 기존 업로드 API 사용
+      if (input instanceof File) {
+        const formData = new FormData()
+        formData.append('file', input)
+        formData.append('roomId', activeRoomId)
+
+        const res = await fetch('/api/chat/upload', {
+          method: 'POST',
+          body: formData,
+        })
+
+        if (!res.ok) {
+          const error = await res.json()
+          throw new Error(error.error || 'Upload failed')
+        }
+
+        const data = await res.json()
+        url = data.url
+        fileName = data.fileName
+        fileType = data.fileType
+        isImage = data.isImage
+        isPdf = data.isPdf
+      }
+      // 2. 뷰파인더 캡처 (dataUrl)인 경우: 직접 처리
+      else {
+        url = input.dataUrl
+        fileName = input.name
+        fileType = input.type
+        isImage = fileType.startsWith('image/')
+        isPdf = fileType === 'application/pdf'
+      }
+
+      // 🔭 AI 비전 분석을 위해 공유 문서 목록에 추가
+      const docId = `doc-${Date.now()}`
+      const newDoc: SharedDocWithAnalysis = {
+        id: docId,
+        name: fileName,
+        type: isImage ? 'image' : isPdf ? 'pdf' : 'document',
+        content: url,
+        mimeType: fileType,
+        timestamp: new Date(),
+        analyzing: true,
+      }
+      setSharedDocuments(prev => [...prev, newDoc])
+
+      console.log('[MeetingShareFile] 📄 Document added:', fileName)
+
+      // 🔭 AI 비전으로 문서 분석 (이미지/PDF만)
+      if (isImage || isPdf) {
+        setIsAnalyzingDocument(true)
+        try {
+          // dataUrl인 경우 base64 추출
+          const isDataUrl = url.startsWith('data:')
+          const visionBody: any = {
+            prompt: `이 자료를 회의 참석자들이 이해할 수 있도록 분석해줘. 주요 내용, 핵심 포인트, 논의할 사항을 정리해줘.`,
+            provider: 'openai',
+          }
+
+          if (isDataUrl) {
+            // data:image/jpeg;base64,... 형식에서 base64 추출
+            const base64Match = url.match(/^data:([^;]+);base64,(.+)$/)
+            if (base64Match) {
+              visionBody.imageBase64 = base64Match[2]
+              visionBody.mimeType = base64Match[1]
+            }
+          } else {
+            visionBody.imageUrl = url
+            visionBody.mimeType = fileType
+          }
+
+          const visionRes = await fetch('/api/skills/viewfinder', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(visionBody),
+          })
+
+          if (visionRes.ok) {
+            const { analysis } = await visionRes.json()
+            // 분석 결과 업데이트
+            setSharedDocuments(prev =>
+              prev.map(doc =>
+                doc.id === docId
+                  ? { ...doc, analysis, analyzing: false }
+                  : doc
+              )
+            )
+            console.log('[MeetingShareFile] ✅ Analysis complete:', analysis.substring(0, 100))
+          }
+        } catch (analysisErr) {
+          console.error('[MeetingShareFile] Vision analysis failed:', analysisErr)
+          setSharedDocuments(prev =>
+            prev.map(doc =>
+              doc.id === docId ? { ...doc, analyzing: false } : doc
+            )
+          )
+        } finally {
+          setIsAnalyzingDocument(false)
+        }
+      }
+    } catch (err) {
+      console.error('[MeetingShareFile] Failed:', err)
+      alert(err instanceof Error ? err.message : '파일 공유에 실패했습니다')
+    } finally {
+      setUploading(false)
     }
   }
 
@@ -706,6 +1021,29 @@ export default function MessengerPage() {
             {/* 회의 컨트롤 - 에이전트가 1명 이상이면 표시 */}
             {activeRoom && activeRoom.participants && activeRoom.participants.some(p => p.participant_type === 'agent' || p.agent) && (
               <>
+                {/* 🔊 스피커 모드 토글 */}
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  className={`transition-colors ${speakerMode
+                    ? 'text-emerald-500 bg-emerald-500/10'
+                    : 'text-zinc-500 hover:text-accent'
+                  }`}
+                  onClick={() => setSpeakerMode(!speakerMode)}
+                  title={speakerMode ? '스피커 모드 끄기' : '스피커 모드 켜기 (AI가 말로 응답)'}
+                >
+                  {speakerMode ? (
+                    <div className="relative">
+                      <Volume2 className="w-5 h-5" />
+                      {isSpeaking && (
+                        <span className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-emerald-400 rounded-full animate-ping" />
+                      )}
+                    </div>
+                  ) : (
+                    <Volume2 className="w-5 h-5 opacity-50" />
+                  )}
+                </Button>
+
                 {meetingStatus?.is_meeting_active ? (
                   // 회의 진행 중 표시 (간단하게 - 타이머는 상단 배너에)
                   <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-red-500/10 border border-red-500/30">
@@ -729,8 +1067,35 @@ export default function MessengerPage() {
               </>
             )}
 
-            <Button size="icon" variant="ghost" className="text-zinc-500 hover:text-accent">
-              <Phone className="w-5 h-5" />
+            {/* 🌐 브라우저 버튼 - 시스템 브라우저에서 열기 */}
+            <Button
+              size="icon"
+              variant="ghost"
+              className="text-zinc-500 hover:text-accent"
+              onClick={() => {
+                const url = prompt('열고 싶은 URL을 입력하세요:', 'https://www.google.com')
+                if (url) {
+                  // Electron이면 shell.openExternal, 아니면 window.open
+                  if ((window as any).electron?.shell) {
+                    (window as any).electron.shell.openExternal(url)
+                  } else {
+                    window.open(url, '_blank')
+                  }
+                }
+              }}
+              title="웹 브라우저 열기"
+            >
+              <Globe className="w-5 h-5" />
+            </Button>
+            {/* 🔭 뷰파인더 버튼 */}
+            <Button
+              size="icon"
+              variant="ghost"
+              className={`${showViewfinder ? 'text-cyan-500 bg-cyan-500/10' : 'text-zinc-500 hover:text-accent'}`}
+              onClick={() => setShowViewfinder(true)}
+              title="뷰파인더 (화면 캡처 & AI 분석)"
+            >
+              <Eye className="w-5 h-5" />
             </Button>
             <Button size="icon" variant="ghost" className="text-zinc-500 hover:text-accent">
               <Video className="w-5 h-5" />
@@ -761,21 +1126,7 @@ export default function MessengerPage() {
 
             <div className={`w-px h-6 mx-1 ${isDark ? 'bg-zinc-800' : 'bg-zinc-200'}`}></div>
 
-            {/* 음성 모드 토글 */}
-            <Button
-              size="icon"
-              variant="ghost"
-              className={`transition-colors ${isVoiceEnabled
-                ? 'text-accent bg-accent/10'
-                : 'text-zinc-500 hover:text-accent'
-                }`}
-              onClick={toggleVoiceMode}
-              title={isVoiceEnabled ? '음성 모드 끄기' : '음성 모드 켜기'}
-            >
-              {isVoiceEnabled ? <Volume2 className="w-5 h-5" /> : <Volume2 className="w-5 h-5 opacity-40" />}
-            </Button>
-
-            <div className={`w-px h-6 mx-2 ${isDark ? 'bg-zinc-800' : 'bg-zinc-200'}`}></div>
+            {/* 음성 모드 토글 - speakerMode로 통합됨 */}
 
             {/* 채팅방 설정 드롭다운 */}
             <div className="relative">
@@ -856,11 +1207,13 @@ export default function MessengerPage() {
           </div>
         </div>
 
-        <div className="flex flex-1 overflow-hidden">
+        <div ref={containerRef} className="flex flex-1 overflow-hidden">
           {/* Shared Viewer Panel - 회의/토론/발표 모드이거나 공유 화면이 활성화되면 왼쪽에 표시 */}
           {(roomMode !== 'chat' || meetingStatus?.is_meeting_active || (showSharedViewer && isViewerActive)) && (
-            <div className={`w-1/2 border-r flex-shrink-0 flex flex-col ${isDark ? 'border-zinc-800/50 bg-zinc-950' : 'border-zinc-200 bg-zinc-50'
-              }`}>
+            <div
+              className={`border-r flex-shrink-0 flex flex-col ${isDark ? 'border-zinc-800/50 bg-zinc-950' : 'border-zinc-200 bg-zinc-50'}`}
+              style={{ width: `${viewerWidthPx}px` }}
+            >
               {isViewerActive ? (
                 <SharedViewer
                   roomId={activeRoomId!}
@@ -912,8 +1265,19 @@ export default function MessengerPage() {
             </div>
           )}
 
+          {/* 📐 리사이즈 핸들 - 뷰어 패널이 열려있을 때만 표시 */}
+          {(roomMode !== 'chat' || meetingStatus?.is_meeting_active || (showSharedViewer && isViewerActive)) && (
+            <div
+              className={`w-1 cursor-col-resize hover:bg-blue-500/50 active:bg-blue-500 transition-colors flex-shrink-0 ${isDark ? 'bg-zinc-800 hover:bg-blue-500/30' : 'bg-zinc-300 hover:bg-blue-500/30'}`}
+              onMouseDown={startResize}
+              title="드래그하여 크기 조절"
+            />
+          )}
+
           {/* Main Content Column */}
-          <div className={`flex-1 flex flex-col min-w-0 ${(roomMode !== 'chat' || meetingStatus?.is_meeting_active || (showSharedViewer && isViewerActive)) ? 'w-1/2' : ''}`}>
+          <div
+            className="flex flex-col min-w-0 flex-1"
+          >
             {/* Meeting Status Bar - Enterprise Style */}
             {meetingStatus?.is_meeting_active && (() => {
               // 진행자 정보 찾기
@@ -1430,6 +1794,21 @@ export default function MessengerPage() {
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-1.5">
                               <span className="text-sm font-medium truncate">{name}</span>
+                              {/* 🎤 현재 말하는 중인 참가자 마이크 표시 */}
+                              {speakerMode && currentSpeaker === name && (
+                                <div className="flex items-center">
+                                  <Mic className="w-3 h-3 text-emerald-400 animate-pulse flex-shrink-0" />
+                                  <span className="flex gap-0.5 ml-0.5">
+                                    {[0, 1, 2].map(i => (
+                                      <span
+                                        key={i}
+                                        className="w-0.5 h-2 bg-emerald-400 rounded-full animate-pulse"
+                                        style={{ animationDelay: `${i * 0.15}s`, animationDuration: '0.6s' }}
+                                      />
+                                    ))}
+                                  </span>
+                                </div>
+                              )}
                               {isOwner && (
                                 <Crown className="w-3 h-3 text-amber-500 flex-shrink-0" />
                               )}
@@ -1632,10 +2011,28 @@ export default function MessengerPage() {
               await startMeeting(topic, duration)
               // 회의 시작 후 첫 메시지 전송하여 대화 트리거
               await sendMessage(`회의를 시작합니다. 주제: ${topic || '자유 토론'} (${duration}분)`)
+              // 🔊 회의 시작 시 스피커 모드 자동 활성화
+              setSpeakerMode(true)
             }}
           />
         )}
       </AnimatePresence>
+
+      {/* 🔭 AI Viewfinder Modal */}
+      {showViewfinder && (
+        <AIViewfinder
+          onClose={() => setShowViewfinder(false)}
+          onCapture={async (capture: ViewfinderCaptureResult) => {
+            // 뷰파인더 캡처를 파일 공유 핸들러로 전달
+            await handleMeetingShareFile({
+              dataUrl: capture.imageDataUrl,
+              name: `viewfinder-${Date.now()}.png`,
+              type: 'image/png'
+            })
+            setShowViewfinder(false)
+          }}
+        />
+      )}
 
       {/* Click outside to close dropdown */}
       {showRoomSettings && (

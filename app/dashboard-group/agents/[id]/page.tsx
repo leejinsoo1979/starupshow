@@ -77,7 +77,9 @@ import { AgentOSPanel } from '@/components/agent/AgentOSPanel'
 import { BrainMapLayout } from '@/components/brain-map/BrainMapLayout'
 import { useThemeStore, accentColors } from '@/stores/themeStore'
 import { GrokVoiceChat } from '@/components/voice/GrokVoiceChat'
+import { GeminiVoiceChat } from '@/components/voice/GeminiVoiceChat'
 import { useAgentNotification } from '@/lib/contexts/AgentNotificationContext'
+import { executeActions, formatActionResultsForChat, convertToolAction, type AgentAction, type ToolAction } from '@/lib/ai/agent-actions'
 
 type TabType = 'about' | 'chat' | 'history' | 'workspace' | 'brainmap' | 'knowledge' | 'integrations' | 'apis' | 'workflow' | 'settings'
 
@@ -2159,6 +2161,7 @@ export default function AgentProfilePage() {
   // Voice call states
   const [isVoiceCallActive, setIsVoiceCallActive] = useState(false)
   const [isVoiceConnecting, setIsVoiceConnecting] = useState(false)
+  const [useGeminiVoice, setUseGeminiVoice] = useState(false)  // Gemini Live 사용 여부
   const [isMuted, setIsMuted] = useState(false)
   const [isListening, setIsListening] = useState(false)
   const wsRef = useRef<WebSocket | null>(null)
@@ -3577,11 +3580,20 @@ export default function AgentProfilePage() {
   const startVoiceCall = async () => {
     if (!agent) return
 
+    // 🔥 Gemini Live 사용 여부 확인
+    const voiceSettings = (agent as any).voice_settings || {}
+    if (voiceSettings.provider === 'gemini') {
+      console.log('[VoiceCall] 🌟 Using Gemini Live for:', agent.name)
+      setUseGeminiVoice(true)
+      setIsVoiceCallActive(true)
+      setVoiceCallActive(true)  // 알림 TTS 비활성화
+      return  // GeminiVoiceChat 컴포넌트가 렌더링됨
+    }
+
     setIsVoiceConnecting(true)
 
     try {
-      // Get voice settings from agent
-      const voiceSettings = (agent as any).voice_settings || {}
+      // Get voice settings from agent (xAI Grok)
       const selectedVoice = voiceSettings.voice || 'sol'
       const conversationStyle = voiceSettings.conversation_style || 'friendly'
       const vadSensitivity = voiceSettings.vad_sensitivity || 'medium'
@@ -3764,6 +3776,7 @@ export default function AgentProfilePage() {
     setVoiceCallActive(false)  // 🔥 알림 팝업 TTS 재활성화
     setIsVoiceConnecting(false)
     setIsListening(false)
+    setUseGeminiVoice(false)  // 🔥 Gemini Live 모드 리셋
 
     console.log('[VoiceCall] Voice call ended completely')
   }
@@ -4056,7 +4069,33 @@ export default function AgentProfilePage() {
 
       if (res.ok) {
         const data = await res.json()
-        const responseContent = data.response || '응답을 생성하지 못했습니다.'
+        let responseContent = data.response || '응답을 생성하지 못했습니다.'
+
+        // 🚀 Autonomous Agent 액션 실행
+        if (data.actions && data.actions.length > 0) {
+          console.log('[AgentChat] 🤖 Executing autonomous actions:', data.actions.length)
+
+          try {
+            // 🔥 ToolAction → AgentAction 변환 (autonomous agent는 ToolAction 형태로 반환)
+            const agentActions = (data.actions as ToolAction[])
+              .map((action) => convertToolAction(action))
+              .filter((a): a is AgentAction => a !== null)
+
+            console.log('[AgentChat] 📦 Converted actions:', agentActions.length)
+            const results = await executeActions(agentActions)
+            const actionSummary = formatActionResultsForChat(results)
+
+            // 액션 결과를 응답에 추가
+            if (actionSummary) {
+              responseContent += '\n\n---\n**실행 결과:**\n' + actionSummary
+            }
+
+            console.log('[AgentChat] ✅ Actions executed:', results.filter(r => r.success).length, 'succeeded')
+          } catch (actionError) {
+            console.error('[AgentChat] ❌ Action execution error:', actionError)
+            responseContent += '\n\n⚠️ 일부 작업 실행 중 오류가 발생했습니다.'
+          }
+        }
 
         // 프로젝트 생성 등 특수 액션 감지
         if (data.action_type && data.requires_confirmation) {
@@ -5528,10 +5567,41 @@ export default function AgentProfilePage() {
 
           {/* Chat Tab */}
           {activeTab === 'chat' && (
-            <div className="flex flex-col h-[calc(100vh-130px)] min-h-[600px]">
-              {/* 🔥 통합 음성모드 - 채팅과 동일한 인격/메모리 사용 */}
-              {/* Chat Header */}
+            <div className="relative flex flex-col h-[calc(100vh-130px)] min-h-[600px]">
+              {/* 🔥 Gemini Live 음성 통화 모드 */}
+              {useGeminiVoice && agent && (
+                <div className="fixed inset-0 z-[100] bg-zinc-950">
+                  <GeminiVoiceChat
+                    agentId={agent.id}
+                    agentName={agent.name}
+                    avatarUrl={agent.avatar_url || undefined}
+                    onTranscript={(text, role) => {
+                      // 채팅 메시지에 추가
+                      const messageRole: 'user' | 'agent' = role === 'user' ? 'user' : 'agent'
+                      const message = {
+                        id: `gemini-${role}-${Date.now()}`,
+                        role: messageRole,
+                        content: text,
+                        timestamp: new Date(),
+                        isVoice: true,
+                      }
+                      setChatMessages((prev) => [...prev, message])
+                      // DB에도 저장
+                      saveMessageToHistory(role === 'user' ? 'user' : 'agent', text)
+                    }}
+                  />
+                  {/* 종료 버튼 */}
+                  <button
+                    onClick={endVoiceCall}
+                    className="absolute top-4 right-4 z-10 px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg text-sm font-medium transition-colors"
+                  >
+                    통화 종료
+                  </button>
+                </div>
+              )}
 
+              {/* 🔥 통합 음성모드 - 채팅과 동일한 인격/메모리 사용 (xAI Grok) */}
+              {/* Chat Header */}
 
               {/* Chat Messages Area */}
               <div
@@ -8388,7 +8458,26 @@ export default function AgentProfilePage() {
                     })
                     if (res.ok) {
                       const data = await res.json()
-                      const responseContent = data.response || '응답을 생성하지 못했습니다.'
+                      let responseContent = data.response || '응답을 생성하지 못했습니다.'
+
+                      // 🚀 Autonomous Agent 액션 실행
+                      if (data.actions && data.actions.length > 0) {
+                        try {
+                          // 🔥 ToolAction → AgentAction 변환
+                          const agentActions = (data.actions as ToolAction[])
+                            .map((action) => convertToolAction(action))
+                            .filter((a): a is AgentAction => a !== null)
+
+                          const results = await executeActions(agentActions)
+                          const actionSummary = formatActionResultsForChat(results)
+                          if (actionSummary) {
+                            responseContent += '\n\n---\n**실행 결과:**\n' + actionSummary
+                          }
+                        } catch (actionError) {
+                          console.error('[AgentChat] Action error:', actionError)
+                        }
+                      }
+
                       const detectedEmotions = detectEmotionsInOrder(responseContent, allEmotions)
                       const detectedEmotion = detectedEmotions.length > 0 ? detectedEmotions[0] : 'neutral'
                       const agentMessage = {

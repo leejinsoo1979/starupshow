@@ -421,11 +421,11 @@ export default function NeuralMapPage() {
               })
             }
 
-            // 파일 시스템에서 실제 파일 스캔
+            // 파일 시스템에서 실제 파일 스캔 (스키마 파일 포함)
             const scanResult = await electron.fs.scanTree(folderPath, {
               includeSystemFiles: false,
               includeContent: true,
-              contentExtensions: ['.ts', '.tsx', '.js', '.jsx', '.json', '.md', '.css', '.html', '.py', '.java', '.go', '.rs']
+              contentExtensions: ['.ts', '.tsx', '.js', '.jsx', '.json', '.md', '.css', '.html', '.py', '.java', '.go', '.rs', '.sql', '.prisma', '.graphql', '.gql', '.yaml', '.yml']
             })
 
             if (scanResult?.tree) {
@@ -435,7 +435,8 @@ export default function NeuralMapPage() {
               const getFileType = (ext: string) => {
                 const imageExts = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'ico']
                 const mdExts = ['md', 'markdown', 'mdx']
-                const codeExts = ['ts', 'tsx', 'js', 'jsx', 'json', 'css', 'html', 'py', 'java', 'c', 'cpp', 'h', 'rs', 'go']
+                // 스키마 파일 확장자 포함
+                const codeExts = ['ts', 'tsx', 'js', 'jsx', 'json', 'css', 'html', 'py', 'java', 'c', 'cpp', 'h', 'rs', 'go', 'sql', 'prisma', 'graphql', 'gql', 'yaml', 'yml']
                 if (imageExts.includes(ext)) return 'image'
                 if (mdExts.includes(ext)) return 'markdown'
                 if (codeExts.includes(ext)) return 'code'
@@ -586,11 +587,11 @@ export default function NeuralMapPage() {
         console.log('[NeuralMap] 🔄 Reloading files after change...')
 
         try {
-          // 파일 다시 스캔
+          // 파일 다시 스캔 (스키마 파일 포함)
           const scanResult = await electron.fs.scanTree(currentPath, {
             includeSystemFiles: false,
             includeContent: true,
-            contentExtensions: ['.ts', '.tsx', '.js', '.jsx', '.json', '.md', '.css', '.html', '.py', '.java', '.go', '.rs']
+            contentExtensions: ['.ts', '.tsx', '.js', '.jsx', '.json', '.md', '.css', '.html', '.py', '.java', '.go', '.rs', '.sql', '.prisma', '.graphql', '.gql', '.yaml', '.yml']
           })
 
           if (scanResult?.tree) {
@@ -600,7 +601,8 @@ export default function NeuralMapPage() {
             const getFileType = (ext: string) => {
               const imageExts = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'ico']
               const mdExts = ['md', 'markdown', 'mdx']
-              const codeExts = ['ts', 'tsx', 'js', 'jsx', 'json', 'css', 'html', 'py', 'java', 'c', 'cpp', 'h', 'rs', 'go']
+              // 스키마 파일 확장자 포함
+              const codeExts = ['ts', 'tsx', 'js', 'jsx', 'json', 'css', 'html', 'py', 'java', 'c', 'cpp', 'h', 'rs', 'go', 'sql', 'prisma', 'graphql', 'gql', 'yaml', 'yml']
               if (imageExts.includes(ext)) return 'image'
               if (mdExts.includes(ext)) return 'markdown'
               if (codeExts.includes(ext)) return 'code'

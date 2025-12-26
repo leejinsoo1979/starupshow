@@ -1210,13 +1210,21 @@ ${agentToAsk.name}님 의견에 반응해. 동의/반박/추가 뭐든.`
           contextMessage = ''
 
         } else if (isMeetingStart) {
-          // 나머지 에이전트: 바로 본론
+          // 나머지 에이전트: 직전 발언자에게 반응하며 본론 시작
+          const prevSpeakerName = lastMessage?.name || ''
+          const prevContent = lastSpeakerContent.slice(0, 100)
+
           contextMessage = `${historyText}
 
 ---
 당신: ${agent.name}${topicInstruction}
 
-주제에 대한 의견을 바로 말해. 인사 불필요.`
+⚠️ [티키타카 필수!]
+${prevSpeakerName}님이 방금 말함: "${prevContent}${lastSpeakerContent.length > 100 ? '...' : ''}"
+
+🚨 반드시 "${prevSpeakerName}님" 언급하며 반응해서 시작!
+예: "${prevSpeakerName}님 말씀대로...", "${prevSpeakerName}님 의견에 덧붙이면..."
+그리고 주제에 대한 내 의견도 짧게 (2-3문장).`
 
         } else {
           // Phase 3+: 본격 토론 (구조화된 회의 모드)

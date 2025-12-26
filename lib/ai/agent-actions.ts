@@ -14,6 +14,14 @@ export type AgentAction =
   | WebSearchAction
   | CreateProjectAction
   | CreateTaskAction
+  | GenerateImageAction
+  | SendEmailAction
+  | ReadEmailsAction
+  | ReplyEmailAction
+  | GetCalendarEventsAction
+  | CreateCalendarEventAction
+  | GenerateReportAction
+  | SummarizeScheduleAction
 
 export interface WriteFileAction {
   type: 'write_file'
@@ -70,6 +78,80 @@ export interface CreateTaskAction {
   assigneeId?: string
 }
 
+// ============================================
+// 이미지 생성 액션 (Z-Image)
+// ============================================
+export interface GenerateImageAction {
+  type: 'generate_image'
+  prompt: string
+  image_url?: string
+  width?: number
+  height?: number
+  metadata?: {
+    prompt: string
+    width: number
+    height: number
+    model: string
+    generation_time_ms: number
+  }
+}
+
+// ============================================
+// 외부 서비스 연동 액션
+// ============================================
+
+export interface SendEmailAction {
+  type: 'send_email'
+  to: string
+  subject: string
+  body: string
+  cc?: string
+}
+
+export interface ReadEmailsAction {
+  type: 'read_emails'
+  filter: 'unread' | 'recent' | 'all' | 'important'
+  count?: number
+  from?: string
+}
+
+export interface ReplyEmailAction {
+  type: 'reply_email'
+  emailId: string
+  body: string
+  replyAll?: boolean
+}
+
+export interface GetCalendarEventsAction {
+  type: 'get_calendar_events'
+  period: 'today' | 'tomorrow' | 'this_week' | 'next_week' | 'custom'
+  startDate?: string
+  endDate?: string
+}
+
+export interface CreateCalendarEventAction {
+  type: 'create_calendar_event'
+  title: string
+  startTime: string
+  endTime: string
+  description?: string
+  location?: string
+  attendees?: string[]
+}
+
+export interface GenerateReportAction {
+  type: 'create_report'
+  reportType: 'daily' | 'weekly' | 'project' | 'custom'
+  title: string
+  content: string
+  projectId?: string
+}
+
+export interface SummarizeScheduleAction {
+  type: 'summarize_schedule'
+  period: 'today' | 'tomorrow' | 'this_week'
+}
+
 // 액션 실행 결과
 export interface ActionResult {
   action: AgentAction
@@ -81,7 +163,7 @@ export interface ActionResult {
 // 프론트엔드에서 사용할 액션 실행기
 export async function executeAction(action: AgentAction): Promise<ActionResult> {
   // 웹 전용 액션들은 Electron 없이도 실행 가능
-  const webOnlyActions = ['web_search', 'create_project', 'create_task']
+  const webOnlyActions = ['web_search', 'create_project', 'create_task', 'generate_image']
 
   // Electron 필요한 액션인데 없으면 에러
   if (!webOnlyActions.includes(action.type)) {
@@ -240,6 +322,209 @@ export async function executeAction(action: AgentAction): Promise<ActionResult> 
         }
       }
 
+      // ============================================
+      // 이미지 생성 액션 (Z-Image)
+      // ============================================
+      case 'generate_image': {
+        // 이미지가 이미 생성된 경우 (tool에서 API 호출 완료)
+        if (action.image_url) {
+          return {
+            action,
+            success: true,
+            result: {
+              image_url: action.image_url,
+              metadata: action.metadata,
+              prompt: action.prompt
+            }
+          }
+        }
+
+        // 이미지 생성 API 호출
+        const response = await fetch('/api/skills/z-image', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            prompt: action.prompt,
+            width: action.width || 1024,
+            height: action.height || 1024,
+          })
+        })
+
+        if (!response.ok) {
+          const error = await response.json()
+          throw new Error(error.error || '이미지 생성 실패')
+        }
+
+        const result = await response.json()
+        return {
+          action,
+          success: true,
+          result: {
+            image_url: result.image_url,
+            metadata: result.metadata,
+            prompt: action.prompt
+          }
+        }
+      }
+
+      // ============================================
+      // 외부 서비스 연동 액션 (OAuth 필요)
+      // ============================================
+
+      case 'send_email': {
+        // Gmail/Outlook API 호출 (OAuth 필요)
+        const response = await fetch('/api/integrations/email/send', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            to: action.to,
+            subject: action.subject,
+            body: action.body,
+            cc: action.cc,
+          })
+        })
+
+        if (!response.ok) {
+          const error = await response.json()
+          throw new Error(error.error || '이메일 발송 실패')
+        }
+
+        return {
+          action,
+          success: true,
+          result: { sent: true }
+        }
+      }
+
+      case 'read_emails': {
+        const response = await fetch(`/api/integrations/email/list?filter=${action.filter}&count=${action.count || 10}`)
+
+        if (!response.ok) {
+          const error = await response.json()
+          throw new Error(error.error || '이메일 조회 실패')
+        }
+
+        const emails = await response.json()
+        return {
+          action,
+          success: true,
+          result: { emails }
+        }
+      }
+
+      case 'reply_email': {
+        const response = await fetch('/api/integrations/email/reply', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            emailId: action.emailId,
+            body: action.body,
+            replyAll: action.replyAll,
+          })
+        })
+
+        if (!response.ok) {
+          const error = await response.json()
+          throw new Error(error.error || '이메일 답장 실패')
+        }
+
+        return {
+          action,
+          success: true,
+          result: { replied: true }
+        }
+      }
+
+      case 'get_calendar_events': {
+        const params = new URLSearchParams({
+          period: action.period,
+          ...(action.startDate && { startDate: action.startDate }),
+          ...(action.endDate && { endDate: action.endDate }),
+        })
+
+        const response = await fetch(`/api/integrations/calendar/events?${params}`)
+
+        if (!response.ok) {
+          const error = await response.json()
+          throw new Error(error.error || '일정 조회 실패')
+        }
+
+        const events = await response.json()
+        return {
+          action,
+          success: true,
+          result: { events }
+        }
+      }
+
+      case 'create_calendar_event': {
+        const response = await fetch('/api/integrations/calendar/events', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            title: action.title,
+            startTime: action.startTime,
+            endTime: action.endTime,
+            description: action.description,
+            location: action.location,
+            attendees: action.attendees,
+          })
+        })
+
+        if (!response.ok) {
+          const error = await response.json()
+          throw new Error(error.error || '일정 생성 실패')
+        }
+
+        const event = await response.json()
+        return {
+          action,
+          success: true,
+          result: { event }
+        }
+      }
+
+      case 'create_report': {
+        const response = await fetch('/api/reports', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            type: action.reportType,
+            title: action.title,
+            content: action.content,
+            projectId: action.projectId,
+          })
+        })
+
+        if (!response.ok) {
+          const error = await response.json()
+          throw new Error(error.error || '보고서 생성 실패')
+        }
+
+        const report = await response.json()
+        return {
+          action,
+          success: true,
+          result: { report }
+        }
+      }
+
+      case 'summarize_schedule': {
+        const response = await fetch(`/api/integrations/calendar/summary?period=${action.period}`)
+
+        if (!response.ok) {
+          const error = await response.json()
+          throw new Error(error.error || '스케줄 요약 실패')
+        }
+
+        const summary = await response.json()
+        return {
+          action,
+          success: true,
+          result: { summary }
+        }
+      }
+
       default:
         return {
           action,
@@ -329,6 +614,16 @@ export function convertToolAction(toolAction: ToolAction): AgentAction | null {
         assigneeId: data.assigneeId as string | undefined,
       }
 
+    case 'generate_image':
+      return {
+        type: 'generate_image',
+        prompt: data.prompt as string,
+        image_url: data.image_url as string | undefined,
+        width: data.width as number | undefined,
+        height: data.height as number | undefined,
+        metadata: data.metadata as GenerateImageAction['metadata'],
+      }
+
     default:
       console.warn(`Unknown tool action type: ${type}`)
       return null
@@ -389,8 +684,48 @@ export function formatActionResultsForChat(results: ActionResult[]): string {
         lines.push(`${status} 웹 검색: ${(r.action as WebSearchAction).query}`)
         break
 
-      default:
-        lines.push(`${status} ${r.action.type}`)
+      case 'generate_image':
+        lines.push(`${status} 이미지 생성: ${(r.action as GenerateImageAction).prompt?.slice(0, 50)}...`)
+        if (r.success && r.result) {
+          const imageResult = r.result as { image_url?: string }
+          if (imageResult.image_url) {
+            lines.push(`   🖼️ ${imageResult.image_url}`)
+          }
+        }
+        break
+
+      case 'send_email':
+        lines.push(`${status} 이메일 발송: ${(r.action as SendEmailAction).to}`)
+        break
+
+      case 'read_emails':
+        lines.push(`${status} 이메일 조회: ${(r.action as ReadEmailsAction).filter}`)
+        break
+
+      case 'reply_email':
+        lines.push(`${status} 이메일 답장`)
+        break
+
+      case 'get_calendar_events':
+        lines.push(`${status} 일정 조회: ${(r.action as GetCalendarEventsAction).period}`)
+        break
+
+      case 'create_calendar_event':
+        lines.push(`${status} 일정 생성: ${(r.action as CreateCalendarEventAction).title}`)
+        break
+
+      case 'create_report':
+        lines.push(`${status} 보고서 생성: ${(r.action as GenerateReportAction).title}`)
+        break
+
+      case 'summarize_schedule':
+        lines.push(`${status} 스케줄 요약: ${(r.action as SummarizeScheduleAction).period}`)
+        break
+
+      default: {
+        const unknownAction = r.action as { type: string }
+        lines.push(`${status} ${unknownAction.type}`)
+      }
     }
 
     if (r.error) {

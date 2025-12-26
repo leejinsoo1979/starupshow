@@ -18,11 +18,12 @@ export type SuperAgentToolName =
   | 'get_file_structure'
   | 'run_terminal'
   | 'web_search'
+  | 'generate_image'
   | 'create_task'
   | 'list_projects'
 
 export interface ToolAction {
-  type: 'create_project' | 'write_file' | 'edit_file' | 'terminal_cmd' | 'web_search' | 'create_task' | 'read_file'
+  type: 'create_project' | 'write_file' | 'edit_file' | 'terminal_cmd' | 'web_search' | 'create_task' | 'read_file' | 'generate_image'
   data: Record<string, unknown>
   requiresElectron?: boolean
 }
@@ -264,7 +265,65 @@ export const webSearchTool = new DynamicStructuredTool({
 })
 
 // ============================================
-// 9. 태스크 생성 도구
+// 9. 이미지 생성 도구 (Z-Image)
+// ============================================
+export const generateImageTool = new DynamicStructuredTool({
+  name: 'generate_image',
+  description: 'AI로 이미지를 생성합니다. 프롬프트를 설명하면 그에 맞는 고품질 이미지를 만들어줍니다.',
+  schema: z.object({
+    prompt: z.string().describe('생성할 이미지에 대한 설명 (영어로 작성하면 더 좋은 결과)'),
+    negative_prompt: z.string().optional().describe('이미지에서 제외할 요소'),
+    width: z.number().optional().describe('이미지 너비 (기본: 1024)'),
+    height: z.number().optional().describe('이미지 높이 (기본: 1024)'),
+    style: z.enum(['realistic', 'artistic', 'anime', 'digital_art', 'photography']).optional().describe('이미지 스타일'),
+  }),
+  func: async (params) => {
+    try {
+      // API 호출
+      const response = await fetch('/api/skills/z-image', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          prompt: params.prompt,
+          negative_prompt: params.negative_prompt || 'low quality, blurry, distorted',
+          width: params.width || 1024,
+          height: params.height || 1024,
+        }),
+      })
+
+      const result = await response.json()
+
+      if (!result.success) {
+        return JSON.stringify({
+          success: false,
+          error: result.error || '이미지 생성 실패'
+        })
+      }
+
+      return JSON.stringify({
+        success: true,
+        message: `이미지가 성공적으로 생성되었습니다!`,
+        image_url: result.image_url,
+        action: {
+          type: 'generate_image',
+          data: {
+            prompt: params.prompt,
+            image_url: result.image_url,
+            metadata: result.metadata,
+          }
+        }
+      })
+    } catch (error) {
+      return JSON.stringify({
+        success: false,
+        error: `이미지 생성 중 오류: ${error}`
+      })
+    }
+  },
+})
+
+// ============================================
+// 10. 태스크 생성 도구
 // ============================================
 export const createTaskTool = new DynamicStructuredTool({
   name: 'create_task',
@@ -322,6 +381,7 @@ export const SUPER_AGENT_TOOLS = {
   get_file_structure: getFileStructureTool,
   run_terminal: runTerminalTool,
   web_search: webSearchTool,
+  generate_image: generateImageTool,
   create_task: createTaskTool,
   list_projects: listProjectsTool,
 }
