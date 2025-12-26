@@ -52,12 +52,34 @@ function applyDagreLayout(nodes: Node[], edges: Edge[], direction: 'TB' | 'LR' =
         marginy: 50,
     })
 
+    // 노드 ID Set 생성
+    const nodeIdSet = new Set(nodes.map(n => n.id))
+
     nodes.forEach((node) => {
         dagreGraph.setNode(node.id, { width: nodeWidth, height: nodeHeight })
     })
 
+    // 유효한 엣지만 dagre에 추가 (source, target이 모두 존재하는 경우)
+    let validEdgeCount = 0
+    let invalidEdgeCount = 0
     edges.forEach((edge) => {
-        dagreGraph.setEdge(edge.source, edge.target)
+        if (nodeIdSet.has(edge.source) && nodeIdSet.has(edge.target)) {
+            dagreGraph.setEdge(edge.source, edge.target)
+            validEdgeCount++
+        } else {
+            invalidEdgeCount++
+            console.warn('[Dagre] ⚠️ Invalid edge skipped:', edge.id, 'source:', edge.source, 'target:', edge.target)
+        }
+    })
+
+    console.log('[Dagre] 📐 Layout input:', {
+        direction,
+        nodes: nodes.length,
+        edges: edges.length,
+        validEdges: validEdgeCount,
+        invalidEdges: invalidEdgeCount,
+        dagreNodeCount: dagreGraph.nodeCount(),
+        dagreEdgeCount: dagreGraph.edgeCount()
     })
 
     dagre.layout(dagreGraph)
@@ -162,7 +184,7 @@ function schemaToFlow(schema: ParsedSchema): { nodes: Node<TableNodeData>[]; edg
         style: { stroke: '#6366f1', strokeWidth: 2 },
     }))
 
-    // 디버그 로그
+    // 디버그 로그 - 상세 정보
     console.log('[SchemaFlow] 📊 Edge creation:', {
         totalRelations: schema.relations.length,
         edgesCreated: edges.length,
@@ -170,6 +192,41 @@ function schemaToFlow(schema: ParsedSchema): { nodes: Node<TableNodeData>[]; edg
         stubNodeCount: stubNodes.length,
         sampleNodeIds: Array.from(nodeIds).slice(0, 10),
     })
+
+    // 엣지 source/target 검증 로그
+    const validEdges: typeof edges = []
+    const invalidEdges: { edge: typeof edges[0], reason: string }[] = []
+
+    edges.forEach(edge => {
+        const hasSource = nodeIds.has(edge.source)
+        const hasTarget = nodeIds.has(edge.target)
+        if (hasSource && hasTarget) {
+            validEdges.push(edge)
+        } else {
+            invalidEdges.push({
+                edge,
+                reason: `source(${edge.source})=${hasSource}, target(${edge.target})=${hasTarget}`
+            })
+        }
+    })
+
+    console.log('[SchemaFlow] ✅ Valid edges:', validEdges.length)
+    if (invalidEdges.length > 0) {
+        console.log('[SchemaFlow] ❌ Invalid edges:', invalidEdges.length)
+        console.log('[SchemaFlow] 🔍 Invalid edge samples:', invalidEdges.slice(0, 5))
+    }
+
+    // 연결된 노드 vs 고립된 노드 분석
+    const connectedNodeIds = new Set<string>()
+    validEdges.forEach(e => {
+        connectedNodeIds.add(e.source)
+        connectedNodeIds.add(e.target)
+    })
+    const isolatedNodeIds = Array.from(nodeIds).filter(id => !connectedNodeIds.has(id))
+    console.log('[SchemaFlow] 🔗 Connected nodes:', connectedNodeIds.size, '| Isolated nodes:', isolatedNodeIds.length)
+    if (isolatedNodeIds.length > 0 && isolatedNodeIds.length <= 10) {
+        console.log('[SchemaFlow] 🚫 Isolated nodes:', isolatedNodeIds)
+    }
 
     return { nodes, edges }
 }
@@ -332,14 +389,34 @@ function SchemaFlowInner({ className }: { className?: string }) {
             return
         }
 
+        console.log('[SchemaFlow] 🔄 Layout change:', {
+            layoutType,
+            nodesCount: initialNodes.length,
+            edgesCount: initialEdges.length,
+            sampleEdges: initialEdges.slice(0, 3).map(e => ({ id: e.id, source: e.source, target: e.target }))
+        })
+
         // 레이아웃 타입에 따라 노드 위치 계산
         let layoutedNodes = initialNodes
         if (layoutType === 'topdown') {
+            console.log('[SchemaFlow] 🌲 Applying dagre top-down layout...')
             layoutedNodes = applyDagreLayout(initialNodes, initialEdges, 'TB')
+            console.log('[SchemaFlow] ✅ Dagre layout applied, nodes repositioned')
         }
 
-        setNodes(layoutedNodes)
+        // 노드에 layoutType 추가 (Handle 위치 결정용)
+        const nodesWithLayout = layoutedNodes.map(node => ({
+            ...node,
+            data: {
+                ...node.data,
+                layoutType,
+            }
+        }))
+
+        setNodes(nodesWithLayout)
         setEdges(initialEdges)
+
+        console.log('[SchemaFlow] 📌 State updated - nodes:', layoutedNodes.length, 'edges:', initialEdges.length)
 
         // 레이아웃 변경 후 전체 뷰 맞추기
         setTimeout(() => {

@@ -14,6 +14,8 @@ export interface TableNodeData {
     label: string
     columns: SchemaColumn[]
     onEdit?: (id: string) => void
+    // 레이아웃 타입 (Handle 위치 결정)
+    layoutType?: 'grid' | 'topdown'
     // 시뮬레이션 상태
     isHighlighted?: boolean
     highlightColor?: string
@@ -27,6 +29,7 @@ export interface TableNodeData {
 
 const TableNode = ({ data, selected }: NodeProps<TableNodeData>) => {
     const {
+        layoutType = 'grid',
         isHighlighted,
         highlightColor = '#22c55e',
         highlightIntensity = 1,
@@ -35,6 +38,10 @@ const TableNode = ({ data, selected }: NodeProps<TableNodeData>) => {
         isActive = false,
         appearDelay = 0,
     } = data
+
+    // 레이아웃에 따른 Handle 위치 결정
+    const targetPosition = layoutType === 'topdown' ? Position.Top : Position.Left
+    const sourcePosition = layoutType === 'topdown' ? Position.Bottom : Position.Right
 
     // 등장 애니메이션 상태
     const [hasAppeared, setHasAppeared] = useState(!simulationMode)
@@ -95,11 +102,14 @@ const TableNode = ({ data, selected }: NodeProps<TableNodeData>) => {
             )}
             style={mergedStyle}
         >
-            {/* Target Handle (Left) */}
+            {/* Target Handle (위치는 레이아웃에 따라 동적) */}
             <Handle
                 type="target"
-                position={Position.Left}
-                className="!bg-zinc-400 !w-3 !h-3 !-ml-1.5 hover:!bg-blue-500 hover:!w-4 hover:!h-4 transition-all"
+                position={targetPosition}
+                className={cn(
+                    "!bg-zinc-400 !w-3 !h-3 hover:!bg-blue-500 hover:!w-4 hover:!h-4 transition-all",
+                    layoutType === 'topdown' ? '!-mt-1.5' : '!-ml-1.5'
+                )}
             />
 
             {/* Header */}
@@ -148,11 +158,14 @@ const TableNode = ({ data, selected }: NodeProps<TableNodeData>) => {
                 )}
             </div>
 
-            {/* Source Handle (Right) */}
+            {/* Source Handle (위치는 레이아웃에 따라 동적) */}
             <Handle
                 type="source"
-                position={Position.Right}
-                className="!bg-zinc-400 !w-3 !h-3 !-mr-1.5 hover:!bg-blue-500 hover:!w-4 hover:!h-4 transition-all"
+                position={sourcePosition}
+                className={cn(
+                    "!bg-zinc-400 !w-3 !h-3 hover:!bg-blue-500 hover:!w-4 hover:!h-4 transition-all",
+                    layoutType === 'topdown' ? '!-mb-1.5' : '!-mr-1.5'
+                )}
             />
         </div>
     )
