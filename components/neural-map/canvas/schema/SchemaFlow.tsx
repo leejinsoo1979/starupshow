@@ -16,6 +16,9 @@ import ReactFlow, {
     useReactFlow,
     ReactFlowProvider,
     useUpdateNodeInternals,
+    BaseEdge,
+    getBezierPath,
+    EdgeProps,
 } from 'reactflow'
 import 'reactflow/dist/style.css'
 import dagre from 'dagre'
@@ -36,6 +39,50 @@ import { cn } from '@/lib/utils'
 
 // 레이아웃 타입
 type LayoutType = 'grid' | 'topdown'
+
+// 연결된 컴포넌트(그룹) 찾기 - Union-Find 알고리즘
+function findConnectedGroups(nodes: Node[], edges: Edge[]): Map<string, string[]> {
+    const parent = new Map<string, string>()
+
+    // 초기화: 각 노드는 자기 자신이 부모
+    nodes.forEach(n => parent.set(n.id, n.id))
+
+    // Find with path compression
+    function find(x: string): string {
+        if (parent.get(x) !== x) {
+            parent.set(x, find(parent.get(x)!))
+        }
+        return parent.get(x)!
+    }
+
+    // Union
+    function union(a: string, b: string) {
+        const rootA = find(a)
+        const rootB = find(b)
+        if (rootA !== rootB) {
+            parent.set(rootA, rootB)
+        }
+    }
+
+    // 엣지로 연결된 노드들 합치기
+    edges.forEach(edge => {
+        if (parent.has(edge.source) && parent.has(edge.target)) {
+            union(edge.source, edge.target)
+        }
+    })
+
+    // 그룹별로 노드 분류
+    const groups = new Map<string, string[]>()
+    nodes.forEach(node => {
+        const root = find(node.id)
+        if (!groups.has(root)) {
+            groups.set(root, [])
+        }
+        groups.get(root)!.push(node.id)
+    })
+
+    return groups
+}
 
 // Dagre 레이아웃 적용 함수
 function applyDagreLayout(nodes: Node[], edges: Edge[], direction: 'TB' | 'LR' = 'TB'): Node[] {
@@ -142,9 +189,56 @@ function applyDagreLayout(nodes: Node[], edges: Edge[], direction: 'TB' | 'LR' =
     })
 }
 
+// 커스텀 엣지 컴포넌트 - 디버깅용
+function DebugEdge({
+    id,
+    sourceX,
+    sourceY,
+    targetX,
+    targetY,
+    sourcePosition,
+    targetPosition,
+    style = {},
+    markerEnd,
+}: EdgeProps) {
+    const [edgePath] = getBezierPath({
+        sourceX,
+        sourceY,
+        sourcePosition,
+        targetX,
+        targetY,
+        targetPosition,
+    })
+
+    // 엣지 경로가 유효한지 확인
+    const isValidPath = edgePath && edgePath.length > 10
+
+    return (
+        <>
+            <BaseEdge
+                path={edgePath}
+                markerEnd={markerEnd}
+                style={{
+                    ...style,
+                    stroke: isValidPath ? '#6366f1' : '#ff0000',
+                    strokeWidth: 3,
+                }}
+            />
+            {/* 디버그: 시작점과 끝점에 원 그리기 */}
+            <circle cx={sourceX} cy={sourceY} r={5} fill="#22c55e" />
+            <circle cx={targetX} cy={targetY} r={5} fill="#ef4444" />
+        </>
+    )
+}
+
 // Node Types Registration
 const nodeTypes = {
     table: TableNode,
+}
+
+// Edge Types Registration
+const edgeTypes = {
+    debug: DebugEdge,
 }
 
 // Convert parsed schema to React Flow nodes/edges
@@ -224,8 +318,8 @@ function schemaToFlow(schema: ParsedSchema): { nodes: Node<TableNodeData>[]; edg
         id: `edge-${idx}-${rel.sourceTable}-${rel.targetTable}`,
         source: rel.targetTable,  // FK가 참조하는 테이블에서
         target: rel.sourceTable,  // FK가 있는 테이블로
-        type: 'default',  // bezier 타입 (가장 안정적)
-        animated: true,
+        type: 'debug',  // 커스텀 디버그 엣지
+        animated: false,
         label: rel.sourceColumn,
         labelStyle: { fontSize: 10, fill: '#888' },
         markerEnd: {
@@ -304,8 +398,11 @@ function SchemaFlowInner({ className }: { className?: string }) {
     // 시뮬레이션 컨트롤러 표시 상태
     const [showSimulation, setShowSimulation] = useState(false)
 
-    // 레이아웃 타입 상태
+    // 레이아웃 타입 상태 - 기본값 grid (안정적)
     const [layoutType, setLayoutType] = useState<LayoutType>('grid')
+
+    // 그룹 상태 (연결된 컴포넌트) - 노드/엣지 선언 후 아래에서 계산
+    const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null)
 
     // 카메라 이동 함수 - 시네마틱 애니메이션
     const moveCameraToNodes = useCallback((nodeIds: string[]) => {
@@ -434,6 +531,69 @@ function SchemaFlowInner({ className }: { className?: string }) {
     const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes)
     const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges)
 
+    // 그룹 계산 (연결된 컴포넌트)
+    const nodeGroups = useMemo(() => {
+        if (nodes.length === 0) return new Map<string, string[]>()
+        return findConnectedGroups(nodes, edges)
+    }, [nodes, edges])
+
+    // 그룹 목록 (크기 순 정렬) - 연결된 노드가 있는 그룹만
+    const sortedGroups = useMemo(() => {
+        const groups = Array.from(nodeGroups.entries())
+            .map(([rootId, nodeIds]) => {
+                // 이 그룹에 실제 엣지가 있는지 확인
+                const nodeIdSet = new Set(nodeIds)
+                const groupEdges = edges.filter(e => nodeIdSet.has(e.source) && nodeIdSet.has(e.target))
+                return {
+                    id: rootId,
+                    nodeIds,
+                    size: nodeIds.length,
+                    edgeCount: groupEdges.length,
+                    // 그룹 대표 이름 (가장 짧은 노드 이름)
+                    name: nodeIds.reduce((shortest, id) =>
+                        id.length < shortest.length ? id : shortest, nodeIds[0] || '')
+                }
+            })
+            // 엣지가 있는 그룹만 필터링 (연결된 컴포넌트)
+            .filter(g => g.edgeCount > 0)
+            .sort((a, b) => b.size - a.size)
+        return groups
+    }, [nodeGroups, edges])
+
+    // 고립된 노드 수 계산
+    const isolatedNodeCount = useMemo(() => {
+        const connectedNodeIds = new Set<string>()
+        edges.forEach(e => {
+            connectedNodeIds.add(e.source)
+            connectedNodeIds.add(e.target)
+        })
+        return nodes.length - connectedNodeIds.size
+    }, [nodes, edges])
+
+    // 선택된 그룹의 노드/엣지만 필터링
+    const filteredNodes = useMemo(() => {
+        if (!selectedGroupId) return nodes
+        const groupNodeIds = nodeGroups.get(selectedGroupId) || []
+        const nodeIdSet = new Set(groupNodeIds)
+        return nodes.filter(n => nodeIdSet.has(n.id))
+    }, [nodes, selectedGroupId, nodeGroups])
+
+    const filteredEdges = useMemo(() => {
+        if (!selectedGroupId) return edges
+        const groupNodeIds = nodeGroups.get(selectedGroupId) || []
+        const nodeIdSet = new Set(groupNodeIds)
+        return edges.filter(e => nodeIdSet.has(e.source) && nodeIdSet.has(e.target))
+    }, [edges, selectedGroupId, nodeGroups])
+
+    // 그룹 선택 시 fitView
+    useEffect(() => {
+        if (selectedGroupId && filteredNodes.length > 0) {
+            setTimeout(() => {
+                reactFlowInstance.fitView({ padding: 0.3, duration: 800 })
+            }, 100)
+        }
+    }, [selectedGroupId, filteredNodes.length, reactFlowInstance])
+
     // 🔍 엣지 상태 변화 추적
     useEffect(() => {
         console.log('[SchemaFlow] 📊 EDGE STATE CHANGED:', {
@@ -491,13 +651,13 @@ function SchemaFlowInner({ className }: { className?: string }) {
             console.error('[SchemaFlow] ❌ Invalid node positions:', invalidPositionNodes.map(n => ({ id: n.id, pos: n.position })))
         }
 
-        // 깔끔한 엣지 스타일 설정 (기존 style 스프레드 제거)
+        // 커스텀 debug 엣지 타입 사용
         const edgesToSet: Edge[] = initialEdges.map(edge => ({
             id: edge.id,
             source: edge.source,
             target: edge.target,
-            type: 'default',  // bezier 타입 (가장 안정적)
-            animated: true,
+            type: 'debug',  // 커스텀 디버그 엣지
+            animated: false,
             label: edge.label,
             labelStyle: { fontSize: 10, fill: '#888' },
             markerEnd: edge.markerEnd,
@@ -506,23 +666,6 @@ function SchemaFlowInner({ className }: { className?: string }) {
                 strokeWidth: 2,
             },
         }))
-
-        // 🧪 디버그: 테스트 엣지 추가 (첫 두 노드 연결)
-        if (nodesWithLayout.length >= 2) {
-            const testEdge: Edge = {
-                id: 'test-edge-debug',
-                source: nodesWithLayout[0].id,
-                target: nodesWithLayout[1].id,
-                type: 'default',
-                animated: true,
-                style: {
-                    stroke: '#ff0000',  // 빨간색
-                    strokeWidth: 8,     // 매우 굵게
-                },
-            }
-            edgesToSet.unshift(testEdge)  // 맨 앞에 추가
-            console.log('[SchemaFlow] 🧪 TEST EDGE added:', testEdge.source, '->', testEdge.target)
-        }
 
         // 노드와 엣지를 동시에 설정
         console.log('[SchemaFlow] 📌 Setting nodes:', nodesWithLayout.length, 'and edges:', edgesToSet.length)
@@ -639,9 +782,10 @@ function SchemaFlowInner({ className }: { className?: string }) {
     }, [setEdges, showSimulation])
 
     // 시뮬레이션 훅
+    // 시뮬레이션은 선택된 그룹 내에서만 동작
     const simulation = useSchemaSimulation({
-        nodes,
-        edges,
+        nodes: filteredNodes,
+        edges: filteredEdges,
         onNodeHighlight: handleNodeHighlight,
         onEdgeHighlight: handleEdgeHighlight,
     })
@@ -735,12 +879,13 @@ function SchemaFlowInner({ className }: { className?: string }) {
     }, [showSimulation, setNodes, setEdges])
 
     // 테이블 목록 (CRUD 대상 선택용)
+    // 시뮬레이션 테이블 목록 (선택된 그룹 기준)
     const tables = useMemo(() =>
-        nodes.map((node) => ({
+        filteredNodes.map((node) => ({
             id: node.id,
             name: node.data?.label || node.id,
         })),
-        [nodes]
+        [filteredNodes]
     )
 
     // 시뮬레이션 열릴 때 스텝 생성
@@ -840,12 +985,13 @@ function SchemaFlowInner({ className }: { className?: string }) {
     return (
         <div className={className}>
             <ReactFlow
-                nodes={nodes}
-                edges={edges}
+                nodes={filteredNodes}
+                edges={filteredEdges}
                 onNodesChange={onNodesChange}
                 onEdgesChange={onEdgesChange}
                 onConnect={onConnect}
                 nodeTypes={nodeTypes}
+                edgeTypes={edgeTypes}
                 fitView
                 connectionMode={ConnectionMode.Loose}
                 minZoom={0.1}
@@ -869,7 +1015,9 @@ function SchemaFlowInner({ className }: { className?: string }) {
                 }}
             >
                 <Background color={isDark ? '#333' : '#ddd'} gap={20} />
-                <Controls />
+                <Controls showInteractive={false} />
+                {/* ReactFlow 워터마크 숨김 */}
+                <style>{`.react-flow__attribution { display: none !important; }`}</style>
 
                 {/* 상단 정보 패널 */}
                 <Panel position="top-left">
@@ -889,13 +1037,64 @@ function SchemaFlowInner({ className }: { className?: string }) {
                                 </>
                             )}
                         </div>
-                        {/* 디버그: 실제 React 상태 */}
-                        <div className="flex items-center gap-2 px-3 py-1.5 bg-red-800/90 text-white rounded-md shadow-lg text-xs font-mono">
-                            <span>🔍 DEBUG:</span>
-                            <span>nodes={nodes.length}</span>
-                            <span>|</span>
-                            <span>edges={edges.length}</span>
-                        </div>
+                        {/* 그룹 선택 패널 */}
+                        {sortedGroups.length > 0 && (
+                            <div className="flex flex-col gap-2 px-3 py-2 bg-zinc-800/95 text-white rounded-md shadow-lg text-sm max-w-[400px]">
+                                <div className="flex items-center justify-between">
+                                    <span className="font-medium text-zinc-300">연결된 그룹</span>
+                                    <span className="text-xs text-zinc-500">
+                                        {sortedGroups.length}개 그룹 | {isolatedNodeCount}개 고립
+                                    </span>
+                                </div>
+                                <div className="flex flex-wrap gap-1.5">
+                                    {/* 전체 보기 버튼 */}
+                                    <button
+                                        onClick={() => {
+                                            setSelectedGroupId(null)
+                                            setTimeout(() => reactFlowInstance.fitView({ padding: 0.2, duration: 500 }), 50)
+                                        }}
+                                        className={cn(
+                                            "px-2.5 py-1.5 rounded text-xs font-medium transition-all",
+                                            !selectedGroupId
+                                                ? "bg-indigo-600 text-white shadow-md"
+                                                : "bg-zinc-700 text-zinc-300 hover:bg-zinc-600"
+                                        )}
+                                    >
+                                        전체 ({nodes.length})
+                                    </button>
+                                    {/* 그룹 버튼들 */}
+                                    {sortedGroups.slice(0, 10).map((group, idx) => (
+                                        <button
+                                            key={group.id}
+                                            onClick={() => setSelectedGroupId(group.id)}
+                                            className={cn(
+                                                "px-2.5 py-1.5 rounded text-xs font-medium transition-all",
+                                                selectedGroupId === group.id
+                                                    ? "bg-green-600 text-white shadow-md"
+                                                    : "bg-zinc-700 text-zinc-300 hover:bg-zinc-600"
+                                            )}
+                                            title={`${group.nodeIds.join(', ')}`}
+                                        >
+                                            {group.name.length > 12 ? group.name.slice(0, 12) + '...' : group.name}
+                                            <span className="ml-1 text-zinc-400">
+                                                ({group.size}n/{group.edgeCount}e)
+                                            </span>
+                                        </button>
+                                    ))}
+                                    {sortedGroups.length > 10 && (
+                                        <span className="px-2 py-1 text-xs text-zinc-500">
+                                            +{sortedGroups.length - 10} more
+                                        </span>
+                                    )}
+                                </div>
+                                {/* 선택된 그룹 정보 */}
+                                {selectedGroupId && (
+                                    <div className="text-xs text-zinc-400 border-t border-zinc-700 pt-2 mt-1">
+                                        📍 {filteredNodes.length}개 노드, {filteredEdges.length}개 엣지 표시 중
+                                    </div>
+                                )}
+                            </div>
+                        )}
 
                         {/* 레이아웃 토글 버튼 */}
                         <div className="flex items-center gap-2">
