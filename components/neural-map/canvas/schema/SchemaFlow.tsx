@@ -15,6 +15,7 @@ import ReactFlow, {
     Panel,
     useReactFlow,
     ReactFlowProvider,
+    useUpdateNodeInternals,
 } from 'reactflow'
 import 'reactflow/dist/style.css'
 import dagre from 'dagre'
@@ -41,8 +42,8 @@ function applyDagreLayout(nodes: Node[], edges: Edge[], direction: 'TB' | 'LR' =
     const dagreGraph = new dagre.graphlib.Graph()
     dagreGraph.setDefaultEdgeLabel(() => ({}))
 
-    const nodeWidth = 280
-    const nodeHeight = 200
+    const defaultNodeWidth = 280
+    const defaultNodeHeight = 200
 
     dagreGraph.setGraph({
         rankdir: direction,
@@ -55,16 +56,23 @@ function applyDagreLayout(nodes: Node[], edges: Edge[], direction: 'TB' | 'LR' =
     // 노드 ID Set 생성
     const nodeIdSet = new Set(nodes.map(n => n.id))
 
+    // 노드별 실제 크기 사용
     nodes.forEach((node) => {
-        dagreGraph.setNode(node.id, { width: nodeWidth, height: nodeHeight })
+        const width = node.width || defaultNodeWidth
+        const height = node.height || defaultNodeHeight
+        dagreGraph.setNode(node.id, { width, height })
     })
 
     // 유효한 엣지만 dagre에 추가 (source, target이 모두 존재하는 경우)
     let validEdgeCount = 0
     let invalidEdgeCount = 0
+    const connectedNodeIds = new Set<string>()
+
     edges.forEach((edge) => {
         if (nodeIdSet.has(edge.source) && nodeIdSet.has(edge.target)) {
             dagreGraph.setEdge(edge.source, edge.target)
+            connectedNodeIds.add(edge.source)
+            connectedNodeIds.add(edge.target)
             validEdgeCount++
         } else {
             invalidEdgeCount++
@@ -78,14 +86,52 @@ function applyDagreLayout(nodes: Node[], edges: Edge[], direction: 'TB' | 'LR' =
         edges: edges.length,
         validEdges: validEdgeCount,
         invalidEdges: invalidEdgeCount,
+        connectedNodes: connectedNodeIds.size,
+        isolatedNodes: nodes.length - connectedNodeIds.size,
         dagreNodeCount: dagreGraph.nodeCount(),
         dagreEdgeCount: dagreGraph.edgeCount()
     })
 
     dagre.layout(dagreGraph)
 
-    return nodes.map((node) => {
+    // 고립된 노드들(edge가 없는 노드)을 별도로 배치
+    const isolatedNodes = nodes.filter(n => !connectedNodeIds.has(n.id))
+    const ISOLATED_COLS = 5
+    const ISOLATED_SPACING_X = 320
+    const ISOLATED_SPACING_Y = 250
+
+    // dagre로 배치된 노드들의 최대 Y 위치 찾기
+    let maxY = 0
+    nodes.forEach((node) => {
+        const pos = dagreGraph.node(node.id)
+        const nodeHeight = node.height || defaultNodeHeight
+        if (pos && !isNaN(pos.y)) {
+            maxY = Math.max(maxY, pos.y + nodeHeight)
+        }
+    })
+
+    return nodes.map((node, index) => {
         const nodeWithPosition = dagreGraph.node(node.id)
+        const nodeWidth = node.width || defaultNodeWidth
+        const nodeHeight = node.height || defaultNodeHeight
+
+        // dagre가 위치를 계산하지 못한 경우 (고립된 노드)
+        if (!nodeWithPosition || isNaN(nodeWithPosition.x) || isNaN(nodeWithPosition.y)) {
+            const isolatedIndex = isolatedNodes.findIndex(n => n.id === node.id)
+            if (isolatedIndex >= 0) {
+                const row = Math.floor(isolatedIndex / ISOLATED_COLS)
+                const col = isolatedIndex % ISOLATED_COLS
+                return {
+                    ...node,
+                    position: {
+                        x: 50 + col * ISOLATED_SPACING_X,
+                        y: maxY + 100 + row * ISOLATED_SPACING_Y,
+                    },
+                }
+            }
+            return node
+        }
+
         return {
             ...node,
             position: {
@@ -123,6 +169,9 @@ function schemaToFlow(schema: ParsedSchema): { nodes: Node<TableNodeData>[]; edg
             id: table.name,
             type: 'table',
             position: { x: 150 + col * SPACING_X, y: 150 + row * SPACING_Y },
+            // 명시적 크기 지정 (ReactFlow 엣지 path 계산에 필요)
+            width: 280,
+            height: 100 + columns.length * 24,  // 헤더 + 컬럼 수 기반 높이
             data: {
                 label: table.name,
                 columns,
@@ -151,6 +200,9 @@ function schemaToFlow(schema: ParsedSchema): { nodes: Node<TableNodeData>[]; edg
                 id: tableName,
                 type: 'table',
                 position: { x: 150 + col * SPACING_X, y: 150 + row * SPACING_Y },
+                // 스텁 노드도 명시적 크기 지정
+                width: 280,
+                height: 124,  // 헤더 + 1컬럼
                 data: {
                     label: `${tableName} (ref)`,
                     columns: [{ name: 'id', type: 'string', isPrimaryKey: true }],
@@ -236,6 +288,7 @@ function SchemaFlowInner({ className }: { className?: string }) {
     const { resolvedTheme } = useTheme()
     const isDark = resolvedTheme === 'dark'
     const reactFlowInstance = useReactFlow()
+    const updateNodeInternals = useUpdateNodeInternals()
 
     // 파일 트리에서 파일 가져오기
     const files = useNeuralMapStore(s => s.files)
@@ -383,17 +436,20 @@ function SchemaFlowInner({ className }: { className?: string }) {
 
     // 스키마 변경시 동기화 + 레이아웃 적용
     useEffect(() => {
+        console.log('[SchemaFlow] 🔄 Layout effect triggered:', {
+            initialNodesLength: initialNodes.length,
+            initialEdgesLength: initialEdges.length,
+        })
+
         if (initialNodes.length === 0) {
-            setNodes([])
-            setEdges([])
+            console.log('[SchemaFlow] ⚠️ No initial nodes, waiting for data...')
             return
         }
 
-        console.log('[SchemaFlow] 🔄 Layout change:', {
+        console.log('[SchemaFlow] 🔄 Layout sync effect running:', {
             layoutType,
             nodesCount: initialNodes.length,
             edgesCount: initialEdges.length,
-            sampleEdges: initialEdges.slice(0, 3).map(e => ({ id: e.id, source: e.source, target: e.target }))
         })
 
         // 레이아웃 타입에 따라 노드 위치 계산
@@ -413,16 +469,61 @@ function SchemaFlowInner({ className }: { className?: string }) {
             }
         }))
 
+        // 🔍 노드 위치 검증
+        const invalidPositionNodes = nodesWithLayout.filter(n =>
+            isNaN(n.position.x) || isNaN(n.position.y) ||
+            n.position.x === undefined || n.position.y === undefined
+        )
+        if (invalidPositionNodes.length > 0) {
+            console.error('[SchemaFlow] ❌ Invalid node positions:', invalidPositionNodes.map(n => ({ id: n.id, pos: n.position })))
+        }
+
+        // 깔끔한 엣지 스타일 설정 (기존 style 스프레드 제거)
+        const edgesToSet: Edge[] = initialEdges.map(edge => ({
+            id: edge.id,
+            source: edge.source,
+            target: edge.target,
+            type: 'smoothstep',
+            animated: true,
+            label: edge.label,
+            labelStyle: { fontSize: 10, fill: '#888' },
+            markerEnd: edge.markerEnd,
+            style: {
+                stroke: '#6366f1',
+                strokeWidth: 2,
+            },
+        }))
+
+        // 노드와 엣지를 동시에 설정
+        console.log('[SchemaFlow] 📌 Setting nodes:', nodesWithLayout.length, 'and edges:', edgesToSet.length)
         setNodes(nodesWithLayout)
-        setEdges(initialEdges)
+        setEdges(edgesToSet)
 
-        console.log('[SchemaFlow] 📌 State updated - nodes:', layoutedNodes.length, 'edges:', initialEdges.length)
+        // 노드가 렌더링된 후 Handle 위치 업데이트 및 엣지 재계산
+        const updateTimer = setTimeout(() => {
+            // 모든 노드의 internal 상태 업데이트 (Handle 위치 포함)
+            const nodeIds = nodesWithLayout.map(n => n.id)
+            console.log('[SchemaFlow] 🔧 Updating node internals for', nodeIds.length, 'nodes')
+            nodeIds.forEach(id => updateNodeInternals(id))
 
-        // 레이아웃 변경 후 전체 뷰 맞추기
-        setTimeout(() => {
-            reactFlowInstance.fitView({ padding: 0.2, duration: 800 })
-        }, 100)
-    }, [initialNodes, initialEdges, setNodes, setEdges, layoutType, reactFlowInstance])
+            // 추가 딜레이 후 fitView 및 엣지 강제 업데이트
+            setTimeout(() => {
+                reactFlowInstance.fitView({ padding: 0.2, duration: 800 })
+
+                // fitView 후 엣지 강제 업데이트 (새 배열로 리렌더 트리거)
+                requestAnimationFrame(() => {
+                    setEdges(currentEdges => {
+                        console.log('[SchemaFlow] 🔄 Force edge update, edges:', currentEdges.length)
+                        return currentEdges.map(e => ({ ...e }))
+                    })
+                })
+            }, 100)
+        }, 150)
+
+        return () => {
+            clearTimeout(updateTimer)
+        }
+    }, [initialNodes, initialEdges, setNodes, setEdges, layoutType, reactFlowInstance, updateNodeInternals])
 
     // 레이아웃 토글 함수
     const toggleLayout = useCallback(() => {
@@ -527,10 +628,20 @@ function SchemaFlowInner({ className }: { className?: string }) {
     const simulationStopRef = useRef(simulation.stop)
     simulationStopRef.current = simulation.stop
 
+    // 시뮬레이션 시작 여부 추적 (한 번이라도 시작됐는지)
+    const hasSimulationStartedRef = useRef(false)
+
     // 시뮬레이션 모드 토글 시 노드 상태 리셋
     useEffect(() => {
+        // 초기 렌더링 시에는 edge 스타일을 변경하지 않음 (edge가 제대로 설정되기 전에 실행되는 것 방지)
+        if (!hasSimulationStartedRef.current && !showSimulation) {
+            console.log('[SchemaFlow] ⏭️ Skipping simulation reset on initial render')
+            return
+        }
+
         if (!showSimulation) {
             // 시뮬레이션 종료 시 모든 노드를 정상 상태로 복원
+            console.log('[SchemaFlow] 🔄 Simulation OFF - restoring edge styles')
             setNodes((nds) =>
                 nds.map((node) => ({
                     ...node,
@@ -543,8 +654,9 @@ function SchemaFlowInner({ className }: { className?: string }) {
                     },
                 }))
             )
-            setEdges((eds) =>
-                eds.map((edge) => ({
+            setEdges((eds) => {
+                console.log('[SchemaFlow] 🔄 Restoring', eds.length, 'edges')
+                return eds.map((edge) => ({
                     ...edge,
                     animated: true,
                     style: {
@@ -555,11 +667,14 @@ function SchemaFlowInner({ className }: { className?: string }) {
                         filter: undefined,
                     },
                 }))
-            )
+            })
             // ref를 통해 stop 호출
             simulationStopRef.current()
+            hasSimulationStartedRef.current = false
         } else {
             // 시뮬레이션 시작 시 모든 노드를 미방문 상태로 설정
+            console.log('[SchemaFlow] ▶️ Simulation ON - dimming edges')
+            hasSimulationStartedRef.current = true
             setNodes((nds) =>
                 nds.map((node, index) => ({
                     ...node,
@@ -573,8 +688,9 @@ function SchemaFlowInner({ className }: { className?: string }) {
                     },
                 }))
             )
-            setEdges((eds) =>
-                eds.map((edge) => ({
+            setEdges((eds) => {
+                console.log('[SchemaFlow] 🔅 Dimming', eds.length, 'edges for simulation')
+                return eds.map((edge) => ({
                     ...edge,
                     animated: false,
                     style: {
@@ -584,7 +700,7 @@ function SchemaFlowInner({ className }: { className?: string }) {
                         opacity: 0.2,
                     },
                 }))
-            )
+            })
         }
     }, [showSimulation, setNodes, setEdges])
 
@@ -704,6 +820,11 @@ function SchemaFlowInner({ className }: { className?: string }) {
                 connectionMode={ConnectionMode.Loose}
                 minZoom={0.1}
                 maxZoom={4}
+                defaultEdgeOptions={{
+                    type: 'smoothstep',
+                    animated: true,
+                    style: { stroke: '#6366f1', strokeWidth: 2 },
+                }}
             >
                 <Background color={isDark ? '#333' : '#ddd'} gap={20} />
                 <Controls />
@@ -726,7 +847,6 @@ function SchemaFlowInner({ className }: { className?: string }) {
                                 </>
                             )}
                         </div>
-
                         {/* 레이아웃 토글 버튼 */}
                         <div className="flex items-center gap-2">
                             <button
