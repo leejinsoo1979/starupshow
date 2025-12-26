@@ -224,7 +224,7 @@ function schemaToFlow(schema: ParsedSchema): { nodes: Node<TableNodeData>[]; edg
         id: `edge-${idx}-${rel.sourceTable}-${rel.targetTable}`,
         source: rel.targetTable,  // FK가 참조하는 테이블에서
         target: rel.sourceTable,  // FK가 있는 테이블로
-        type: 'smoothstep',
+        type: 'default',  // bezier 타입 (가장 안정적)
         animated: true,
         label: rel.sourceColumn,
         labelStyle: { fontSize: 10, fill: '#888' },
@@ -434,6 +434,19 @@ function SchemaFlowInner({ className }: { className?: string }) {
     const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes)
     const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges)
 
+    // 🔍 엣지 상태 변화 추적
+    useEffect(() => {
+        console.log('[SchemaFlow] 📊 EDGE STATE CHANGED:', {
+            count: edges.length,
+            sample: edges.slice(0, 3).map(e => ({
+                id: e.id,
+                source: e.source,
+                target: e.target,
+                type: e.type,
+            })),
+        })
+    }, [edges])
+
     // 스키마 변경시 동기화 + 레이아웃 적용
     useEffect(() => {
         console.log('[SchemaFlow] 🔄 Layout effect triggered:', {
@@ -483,7 +496,7 @@ function SchemaFlowInner({ className }: { className?: string }) {
             id: edge.id,
             source: edge.source,
             target: edge.target,
-            type: 'smoothstep',
+            type: 'default',  // bezier 타입 (가장 안정적)
             animated: true,
             label: edge.label,
             labelStyle: { fontSize: 10, fill: '#888' },
@@ -493,6 +506,23 @@ function SchemaFlowInner({ className }: { className?: string }) {
                 strokeWidth: 2,
             },
         }))
+
+        // 🧪 디버그: 테스트 엣지 추가 (첫 두 노드 연결)
+        if (nodesWithLayout.length >= 2) {
+            const testEdge: Edge = {
+                id: 'test-edge-debug',
+                source: nodesWithLayout[0].id,
+                target: nodesWithLayout[1].id,
+                type: 'default',
+                animated: true,
+                style: {
+                    stroke: '#ff0000',  // 빨간색
+                    strokeWidth: 8,     // 매우 굵게
+                },
+            }
+            edgesToSet.unshift(testEdge)  // 맨 앞에 추가
+            console.log('[SchemaFlow] 🧪 TEST EDGE added:', testEdge.source, '->', testEdge.target)
+        }
 
         // 노드와 엣지를 동시에 설정
         console.log('[SchemaFlow] 📌 Setting nodes:', nodesWithLayout.length, 'and edges:', edgesToSet.length)
@@ -695,9 +725,9 @@ function SchemaFlowInner({ className }: { className?: string }) {
                     animated: false,
                     style: {
                         ...edge.style,
-                        stroke: '#374151',
-                        strokeWidth: 1,
-                        opacity: 0.2,
+                        stroke: '#64748b',  // 더 밝은 회색
+                        strokeWidth: 1.5,
+                        opacity: 0.5,  // 더 높은 opacity
                     },
                 }))
             })
@@ -821,9 +851,21 @@ function SchemaFlowInner({ className }: { className?: string }) {
                 minZoom={0.1}
                 maxZoom={4}
                 defaultEdgeOptions={{
-                    type: 'smoothstep',
+                    type: 'default',
                     animated: true,
                     style: { stroke: '#6366f1', strokeWidth: 2 },
+                }}
+                elementsSelectable={true}
+                edgesFocusable={true}
+                onInit={(instance) => {
+                    console.log('[SchemaFlow] 🚀 ReactFlow initialized, forcing edge update...')
+                    // ReactFlow 초기화 후 엣지 강제 업데이트
+                    setTimeout(() => {
+                        setEdges(currentEdges => {
+                            console.log('[SchemaFlow] 🔧 onInit: updating', currentEdges.length, 'edges')
+                            return currentEdges.map(e => ({ ...e }))
+                        })
+                    }, 300)
                 }}
             >
                 <Background color={isDark ? '#333' : '#ddd'} gap={20} />
@@ -847,6 +889,14 @@ function SchemaFlowInner({ className }: { className?: string }) {
                                 </>
                             )}
                         </div>
+                        {/* 디버그: 실제 React 상태 */}
+                        <div className="flex items-center gap-2 px-3 py-1.5 bg-red-800/90 text-white rounded-md shadow-lg text-xs font-mono">
+                            <span>🔍 DEBUG:</span>
+                            <span>nodes={nodes.length}</span>
+                            <span>|</span>
+                            <span>edges={edges.length}</span>
+                        </div>
+
                         {/* 레이아웃 토글 버튼 */}
                         <div className="flex items-center gap-2">
                             <button

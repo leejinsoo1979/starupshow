@@ -824,6 +824,22 @@ body {
   }
 }
 
+/* React Flow 엣지 기본 스타일 - 항상 보이도록 */
+.react-flow__edges {
+  pointer-events: none;
+  z-index: 1 !important;
+}
+
+.react-flow__edge {
+  pointer-events: visibleStroke;
+}
+
+.react-flow__edge path {
+  fill: none;
+  stroke: #6366f1;
+  stroke-width: 2px;
+}
+
 /* React Flow 엣지 활성화 스타일 */
 .react-flow__edge.animated path {
   stroke-dasharray: 8 4;
