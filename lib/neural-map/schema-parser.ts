@@ -1170,26 +1170,53 @@ export function parseTypeScriptFile(content: string): ParsedSchema {
     'Record', 'Map', 'Set', 'Promise', 'Partial', 'Required', 'Readonly', 'Pick', 'Omit',
   ])
 
+  // 문자열 리터럴 유니온 타입 (enum처럼 사용되는 타입) - 이것들은 엔티티가 아님
+  const stringEnumTypes = new Set<string>()
+
+  // 1단계: 문자열 리터럴 유니온 타입 먼저 수집
+  // 예: type UserRole = 'FOUNDER' | 'TEAM_MEMBER' | 'INVESTOR'
+  const stringEnumPattern = /export\s+type\s+([A-Z][a-zA-Z0-9]*)\s*=\s*['"][^'"]+['"]\s*(\||\s|;|$)/g
+  let enumMatch
+  while ((enumMatch = stringEnumPattern.exec(content)) !== null) {
+    stringEnumTypes.add(enumMatch[1])
+  }
+
+  // 추가: Status, Role, Type, Priority, Stage, Mode, Level 등으로 끝나는 타입은 대부분 enum
+  const enumSuffixes = ['Status', 'Role', 'Type', 'Priority', 'Stage', 'Mode', 'Level', 'State', 'Kind']
+
   // 타입이 다른 테이블/인터페이스 참조인지 확인하는 함수
   const isTypeReference = (typeStr: string): string | null => {
     // 배열 타입에서 요소 타입 추출: "Item[]" -> "Item"
     const arrayMatch = typeStr.match(/^([A-Z][a-zA-Z0-9]*)\[\]$/)
     if (arrayMatch) {
       const elementType = arrayMatch[1]
-      if (!primitiveTypes.has(elementType)) {
-        return elementType
+      if (!primitiveTypes.has(elementType) && !stringEnumTypes.has(elementType)) {
+        // enum 접미사 체크
+        const hasEnumSuffix = enumSuffixes.some(suffix => elementType.endsWith(suffix))
+        if (!hasEnumSuffix) {
+          return elementType
+        }
       }
+      return null
     }
 
     // 단일 타입 참조: "Material" (PascalCase이고 primitive가 아닌 경우)
-    if (/^[A-Z][a-zA-Z0-9]*$/.test(typeStr) && !primitiveTypes.has(typeStr)) {
-      return typeStr
+    if (/^[A-Z][a-zA-Z0-9]*$/.test(typeStr) && !primitiveTypes.has(typeStr) && !stringEnumTypes.has(typeStr)) {
+      // enum 접미사 체크 - Status, Role, Type, Priority 등으로 끝나면 엔티티가 아님
+      const hasEnumSuffix = enumSuffixes.some(suffix => typeStr.endsWith(suffix))
+      if (!hasEnumSuffix) {
+        return typeStr
+      }
     }
 
     // 유니온 타입에서 타입 참조 추출: "Material | null" -> "Material"
     const unionMatch = typeStr.match(/^([A-Z][a-zA-Z0-9]*)\s*\|/)
-    if (unionMatch && !primitiveTypes.has(unionMatch[1])) {
-      return unionMatch[1]
+    if (unionMatch && !primitiveTypes.has(unionMatch[1]) && !stringEnumTypes.has(unionMatch[1])) {
+      const typeName = unionMatch[1]
+      const hasEnumSuffix = enumSuffixes.some(suffix => typeName.endsWith(suffix))
+      if (!hasEnumSuffix) {
+        return typeName
+      }
     }
 
     return null

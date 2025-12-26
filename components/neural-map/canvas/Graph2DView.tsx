@@ -188,6 +188,7 @@ interface GraphNode {
   fileType?: string  // 파일 확장자
   fileSize?: number  // 파일 크기
   parentId?: string  // 부모 노드 ID
+  sourceRef?: { fileId: string; kind: string }  // 원본 파일 참조
   x?: number
   y?: number
 }
@@ -371,6 +372,7 @@ export function Graph2DView({ className }: Graph2DViewProps) {
         fileType: ext || undefined,
         fileSize: matchedFile?.size,
         parentId: node.parentId,
+        sourceRef: node.sourceRef,  // 원본 파일 참조 포함
         ...(isSelf
           ? { fx: 0, fy: 0, x: 0, y: 0 }
           : { x: Math.cos(angle) * distance, y: Math.sin(angle) * distance }

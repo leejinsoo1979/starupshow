@@ -272,7 +272,9 @@ export function FileTreePanel({ mapId }: FileTreePanelProps) {
   const setProjectPath = useNeuralMapStore((s) => s.setProjectPath)
   const projectPath = useNeuralMapStore((s) => s.projectPath)
   const linkedProjectName = useNeuralMapStore((s) => s.linkedProjectName)
+  const linkedProjectId = useNeuralMapStore((s) => s.linkedProjectId)
   const setLinkedProject = useNeuralMapStore((s) => s.setLinkedProject)
+  const clearLinkedProject = useNeuralMapStore((s) => s.clearLinkedProject)
 
   // API
   const { uploadFile, deleteFile, createNode, createEdge, analyzeFile, removeNode } = useNeuralMapApi(mapId)
@@ -1489,6 +1491,11 @@ export function FileTreePanel({ mapId }: FileTreePanelProps) {
   const loadFolderFromPath = useCallback(async (dirPath: string) => {
     const electron = (window as any).electron
 
+    // 🔄 새 로컬 폴더를 로드할 때 이전 링크된 프로젝트 정보 초기화
+    // 이렇게 해야 이전 프로젝트(예: 테트리스)의 파일이 새 프로젝트에서 열리지 않음
+    console.log('[FileTree] 🔄 Clearing previous linked project before loading new folder')
+    clearLinkedProject()
+
     // Web 모드: GCS에서 파일 로드
     if (isWeb()) {
       try {
@@ -1636,7 +1643,7 @@ export function FileTreePanel({ mapId }: FileTreePanelProps) {
       alert('폴더 로딩 실패: ' + (err as Error).message)
       setIsUploading(false)
     }
-  }, [showHiddenFiles, mapId, setProjectPath, setFiles, buildGraphFromFilesAsync])
+  }, [showHiddenFiles, mapId, setProjectPath, setFiles, buildGraphFromFilesAsync, clearLinkedProject])
 
   // ref로 최신 함수 참조 유지 (useEffect에서 사용)
   const loadFolderFromPathRef = useRef(loadFolderFromPath)
