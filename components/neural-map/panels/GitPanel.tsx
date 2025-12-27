@@ -92,15 +92,10 @@ export default function GitPanel() {
       /^\/Users\/[^/]+\/?$/i,           // User home directory
       /^\/Users\/[^/]+\/Documents\/?$/i, // Documents folder
       /^\/Users\/[^/]+\/Desktop\/?$/i,   // Desktop folder
-      /^\/Users\/[^/]+\/Downloads\/?$/i, // Downloads folder (단, GlowUS 앱 제외)
       /^~\/?$/i,                          // Home shorthand
       /^\/home\/[^/]+\/?$/i,             // Linux home
       /^C:\\Users\\[^\\]+\\?$/i,         // Windows home
     ]
-    // GlowUS 앱 폴더 자체도 차단 (사용자 프로젝트만 허용)
-    if (path.includes('GlowUS') && !linkedProjectId) {
-      return true
-    }
     return dangerousPatterns.some(pattern => pattern.test(path))
   }
 
