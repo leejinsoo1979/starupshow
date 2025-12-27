@@ -101,7 +101,7 @@ export function MarkdownEditorPanel({
   const [showSearch, setShowSearch] = useState(false)
   const [showExport, setShowExport] = useState(false)
   const [recentFiles, setRecentFiles] = useState<string[]>([])
-  const [panelWidth, setPanelWidth] = useState(420)
+  const [panelWidth, setPanelWidth] = useState(480)
   const [isResizing, setIsResizing] = useState(false)
   const [isFullScreen, setIsFullScreen] = useState(false)
   // AI 채팅 상태
