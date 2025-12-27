@@ -1094,9 +1094,11 @@ export function FileTreePanel({ mapId }: FileTreePanelProps) {
     // 이미 리빌드 중이면 스킵
     if (isRebuildingRef.current) return
 
-    // 파일이 있고 (1) 개수가 변경되었거나 (2) 그래프가 없으면 리빌드
+    // 파일이 있고 (1) 개수가 변경되었거나 (2) 그래프가 파일을 포함하지 않으면 리빌드
     const filesChanged = files.length !== prevFilesLengthRef.current
-    const needsGraph = !graph || (graph?.nodes?.length || 0) === 0
+    // 그래프가 없거나, SELF 노드만 있는 경우 (파일 노드가 없음)
+    const fileNodesCount = graph?.nodes?.filter(n => n.type === 'file').length || 0
+    const needsGraph = !graph || (graph?.nodes?.length || 0) === 0 || (files.length > 0 && fileNodesCount === 0)
     // 프로젝트가 연결되어 있으면 파일이 없어도 그래프 빌드 (빈 프로젝트 노드 표시)
     const hasLinkedProject = !!linkedProjectName || !!projectPath
 
