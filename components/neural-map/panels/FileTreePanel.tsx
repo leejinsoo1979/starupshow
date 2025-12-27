@@ -1234,37 +1234,21 @@ export function FileTreePanel({ mapId }: FileTreePanelProps) {
     return graph?.nodes.find(n => n.title === fileName)
   }
 
-  // 파일 클릭 핸들러 - md는 에디터, 그 외는 코드 미리보기
+  // 파일 클릭 핸들러 - 모든 파일을 CodePreviewPanel에서 열기 (Cursor/VSCode 스타일)
   const handleFileClick = (file: NeuralFile) => {
     console.log('[FileTree] File clicked:', file.name, 'id:', file.id, 'hasContent:', !!(file as any).content)
     setSelectedFileId(file.id)
 
-    const ext = file.name.split('.').pop()?.toLowerCase()
-    const isMdFile = ext === 'md' || ext === 'markdown' || ext === 'mdx'
-
     // 중복 열림 방지: 이미 같은 파일이 열려있으면 패널만 선택하고 다시 열지 않음
-    if (isMdFile) {
-      if (editorOpen && editingFile?.id === file.id) {
-        console.log('[FileTree] File already open in editor, skipping:', file.name)
-        // 그래프 노드 선택은 계속 진행
-        const node = findNodeByFileName(file.name)
-        if (node) {
-          setSelectedNodes([node.id])
-          setFocusNodeId(node.id)
-        }
-        return
+    if (codePreviewOpen && codePreviewFile?.id === file.id) {
+      console.log('[FileTree] File already open in code preview, skipping:', file.name)
+      // 그래프 노드 선택은 계속 진행
+      const node = findNodeByFileName(file.name)
+      if (node) {
+        setSelectedNodes([node.id])
+        setFocusNodeId(node.id)
       }
-    } else {
-      if (codePreviewOpen && codePreviewFile?.id === file.id) {
-        console.log('[FileTree] File already open in code preview, skipping:', file.name)
-        // 그래프 노드 선택은 계속 진행
-        const node = findNodeByFileName(file.name)
-        if (node) {
-          setSelectedNodes([node.id])
-          setFocusNodeId(node.id)
-        }
-        return
-      }
+      return
     }
 
     // 파일 객체에 이미 content가 있으면 그대로 사용
@@ -1275,12 +1259,9 @@ export function FileTreePanel({ mapId }: FileTreePanelProps) {
 
     console.log('[FileTree] Opening file:', file.name, 'content length:', (fileToOpen as any).content?.length || 0)
 
-    // md 파일은 마크다운 에디터로 열기, 그 외는 코드 미리보기
-    if (isMdFile) {
-      openEditorWithFile(fileToOpen)
-    } else {
-      openCodePreview(fileToOpen)
-    }
+    // 🔥 모든 파일을 CodePreviewPanel에서 열기 (MD 포함)
+    // CodePreviewPanel이 markdown, code, image, video 등 모든 타입 지원
+    openCodePreview(fileToOpen)
 
     const node = findNodeByFileName(file.name)
     if (node) {
