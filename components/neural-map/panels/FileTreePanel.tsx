@@ -263,10 +263,12 @@ export function FileTreePanel({ mapId }: FileTreePanelProps) {
   const setFocusNodeId = useNeuralMapStore((s) => s.setFocusNodeId)
   const openEditor = useNeuralMapStore((s) => s.openEditor)
   const openEditorWithFile = useNeuralMapStore((s) => s.openEditorWithFile)
+  const closeEditor = useNeuralMapStore((s) => s.closeEditor)
   const editingFile = useNeuralMapStore((s) => s.editingFile)
   const editorOpen = useNeuralMapStore((s) => s.editorOpen)
   const buildGraphFromFilesAsync = useNeuralMapStore((s) => s.buildGraphFromFilesAsync)
   const openCodePreview = useNeuralMapStore((s) => s.openCodePreview)
+  const closeCodePreview = useNeuralMapStore((s) => s.closeCodePreview)
   const codePreviewFile = useNeuralMapStore((s) => s.codePreviewFile)
   const codePreviewOpen = useNeuralMapStore((s) => s.codePreviewOpen)
 
@@ -1273,9 +1275,12 @@ export function FileTreePanel({ mapId }: FileTreePanelProps) {
     console.log('[FileTree] Opening file:', file.name, 'content length:', (fileToOpen as any).content?.length || 0)
 
     // MD 파일은 MarkdownEditorPanel, 그 외는 CodePreviewPanel
+    // 🔥 다른 패널은 닫아서 화면 공간 확보
     if (isMdFile) {
+      closeCodePreview()  // 코드 프리뷰 닫기
       openEditorWithFile(fileToOpen)
     } else {
+      closeEditor()  // 마크다운 에디터 닫기
       openCodePreview(fileToOpen)
     }
 
