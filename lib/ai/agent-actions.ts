@@ -2100,6 +2100,52 @@ export function formatActionResultsForChat(results: ActionResult[]): string {
         }
         break
 
+      // 🔥 Agent Builder 워크플로우 액션 포맷팅
+      case 'agent_create_node':
+        lines.push(`${status} 워크플로우 노드 생성: ${(r.action as AgentBuilderCreateNodeAction).label} (${(r.action as AgentBuilderCreateNodeAction).nodeType})`)
+        break
+
+      case 'agent_connect_nodes':
+        lines.push(`${status} 노드 연결: ${(r.action as AgentBuilderConnectNodesAction).sourceNodeId} → ${(r.action as AgentBuilderConnectNodesAction).targetNodeId}`)
+        break
+
+      case 'agent_delete_node':
+        lines.push(`${status} 워크플로우 노드 삭제: ${(r.action as AgentBuilderDeleteNodeAction).nodeId}`)
+        break
+
+      case 'agent_update_node':
+        lines.push(`${status} 워크플로우 노드 수정: ${(r.action as AgentBuilderUpdateNodeAction).nodeId}`)
+        break
+
+      case 'agent_generate_workflow':
+        if (r.success && r.result) {
+          const wfResult = r.result as { nodeCount?: number; edgeCount?: number }
+          lines.push(`${status} 워크플로우 생성: ${(r.action as AgentBuilderGenerateWorkflowAction).name} (노드 ${wfResult.nodeCount}개, 연결 ${wfResult.edgeCount}개)`)
+        } else {
+          lines.push(`${status} 워크플로우 생성: ${(r.action as AgentBuilderGenerateWorkflowAction).name}`)
+        }
+        break
+
+      case 'agent_get_workflow':
+        if (r.success && r.result) {
+          const wfResult = r.result as { nodes?: unknown[]; edges?: unknown[] }
+          lines.push(`${status} 워크플로우 조회: 노드 ${wfResult.nodes?.length || 0}개, 연결 ${wfResult.edges?.length || 0}개`)
+        } else {
+          lines.push(`${status} 워크플로우 조회`)
+        }
+        break
+
+      case 'agent_deploy':
+        lines.push(`${status} 에이전트 배포: ${(r.action as AgentBuilderDeployAction).name}`)
+        if (r.success && r.result) {
+          lines.push(`   🚀 배포 완료`)
+        }
+        break
+
+      case 'agent_clear':
+        lines.push(`${status} 워크플로우 초기화`)
+        break
+
       default: {
         const unknownAction = r.action as { type: string }
         lines.push(`${status} ${unknownAction.type}`)

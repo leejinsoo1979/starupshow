@@ -1295,17 +1295,11 @@ export const useNeuralMapStore = create<NeuralMapState & NeuralMapActions>()(
               } else {
                 s.graph = result.graph
               }
-              // 모든 폴더 노드를 기본적으로 펼침 (방사형 그래프에서 모든 노드 표시)
-              const allFolderIds = result.graph.nodes
-                .filter((n) => n.type === 'folder' || n.type === 'self')
-                .map((n) => n.id)
-              const expandedIds = [
-                rootNode?.id,
-                ...allFolderIds
-              ].filter(Boolean) as string[]
+              // 🔥 모든 노드를 기본적으로 펼침 (방사형 그래프에서 모든 노드 표시)
+              const allNodeIds = result.graph.nodes.map((n) => n.id)
 
-              s.expandedNodeIds = new Set(expandedIds)
-              console.log('[buildGraphFromFilesAsync] ✅ expandedNodeIds set (all folders):', expandedIds.length, 'nodes')
+              s.expandedNodeIds = new Set(allNodeIds)
+              console.log('[buildGraphFromFilesAsync] ✅ expandedNodeIds set (all nodes):', allNodeIds.length, 'nodes')
               s.isLoading = false
             })
           } catch (error) {

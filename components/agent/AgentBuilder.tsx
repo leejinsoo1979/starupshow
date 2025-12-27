@@ -236,6 +236,169 @@ function AgentBuilderInner({ agentId }: AgentBuilderInnerProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [nodes, edges])
 
+  // 🔥 Orchestrator 채팅에서 BroadcastChannel 메시지 수신
+  useEffect(() => {
+    const channel = new BroadcastChannel('agent-builder')
+    const responseChannel = new BroadcastChannel('agent-builder-response')
+
+    channel.onmessage = (event) => {
+      const { type, payload } = event.data
+      console.log('[AgentBuilder] Received message:', type, payload)
+
+      switch (type) {
+        case 'CREATE_NODE': {
+          const position = payload.position || { x: 250 + Math.random() * 200, y: 150 + Math.random() * 200 }
+          const newNode = createAgentNode({
+            type: payload.nodeType,
+            position,
+          })
+          // 라벨 설정
+          if (payload.label) {
+            newNode.data.label = payload.label
+          }
+          // config 설정
+          if (payload.config) {
+            newNode.data = { ...newNode.data, ...payload.config }
+          }
+          setNodes((nds) => [...nds, newNode])
+          setTimeout(() => fitView({ padding: 0.2 }), 100)
+          break
+        }
+
+        case 'CONNECT_NODES': {
+          const newEdge: Edge = {
+            id: `e-${payload.sourceNodeId}-${payload.targetNodeId}-${Date.now()}`,
+            source: payload.sourceNodeId,
+            target: payload.targetNodeId,
+            sourceHandle: payload.sourceHandle,
+            type: 'default',
+            animated: false,
+            style: { stroke: 'var(--edge-color)', strokeWidth: 1.5 },
+            label: payload.label,
+          }
+          setEdges((eds) => [...eds, newEdge])
+          break
+        }
+
+        case 'DELETE_NODE': {
+          setNodes((nds) => nds.filter((n) => n.id !== payload.nodeId))
+          setEdges((eds) => eds.filter((e) => e.source !== payload.nodeId && e.target !== payload.nodeId))
+          break
+        }
+
+        case 'UPDATE_NODE': {
+          setNodes((nds) =>
+            nds.map((node) =>
+              node.id === payload.nodeId
+                ? {
+                    ...node,
+                    data: {
+                      ...node.data,
+                      ...(payload.label && { label: payload.label }),
+                      ...(payload.config && payload.config),
+                    },
+                  }
+                : node
+            )
+          )
+          break
+        }
+
+        case 'GENERATE_WORKFLOW': {
+          // 새 워크플로우 생성 - 기존 노드/엣지 교체
+          const newNodes = payload.nodes.map((n: any) =>
+            createAgentNode({
+              type: n.type,
+              position: n.position,
+            })
+          ).map((node: Node, i: number) => {
+            // ID 매핑을 위해 원래 ID 유지
+            const originalNode = payload.nodes[i]
+            return {
+              ...node,
+              id: originalNode.id,
+              data: {
+                ...node.data,
+                label: originalNode.label,
+                ...(originalNode.config || {}),
+              },
+            }
+          })
+
+          const newEdges = payload.edges.map((e: any) => ({
+            id: `e-${e.source}-${e.target}-${Date.now()}`,
+            source: e.source,
+            target: e.target,
+            sourceHandle: e.sourceHandle,
+            type: 'default',
+            animated: false,
+            style: { stroke: 'var(--edge-color)', strokeWidth: 1.5 },
+            label: e.label,
+          }))
+
+          setAgentName(payload.name || '')
+          setNodes(newNodes)
+          setEdges(newEdges)
+          setTimeout(() => fitView({ padding: 0.2 }), 100)
+          break
+        }
+
+        case 'GET_WORKFLOW': {
+          // 현재 워크플로우 데이터 응답
+          responseChannel.postMessage({
+            type: 'WORKFLOW_DATA',
+            payload: {
+              name: agentName,
+              nodes: nodes.map((n) => ({
+                id: n.id,
+                type: n.type,
+                label: n.data.label,
+                position: n.position,
+                config: payload.includeConfig ? n.data : undefined,
+              })),
+              edges: edges.map((e) => ({
+                id: e.id,
+                source: e.source,
+                target: e.target,
+                sourceHandle: e.sourceHandle,
+                label: e.label,
+              })),
+            },
+          })
+          break
+        }
+
+        case 'DEPLOY': {
+          // 배포 모달 열기
+          setDeployAgentName(payload.name || agentName || '')
+          setDeployAgentDescription(payload.description || '')
+          if (payload.llmProvider) {
+            setDeployLlmProvider(payload.llmProvider)
+          }
+          if (payload.llmModel) {
+            setDeployLlmModel(payload.llmModel)
+          }
+          setShowDeployModal(true)
+          break
+        }
+
+        case 'CLEAR': {
+          setAgentName('')
+          setNodes([createAgentNode({ type: 'start', position: { x: 250, y: 200 } })])
+          setEdges([])
+          setEditingAgentId(null)
+          setTimeout(() => fitView({ padding: 0.2 }), 100)
+          break
+        }
+      }
+    }
+
+    return () => {
+      channel.close()
+      responseChannel.close()
+    }
+  }, [setNodes, setEdges, fitView, nodes, edges, agentName])
+
   const onConnect = useCallback(
     (params: Connection) => {
       setEdges((eds) =>
