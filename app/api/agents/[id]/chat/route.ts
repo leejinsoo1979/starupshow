@@ -86,6 +86,7 @@ async function findEmoticonForResponse(
 }
 
 // 🔥 자율 에이전트 모드 감지 (복잡한 멀티스텝 작업)
+// 대폭 확장: 실제로 개발/생성하는 모든 요청
 function shouldUseAutonomousAgent(message: string): boolean {
   const autonomousPatterns = [
     // API 연동 및 개발 요청
@@ -96,88 +97,123 @@ function shouldUseAutonomousAgent(message: string): boolean {
     // 크롤링/스크래핑 요청
     /(크롤링|스크래핑|긁어|수집해)/i,
     /(뉴스|데이터|정보)\s*(가져|긁어|수집)/i,
-    // 앱/프로그램 개발 요청
-    /앱\s*(만들|개발|구현)/i,
-    /프로그램\s*(만들|개발|구현)/i,
-    /서비스\s*(만들|개발|구현)/i,
-    /기능\s*(구현|개발|추가).*해/i,
-    // 자동화 요청
-    /자동화\s*(해|시켜)/i,
-    /자동으로\s*(처리|실행)/i,
-    // 복잡한 작업 지시
-    /단계별로.*진행/i,
+    // 🔥 앱/프로그램/서비스 개발 (더 넓은 범위)
+    /(앱|어플|애플리케이션)\s*.*(만들|개발|구현)/i,
+    /프로그램\s*.*(만들|개발|구현)/i,
+    /서비스\s*.*(만들|개발|구현)/i,
+    /기능\s*.*(구현|개발|추가)/i,
+    /시스템\s*.*(만들|개발|구현|설계)/i,
+    // 🔥 컨피규레이터, 에디터, 도구 개발
+    /컨피규레이터/i,
+    /커스터마이저/i,
+    /에디터\s*.*(만들|개발|구현)/i,
+    /도구\s*.*(만들|개발|구현)/i,
+    /(플로우차트|다이어그램)\s*.*(만들|그려|생성)/i,
+    // 🔥 풀스택/전체 개발
+    /풀스택/i,
     /처음부터\s*끝까지/i,
     /완성해/i,
-    /풀스택/i,
-    // 영어 패턴
-    /build\s*(an?\s*)?(app|application|service|api)/i,
-    /create\s*(an?\s*)?(app|application|service|api)/i,
-    /develop\s*(an?\s*)?(feature|functionality)/i,
-    /integrate\s*with/i,
+    /전체\s*(개발|구현)/i,
+    // 자동화 요청
+    /자동화/i,
+    /자동으로/i,
+    // 복잡한 작업
+    /단계별/i,
+    /멀티\s*스텝/i,
+    // 🔥 3D, 그래픽 관련
+    /3D\s*.*(만들|개발|구현|렌더링)/i,
+    /three\.?js/i,
+    /webgl/i,
+    // 영어 패턴 (더 넓은 범위)
+    /build\s*(a|an|the)?\s*(full|complete|entire)?/i,
+    /create\s*(a|an|the)?\s*(full|complete|entire)?/i,
+    /develop\s*(a|an|the)?/i,
+    /implement\s*(a|an|the)?/i,
+    /integrate/i,
     /automate/i,
     /scrape|crawl/i,
+    /configurator/i,
+    /customizer/i,
   ]
 
   return autonomousPatterns.some(p => p.test(message))
 }
 
 // 슈퍼에이전트 모드 감지 (도구 사용이 필요한 요청)
+// 🔥 대폭 확장: 거의 모든 개발/생성 요청에 도구 사용
 function shouldUseSuperAgent(message: string, capabilities: string[] = []): boolean {
-  // 도구 사용이 필요한 패턴들
-  const toolPatterns = [
-    // 프로젝트 관련
-    /프로젝트\s*(를|을)?\s*(만들|생성|추가|새로)/i,
-    /새\s*(로운|)?\s*프로젝트/i,
-    /create\s*project/i,
-    /new\s*project/i,
-    // 파일 관련
-    /파일\s*(을|를)?\s*(읽|만들|생성|수정|작성)/i,
-    /read\s*file/i,
-    /write\s*file/i,
-    /edit\s*file/i,
-    /create\s*file/i,
-    // 터미널 관련
-    /터미널/i,
-    /명령어\s*(실행|수행)/i,
-    /npm\s*(install|run|build)/i,
-    /git\s*(clone|pull|push|commit)/i,
-    /run\s*(command|terminal)/i,
-    // 태스크 관련
-    /태스크\s*(를|을)?\s*(만들|생성|추가)/i,
-    /할\s*일\s*(추가|생성)/i,
-    /create\s*task/i,
-    /add\s*task/i,
-    // 검색 관련
-    /검색해\s*(줘|줘요|주세요)/i,
-    /찾아\s*(줘|줘요|주세요)/i,
-    /web\s*search/i,
-    /search\s*(for|the)/i,
-    // 코드 작성 요청
-    /코드\s*(짜|작성|만들)/i,
-    /구현해\s*(줘|주세요)/i,
-    /개발해\s*(줘|주세요)/i,
-    /만들어\s*(줘|주세요)/i,
+  // 🔥 핵심: 개발/생성/구현 관련 키워드가 있으면 무조건 Tool Calling
+  const MUST_USE_TOOLS = [
+    // 생성/개발 키워드 (질문형도 포함!)
+    /개발/i, /구현/i, /만들/i, /생성/i, /작성/i, /추가/i,
+    /그려/i, /그리/i, /디자인/i, /설계/i,
+    /develop/i, /create/i, /build/i, /implement/i, /make/i, /write/i,
+    /design/i, /draw/i, /generate/i,
+    // 코드 관련
+    /코드/i, /코딩/i, /프로그래/i, /스크립트/i, /함수/i, /클래스/i, /컴포넌트/i,
+    /code/i, /coding/i, /program/i, /script/i, /function/i, /class/i, /component/i,
+    // 파일/프로젝트
+    /파일/i, /폴더/i, /디렉토리/i, /프로젝트/i,
+    /file/i, /folder/i, /directory/i, /project/i,
+    // 터미널/명령어
+    /터미널/i, /명령/i, /실행/i, /설치/i,
+    /terminal/i, /command/i, /install/i, /run/i,
+    /npm/i, /yarn/i, /pnpm/i, /git/i, /docker/i,
+    // 검색
+    /검색/i, /찾아/i, /search/i, /find/i,
+    // 에디터/도구 관련 (플로우차트, 다이어그램 등)
+    /에디터/i, /editor/i,
+    /플로우차트/i, /flowchart/i, /diagram/i, /다이어그램/i,
+    /노드/i, /node/i, /shape/i, /연결/i, /connect/i,
+    // 앱/서비스/기능
+    /앱/i, /어플/i, /애플리케이션/i, /서비스/i, /기능/i, /페이지/i,
+    /app/i, /application/i, /service/i, /feature/i, /page/i,
+    // 컨피규레이터, 커스터마이저 등
+    /컨피규레이터/i, /커스터마이저/i, /configurator/i, /customizer/i,
+    // 웹/프론트/백엔드
+    /웹/i, /프론트/i, /백엔드/i, /서버/i, /클라이언트/i, /API/i,
+    /web/i, /frontend/i, /backend/i, /server/i, /client/i,
+    // 데이터베이스
+    /데이터베이스/i, /DB/i, /테이블/i, /쿼리/i,
+    /database/i, /table/i, /query/i, /schema/i,
+    // 이미지 생성
+    /이미지/i, /그림/i, /사진/i, /아이콘/i, /로고/i,
+    /image/i, /picture/i, /icon/i, /logo/i,
+    // 수정/변경
+    /수정/i, /변경/i, /업데이트/i, /고쳐/i, /fix/i, /update/i, /modify/i, /change/i,
+    // 버그/에러
+    /버그/i, /에러/i, /오류/i, /문제/i, /bug/i, /error/i, /issue/i,
+    // 테스트
+    /테스트/i, /test/i, /spec/i, /jest/i, /cypress/i,
+    // 3D/그래픽
+    /3D/i, /three\.?js/i, /webgl/i, /canvas/i, /svg/i,
+    // UI/UX
+    /UI/i, /UX/i, /인터페이스/i, /레이아웃/i, /스타일/i,
+    /interface/i, /layout/i, /style/i, /css/i,
   ]
 
-  // 패턴 매칭
-  for (const pattern of toolPatterns) {
+  // 🔥 하나라도 매칭되면 SuperAgent 모드
+  for (const pattern of MUST_USE_TOOLS) {
     if (pattern.test(message)) {
+      console.log(`[SuperAgent] 🎯 Pattern matched: ${pattern}`)
       return true
     }
   }
 
-  // 개발 관련 capability가 있으면 슈퍼에이전트 모드
+  // 개발 관련 capability가 있으면 더 넓은 범위 매칭
   const devCapabilities = ['development', 'coding', 'programming', '개발', '코딩']
   if (capabilities.some(cap => devCapabilities.some(dc => cap.toLowerCase().includes(dc)))) {
-    // 개발자 에이전트는 코드 관련 질문에 도구 사용
-    const codePatterns = [
-      /버그|에러|오류|error/i,
-      /리팩토링|refactor/i,
-      /최적화|optimize/i,
-      /테스트|test/i,
+    // 개발자 에이전트는 거의 모든 요청에 도구 사용
+    const broadPatterns = [
+      /해\s*(줘|주세요|줄래|볼래)/i,  // "~해줘", "~해주세요"
+      /할\s*수\s*있/i,  // "할 수 있어?"
+      /가능/i,  // "가능해?"
+      /어떻게/i,  // "어떻게 해?"
+      /\?$/,  // 질문 끝
     ]
-    for (const pattern of codePatterns) {
+    for (const pattern of broadPatterns) {
       if (pattern.test(message)) {
+        console.log(`[SuperAgent] 🎯 Dev capability + broad pattern: ${pattern}`)
         return true
       }
     }
@@ -239,11 +275,24 @@ export async function POST(
     const useAutonomousAgent = body.autonomousMode === true ||
                                shouldUseAutonomousAgent(message)
 
+    // 🔥 개발 관련 capability가 있는지 확인
+    const isDeveloperAgent = (agent.capabilities || []).some((cap: string) =>
+      ['development', 'coding', 'programming', '개발', '코딩', 'engineer', 'developer'].some(
+        keyword => cap.toLowerCase().includes(keyword)
+      )
+    )
+
     // 🔥 슈퍼에이전트 모드 확인 (Tool Calling 사용)
+    // 개발자 에이전트는 기본적으로 SuperAgent 모드!
     const useSuperAgent = !useAutonomousAgent && (
       body.superAgentMode === true ||
+      isDeveloperAgent ||  // 🔥 개발자 에이전트는 무조건 SuperAgent
       shouldUseSuperAgent(message, agent.capabilities || [])
     )
+
+    console.log(`[AgentChat] Mode: ${useAutonomousAgent ? 'AUTONOMOUS' : useSuperAgent ? 'SUPER_AGENT' : 'BASIC'}`)
+    console.log(`[AgentChat] isDeveloperAgent: ${isDeveloperAgent}`)
+    console.log(`[AgentChat] capabilities: ${agent.capabilities?.join(', ')}`)
 
     // 에이전트 정체성 조회
     const { data: identity } = await (adminClient as any)
@@ -360,7 +409,7 @@ export async function POST(
 
     try {
       const timeoutPromise = new Promise<never>((_, reject) => {
-        setTimeout(() => reject(new Error('LLM 응답 시간 초과 (60초)')), 60000)
+        setTimeout(() => reject(new Error('LLM 응답 시간 초과 (30초)')), 30000)
       })
 
       const userName = userProfile?.name || user.email?.split('@')[0] || '사용자'
@@ -438,7 +487,84 @@ export async function POST(
       }
     } catch (llmError: any) {
       console.error('LLM Error:', llmError)
-      response = `죄송해요, 지금 잠시 생각이 안 나네요. (${llmError.message || 'LLM 연결 실패'})`
+
+      // 🔥 에러 유형별 처리
+      const errorMsg = llmError.message || ''
+
+      // Rate limit / 크레딧 소진 에러
+      if (errorMsg.includes('429') || errorMsg.includes('credits') || errorMsg.includes('spending limit') || errorMsg.includes('rate limit')) {
+        console.warn('[AgentChat] Rate limit or credits exhausted, trying fallback...')
+
+        // 🔄 폴백: Gemini 사용 시도
+        try {
+          const { generateAgentChatResponse } = await import('@/lib/langchain/agent-chat')
+          const fallbackAgent = {
+            ...agent,
+            llm_provider: 'gemini',
+            model: 'gemini-2.0-flash-exp',
+            apiKey: process.env.GOOGLE_API_KEY,
+          }
+
+          console.log('[AgentChat] 🔄 Fallback to Gemini...')
+          response = await generateAgentChatResponse(
+            { ...fallbackAgent, identity },
+            message,
+            chatHistory,
+            {
+              roomName: '1:1 대화',
+              roomType: 'direct',
+              participantNames: [userProfile?.name || '사용자'],
+              userName: userProfile?.name || user.email?.split('@')[0] || '사용자',
+              userRole: userProfile?.job_title,
+              workContext: workContextPrompt,
+            },
+            validImages
+          )
+          console.log('[AgentChat] ✅ Fallback successful!')
+        } catch (fallbackError: any) {
+          console.error('[AgentChat] Fallback also failed:', fallbackError.message)
+          response = `죄송해요, API 크레딧이 소진되었어요. 관리자에게 문의해주세요. 🙏`
+        }
+      }
+      // 타임아웃 에러 - 폴백 시도
+      else if (errorMsg.includes('시간 초과') || errorMsg.includes('timeout')) {
+        console.warn('[AgentChat] Timeout occurred, trying fallback...')
+
+        // 🔄 폴백: Gemini 사용 시도
+        try {
+          const { generateAgentChatResponse } = await import('@/lib/langchain/agent-chat')
+          const fallbackAgent = {
+            ...agent,
+            llm_provider: 'gemini',
+            model: 'gemini-2.0-flash-exp',
+            apiKey: process.env.GOOGLE_API_KEY,
+          }
+
+          console.log('[AgentChat] 🔄 Fallback to Gemini (timeout)...')
+          response = await generateAgentChatResponse(
+            { ...fallbackAgent, identity },
+            message,
+            chatHistory,
+            {
+              roomName: '1:1 대화',
+              roomType: 'direct',
+              participantNames: [userProfile?.name || '사용자'],
+              userName: userProfile?.name || user.email?.split('@')[0] || '사용자',
+              userRole: userProfile?.job_title,
+              workContext: workContextPrompt,
+            },
+            validImages
+          )
+          console.log('[AgentChat] ✅ Fallback successful (from timeout)!')
+        } catch (fallbackError: any) {
+          console.error('[AgentChat] Fallback also failed:', fallbackError.message)
+          response = `죄송해요, 응답 시간이 너무 오래 걸렸어요. 다시 시도해주세요. ⏱️`
+        }
+      }
+      // 기타 에러
+      else {
+        response = `죄송해요, 지금 잠시 생각이 안 나네요. (${llmError.message || 'LLM 연결 실패'})`
+      }
     }
 
     // NOTE: 메시지 저장은 프론트엔드가 /api/agents/[id]/history API로 처리
