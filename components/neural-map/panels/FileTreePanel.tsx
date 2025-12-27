@@ -53,6 +53,7 @@ import {
   FolderOpen,
   Link,
   Plus,
+  Bot,
 } from 'lucide-react'
 
 // react-icons - VS Code 스타일 파일 아이콘
@@ -1634,7 +1635,8 @@ export function FileTreePanel({ mapId }: FileTreePanelProps) {
 
         flattenGcsTree(data.tree || [])
         setFiles(neuralFiles)
-        console.log(`[FileTree] 🌐 GCS loaded ${neuralFiles.length} files`)
+        await buildGraphFromFilesAsync()
+        console.log(`[FileTree] 🌐 GCS loaded ${neuralFiles.length} files, graph built`)
       } catch (error) {
         console.error('[FileTree] GCS load error:', error)
       } finally {
@@ -2890,8 +2892,19 @@ function TreeNodeList({
                 ) : (
                   <ChevronRight className="w-4 h-4 flex-shrink-0" />
                 )}
-                <FolderClosed className="w-4 h-4 text-blue-500 flex-shrink-0" />
+                {/* agents 폴더 특별 아이콘 */}
+                {node.name === 'agents' || nodePath.startsWith('agents/') ? (
+                  <Bot className="w-4 h-4 text-violet-500 flex-shrink-0" />
+                ) : (
+                  <FolderClosed className="w-4 h-4 text-blue-500 flex-shrink-0" />
+                )}
                 <span className="truncate">{node.name}</span>
+                {/* agents 하위 폴더에 에이전트 배지 표시 */}
+                {nodePath.startsWith('agents/') && !nodePath.includes('/', 7) && (
+                  <span className="ml-auto text-[10px] px-1.5 py-0.5 bg-violet-100 dark:bg-violet-900/30 text-violet-600 dark:text-violet-400 rounded-full">
+                    Agent
+                  </span>
+                )}
               </div>
               <AnimatePresence>
                 {isOpen && node.children.length > 0 && (

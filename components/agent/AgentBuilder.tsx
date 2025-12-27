@@ -486,6 +486,40 @@ function AgentBuilderInner({ agentId }: AgentBuilderInnerProps) {
         setEditingAgentId(savedAgent.id)
       }
 
+      // 에이전트 폴더 생성 (코드 파일로 저장)
+      try {
+        const folderResponse = await fetch('/api/agents/folder', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name: deployAgentName.trim(),
+            description: deployAgentDescription.trim() || '',
+            nodes: workflowData.workflow_nodes,
+            edges: workflowData.workflow_edges,
+            metadata: {
+              agentId: savedAgent.id,
+              llmProvider: deployLlmProvider,
+              llmModel: deployLlmModel,
+              interactionMode: deployInteractionMode,
+            },
+          }),
+        })
+
+        if (folderResponse.ok) {
+          const folderResult = await folderResponse.json()
+          console.log('[AgentBuilder] 폴더 생성 완료:', folderResult.folderPath)
+          if (terminalRef.current) {
+            terminalRef.current.write(`\r\n\x1b[32m[폴더 생성]\x1b[0m ${folderResult.folderPath}`)
+            terminalRef.current.write(`\r\n\x1b[36m파일 ${folderResult.files?.length || 0}개 생성됨\x1b[0m`)
+          }
+        } else {
+          console.warn('[AgentBuilder] 폴더 생성 실패:', await folderResponse.text())
+        }
+      } catch (folderError) {
+        console.warn('[AgentBuilder] 폴더 생성 중 오류:', folderError)
+        // 폴더 생성 실패해도 배포는 성공으로 처리
+      }
+
       setDeploySuccess(true)
       setTimeout(() => {
         setShowDeployModal(false)

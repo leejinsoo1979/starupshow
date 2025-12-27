@@ -1,0 +1,61 @@
+{
+  "name": "TestAgent",
+  "description": "테스트용 에이전트",
+  "version": "1.0.0",
+  "createdAt": "2025-12-27T12:34:25.044Z",
+  "updatedAt": "2025-12-27T12:34:25.045Z",
+  "nodes": [
+    {
+      "id": "n1",
+      "type": "start",
+      "file": "start.ts",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "config": {
+        "label": "Start"
+      }
+    },
+    {
+      "id": "n2",
+      "type": "llm",
+      "file": "gpt.ts",
+      "position": {
+        "x": 100,
+        "y": 0
+      },
+      "config": {
+        "label": "GPT"
+      }
+    },
+    {
+      "id": "n3",
+      "type": "end",
+      "file": "end.ts",
+      "position": {
+        "x": 200,
+        "y": 0
+      },
+      "config": {
+        "label": "End"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "source": "n1",
+      "target": "n2"
+    },
+    {
+      "id": "e2",
+      "source": "n2",
+      "target": "n3"
+    }
+  ],
+  "metadata": {
+    "nodeCount": 3,
+    "edgeCount": 2
+  }
+}

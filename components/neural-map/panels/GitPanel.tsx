@@ -139,8 +139,11 @@ export default function GitPanel() {
   }, [fetchProjectGitPath])
 
   const checkGitRepo = useCallback(async () => {
+    console.log('[GitPanel] checkGitRepo called:', { projectGitPath, linkedProjectId, projectPath })
+
     // projectGitPath가 없으면 대기 (linkedProjectId나 projectPath 둘 다 없는 경우)
     if (!projectGitPath || !window.electron?.git) {
+      console.log('[GitPanel] No projectGitPath or electron.git')
       setIsGitRepo(false)
       setIsLoading(false)
       if (!linkedProjectId && !projectPath) {
@@ -159,7 +162,9 @@ export default function GitPanel() {
     }
 
     try {
+      console.log('[GitPanel] Checking isRepo for:', projectGitPath)
       const result = await window.electron.git.isRepo?.(projectGitPath)
+      console.log('[GitPanel] isRepo result:', result)
       setIsGitRepo(result?.isRepo || false)
 
       if (result?.isRepo) {
@@ -173,7 +178,7 @@ export default function GitPanel() {
     } finally {
       setIsLoading(false)
     }
-  }, [linkedProjectId, projectGitPath])
+  }, [linkedProjectId, projectGitPath, projectPath])
 
   useEffect(() => {
     checkGitRepo()
