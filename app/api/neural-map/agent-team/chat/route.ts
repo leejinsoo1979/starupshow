@@ -62,7 +62,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { message, agentRole, systemPrompt, mapId, history = [] } = body
+    const { message, agentRole, systemPrompt, mapId, model, agentMode, history = [] } = body
 
     if (!message || typeof message !== 'string') {
       return NextResponse.json({ error: '메시지가 필요합니다' }, { status: 400 })
@@ -74,14 +74,20 @@ export async function POST(request: NextRequest) {
 
     const agentConfig = AGENT_CONFIGS[agentRole]
 
-    console.log(`[AgentTeam] ${agentRole} processing: "${message.substring(0, 50)}..."`)
+    // 사용자가 선택한 모델 또는 기본값 사용
+    const selectedModel = model || 'grok-3-fast'
+
+    // Agent 모드: 사용자 선택 또는 에이전트 설정 기본값
+    const useToolCalling = agentMode !== undefined ? agentMode : agentConfig.forceToolUse
+
+    console.log(`[AgentTeam] ${agentRole} processing: "${message.substring(0, 50)}..." (model: ${selectedModel}, agent: ${useToolCalling})`)
 
     // 사용자 프로필 조회
     const { data: userProfile } = await adminClient
       .from('users')
       .select('name, job_title')
       .eq('id', user.id)
-      .single()
+      .single() as { data: { name?: string; job_title?: string } | null }
 
     const userName = userProfile?.name || user.email?.split('@')[0] || '사용자'
 
@@ -91,9 +97,19 @@ export async function POST(request: NextRequest) {
       content: msg.content,
     }))
 
-    // 🔥 Implementer와 Tester는 반드시 Tool Calling 사용
-    if (agentConfig.forceToolUse) {
-      console.log(`[AgentTeam] ${agentRole}: Forcing Super Agent mode (Tool Calling)`)
+    // Agent 모드 또는 forceToolUse 에이전트는 Tool Calling 사용
+    if (useToolCalling) {
+      console.log(`[AgentTeam] ${agentRole}: Using Super Agent mode (Tool Calling)`)
+
+      // 모델에서 provider 추출
+      const getProviderFromModel = (modelId: string): string => {
+        if (modelId.startsWith('grok')) return 'grok'
+        if (modelId.startsWith('gpt') || modelId.startsWith('o1') || modelId.startsWith('o3')) return 'openai'
+        if (modelId.startsWith('gemini')) return 'gemini'
+        if (modelId.startsWith('qwen')) return 'qwen'
+        if (modelId.startsWith('claude')) return 'anthropic'
+        return 'grok' // 기본값
+      }
 
       // 가상 에이전트 생성 (실제 DB 에이전트 없이 사용)
       const virtualAgent = {
@@ -101,8 +117,8 @@ export async function POST(request: NextRequest) {
         name: agentRole.charAt(0).toUpperCase() + agentRole.slice(1),
         description: `Agent Team ${agentRole}`,
         capabilities: agentConfig.capabilities,
-        llm_provider: 'grok',
-        model: 'grok-3-fast',
+        llm_provider: getProviderFromModel(selectedModel),
+        model: selectedModel,
         temperature: agentConfig.temperature,
         system_prompt: systemPrompt,
         identity: null,
@@ -138,17 +154,51 @@ export async function POST(request: NextRequest) {
         })
       }
     } else {
-      // Orchestrator, Planner, Reviewer는 일반 LLM 호출 (도구 없이)
+      // Agent 모드 OFF: 일반 LLM 호출 (도구 없이)
       const { ChatOpenAI } = await import('@langchain/openai')
       const { HumanMessage, SystemMessage, AIMessage } = await import('@langchain/core/messages')
 
+      // 모델에 따른 API 설정
+      const getLlmConfig = (modelId: string) => {
+        if (modelId.startsWith('grok')) {
+          return {
+            model: modelId,
+            apiKey: process.env.XAI_API_KEY,
+            configuration: { baseURL: 'https://api.x.ai/v1' },
+          }
+        }
+        if (modelId.startsWith('gpt') || modelId.startsWith('o1') || modelId.startsWith('o3')) {
+          return {
+            model: modelId,
+            apiKey: process.env.OPENAI_API_KEY,
+          }
+        }
+        if (modelId.startsWith('gemini')) {
+          return {
+            model: modelId,
+            apiKey: process.env.GOOGLE_API_KEY,
+            configuration: { baseURL: 'https://generativelanguage.googleapis.com/v1beta/openai/' },
+          }
+        }
+        if (modelId.startsWith('qwen')) {
+          return {
+            model: modelId,
+            apiKey: process.env.DASHSCOPE_API_KEY,
+            configuration: { baseURL: 'https://dashscope-intl.aliyuncs.com/compatible-mode/v1' },
+          }
+        }
+        // 기본값: Grok
+        return {
+          model: 'grok-3-fast',
+          apiKey: process.env.XAI_API_KEY,
+          configuration: { baseURL: 'https://api.x.ai/v1' },
+        }
+      }
+
+      const llmConfig = getLlmConfig(selectedModel)
       const llm = new ChatOpenAI({
-        model: 'grok-3-fast',
+        ...llmConfig,
         temperature: agentConfig.temperature,
-        apiKey: process.env.XAI_API_KEY,
-        configuration: {
-          baseURL: 'https://api.x.ai/v1',
-        },
       })
 
       const messages = [

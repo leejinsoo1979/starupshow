@@ -12,7 +12,6 @@
 
 import React, { useState, useRef, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { useTheme } from 'next-themes'
 import { cn } from '@/lib/utils'
 import {
   Users,
@@ -20,16 +19,31 @@ import {
   Code2,
   TestTube,
   Eye,
-  Send,
   Loader2,
   Bot,
   Sparkles,
   CheckCircle,
   AlertTriangle,
   FileCode,
-  GitBranch,
+  ChevronDown,
+  ArrowUp,
+  Globe,
+  Image as ImageIcon,
+  Mic,
+  AtSign,
+  Send,
 } from 'lucide-react'
 import { useNeuralMapStore } from '@/lib/neural-map/store'
+import { useChatStore } from '@/stores/chatStore'
+import { getModelList, type ChatModelId } from '@/lib/ai/models'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+
+const MODELS = getModelList()
 
 // 에이전트 역할 정의
 export type AgentRole = 'orchestrator' | 'planner' | 'implementer' | 'tester' | 'reviewer'
@@ -236,9 +250,31 @@ export function AgentTeamTabs({ isDark }: AgentTeamTabsProps) {
   const [input, setInput] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const scrollRef = useRef<HTMLDivElement>(null)
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
   const mapId = useNeuralMapStore((s) => s.mapId)
 
+  // 각 에이전트별 모델 설정 저장
+  const [agentModels, setAgentModels] = useState<Record<AgentRole, ChatModelId>>({
+    orchestrator: 'grok-3-fast',
+    planner: 'grok-3-fast',
+    implementer: 'grok-3-fast',
+    tester: 'grok-3-fast',
+    reviewer: 'grok-3-fast',
+  })
+
+  // 각 에이전트별 Agent 모드 on/off
+  const [agentModes, setAgentModes] = useState<Record<AgentRole, boolean>>({
+    orchestrator: false,
+    planner: false,
+    implementer: true, // Implementer는 기본 Agent 모드
+    tester: true, // Tester도 기본 Agent 모드
+    reviewer: false,
+  })
+
   const currentAgent = AGENT_TEAM.find((a) => a.id === activeAgent)!
+  const currentModel = agentModels[activeAgent]
+  const isAgentMode = agentModes[activeAgent]
+  const currentModelInfo = MODELS.find((m) => m.id === currentModel) || MODELS[0]
 
   // 자동 스크롤
   useEffect(() => {
@@ -246,6 +282,24 @@ export function AgentTeamTabs({ isDark }: AgentTeamTabsProps) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight
     }
   }, [messages])
+
+  // Textarea auto-resize
+  useEffect(() => {
+    if (textareaRef.current) {
+      textareaRef.current.style.height = 'auto'
+      textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 150)}px`
+    }
+  }, [input])
+
+  // 현재 에이전트 모델 변경
+  const setCurrentModel = (modelId: ChatModelId) => {
+    setAgentModels((prev) => ({ ...prev, [activeAgent]: modelId }))
+  }
+
+  // 현재 에이전트 Agent 모드 토글
+  const toggleCurrentAgentMode = () => {
+    setAgentModes((prev) => ({ ...prev, [activeAgent]: !prev[activeAgent] }))
+  }
 
   // 메시지 전송
   const handleSend = async () => {
@@ -264,7 +318,7 @@ export function AgentTeamTabs({ isDark }: AgentTeamTabsProps) {
     setIsLoading(true)
 
     try {
-      // API 호출 - 선택된 에이전트 역할 전달
+      // API 호출 - 선택된 에이전트 역할 및 모델 전달
       const response = await fetch('/api/neural-map/agent-team/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -273,6 +327,8 @@ export function AgentTeamTabs({ isDark }: AgentTeamTabsProps) {
           agentRole: activeAgent,
           systemPrompt: currentAgent.systemPrompt,
           mapId,
+          model: currentModel,
+          agentMode: isAgentMode,
           history: messages.filter((m) => m.agentRole === activeAgent).slice(-10),
         }),
       })
@@ -441,34 +497,148 @@ export function AgentTeamTabs({ isDark }: AgentTeamTabsProps) {
         )}
       </div>
 
-      {/* Input */}
-      <div className={cn('p-3 border-t', isDark ? 'border-zinc-800' : 'border-zinc-200')}>
-        <div className="flex items-center gap-2">
-          <input
-            type="text"
+      {/* Input - Original ChatInput Style */}
+      <div className={cn(
+        'mx-3 mb-3 border rounded-xl shadow-sm transition-all duration-200',
+        isDark ? 'bg-zinc-900 border-zinc-800' : 'bg-zinc-50 border-zinc-200'
+      )}>
+        {/* Textarea Area */}
+        <div className="px-3 pt-2 pb-1">
+          <textarea
+            ref={textareaRef}
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
             placeholder={`${currentAgent.nameKr}에게 메시지...`}
             disabled={isLoading}
             className={cn(
-              'flex-1 px-3 py-2 text-sm rounded-lg border outline-none transition-colors',
-              isDark
-                ? 'bg-zinc-800 border-zinc-700 text-zinc-200 placeholder:text-zinc-600'
-                : 'bg-white border-zinc-200 text-zinc-800 placeholder:text-zinc-400',
+              'no-focus-ring w-full bg-transparent border-none outline-none resize-none text-sm leading-snug placeholder:text-zinc-400 min-h-[24px] max-h-[150px]',
+              isDark ? 'text-zinc-100' : 'text-zinc-900',
               isLoading && 'opacity-50'
             )}
+            rows={1}
           />
+        </div>
+
+        {/* Bottom Toolbar */}
+        <div className="flex items-center justify-between px-2 pb-2">
+          <div className="flex items-center gap-1">
+            {/* Agent/Model Toggle Group */}
+            <div className={cn(
+              'flex items-center rounded-lg p-0.5 mr-2',
+              isDark ? 'bg-zinc-800/50' : 'bg-zinc-100'
+            )}>
+              <button
+                onClick={toggleCurrentAgentMode}
+                className={cn(
+                  'flex items-center gap-1.5 px-2 py-1 rounded-md text-xs font-medium transition-colors',
+                  isAgentMode
+                    ? 'text-white shadow-sm'
+                    : isDark
+                      ? 'text-zinc-400 hover:text-zinc-200'
+                      : 'text-zinc-500 hover:text-zinc-700'
+                )}
+                style={{
+                  backgroundColor: isAgentMode ? currentAgent.color : undefined,
+                }}
+              >
+                <Bot className="w-3.5 h-3.5" />
+                <span>Agent</span>
+              </button>
+
+              <div className={cn('w-[1px] h-3 mx-0.5', isDark ? 'bg-zinc-700' : 'bg-zinc-200')} />
+
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button className={cn(
+                    'flex items-center gap-1.5 px-2 py-1 rounded-md text-xs font-medium transition-colors',
+                    isDark ? 'text-zinc-400 hover:text-zinc-200' : 'text-zinc-500 hover:text-zinc-700'
+                  )}>
+                    <span>{currentModelInfo.name}</span>
+                    <ChevronDown className="w-3 h-3 opacity-50" />
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent
+                  align="start"
+                  className={cn(
+                    'w-[200px] shadow-xl',
+                    isDark ? 'bg-zinc-800 border-zinc-700' : 'bg-white border-zinc-200'
+                  )}
+                >
+                  {MODELS.map((model) => (
+                    <DropdownMenuItem
+                      key={model.id}
+                      onClick={() => setCurrentModel(model.id as ChatModelId)}
+                      className="gap-2"
+                    >
+                      <Sparkles className="w-4 h-4" />
+                      {model.name}
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+
+            {/* Quick Actions */}
+            <button
+              className={cn(
+                'p-1.5 rounded-md transition-colors',
+                isDark ? 'text-zinc-400 hover:text-zinc-200' : 'text-zinc-400 hover:text-zinc-600'
+              )}
+              title="Read Context (@)"
+            >
+              <AtSign className="w-4 h-4" />
+            </button>
+            <button
+              className={cn(
+                'p-1.5 rounded-md transition-colors',
+                isDark ? 'text-zinc-400 hover:text-zinc-200' : 'text-zinc-400 hover:text-zinc-600'
+              )}
+              title="Browse Web"
+            >
+              <Globe className="w-4 h-4" />
+            </button>
+            <button
+              className={cn(
+                'p-1.5 rounded-md transition-colors',
+                isDark ? 'text-zinc-400 hover:text-zinc-200' : 'text-zinc-400 hover:text-zinc-600'
+              )}
+              title="Add Image"
+            >
+              <ImageIcon className="w-4 h-4" />
+            </button>
+            <button
+              className={cn(
+                'p-1.5 rounded-md transition-colors',
+                isDark ? 'text-zinc-400 hover:text-zinc-200' : 'text-zinc-400 hover:text-zinc-600'
+              )}
+              title="Voice Input"
+            >
+              <Mic className="w-4 h-4" />
+            </button>
+          </div>
+
+          {/* Submit Button */}
           <button
             onClick={handleSend}
             disabled={!input.trim() || isLoading}
             className={cn(
-              'p-2 rounded-lg transition-colors text-white',
-              !input.trim() || isLoading ? 'opacity-50 cursor-not-allowed' : 'hover:opacity-90'
+              'p-1.5 rounded-lg transition-all duration-200',
+              input.trim() && !isLoading
+                ? 'text-white shadow-md hover:opacity-90'
+                : isDark
+                  ? 'bg-zinc-800 text-zinc-400 cursor-not-allowed'
+                  : 'bg-zinc-200 text-zinc-400 cursor-not-allowed'
             )}
-            style={{ backgroundColor: currentAgent.color }}
+            style={{
+              backgroundColor: input.trim() && !isLoading ? currentAgent.color : undefined,
+            }}
           >
-            {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+            {isLoading ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <ArrowUp className="w-4 h-4" />
+            )}
           </button>
         </div>
       </div>
