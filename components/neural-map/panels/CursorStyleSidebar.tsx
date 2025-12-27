@@ -6,6 +6,7 @@ import { useTheme } from 'next-themes'
 import { cn } from '@/lib/utils'
 import { useNeuralMapStore } from '@/lib/neural-map/store'
 import { FileTreePanel } from '@/components/neural-map/panels/FileTreePanel'
+import GitPanel from '@/components/neural-map/panels/GitPanel'
 import {
     Files,
     Search,
@@ -212,9 +213,7 @@ export function CursorStyleSidebar() {
                 )}
 
                 {activeItem === 'source-control' && (
-                    <div className={cn("p-4 text-sm", isDark ? "text-zinc-400" : "text-zinc-500")}>
-                        소스 제어 기능 준비 중...
-                    </div>
+                    <GitPanel />
                 )}
 
                 {activeItem === 'extensions' && (

@@ -49,6 +49,15 @@ export type AgentAction =
   | BlueprintUpdateTaskAction
   | BlueprintDeleteTaskAction
   | BlueprintGetTasksAction
+  // 🔥 Agent Builder 워크플로우 액션
+  | AgentBuilderCreateNodeAction
+  | AgentBuilderConnectNodesAction
+  | AgentBuilderDeleteNodeAction
+  | AgentBuilderUpdateNodeAction
+  | AgentBuilderGenerateWorkflowAction
+  | AgentBuilderGetWorkflowAction
+  | AgentBuilderDeployAction
+  | AgentBuilderClearAction
 
 export interface WriteFileAction {
   type: 'write_file'
@@ -345,6 +354,77 @@ export interface BlueprintGetTasksAction {
   priority?: 'low' | 'medium' | 'high' | 'urgent'
 }
 
+// ============================================
+// 🔥 Agent Builder 워크플로우 액션
+// ============================================
+
+// Agent Builder 노드 타입
+type AgentBuilderNodeType = 'start' | 'end' | 'llm' | 'prompt' | 'router' | 'memory' | 'tool' | 'rag' | 'javascript' | 'function' | 'input' | 'output' | 'image_generation' | 'embedding' | 'evaluator' | 'chain'
+
+export interface AgentBuilderCreateNodeAction {
+  type: 'agent_create_node'
+  nodeType: AgentBuilderNodeType
+  label: string
+  config?: Record<string, unknown>
+  position?: { x: number; y: number }
+}
+
+export interface AgentBuilderConnectNodesAction {
+  type: 'agent_connect_nodes'
+  sourceNodeId: string
+  targetNodeId: string
+  sourceHandle?: string
+  label?: string
+}
+
+export interface AgentBuilderDeleteNodeAction {
+  type: 'agent_delete_node'
+  nodeId: string
+}
+
+export interface AgentBuilderUpdateNodeAction {
+  type: 'agent_update_node'
+  nodeId: string
+  label?: string
+  config?: Record<string, unknown>
+}
+
+export interface AgentBuilderGenerateWorkflowAction {
+  type: 'agent_generate_workflow'
+  name: string
+  description: string
+  nodes: Array<{
+    id: string
+    type: string
+    label: string
+    config?: Record<string, unknown>
+    position: { x: number; y: number }
+  }>
+  edges: Array<{
+    source: string
+    target: string
+    sourceHandle?: string
+    label?: string
+  }>
+}
+
+export interface AgentBuilderGetWorkflowAction {
+  type: 'agent_get_workflow'
+  includeConfig?: boolean
+}
+
+export interface AgentBuilderDeployAction {
+  type: 'agent_deploy'
+  name: string
+  description?: string
+  llmProvider?: 'openai' | 'anthropic' | 'google' | 'xai'
+  llmModel?: string
+}
+
+export interface AgentBuilderClearAction {
+  type: 'agent_clear'
+}
+
 // 액션 실행 결과
 export interface ActionResult {
   action: AgentAction
@@ -363,6 +443,9 @@ export async function executeAction(action: AgentAction): Promise<ActionResult> 
     'flowchart_create_node', 'flowchart_update_node', 'flowchart_delete_node',
     'flowchart_create_edge', 'flowchart_delete_edge', 'flowchart_get_graph',
     'blueprint_create_task', 'blueprint_update_task', 'blueprint_delete_task', 'blueprint_get_tasks',
+    // 🔥 Agent Builder 워크플로우 액션 (웹 전용 - BroadcastChannel 통신)
+    'agent_create_node', 'agent_connect_nodes', 'agent_delete_node', 'agent_update_node',
+    'agent_generate_workflow', 'agent_get_workflow', 'agent_deploy', 'agent_clear',
   ]
 
   // Electron 필요한 액션인데 없으면 에러
@@ -1293,6 +1376,196 @@ export async function executeAction(action: AgentAction): Promise<ActionResult> 
         }
       }
 
+      // ============================================
+      // 🔥 Agent Builder 워크플로우 액션
+      // ============================================
+
+      case 'agent_create_node': {
+        const abAction = action as AgentBuilderCreateNodeAction
+        // BroadcastChannel로 Agent Builder에 메시지 전송
+        const channel = new BroadcastChannel('agent-builder')
+        channel.postMessage({
+          type: 'CREATE_NODE',
+          payload: {
+            nodeType: abAction.nodeType,
+            label: abAction.label,
+            config: abAction.config,
+            position: abAction.position,
+          }
+        })
+        channel.close()
+
+        return {
+          action,
+          success: true,
+          result: {
+            nodeType: abAction.nodeType,
+            label: abAction.label,
+            created: true
+          }
+        }
+      }
+
+      case 'agent_connect_nodes': {
+        const abAction = action as AgentBuilderConnectNodesAction
+        const channel = new BroadcastChannel('agent-builder')
+        channel.postMessage({
+          type: 'CONNECT_NODES',
+          payload: {
+            sourceNodeId: abAction.sourceNodeId,
+            targetNodeId: abAction.targetNodeId,
+            sourceHandle: abAction.sourceHandle,
+            label: abAction.label,
+          }
+        })
+        channel.close()
+
+        return {
+          action,
+          success: true,
+          result: {
+            source: abAction.sourceNodeId,
+            target: abAction.targetNodeId,
+            connected: true
+          }
+        }
+      }
+
+      case 'agent_delete_node': {
+        const abAction = action as AgentBuilderDeleteNodeAction
+        const channel = new BroadcastChannel('agent-builder')
+        channel.postMessage({
+          type: 'DELETE_NODE',
+          payload: { nodeId: abAction.nodeId }
+        })
+        channel.close()
+
+        return {
+          action,
+          success: true,
+          result: { nodeId: abAction.nodeId, deleted: true }
+        }
+      }
+
+      case 'agent_update_node': {
+        const abAction = action as AgentBuilderUpdateNodeAction
+        const channel = new BroadcastChannel('agent-builder')
+        channel.postMessage({
+          type: 'UPDATE_NODE',
+          payload: {
+            nodeId: abAction.nodeId,
+            label: abAction.label,
+            config: abAction.config,
+          }
+        })
+        channel.close()
+
+        return {
+          action,
+          success: true,
+          result: { nodeId: abAction.nodeId, updated: true }
+        }
+      }
+
+      case 'agent_generate_workflow': {
+        const abAction = action as AgentBuilderGenerateWorkflowAction
+        const channel = new BroadcastChannel('agent-builder')
+        channel.postMessage({
+          type: 'GENERATE_WORKFLOW',
+          payload: {
+            name: abAction.name,
+            description: abAction.description,
+            nodes: abAction.nodes,
+            edges: abAction.edges,
+          }
+        })
+        channel.close()
+
+        return {
+          action,
+          success: true,
+          result: {
+            name: abAction.name,
+            nodeCount: abAction.nodes.length,
+            edgeCount: abAction.edges.length,
+            generated: true
+          }
+        }
+      }
+
+      case 'agent_get_workflow': {
+        // 워크플로우 조회는 BroadcastChannel 응답이 필요 - Promise 기반
+        return new Promise((resolve) => {
+          const channel = new BroadcastChannel('agent-builder')
+          const responseChannel = new BroadcastChannel('agent-builder-response')
+
+          // 응답 대기 (타임아웃 3초)
+          const timeout = setTimeout(() => {
+            responseChannel.close()
+            channel.close()
+            resolve({
+              action,
+              success: false,
+              error: 'Agent Builder 응답 타임아웃'
+            })
+          }, 3000)
+
+          responseChannel.onmessage = (event) => {
+            if (event.data.type === 'WORKFLOW_DATA') {
+              clearTimeout(timeout)
+              responseChannel.close()
+              channel.close()
+              resolve({
+                action,
+                success: true,
+                result: event.data.payload
+              })
+            }
+          }
+
+          channel.postMessage({
+            type: 'GET_WORKFLOW',
+            payload: { includeConfig: (action as AgentBuilderGetWorkflowAction).includeConfig }
+          })
+        })
+      }
+
+      case 'agent_deploy': {
+        const abAction = action as AgentBuilderDeployAction
+        const channel = new BroadcastChannel('agent-builder')
+        channel.postMessage({
+          type: 'DEPLOY',
+          payload: {
+            name: abAction.name,
+            description: abAction.description,
+            llmProvider: abAction.llmProvider,
+            llmModel: abAction.llmModel,
+          }
+        })
+        channel.close()
+
+        return {
+          action,
+          success: true,
+          result: {
+            name: abAction.name,
+            deployed: true
+          }
+        }
+      }
+
+      case 'agent_clear': {
+        const channel = new BroadcastChannel('agent-builder')
+        channel.postMessage({ type: 'CLEAR' })
+        channel.close()
+
+        return {
+          action,
+          success: true,
+          result: { cleared: true }
+        }
+      }
+
       default:
         return {
           action,
@@ -1558,6 +1831,68 @@ export function convertToolAction(toolAction: ToolAction): AgentAction | null {
         status: data.status as BlueprintGetTasksAction['status'],
         assignee: data.assignee as string | undefined,
         priority: data.priority as BlueprintGetTasksAction['priority'],
+      }
+
+    // 🔥 Agent Builder 워크플로우 액션 변환
+    case 'agent_create_node':
+      return {
+        type: 'agent_create_node',
+        nodeType: data.nodeType as AgentBuilderCreateNodeAction['nodeType'],
+        label: data.label as string,
+        config: data.config as Record<string, unknown> | undefined,
+        position: data.position as { x: number; y: number } | undefined,
+      }
+
+    case 'agent_connect_nodes':
+      return {
+        type: 'agent_connect_nodes',
+        sourceNodeId: data.sourceNodeId as string,
+        targetNodeId: data.targetNodeId as string,
+        sourceHandle: data.sourceHandle as string | undefined,
+        label: data.label as string | undefined,
+      }
+
+    case 'agent_delete_node':
+      return {
+        type: 'agent_delete_node',
+        nodeId: data.nodeId as string,
+      }
+
+    case 'agent_update_node':
+      return {
+        type: 'agent_update_node',
+        nodeId: data.nodeId as string,
+        label: data.label as string | undefined,
+        config: data.config as Record<string, unknown> | undefined,
+      }
+
+    case 'agent_generate_workflow':
+      return {
+        type: 'agent_generate_workflow',
+        name: data.name as string,
+        description: data.description as string,
+        nodes: data.nodes as AgentBuilderGenerateWorkflowAction['nodes'],
+        edges: data.edges as AgentBuilderGenerateWorkflowAction['edges'],
+      }
+
+    case 'agent_get_workflow':
+      return {
+        type: 'agent_get_workflow',
+        includeConfig: data.includeConfig as boolean | undefined,
+      }
+
+    case 'agent_deploy':
+      return {
+        type: 'agent_deploy',
+        name: data.name as string,
+        description: data.description as string | undefined,
+        llmProvider: data.llmProvider as AgentBuilderDeployAction['llmProvider'],
+        llmModel: data.llmModel as string | undefined,
+      }
+
+    case 'agent_clear':
+      return {
+        type: 'agent_clear',
       }
 
     default:

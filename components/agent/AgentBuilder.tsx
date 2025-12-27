@@ -117,13 +117,7 @@ function AgentBuilderInner({ agentId }: AgentBuilderInnerProps) {
   const [showTemplates, setShowTemplates] = useState(false)
   const [showExecutionPanel, setShowExecutionPanel] = useState(false)
   const [agentName, setAgentName] = useState<string>("")
-  const [showCreateModal, setShowCreateModal] = useState(false)
-  const [newAgentName, setNewAgentName] = useState("")
-  // 위자드 상태
-  const [wizardStep, setWizardStep] = useState<1 | 2 | 3>(1)
-  const [creationType, setCreationType] = useState<'custom' | 'ai' | null>(null)
-  const [agentDescription, setAgentDescription] = useState("")
-  const [isGenerating, setIsGenerating] = useState(false)
+  // 마법사 모달 제거 - Orchestrator 채팅으로 제어
   // 배포 모달 상태
   const [showDeployModal, setShowDeployModal] = useState(false)
   const [deployAgentName, setDeployAgentName] = useState("")
@@ -753,7 +747,14 @@ function AgentBuilderInner({ agentId }: AgentBuilderInnerProps) {
         {/* Node Library */}
         <AgentNodeLibrary
           onDragStart={onDragStart}
-          onCreateAgent={() => setShowCreateModal(true)}
+          onCreateAgent={() => {
+            // 캔버스 초기화 - 빈 Start 노드로 시작
+            setAgentName("")
+            setNodes([createAgentNode({ type: "start", position: { x: 250, y: 200 } })])
+            setEdges([])
+            setEditingAgentId(null)
+            setTimeout(() => fitView({ padding: 0.2 }), 100)
+          }}
         />
 
         {/* Canvas + Terminal 영역 */}
@@ -1004,194 +1005,6 @@ function AgentBuilderInner({ agentId }: AgentBuilderInnerProps) {
         />
 
       </div>
-
-      {/* 에이전트 생성 위자드 모달 */}
-      {showCreateModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[100]">
-          <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-xl p-6 w-[420px] shadow-xl">
-            {/* 스텝 인디케이터 */}
-            <div className="flex items-center justify-center gap-2 mb-6">
-              {[1, 2, 3].map((step) => (
-                <div key={step} className="flex items-center">
-                  <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium transition-colors ${wizardStep >= step
-                      ? 'bg-accent text-white'
-                      : 'bg-zinc-200 dark:bg-zinc-700 text-zinc-500'
-                    }`}>
-                    {step}
-                  </div>
-                  {step < 3 && (
-                    <div className={`w-8 h-0.5 mx-1 ${wizardStep > step ? 'bg-accent' : 'bg-zinc-200 dark:bg-zinc-700'
-                      }`} />
-                  )}
-                </div>
-              ))}
-            </div>
-
-            {/* Step 1: 이름 입력 */}
-            {wizardStep === 1 && (
-              <>
-                <h3 className="text-lg font-semibold text-zinc-900 dark:text-white mb-2">에이전트 이름</h3>
-                <p className="text-sm text-zinc-500 mb-4">에이전트의 이름을 입력해주세요</p>
-                <input
-                  type="text"
-                  value={newAgentName}
-                  onChange={(e) => setNewAgentName(e.target.value)}
-                  placeholder="예: 고객 서비스 봇"
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' && newAgentName.trim()) {
-                      setWizardStep(2)
-                    } else if (e.key === 'Escape') {
-                      setShowCreateModal(false)
-                      setNewAgentName('')
-                      setWizardStep(1)
-                    }
-                  }}
-                  className="w-full px-4 py-3 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm text-zinc-900 dark:text-white placeholder-zinc-400 outline-none focus:ring-2 focus:ring-accent/50"
-                  autoFocus
-                />
-              </>
-            )}
-
-            {/* Step 2: 생성 방식 선택 */}
-            {wizardStep === 2 && (
-              <>
-                <h3 className="text-lg font-semibold text-zinc-900 dark:text-white mb-2">생성 방식 선택</h3>
-                <p className="text-sm text-zinc-500 mb-4">에이전트를 어떻게 만들까요?</p>
-                <div className="grid grid-cols-2 gap-3">
-                  <button
-                    onClick={() => {
-                      setCreationType('custom')
-                      setAgentName(newAgentName.trim())
-                      setNodes([createAgentNode({ type: "start", position: { x: 250, y: 200 } })])
-                      setEdges([])
-                      setShowCreateModal(false)
-                      setNewAgentName('')
-                      setWizardStep(1)
-                      setCreationType(null)
-                    }}
-                    className="flex flex-col items-center gap-3 p-4 border-2 border-zinc-200 dark:border-zinc-700 rounded-xl hover:border-accent hover:bg-accent/5 transition-all group"
-                  >
-                    <div className="w-12 h-12 rounded-full bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center group-hover:bg-accent/10">
-                      <Hammer className="w-6 h-6 text-zinc-600 dark:text-zinc-400 group-hover:text-accent" />
-                    </div>
-                    <div className="text-center">
-                      <div className="font-medium text-zinc-900 dark:text-white">커스텀</div>
-                      <div className="text-xs text-zinc-500 mt-1">직접 노드 배치</div>
-                    </div>
-                  </button>
-                  <button
-                    onClick={() => {
-                      setCreationType('ai')
-                      setWizardStep(3)
-                    }}
-                    className="flex flex-col items-center gap-3 p-4 border-2 border-zinc-200 dark:border-zinc-700 rounded-xl hover:border-accent hover:bg-accent/5 transition-all group"
-                  >
-                    <div className="w-12 h-12 rounded-full bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center group-hover:bg-accent/10">
-                      <Sparkles className="w-6 h-6 text-zinc-600 dark:text-zinc-400 group-hover:text-accent" />
-                    </div>
-                    <div className="text-center">
-                      <div className="font-medium text-zinc-900 dark:text-white">AI 생성</div>
-                      <div className="text-xs text-zinc-500 mt-1">자동 워크플로우</div>
-                    </div>
-                  </button>
-                </div>
-              </>
-            )}
-
-            {/* Step 3: AI 생성 설명 입력 */}
-            {wizardStep === 3 && (
-              <>
-                <h3 className="text-lg font-semibold text-zinc-900 dark:text-white mb-2">어떤 에이전트가 필요하세요?</h3>
-                <p className="text-sm text-zinc-500 mb-4">원하는 기능을 자유롭게 설명해주세요</p>
-                <textarea
-                  value={agentDescription}
-                  onChange={(e) => setAgentDescription(e.target.value)}
-                  placeholder="예: 고객 문의가 들어오면 감정을 분석하고, 부정적인 경우 담당자에게 알림을 보내고, 긍정적인 경우 자동으로 응답하는 에이전트"
-                  className="w-full px-4 py-3 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm text-zinc-900 dark:text-white placeholder-zinc-400 outline-none focus:ring-2 focus:ring-accent/50 resize-none h-32"
-                  autoFocus
-                  disabled={isGenerating}
-                />
-                {isGenerating && (
-                  <div className="flex items-center gap-2 mt-3 text-sm text-accent">
-                    <div className="w-4 h-4 border-2 border-accent border-t-transparent rounded-full animate-spin" />
-                    AI가 워크플로우를 생성하고 있습니다...
-                  </div>
-                )}
-              </>
-            )}
-
-            {/* 버튼 영역 */}
-            <div className="flex justify-between mt-6">
-              <button
-                onClick={() => {
-                  if (wizardStep === 1) {
-                    setShowCreateModal(false)
-                    setNewAgentName('')
-                    setAgentDescription('')
-                    setCreationType(null)
-                  } else {
-                    setWizardStep((prev) => (prev > 1 ? prev - 1 : prev) as 1 | 2 | 3)
-                  }
-                }}
-                className="px-4 py-2 text-sm text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg transition-colors"
-                disabled={isGenerating}
-              >
-                {wizardStep === 1 ? '취소' : '이전'}
-              </button>
-
-              {wizardStep === 1 && (
-                <button
-                  onClick={() => setWizardStep(2)}
-                  disabled={!newAgentName.trim()}
-                  className="px-4 py-2 text-sm bg-accent text-white rounded-lg hover:bg-accent/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-                >
-                  다음 <ArrowRight className="w-4 h-4" />
-                </button>
-              )}
-
-              {wizardStep === 3 && (
-                <button
-                  onClick={async () => {
-                    if (!agentDescription.trim()) return
-                    setIsGenerating(true)
-                    try {
-                      const response = await fetch('/api/agent/generate', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                          name: newAgentName.trim(),
-                          description: agentDescription.trim()
-                        }),
-                      })
-                      const data = await response.json()
-                      if (data.nodes && data.edges) {
-                        setAgentName(newAgentName.trim())
-                        setNodes(data.nodes)
-                        setEdges(data.edges)
-                        setTimeout(() => fitView({ padding: 0.2 }), 100)
-                      }
-                    } catch (error) {
-                      console.error('AI 생성 실패:', error)
-                    } finally {
-                      setIsGenerating(false)
-                      setShowCreateModal(false)
-                      setNewAgentName('')
-                      setAgentDescription('')
-                      setWizardStep(1)
-                      setCreationType(null)
-                    }
-                  }}
-                  disabled={!agentDescription.trim() || isGenerating}
-                  className="px-4 py-2 text-sm bg-accent text-white rounded-lg hover:bg-accent/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-                >
-                  <Sparkles className="w-4 h-4" />
-                  {isGenerating ? '생성 중...' : 'AI로 생성'}
-                </button>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* 에이전트 배포 모달 */}
       {showDeployModal && (

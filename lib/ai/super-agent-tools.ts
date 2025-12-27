@@ -44,6 +44,15 @@ export type SuperAgentToolName =
   | 'blueprint_update_task'
   | 'blueprint_delete_task'
   | 'blueprint_get_tasks'
+  // 🔥 Agent Builder 워크플로우 제어 도구
+  | 'agent_create_node'
+  | 'agent_connect_nodes'
+  | 'agent_delete_node'
+  | 'agent_update_node'
+  | 'agent_generate_workflow'
+  | 'agent_get_workflow'
+  | 'agent_deploy'
+  | 'agent_clear'
 
 export interface ToolAction {
   type:
@@ -59,6 +68,9 @@ export interface ToolAction {
     | 'flowchart_create_edge' | 'flowchart_delete_edge' | 'flowchart_get_graph'
     // 🔥 Blueprint 액션 타입
     | 'blueprint_create_task' | 'blueprint_update_task' | 'blueprint_delete_task' | 'blueprint_get_tasks'
+    // 🔥 Agent Builder 액션 타입
+    | 'agent_create_node' | 'agent_connect_nodes' | 'agent_delete_node' | 'agent_update_node'
+    | 'agent_generate_workflow' | 'agent_get_workflow' | 'agent_deploy' | 'agent_clear'
   data: Record<string, unknown>
   requiresElectron?: boolean
 }
@@ -947,6 +959,228 @@ export const blueprintGetTasksTool = new DynamicStructuredTool({
 })
 
 // ============================================
+// 🔥 Agent Builder 워크플로우 제어 도구
+// ============================================
+
+// 30. Agent Builder 노드 생성
+export const agentBuilderCreateNodeTool = new DynamicStructuredTool({
+  name: 'agent_create_node',
+  description: `Agent Builder 캔버스에 새 워크플로우 노드를 생성합니다.
+AI 에이전트 워크플로우의 각 단계를 노드로 표현합니다.
+
+노드 타입:
+- start: 워크플로우 시작점
+- end: 워크플로우 종료점
+- llm: LLM 텍스트 생성 (GPT, Claude 등)
+- prompt: 프롬프트 템플릿
+- router: 조건 분기 (if/else)
+- memory: 대화 메모리 저장/조회
+- tool: 외부 도구 호출
+- rag: RAG 검색
+- javascript: 커스텀 JS 코드 실행
+- function: 함수 호출
+- input: 사용자 입력
+- output: 결과 출력
+- image_generation: 이미지 생성`,
+  schema: z.object({
+    type: z.enum(['start', 'end', 'llm', 'prompt', 'router', 'memory', 'tool', 'rag', 'javascript', 'function', 'input', 'output', 'image_generation', 'embedding', 'evaluator', 'chain']).describe('노드 타입'),
+    label: z.string().describe('노드 라벨 (표시 이름)'),
+    config: z.record(z.string(), z.unknown()).describe('노드 설정 (model, temperature, prompt 등)').optional(),
+    position: z.object({
+      x: z.number(),
+      y: z.number(),
+    }).describe('노드 위치').optional(),
+  }),
+  func: async (params) => {
+    const pos = params.position || { x: Math.random() * 400 + 100, y: Math.random() * 300 + 100 }
+    return JSON.stringify({
+      success: true,
+      message: `Agent Builder 노드 "${params.label}" (${params.type}) 생성을 준비했습니다.`,
+      action: {
+        type: 'agent_create_node',
+        data: {
+          nodeType: params.type,
+          label: params.label,
+          config: params.config || {},
+          position: pos,
+        },
+      }
+    })
+  },
+})
+
+// 31. Agent Builder 노드 연결
+export const agentBuilderConnectNodesTool = new DynamicStructuredTool({
+  name: 'agent_connect_nodes',
+  description: `Agent Builder에서 두 노드를 연결합니다.
+워크플로우의 실행 흐름을 정의합니다.`,
+  schema: z.object({
+    sourceNodeId: z.string().describe('시작 노드 ID'),
+    targetNodeId: z.string().describe('대상 노드 ID'),
+    sourceHandle: z.string().optional().describe('소스 핸들 (조건 분기 시)'),
+    label: z.string().optional().describe('연결 라벨'),
+  }),
+  func: async (params) => {
+    return JSON.stringify({
+      success: true,
+      message: `노드 연결: ${params.sourceNodeId} → ${params.targetNodeId}`,
+      action: {
+        type: 'agent_connect_nodes',
+        data: params,
+      }
+    })
+  },
+})
+
+// 32. Agent Builder 노드 삭제
+export const agentBuilderDeleteNodeTool = new DynamicStructuredTool({
+  name: 'agent_delete_node',
+  description: 'Agent Builder에서 노드를 삭제합니다.',
+  schema: z.object({
+    nodeId: z.string().describe('삭제할 노드 ID'),
+  }),
+  func: async (params) => {
+    return JSON.stringify({
+      success: true,
+      message: `Agent Builder 노드 "${params.nodeId}" 삭제를 준비했습니다.`,
+      action: {
+        type: 'agent_delete_node',
+        data: params,
+      }
+    })
+  },
+})
+
+// 33. Agent Builder 노드 수정
+export const agentBuilderUpdateNodeTool = new DynamicStructuredTool({
+  name: 'agent_update_node',
+  description: 'Agent Builder 노드의 설정을 수정합니다.',
+  schema: z.object({
+    nodeId: z.string().describe('수정할 노드 ID'),
+    label: z.string().describe('새 라벨').optional(),
+    config: z.record(z.string(), z.unknown()).describe('새 설정').optional(),
+  }),
+  func: async (params) => {
+    return JSON.stringify({
+      success: true,
+      message: `Agent Builder 노드 "${params.nodeId}" 수정을 준비했습니다.`,
+      action: {
+        type: 'agent_update_node',
+        data: params,
+      }
+    })
+  },
+})
+
+// 34. Agent 워크플로우 생성 (AI가 자동으로 전체 워크플로우 생성)
+export const agentBuilderGenerateWorkflowTool = new DynamicStructuredTool({
+  name: 'agent_generate_workflow',
+  description: `사용자의 요구사항을 바탕으로 전체 Agent 워크플로우를 자동 생성합니다.
+"고객 문의 분석 에이전트 만들어줘" 같은 요청에 사용합니다.
+
+이 도구는 노드들과 연결을 한번에 생성합니다.`,
+  schema: z.object({
+    name: z.string().describe('에이전트 이름'),
+    description: z.string().describe('에이전트 기능 설명'),
+    nodes: z.array(z.object({
+      id: z.string(),
+      type: z.string(),
+      label: z.string(),
+      config: z.record(z.string(), z.unknown()).optional(),
+      position: z.object({ x: z.number(), y: z.number() }),
+    })).describe('생성할 노드 목록'),
+    edges: z.array(z.object({
+      source: z.string(),
+      target: z.string(),
+      sourceHandle: z.string().optional(),
+      label: z.string().optional(),
+    })).describe('노드 연결 목록'),
+  }),
+  func: async (params) => {
+    return JSON.stringify({
+      success: true,
+      message: `Agent 워크플로우 "${params.name}" 생성을 준비했습니다. (노드 ${params.nodes.length}개, 연결 ${params.edges.length}개)`,
+      action: {
+        type: 'agent_generate_workflow',
+        data: {
+          name: params.name,
+          description: params.description,
+          nodes: params.nodes,
+          edges: params.edges,
+        },
+      }
+    })
+  },
+})
+
+// 35. Agent 워크플로우 조회
+export const agentBuilderGetWorkflowTool = new DynamicStructuredTool({
+  name: 'agent_get_workflow',
+  description: '현재 Agent Builder 캔버스의 워크플로우 상태를 조회합니다.',
+  schema: z.object({
+    includeConfig: z.boolean().optional().describe('노드 설정 포함 여부'),
+  }),
+  func: async (params) => {
+    return JSON.stringify({
+      success: true,
+      message: 'Agent 워크플로우를 조회합니다.',
+      action: {
+        type: 'agent_get_workflow',
+        data: params,
+      }
+    })
+  },
+})
+
+// 36. Agent 배포
+export const agentBuilderDeployTool = new DynamicStructuredTool({
+  name: 'agent_deploy',
+  description: `현재 Agent Builder의 워크플로우를 배포합니다.
+배포하면 에이전트가 실제로 사용 가능해집니다.`,
+  schema: z.object({
+    name: z.string().describe('에이전트 이름'),
+    description: z.string().optional().describe('에이전트 설명'),
+    llmProvider: z.enum(['openai', 'anthropic', 'google', 'xai']).optional().describe('LLM 제공자'),
+    llmModel: z.string().optional().describe('LLM 모델'),
+  }),
+  func: async (params) => {
+    return JSON.stringify({
+      success: true,
+      message: `Agent "${params.name}" 배포를 준비했습니다.`,
+      action: {
+        type: 'agent_deploy',
+        data: params,
+      }
+    })
+  },
+})
+
+// 37. Agent Builder 초기화 (새 캔버스)
+export const agentBuilderClearTool = new DynamicStructuredTool({
+  name: 'agent_clear',
+  description: 'Agent Builder 캔버스를 초기화합니다. 모든 노드와 연결이 삭제됩니다.',
+  schema: z.object({
+    confirm: z.boolean().describe('초기화 확인 (true로 설정해야 실행됨)'),
+  }),
+  func: async (params) => {
+    if (!params.confirm) {
+      return JSON.stringify({
+        success: false,
+        error: '초기화하려면 confirm: true를 설정해주세요.',
+      })
+    }
+    return JSON.stringify({
+      success: true,
+      message: 'Agent Builder 캔버스를 초기화합니다.',
+      action: {
+        type: 'agent_clear',
+        data: {},
+      }
+    })
+  },
+})
+
+// ============================================
 // 모든 도구 내보내기
 // ============================================
 export const SUPER_AGENT_TOOLS = {
@@ -984,6 +1218,15 @@ export const SUPER_AGENT_TOOLS = {
   blueprint_update_task: blueprintUpdateTaskTool,
   blueprint_delete_task: blueprintDeleteTaskTool,
   blueprint_get_tasks: blueprintGetTasksTool,
+  // 🔥 Agent Builder 워크플로우 제어 도구
+  agent_create_node: agentBuilderCreateNodeTool,
+  agent_connect_nodes: agentBuilderConnectNodesTool,
+  agent_delete_node: agentBuilderDeleteNodeTool,
+  agent_update_node: agentBuilderUpdateNodeTool,
+  agent_generate_workflow: agentBuilderGenerateWorkflowTool,
+  agent_get_workflow: agentBuilderGetWorkflowTool,
+  agent_deploy: agentBuilderDeployTool,
+  agent_clear: agentBuilderClearTool,
 }
 
 export function getSuperAgentTools(enabledTools?: SuperAgentToolName[]): DynamicStructuredTool[] {
