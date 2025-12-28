@@ -111,6 +111,7 @@ function AgentBuilderInner({ agentId }: AgentBuilderInnerProps) {
   // 🆕 Neural Map 프로젝트 연결
   const linkedProjectId = useNeuralMapStore((state) => state.linkedProjectId)
   const projectPath = useNeuralMapStore((state) => state.projectPath)  // 🆕 프로젝트 경로
+  const activeTerminalId = useNeuralMapStore((state) => state.activeTerminalId) // 터미널 ID
   const [selectedNode, setSelectedNode] = useState<Node<AgentNodeData> | null>(null)
   const [validationResult, setValidationResult] = useState<{
     valid: boolean
@@ -141,9 +142,9 @@ function AgentBuilderInner({ agentId }: AgentBuilderInnerProps) {
   const [editingAgentId, setEditingAgentId] = useState<string | null>(null)
   const [isLoadingAgent, setIsLoadingAgent] = useState(false)
   const terminalRef = useRef<TerminalPanelRef>(null)
-  // showTerminal의 최신 값을 참조하기 위한 ref (useCallback 내에서 사용)
-  const showTerminalRef = useRef(showTerminal)
-  showTerminalRef.current = showTerminal
+  // 최신 값을 참조하기 위한 refs (useCallback 내에서 사용)
+  const activeTerminalIdRef = useRef(activeTerminalId)
+  activeTerminalIdRef.current = activeTerminalId
   // 🆕 현재 편집 중인 에이전트 폴더 정보 (파일 생성용)
   const [currentAgentFolder, setCurrentAgentFolder] = useState<string | null>(null)
   const [currentProjectPath, setCurrentProjectPath] = useState<string | null>(null)
@@ -331,15 +332,16 @@ function AgentBuilderInner({ agentId }: AgentBuilderInnerProps) {
       setCurrentAgentFolder(folderName)
       setCurrentProjectPath(projectPathParam || null)
 
-      // 🆕 에이전트 로드 시 무조건 터미널에 cd 명령 전송 (터미널 상태 무관)
+      // 🆕 에이전트 로드 시 무조건 터미널에 cd 명령 전송
       if (projectPathParam) {
         const agentPath = `${projectPathParam}/agents/${folderName}`
         const electronApi = (window as any).electron?.terminal
         if (electronApi) {
           // 1.5초 후 cd 명령 전송 (터미널 초기화 대기)
           setTimeout(() => {
-            electronApi.write('1', `cd "${agentPath}" && clear\n`)
-            console.log('[AgentBuilder] Agent loaded, sent cd:', agentPath)
+            const terminalId = activeTerminalIdRef.current || '1'
+            electronApi.write(terminalId, `cd "${agentPath}" && clear\n`)
+            console.log('[AgentBuilder] Agent loaded, sent cd to terminal', terminalId, ':', agentPath)
           }, 1500)
         }
       }
@@ -1147,8 +1149,9 @@ function AgentBuilderInner({ agentId }: AgentBuilderInnerProps) {
                 const electronApi = (window as any).electron?.terminal
                 if (electronApi) {
                   setTimeout(() => {
-                    electronApi.write('1', `cd "${agentPath}" && clear\n`)
-                    console.log('[AgentBuilder] Terminal opened, sent cd command:', agentPath)
+                    const terminalId = activeTerminalId || '1'
+                    electronApi.write(terminalId, `cd "${agentPath}" && clear\n`)
+                    console.log('[AgentBuilder] Terminal opened, sent cd to', terminalId, ':', agentPath)
                   }, 1000)
                 }
               }
