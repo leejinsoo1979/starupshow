@@ -278,6 +278,7 @@ function AgentBuilderInner({ agentId }: AgentBuilderInnerProps) {
 
   // 에이전트 폴더 로드 핸들러 (BroadcastChannel useEffect보다 먼저 정의)
   const handleLoadAgent = useCallback(async (folderName: string, projectPathParam?: string, selectFile?: string) => {
+    console.log('[AgentBuilder] handleLoadAgent called:', { folderName, projectPathParam, selectFile })
     setIsLoadingAgent(true)
     try {
       // projectPath가 있으면 API에 전달
