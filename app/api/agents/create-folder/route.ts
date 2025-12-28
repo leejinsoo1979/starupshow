@@ -5,7 +5,7 @@ import path from 'path'
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { name, folderName } = body
+    const { name, folderName, projectPath } = body
 
     if (!name || !folderName) {
       return NextResponse.json(
@@ -14,9 +14,12 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // agents 폴더 경로
-    const agentsDir = path.join(process.cwd(), 'agents')
+    // agents 폴더 경로 (프로젝트 경로가 있으면 해당 프로젝트 내에 생성)
+    const baseDir = projectPath || process.cwd()
+    const agentsDir = path.join(baseDir, 'agents')
     const agentDir = path.join(agentsDir, folderName)
+
+    console.log('[API] Creating agent folder:', { baseDir, agentsDir, agentDir })
 
     // agents 폴더가 없으면 생성
     try {

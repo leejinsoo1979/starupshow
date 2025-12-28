@@ -713,6 +713,78 @@ export default function NeuralMapPage() {
     }
   }, [mounted, projectPath, mapId, setFiles, buildGraphFromFilesAsync])
 
+  // 🆕 BroadcastChannel로 파일 리스캔 요청 수신 (에이전트 생성 등)
+  useEffect(() => {
+    if (!mounted) return
+    if (!projectPath) return
+
+    const electron = typeof window !== 'undefined' ? (window as any).electron : null
+    if (!electron?.fs?.scanTree) return
+
+    const channel = new BroadcastChannel('neural-map-rescan')
+
+    channel.onmessage = async (event) => {
+      if (event.data?.type === 'RESCAN_FILES') {
+        console.log('[NeuralMap] 📡 Received rescan request via BroadcastChannel')
+
+        try {
+          const scanResult = await electron.fs.scanTree(projectPath, {
+            includeSystemFiles: false,
+            includeContent: true,
+            contentExtensions: ['.ts', '.tsx', '.js', '.jsx', '.json', '.md', '.css', '.html', '.py']
+          })
+
+          if (scanResult?.tree) {
+            const neuralFiles: any[] = []
+            const timestamp = Date.now()
+
+            const getFileType = (ext: string) => {
+              const imageExts = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'ico']
+              const mdExts = ['md', 'markdown', 'mdx']
+              const codeExts = ['ts', 'tsx', 'js', 'jsx', 'json', 'css', 'html', 'py']
+              if (imageExts.includes(ext)) return 'image'
+              if (mdExts.includes(ext)) return 'markdown'
+              if (codeExts.includes(ext)) return 'code'
+              return 'text'
+            }
+
+            const flattenTree = (node: any) => {
+              if (node.kind === 'file') {
+                const ext = node.name.split('.').pop()?.toLowerCase() || ''
+                neuralFiles.push({
+                  id: `local-${timestamp}-${neuralFiles.length}`,
+                  name: node.name,
+                  path: node.relativePath,
+                  type: getFileType(ext),
+                  content: node.content || '',
+                  size: node.size || 0,
+                  createdAt: new Date().toISOString(),
+                  mapId: mapId || '',
+                  url: '',
+                })
+              }
+              if (node.children) {
+                for (const child of node.children) {
+                  flattenTree(child)
+                }
+              }
+            }
+
+            flattenTree(scanResult.tree)
+            console.log(`[NeuralMap] ✅ Rescanned ${neuralFiles.length} files via BroadcastChannel`)
+
+            setFiles(neuralFiles)
+            await buildGraphFromFilesAsync()
+          }
+        } catch (error) {
+          console.error('[NeuralMap] ❌ Rescan failed:', error)
+        }
+      }
+    }
+
+    return () => channel.close()
+  }, [mounted, projectPath, mapId, setFiles, buildGraphFromFilesAsync])
+
   // Sync Global Theme to Neural Map
   useEffect(() => {
     if (!mounted) return

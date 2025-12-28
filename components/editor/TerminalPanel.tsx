@@ -64,6 +64,7 @@ interface TerminalPanelProps {
   height?: number
   onHeightChange?: (height: number) => void
   className?: string
+  cwd?: string // 작업 디렉토리 오버라이드 (없으면 projectPath 사용)
 }
 
 export interface TerminalPanelRef {
@@ -78,6 +79,7 @@ export const TerminalPanel = forwardRef<TerminalPanelRef, TerminalPanelProps>(({
   height = 250,
   onHeightChange,
   className = '',
+  cwd,
 }, ref) => {
   // 기본 셸 이름 (macOS: zsh, Linux: bash, Windows: powershell)
   const getDefaultShell = () => {
@@ -755,11 +757,17 @@ export const TerminalPanel = forwardRef<TerminalPanelRef, TerminalPanelProps>(({
                     <div className="absolute left-1/2 top-0 bottom-0 w-[2px] -translate-x-1/2 bg-zinc-300 dark:bg-[#333] group-hover:bg-accent" />
                   </div>
                 )}
-                <XTermComponent
-                  onExecute={onExecute}
-                  tabId={terminal.id}
-                  projectPath={projectPath || undefined}
-                />
+                {(() => {
+                  const effectivePath = cwd || projectPath || undefined
+                  console.log('[TerminalPanel] XTermComponent projectPath:', effectivePath, { cwd, projectPath })
+                  return (
+                    <XTermComponent
+                      onExecute={onExecute}
+                      tabId={terminal.id}
+                      projectPath={effectivePath}
+                    />
+                  )
+                })()}
               </div>
             )
           })}

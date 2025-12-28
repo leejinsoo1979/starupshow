@@ -335,6 +335,7 @@ export function FileTreePanel({ mapId }: FileTreePanelProps) {
   const linkedProjectId = useNeuralMapStore((s) => s.linkedProjectId)
   const setLinkedProject = useNeuralMapStore((s) => s.setLinkedProject)
   const clearLinkedProject = useNeuralMapStore((s) => s.clearLinkedProject)
+  const setRightPanelTab = useNeuralMapStore((s) => s.setRightPanelTab)  // Agent Builder 탭 전환용
 
   // 🆕 linkedProjectId가 변경되면 에이전트 목록 새로고침
   useEffect(() => {
@@ -347,6 +348,53 @@ export function FileTreePanel({ mapId }: FileTreePanelProps) {
     }
     return () => channel.close()
   }, [linkedProjectId, fetchAgentFolders])
+
+  // 🔄 Agent Builder 노드 클릭 시 파일 동기화 (역방향)
+  useEffect(() => {
+    const syncChannel = new BroadcastChannel('agent-file-sync')
+    syncChannel.onmessage = (event) => {
+      if (event.data?.type === 'SELECT_FILE') {
+        const { fileName } = event.data.payload
+        console.log('[FileTree] Sync request from AgentBuilder:', fileName)
+
+        // 파일 트리에서 해당 파일 찾기
+        const findFileByName = (items: NeuralFile[], targetName: string): NeuralFile | null => {
+          for (const item of items) {
+            if (item.name === targetName) return item
+            if (item.children) {
+              const found = findFileByName(item.children, targetName)
+              if (found) return found
+            }
+          }
+          return null
+        }
+
+        const foundFile = findFileByName(files, fileName)
+        if (foundFile) {
+          console.log('[FileTree] Found file, selecting:', foundFile.id)
+          setSelectedFileId(foundFile.id)
+
+          // agents 폴더 확장
+          if (foundFile.path?.includes('agents/')) {
+            const pathParts = foundFile.path.split('/')
+            const agentsIndex = pathParts.indexOf('agents')
+            if (agentsIndex !== -1) {
+              // agents 폴더와 에이전트 서브폴더 확장
+              setExpandedFolders(prev => {
+                const next = new Set(prev)
+                next.add('agents')
+                if (pathParts[agentsIndex + 1]) {
+                  next.add(`agents/${pathParts[agentsIndex + 1]}`)
+                }
+                return next
+              })
+            }
+          }
+        }
+      }
+    }
+    return () => syncChannel.close()
+  }, [files])
 
   // API
   const { uploadFile, deleteFile, createNode, createEdge, analyzeFile, removeNode } = useNeuralMapApi(mapId)
@@ -397,6 +445,8 @@ export function FileTreePanel({ mapId }: FileTreePanelProps) {
     { id: '44444444-4444-4444-4444-444444444444', name: '업무', description: '태스크 관리', icon: 'Briefcase', color: '#f59e0b', sort_order: 3 },
   ])
   const [selectedCategoryId, setSelectedCategoryId] = useState<string>('11111111-1111-1111-1111-111111111111')
+  const [isCustomCategory, setIsCustomCategory] = useState(false)
+  const [customCategoryName, setCustomCategoryName] = useState('')
 
   // 카테고리 아이콘 매핑
   const categoryIconMap: Record<string, React.ElementType> = {
@@ -733,16 +783,39 @@ export function FileTreePanel({ mapId }: FileTreePanelProps) {
         }
       }
 
-      // 3. Supabase에 프로젝트 메타데이터 저장
+      // 3. 커스텀 카테고리 생성 (필요시)
+      let finalCategoryId = selectedCategoryId
+      if (isCustomCategory && customCategoryName.trim()) {
+        try {
+          const categoryRes = await fetch('/api/project-categories', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              name: customCategoryName.trim(),
+              icon: 'Folder',
+              color: currentAccent.color,
+            }),
+          })
+          if (categoryRes.ok) {
+            const newCategory = await categoryRes.json()
+            finalCategoryId = newCategory.id
+            console.log('[FileTree] Custom category created:', newCategory)
+          }
+        } catch (catErr) {
+          console.warn('[FileTree] Custom category creation failed:', catErr)
+        }
+      }
+
+      // 4. Supabase에 프로젝트 메타데이터 저장
       // 선택된 카테고리로 project_type 결정
-      const selectedCategory = categories.find(c => c.id === selectedCategoryId)
+      const selectedCategory = categories.find(c => c.id === finalCategoryId)
       const projectTypeMap: Record<string, string> = {
         '11111111-1111-1111-1111-111111111111': 'code',
         '22222222-2222-2222-2222-222222222222': 'document',
         '33333333-3333-3333-3333-333333333333': 'design',
         '44444444-4444-4444-4444-444444444444': 'work',
       }
-      const projectType = projectTypeMap[selectedCategoryId] || 'code'
+      const projectType = projectTypeMap[finalCategoryId] || 'code'
 
       const response = await fetch('/api/projects', {
         method: 'POST',
@@ -753,7 +826,7 @@ export function FileTreePanel({ mapId }: FileTreePanelProps) {
           status: 'active',
           folder_path: folderPath || null,
           project_type: projectType,
-          category_id: selectedCategoryId,
+          category_id: finalCategoryId,
           github_owner: githubData?.owner || null,
           github_repo: githubData?.repo || null,
           github_clone_url: githubData?.clone_url || null,
@@ -824,11 +897,13 @@ export function FileTreePanel({ mapId }: FileTreePanelProps) {
         setLinkedProject(newProject.id, trimmedName)
       }
 
-      // 6. 모달 닫기
+      // 7. 모달 닫기
       setIsCreatingProject(false)
       setNewProjectName('')
       setCreateGitHubRepo(false)
       setSelectedCategoryId('11111111-1111-1111-1111-111111111111')
+      setIsCustomCategory(false)
+      setCustomCategoryName('')
 
       console.log('[FileTree] Project linked to Neural Map:', {
         id: newProject.id,
@@ -842,7 +917,7 @@ export function FileTreePanel({ mapId }: FileTreePanelProps) {
     } finally {
       setIsCreatingProjectLoading(false)
     }
-  }, [newProjectName, setProjectPath, setLinkedProject, createGitHubRepo, isGitHubConnected, categories, selectedCategoryId])
+  }, [newProjectName, setProjectPath, setLinkedProject, createGitHubRepo, isGitHubConnected, categories, selectedCategoryId, isCustomCategory, customCategoryName, currentAccent])
 
   // 컨텍스트 메뉴 열기
   const handleContextMenu = useCallback((
@@ -884,7 +959,11 @@ export function FileTreePanel({ mapId }: FileTreePanelProps) {
   // Reveal in Finder (macOS) / Show in Explorer (Windows)
   const handleRevealInFinder = useCallback(async () => {
     closeContextMenu()
-    if (!projectPath) return
+    console.log('[FileTree] handleRevealInFinder called, projectPath:', projectPath)
+    if (!projectPath) {
+      console.warn('[FileTree] projectPath is empty!')
+      return
+    }
 
     let targetPath = projectPath
     if (contextMenu.targetFile?.path) {
@@ -1021,7 +1100,11 @@ export function FileTreePanel({ mapId }: FileTreePanelProps) {
   // Copy Path (절대 경로)
   const handleCopyPath = useCallback(async () => {
     closeContextMenu()
-    if (!projectPath) return
+    console.log('[FileTree] handleCopyPath called, projectPath:', projectPath)
+    if (!projectPath) {
+      console.warn('[FileTree] projectPath is empty!')
+      return
+    }
 
     let targetPath = projectPath
     if (contextMenu.targetFile?.path) {
@@ -1127,7 +1210,11 @@ export function FileTreePanel({ mapId }: FileTreePanelProps) {
   // Delete
   const handleDelete = useCallback(async () => {
     closeContextMenu()
-    if (!projectPath) return
+    console.log('[FileTree] handleDelete called, projectPath:', projectPath)
+    if (!projectPath) {
+      console.warn('[FileTree] projectPath is empty!')
+      return
+    }
 
     let targetPath = ''
     let targetName = ''
@@ -1296,15 +1383,27 @@ export function FileTreePanel({ mapId }: FileTreePanelProps) {
       toggleNodeExpansion(nodeId)
     }
 
-    // 로컬 UI 상태도 업데이트 (노드가 없는 폴더를 위해)
-    // (Note: We previously used setExpandedFolders. Now we need a hybrid approach if we want to support non-node folders,
-    // but for "Sync", leveraging the store is key. 
-    // Let's use a local set ONLY for folders that don't have nodes, OR just force sync.)
-    // For now, let's assume we maintain a local set for UI responsiveness, 
-    // BUT we prioritize the store if a node exists.
+    // 🆕 agents/ 하위 폴더 클릭 시 에이전트 로드
+    if (folderPath.startsWith('agents/')) {
+      const pathParts = folderPath.split('/')
+      if (pathParts.length >= 2 && pathParts[0] === 'agents' && pathParts[1]) {
+        const folderName = pathParts[1]
+        console.log('[FileTree] Agent folder clicked, loading agent:', folderName)
 
-    // Actually, to avoid complexity, let's keep `expandedFolders` for UI rendering,
-    // and SYNC it with store.
+        // Agent Builder로 로드 메시지 전송
+        const channel = new BroadcastChannel('agent-builder')
+        channel.postMessage({
+          type: 'LOAD_AGENT',
+          payload: { folderName, projectPath }
+        })
+        channel.close()
+
+        // Agent Builder 탭으로 전환
+        setRightPanelTab('agent-builder')
+      }
+    }
+
+    // 로컬 UI 상태도 업데이트 (노드가 없는 폴더를 위해)
     setExpandedFolders(prev => {
       const next = new Set(prev)
       if (next.has(folderPath)) {
@@ -1375,6 +1474,31 @@ export function FileTreePanel({ mapId }: FileTreePanelProps) {
 
     const ext = file.name.split('.').pop()?.toLowerCase()
     const isMdFile = ext === 'md' || ext === 'markdown' || ext === 'mdx'
+
+    // 🆕 에이전트 폴더 내 파일 클릭 시 Agent Builder로 로드 + 노드 선택
+    // agents/폴더명/* 형태의 모든 파일에 대해 동작
+    if (file.path?.includes('agents/')) {
+      const pathParts = file.path.split('/')
+      const agentsIndex = pathParts.indexOf('agents')
+      // agents 다음에 폴더명이 있어야 함 (agents/폴더명/... 구조)
+      if (agentsIndex !== -1 && pathParts[agentsIndex + 1]) {
+        const folderName = pathParts[agentsIndex + 1]
+        const clickedFileName = file.name // 클릭한 파일명 (start.ts, end.ts 등)
+        console.log('[FileTree] Agent folder file clicked:', clickedFileName, 'folder:', folderName, 'projectPath:', projectPath)
+
+        // Agent Builder로 로드 메시지 전송 (파일명 포함하여 해당 노드 선택)
+        const channel = new BroadcastChannel('agent-builder')
+        channel.postMessage({
+          type: 'LOAD_AGENT',
+          payload: { folderName, projectPath, selectFile: clickedFileName }
+        })
+        channel.close()
+
+        // Agent Builder 탭으로 전환
+        setRightPanelTab('agent-builder')
+        return
+      }
+    }
 
     // 중복 열림 방지
     if (isMdFile) {
@@ -2926,11 +3050,14 @@ export function FileTreePanel({ mapId }: FileTreePanelProps) {
                 <div className="grid grid-cols-2 gap-2">
                   {categories.map((cat) => {
                     const IconComponent = categoryIconMap[cat.icon] || Folder
-                    const isSelected = selectedCategoryId === cat.id
+                    const isSelected = !isCustomCategory && selectedCategoryId === cat.id
                     return (
                       <button
                         key={cat.id}
-                        onClick={() => setSelectedCategoryId(cat.id)}
+                        onClick={() => {
+                          setSelectedCategoryId(cat.id)
+                          setIsCustomCategory(false)
+                        }}
                         className={cn(
                           'flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-all border-2',
                           isSelected
@@ -2950,7 +3077,46 @@ export function FileTreePanel({ mapId }: FileTreePanelProps) {
                       </button>
                     )
                   })}
+                  {/* 직접 입력 버튼 */}
+                  <button
+                    onClick={() => setIsCustomCategory(true)}
+                    className={cn(
+                      'flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-all border-2 col-span-2',
+                      isCustomCategory
+                        ? 'border-current'
+                        : isDark
+                          ? 'border-transparent bg-[#2d2d2d] hover:bg-[#3d3d3d] text-zinc-300'
+                          : 'border-transparent bg-zinc-100 hover:bg-zinc-200 text-zinc-700'
+                    )}
+                    style={{
+                      borderColor: isCustomCategory ? currentAccent.color : 'transparent',
+                      color: isCustomCategory ? currentAccent.color : undefined,
+                      backgroundColor: isCustomCategory ? `${currentAccent.color}15` : undefined,
+                    }}
+                  >
+                    <Plus className="w-4 h-4" />
+                    직접 입력
+                  </button>
                 </div>
+                {/* 직접 입력 필드 */}
+                {isCustomCategory && (
+                  <input
+                    type="text"
+                    value={customCategoryName}
+                    onChange={(e) => setCustomCategoryName(e.target.value)}
+                    placeholder="카테고리 이름 입력"
+                    className={cn(
+                      'w-full mt-2 px-3 py-2 rounded-lg text-sm outline-none transition-colors border-2',
+                      isDark
+                        ? 'bg-[#2d2d2d] border-[#3c3c3c] text-white placeholder:text-zinc-500'
+                        : 'bg-zinc-50 border-zinc-200 text-zinc-900 placeholder:text-zinc-400'
+                    )}
+                    style={{
+                      borderColor: customCategoryName.trim() ? currentAccent.color : undefined
+                    }}
+                    autoFocus
+                  />
+                )}
               </div>
 
               {/* GitHub 연동은 Git 탭에서 나중에 가능 */}

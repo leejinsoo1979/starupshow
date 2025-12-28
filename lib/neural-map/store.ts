@@ -386,7 +386,7 @@ export const useNeuralMapStore = create<NeuralMapState & NeuralMapActions>()(
             // viewState에서 expandedNodeIds 복원, 없으면 빈 Set
             const initialExpanded = new Set<string>(graph.viewState?.expandedNodeIds || [])
             // 루트(self) 노드는 항상 펼침 상태로 시작
-            const selfNode = graph.nodes.find(n => n.type === 'self')
+            const selfNode = graph.nodes.find(n => n.type === 'project')
             if (selfNode) {
               initialExpanded.add(selfNode.id)
             }
@@ -946,7 +946,7 @@ export const useNeuralMapStore = create<NeuralMapState & NeuralMapActions>()(
             if (!currentFiles || currentFiles.length === 0) {
               const rootNode: NeuralNode = {
                 id: 'node-root',
-                type: 'self',
+                type: 'project',
                 title: projectName,
                 summary: '빈 프로젝트',
                 tags: ['project'],
@@ -1022,7 +1022,7 @@ export const useNeuralMapStore = create<NeuralMapState & NeuralMapActions>()(
 
             const rootNode: NeuralNode = {
               id: 'node-root',
-              type: 'self',
+              type: 'project',
               title: projectName,
               summary: `${currentFiles.length}개 파일`,
               tags: ['project'],
@@ -1187,7 +1187,7 @@ export const useNeuralMapStore = create<NeuralMapState & NeuralMapActions>()(
             }
             // 모든 폴더 노드를 기본적으로 펼침 (방사형 그래프에서 모든 노드 표시)
             const allFolderIds = nodes
-              .filter((n) => n.type === 'folder' || n.type === 'self')
+              .filter((n) => n.type === 'folder' || n.type === 'project')
               .map((n) => n.id)
             state.expandedNodeIds = new Set([
               rootNode.id,
@@ -1250,7 +1250,7 @@ export const useNeuralMapStore = create<NeuralMapState & NeuralMapActions>()(
             const existingRootNode = existingDbNodes.find((n: NeuralNode) => n.type === 'project' || n.type === 'self')
             const rootNode: NeuralNode = existingRootNode || {
               id: 'node-root',
-              type: 'self',
+              type: 'project',
               title: projectName,
               summary: '빈 프로젝트',
               tags: ['project'],
@@ -1310,7 +1310,7 @@ export const useNeuralMapStore = create<NeuralMapState & NeuralMapActions>()(
 
             // 📁 폴더 노드 상세 로그
             const folderNodes = result.graph.nodes.filter((n) => n.type === 'folder')
-            const rootNode = result.graph.nodes.find((n) => n.type === 'self')
+            const rootNode = result.graph.nodes.find((n) => n.type === 'project')
             console.log('[buildGraphFromFilesAsync] 📁 Folder nodes created:', folderNodes.map((n) => ({
               id: n.id,
               title: n.title,
@@ -1322,7 +1322,16 @@ export const useNeuralMapStore = create<NeuralMapState & NeuralMapActions>()(
               // 🆕 파일 기반 노드와 DB 노드를 병합
               // DB 노드는 이미 existingDbNodes에 보존됨
               const fileNodeIds = new Set(result.graph.nodes.map((n) => n.id))
-              const dbNodesToAdd = existingDbNodes.filter((n: NeuralNode) => !fileNodeIds.has(n.id))
+
+              // 🔥 중복 루트 노드 방지: DB에서 project/self 타입 노드는 제외
+              // (워커가 이미 "node-root"로 루트 노드를 생성하므로 중복됨)
+              const dbNodesToAdd = existingDbNodes.filter((n: NeuralNode) => {
+                // ID가 이미 있으면 제외
+                if (fileNodeIds.has(n.id)) return false
+                // project/self 타입은 루트 노드이므로 제외 (워커가 이미 생성)
+                if (n.type === 'project' || n.type === 'self') return false
+                return true
+              })
               const mergedNodes = [...result.graph.nodes, ...dbNodesToAdd]
 
               // 엣지도 병합
@@ -1557,7 +1566,7 @@ export const selectHoveredNode = (state: NeuralMapState) => {
 
 export const selectSelfNode = (state: NeuralMapState) => {
   if (!state.graph) return null
-  return state.graph.nodes.find((n) => n.type === 'self') ?? null
+  return state.graph.nodes.find((n) => n.type === 'project') ?? null
 }
 
 export const selectNodeById = (id: string) => (state: NeuralMapState) => {

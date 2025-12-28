@@ -141,6 +141,9 @@ function AgentBuilderInner({ agentId }: AgentBuilderInnerProps) {
   const [editingAgentId, setEditingAgentId] = useState<string | null>(null)
   const [isLoadingAgent, setIsLoadingAgent] = useState(false)
   const terminalRef = useRef<TerminalPanelRef>(null)
+  // 🆕 현재 편집 중인 에이전트 폴더 정보 (파일 생성용)
+  const [currentAgentFolder, setCurrentAgentFolder] = useState<string | null>(null)
+  const [currentProjectPath, setCurrentProjectPath] = useState<string | null>(null)
   // 에이전트 목록 새로고침 트리거
   const [agentListRefresh, setAgentListRefresh] = useState(0)
   const { project, fitView, zoomIn, zoomOut } = useReactFlow()
@@ -247,25 +250,39 @@ function AgentBuilderInner({ agentId }: AgentBuilderInnerProps) {
   }, [nodes, edges])
 
   // 에이전트 폴더 로드 핸들러 (BroadcastChannel useEffect보다 먼저 정의)
-  const handleLoadAgent = useCallback(async (folderName: string) => {
+  const handleLoadAgent = useCallback(async (folderName: string, projectPathParam?: string, selectFile?: string) => {
     setIsLoadingAgent(true)
     try {
-      const response = await fetch(`/api/agents/load-folder?folder=${encodeURIComponent(folderName)}`)
+      // projectPath가 있으면 API에 전달
+      const pathParam = projectPathParam ? `&projectPath=${encodeURIComponent(projectPathParam)}` : ''
+      const response = await fetch(`/api/agents/load-folder?folder=${encodeURIComponent(folderName)}${pathParam}`)
       if (!response.ok) {
         const error = await response.json()
         throw new Error(error.error || '에이전트 로드 실패')
       }
 
       const data = await response.json()
-      console.log('[AgentBuilder] Agent loaded:', data)
+      console.log('[AgentBuilder] Agent loaded:', data, 'selectFile:', selectFile)
 
-      // API 노드 형식을 ReactFlow 형식으로 변환
+      // 클릭한 파일에 해당하는 노드 ID 찾기
+      let selectedNodeId: string | null = null
+      if (selectFile) {
+        const matchingNode = (data.nodes || []).find((n: any) => n.file === selectFile)
+        if (matchingNode) {
+          selectedNodeId = matchingNode.id
+          console.log('[AgentBuilder] Found matching node for file:', selectFile, '→', selectedNodeId)
+        }
+      }
+
+      // API 노드 형식을 ReactFlow 형식으로 변환 (선택 상태 포함)
       const reactFlowNodes = (data.nodes || []).map((node: any) => ({
         id: node.id,
         type: node.type,
         position: node.position || { x: 0, y: 0 },
+        selected: node.id === selectedNodeId, // 클릭한 파일의 노드 선택
         data: {
           label: node.config?.label || node.type,
+          file: node.file, // 파일명 저장 (동기화용)
           ...node.config,
         },
       }))
@@ -284,12 +301,30 @@ function AgentBuilderInner({ agentId }: AgentBuilderInnerProps) {
       setNodes(reactFlowNodes)
       setEdges(reactFlowEdges)
       setEditingAgentId(null)
+      // 🆕 현재 에이전트 폴더 정보 저장 (노드 추가 시 파일 생성용)
+      setCurrentAgentFolder(folderName)
+      setCurrentProjectPath(projectPathParam || null)
 
-      setTimeout(() => fitView({ padding: 0.2 }), 100)
+      // 선택된 노드가 있으면 해당 노드로 포커스 이동
+      if (selectedNodeId) {
+        setTimeout(() => {
+          const selectedNode = reactFlowNodes.find((n: any) => n.id === selectedNodeId)
+          if (selectedNode) {
+            fitView({
+              nodes: [{ id: selectedNodeId }],
+              padding: 0.5,
+              duration: 300
+            })
+          }
+        }, 150)
+      } else {
+        setTimeout(() => fitView({ padding: 0.2 }), 100)
+      }
 
       // 터미널에 알림
       if (terminalRef.current) {
-        terminalRef.current.write(`\r\n\x1b[36m[Agent]\x1b[0m 에이전트 "${data.name || folderName}" 로드됨 (노드: ${reactFlowNodes.length}, 엣지: ${reactFlowEdges.length})`)
+        const selectedInfo = selectedNodeId ? ` [선택: ${selectFile}]` : ''
+        terminalRef.current.write(`\r\n\x1b[36m[Agent]\x1b[0m 에이전트 "${data.name || folderName}" 로드됨 (노드: ${reactFlowNodes.length}, 엣지: ${reactFlowEdges.length})${selectedInfo}`)
       }
     } catch (error: any) {
       console.error('[AgentBuilder] Load agent error:', error)
@@ -455,9 +490,9 @@ function AgentBuilderInner({ agentId }: AgentBuilderInnerProps) {
         }
 
         case 'LOAD_AGENT': {
-          // 파일 트리에서 에이전트 클릭 시 로드
+          // 파일 트리에서 에이전트 클릭 시 로드 (projectPath + selectFile 포함)
           if (payload.folderName) {
-            handleLoadAgent(payload.folderName)
+            handleLoadAgent(payload.folderName, payload.projectPath, payload.selectFile)
           }
           break
         }
@@ -493,7 +528,7 @@ function AgentBuilderInner({ agentId }: AgentBuilderInnerProps) {
   }, [])
 
   const onDrop = useCallback(
-    (event: React.DragEvent) => {
+    async (event: React.DragEvent) => {
       event.preventDefault()
 
       const type = event.dataTransfer.getData("application/agentflow") as AgentType
@@ -505,10 +540,67 @@ function AgentBuilderInner({ agentId }: AgentBuilderInnerProps) {
         y: event.clientY - reactFlowBounds.top,
       })
 
-      const newNode = createAgentNode({ type, position })
-      setNodes((nds) => [...nds, newNode])
+      // 고유 노드 ID 생성
+      const nodeId = `n${Date.now()}`
+      const label = type.charAt(0).toUpperCase() + type.slice(1)
+
+      // 🆕 에이전트 폴더가 있으면 파일도 생성
+      if (currentAgentFolder && currentProjectPath) {
+        try {
+          const response = await fetch('/api/agents/add-node', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              folderName: currentAgentFolder,
+              projectPath: currentProjectPath,
+              nodeType: type,
+              nodeId,
+              position,
+              label
+            })
+          })
+
+          if (response.ok) {
+            const data = await response.json()
+            console.log('[AgentBuilder] Node file created:', data.fileName)
+
+            // 파일 정보가 포함된 노드 생성
+            const newNode = createAgentNode({ type, position })
+            newNode.id = nodeId
+            newNode.data = {
+              ...newNode.data,
+              label,
+              file: data.fileName  // 파일명 연결
+            }
+            setNodes((nds) => [...nds, newNode])
+
+            // 파일트리 리스캔 트리거
+            const rescanChannel = new BroadcastChannel('neural-map-rescan')
+            rescanChannel.postMessage({ type: 'RESCAN_FILES' })
+            rescanChannel.close()
+
+            // 터미널에 알림
+            if (terminalRef.current) {
+              terminalRef.current.write(`\r\n\x1b[32m[Agent]\x1b[0m 노드 추가됨: ${label} → ${data.fileName}`)
+            }
+          } else {
+            console.error('[AgentBuilder] Failed to create node file')
+            // 파일 생성 실패해도 노드는 추가
+            const newNode = createAgentNode({ type, position })
+            setNodes((nds) => [...nds, newNode])
+          }
+        } catch (error) {
+          console.error('[AgentBuilder] Error creating node:', error)
+          const newNode = createAgentNode({ type, position })
+          setNodes((nds) => [...nds, newNode])
+        }
+      } else {
+        // 에이전트 폴더 없으면 노드만 추가 (파일 없음)
+        const newNode = createAgentNode({ type, position })
+        setNodes((nds) => [...nds, newNode])
+      }
     },
-    [project, setNodes]
+    [project, setNodes, currentAgentFolder, currentProjectPath]
   )
 
   const onDragStart = useCallback((event: React.DragEvent, nodeType: AgentType) => {
@@ -519,6 +611,15 @@ function AgentBuilderInner({ agentId }: AgentBuilderInnerProps) {
   const onNodeClick = useCallback(
     (_: React.MouseEvent, node: Node<AgentNodeData>) => {
       setSelectedNode(node)
+
+      // 🔄 파일트리와 동기화 - 노드에 연결된 파일 강조
+      const fileName = node.data?.file
+      if (fileName) {
+        console.log('[AgentBuilder] Node clicked, syncing file:', fileName)
+        const channel = new BroadcastChannel('agent-file-sync')
+        channel.postMessage({ type: 'SELECT_FILE', payload: { fileName } })
+        channel.close()
+      }
     },
     []
   )
@@ -660,18 +761,19 @@ function AgentBuilderInner({ agentId }: AgentBuilderInnerProps) {
       return
     }
 
-    // 폴더명으로 사용할 수 있도록 정리 (영문, 숫자, 하이픈, 언더스코어만)
-    const folderName = newAgentName.trim().toLowerCase().replace(/[^a-z0-9가-힣_-]/g, '_')
+    // 폴더명 = 사용자가 입력한 이름 그대로 사용 (공백만 하이픈으로)
+    const folderName = newAgentName.trim().replace(/\s+/g, '-')
 
     setIsCreatingAgent(true)
     try {
-      // agents 폴더에 에이전트 생성
+      // agents 폴더에 에이전트 생성 (프로젝트 경로가 있으면 해당 프로젝트 내에 생성)
       const response = await fetch('/api/agents/create-folder', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name: newAgentName.trim(),
           folderName,
+          projectPath: projectPath || undefined,  // 프로젝트 경로 전달
         }),
       })
 
@@ -705,6 +807,11 @@ function AgentBuilderInner({ agentId }: AgentBuilderInnerProps) {
       const refreshChannel = new BroadcastChannel('agent-folder-refresh')
       refreshChannel.postMessage({ type: 'REFRESH' })
       refreshChannel.close()
+
+      // 🆕 Neural Map 파일 리스캔 트리거 (파일 트리 업데이트)
+      const rescanChannel = new BroadcastChannel('neural-map-rescan')
+      rescanChannel.postMessage({ type: 'RESCAN_FILES' })
+      rescanChannel.close()
     } catch (error: any) {
       console.error('[AgentBuilder] Create agent error:', error)
       alert(error.message || '에이전트 생성 중 오류가 발생했습니다')
@@ -826,6 +933,15 @@ function AgentBuilderInner({ agentId }: AgentBuilderInnerProps) {
       }
 
       setDeploySuccess(true)
+
+      // 🔄 Header의 agentName 업데이트
+      setAgentName(deployAgentName.trim())
+
+      // 🔄 파일 트리 에이전트 목록 새로고침 (이름 변경 반영)
+      const refreshChannel = new BroadcastChannel('agent-folder-refresh')
+      refreshChannel.postMessage({ type: 'REFRESH' })
+      refreshChannel.close()
+
       setTimeout(() => {
         setShowDeployModal(false)
         setDeploySuccess(false)
@@ -844,7 +960,7 @@ function AgentBuilderInner({ agentId }: AgentBuilderInnerProps) {
     } finally {
       setIsDeploying(false)
     }
-  }, [nodes, edges, deployAgentName, deployAgentDescription, deployInteractionMode, deployLlmProvider, deployLlmModel, deploySpeakOrder, editingAgentId])
+  }, [nodes, edges, deployAgentName, deployAgentDescription, deployInteractionMode, deployLlmProvider, deployLlmModel, deploySpeakOrder, editingAgentId, setAgentName])
 
   // 워크플로우 빠른 저장 (편집 모드에서만 사용)
   const [isSaving, setIsSaving] = useState(false)
@@ -901,16 +1017,13 @@ function AgentBuilderInner({ agentId }: AgentBuilderInnerProps) {
       <header className="flex items-center justify-between px-4 py-2 border-b border-zinc-200 dark:border-zinc-800 bg-white/50 dark:bg-zinc-900/50 backdrop-blur-sm z-10 shrink-0">
         <div className="flex items-center gap-3">
           <Logo size="sm" href={undefined} animated={false} />
-          <span className="text-zinc-300 dark:text-zinc-600">|</span>
-          <h1 className="text-sm font-bold text-zinc-900 dark:text-zinc-100">A.I Agent Builder</h1>
           {/* 편집 중인 에이전트 이름 표시 */}
-          {editingAgentId && agentName && (
+          {(editingAgentId || currentAgentFolder) && agentName && (
             <>
-              <span className="text-zinc-300 dark:text-zinc-600">|</span>
+              <span className="text-zinc-300 dark:text-zinc-600">/</span>
               <div className="flex items-center gap-2">
-                <Bot className="w-4 h-4 text-accent" />
-                <span className="text-sm font-medium text-accent">{agentName}</span>
-                <span className="text-xs px-2 py-0.5 bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 rounded-full">편집 중</span>
+                <Bot className="w-4 h-4 text-purple-500" />
+                <span className="text-sm font-medium text-purple-500">{agentName}</span>
               </div>
             </>
           )}
@@ -1274,14 +1387,23 @@ function AgentBuilderInner({ agentId }: AgentBuilderInnerProps) {
           </div>
 
           {/* Terminal Panel - 캔버스 하단 */}
-          <TerminalPanel
-            ref={terminalRef}
-            isOpen={showTerminal}
-            onToggle={() => setShowTerminal(!showTerminal)}
-            onClose={() => setShowTerminal(false)}
-            height={terminalHeight}
-            onHeightChange={setTerminalHeight}
-          />
+          {(() => {
+            const terminalCwd = currentAgentFolder && currentProjectPath
+              ? `${currentProjectPath}/agents/${currentAgentFolder}`
+              : undefined
+            console.log('[AgentBuilder] Terminal cwd:', terminalCwd, { currentAgentFolder, currentProjectPath })
+            return (
+              <TerminalPanel
+                ref={terminalRef}
+                isOpen={showTerminal}
+                onToggle={() => setShowTerminal(!showTerminal)}
+                onClose={() => setShowTerminal(false)}
+                height={terminalHeight}
+                onHeightChange={setTerminalHeight}
+                cwd={terminalCwd}
+              />
+            )
+          })()}
         </div>
 
         {/* Config Panel */}
@@ -1355,7 +1477,7 @@ function AgentBuilderInner({ agentId }: AgentBuilderInnerProps) {
                   autoFocus
                 />
                 <p className="text-xs text-zinc-500 mt-1">
-                  폴더명: agents/{newAgentName.trim().toLowerCase().replace(/[^a-z0-9가-힣_-]/g, '_') || '...'}
+                  폴더명: agents/{newAgentName.trim().replace(/\s+/g, '-') || '...'}
                 </p>
               </div>
 

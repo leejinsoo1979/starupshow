@@ -57,7 +57,7 @@ function getWorker(): Worker | null {
           const projectName = getProjectName();
           const rootNode = {
             id: 'node-root',
-            type: 'self',
+            type: 'project',
             title: projectName,
             summary: '빈 프로젝트',
             tags: ['project'],
@@ -135,7 +135,7 @@ function getWorker(): Worker | null {
 
         const rootNode = {
           id: 'node-root',
-          type: 'self',
+          type: 'project',
           title: projectName,
           summary: files.length + '개 파일',
           tags: ['project'],
@@ -165,12 +165,20 @@ function getWorker(): Worker | null {
         // Create folder nodes
         Array.from(allFolderPaths).sort((a, b) => a.split('/').length - b.split('/').length)
           .forEach((folderPath) => {
-            if (folderPath === projectName) {
+            // 프로젝트명과 같은 폴더는 루트 노드로 매핑 (중복 방지)
+            const folderName = folderPath.split('/').pop() || folderPath;
+            if (folderPath === projectName || folderName === projectName) {
+              folderMap.set(folderPath, rootNode.id);
+              return;
+            }
+            // 첫 번째 depth 폴더가 프로젝트명과 같으면 스킵
+            const firstFolder = folderPath.split('/')[0];
+            if (firstFolder === projectName && !folderPath.includes('/')) {
               folderMap.set(folderPath, rootNode.id);
               return;
             }
             const folderId = generateId();
-            const folderName = folderPath.split('/').pop() || folderPath;
+            // folderName은 이미 위에서 선언됨
             const parentPath = folderPath.includes('/') ? folderPath.substring(0, folderPath.lastIndexOf('/')) : '';
             nodes.push({
               id: folderId, type: 'folder', title: folderName, summary: '폴더: ' + folderPath,

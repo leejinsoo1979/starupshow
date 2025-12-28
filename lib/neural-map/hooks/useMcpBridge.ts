@@ -281,7 +281,7 @@ export function useMcpBridge() {
           break
 
         case 'expand_all':
-          const folderNodes = graph?.nodes.filter(n => n.type === 'folder' || n.type === 'self') || []
+          const folderNodes = graph?.nodes.filter(n => n.type === 'folder' || n.type === 'project') || []
           setExpandedNodes(folderNodes.map(n => n.id))
           result = { success: true, expandedCount: folderNodes.length }
           break

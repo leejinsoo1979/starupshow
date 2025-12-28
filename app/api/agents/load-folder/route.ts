@@ -6,6 +6,7 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
     const folder = searchParams.get('folder')
+    const projectPath = searchParams.get('projectPath')
 
     if (!folder) {
       return NextResponse.json({ error: '폴더 이름이 필요합니다' }, { status: 400 })
@@ -16,7 +17,11 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: '잘못된 폴더 이름입니다' }, { status: 400 })
     }
 
-    const agentDir = path.join(process.cwd(), 'agents', folder)
+    // projectPath가 있으면 해당 경로 사용, 없으면 process.cwd() 사용
+    const baseDir = projectPath || process.cwd()
+    const agentDir = path.join(baseDir, 'agents', folder)
+
+    console.log('[API] Loading agent from:', agentDir)
 
     // 폴더 존재 확인
     try {

@@ -81,10 +81,13 @@ export default function XTermWrapper({ tabId, onExecute, projectPath }: XTermWra
 
   // projectPath가 변경되면 터미널에 새 경로 전송 (cd 명령)
   useEffect(() => {
+    console.log('[XTerm] projectPath useEffect triggered:', { projectPath, lastSent: lastSentCwdRef.current, tabId })
+
     if (!projectPath) return
 
     // 이미 같은 경로를 전송한 경우 스킵
     if (lastSentCwdRef.current === projectPath) {
+      console.log('[XTerm] Same path, skipping cd command')
       return
     }
 

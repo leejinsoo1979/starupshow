@@ -54,6 +54,8 @@ import {
   PanelLeftOpen,
   Target,
   FolderOpen,
+  Search,
+  Folder,
   UserCog,
   Clock,
   Palmtree,
@@ -84,7 +86,6 @@ import {
   Package,
   Orbit,
   Files,
-  Search,
   GitBranch,
   Puzzle,
   ChevronUp,
@@ -1618,18 +1619,8 @@ export function TwoLevelSidebar({ hideLevel2 = false }: TwoLevelSidebarProps) {
                 {activeToolbarItem === 'git' ? (
                   <GitPanel />
                 ) : activeToolbarItem === 'search' ? (
-                  <div className={cn("p-3", isDark ? "text-zinc-400" : "text-zinc-500")}>
-                    <input
-                      type="text"
-                      placeholder="검색..."
-                      className={cn(
-                        "no-focus-ring w-full px-3 py-2 rounded-lg border text-sm outline-none",
-                        isDark
-                          ? "bg-zinc-800 border-zinc-700 text-zinc-200 placeholder-zinc-500"
-                          : "bg-zinc-50 border-zinc-200 text-zinc-800 placeholder-zinc-400"
-                      )}
-                    />
-                  </div>
+                  <SearchPanel isDark={isDark} />
+
                 ) : activeToolbarItem === 'extensions' ? (
                   <div className={cn("p-4 text-sm", isDark ? "text-zinc-400" : "text-zinc-500")}>
                     확장 기능 준비 중...
@@ -2035,5 +2026,146 @@ export function TwoLevelSidebar({ hideLevel2 = false }: TwoLevelSidebarProps) {
         onClose={() => setIsWorkModalOpen(false)}
       />
     </div >
+  )
+}
+
+// 🔥 검색 패널 컴포넌트
+function SearchPanel({ isDark }: { isDark: boolean }) {
+  const files = useNeuralMapStore((s) => s.files)
+  const graph = useNeuralMapStore((s) => s.graph)
+  const searchQuery = useNeuralMapStore((s) => s.searchQuery)
+  const setSearchQuery = useNeuralMapStore((s) => s.setSearchQuery)
+  const setFocusNodeId = useNeuralMapStore((s) => s.setFocusNodeId)
+  const openCodePreview = useNeuralMapStore((s) => s.openCodePreview)
+
+  const [selectedIndex, setSelectedIndex] = useState(0)
+
+  // 검색 결과
+  const suggestions = React.useMemo(() => {
+    const query = searchQuery?.toLowerCase().trim() || ''
+    if (!query || query.length < 1) return []
+
+    const results: { type: 'file' | 'node'; name: string; path?: string; id: string; item: any }[] = []
+
+    // 파일 검색
+    files.forEach(f => {
+      if (f.name.toLowerCase().includes(query) || f.path?.toLowerCase().includes(query)) {
+        results.push({
+          type: 'file',
+          name: f.name,
+          path: f.path,
+          id: f.id,
+          item: f
+        })
+      }
+    })
+
+    // 그래프 노드 검색
+    graph?.nodes?.forEach(n => {
+      if (n.title.toLowerCase().includes(query) || n.id.toLowerCase().includes(query)) {
+        if (!results.some(r => r.id === n.id)) {
+          results.push({
+            type: 'node',
+            name: n.title,
+            id: n.id,
+            item: n
+          })
+        }
+      }
+    })
+
+    return results.slice(0, 20)
+  }, [searchQuery, files, graph?.nodes])
+
+  const handleSelect = (suggestion: typeof suggestions[0]) => {
+    if (suggestion.type === 'file') {
+      openCodePreview(suggestion.item)
+    } else {
+      setFocusNodeId(suggestion.id)
+    }
+  }
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (suggestions.length === 0) return
+
+    if (e.key === 'ArrowDown') {
+      e.preventDefault()
+      setSelectedIndex(prev => (prev + 1) % suggestions.length)
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault()
+      setSelectedIndex(prev => (prev - 1 + suggestions.length) % suggestions.length)
+    } else if (e.key === 'Enter') {
+      e.preventDefault()
+      handleSelect(suggestions[selectedIndex])
+    }
+  }
+
+  return (
+    <div className="flex flex-col h-full">
+      <div className={cn("p-3 border-b", isDark ? "border-zinc-800" : "border-zinc-200")}>
+        <div className="relative">
+          <Search className={cn("absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4", isDark ? "text-zinc-500" : "text-zinc-400")} />
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => {
+              setSearchQuery(e.target.value)
+              setSelectedIndex(0)
+            }}
+            onKeyDown={handleKeyDown}
+            placeholder="파일/노드 검색..."
+            autoFocus
+            className={cn(
+              "no-focus-ring w-full pl-9 pr-3 py-2 rounded-lg border text-sm outline-none",
+              isDark
+                ? "bg-zinc-800 border-zinc-700 text-zinc-200 placeholder-zinc-500"
+                : "bg-zinc-50 border-zinc-200 text-zinc-800 placeholder-zinc-400"
+            )}
+          />
+        </div>
+      </div>
+
+      {/* 검색 결과 */}
+      <div className="flex-1 overflow-y-auto">
+        {searchQuery.length > 0 && suggestions.length === 0 ? (
+          <div className={cn("p-4 text-sm text-center", isDark ? "text-zinc-500" : "text-zinc-400")}>
+            검색 결과가 없습니다
+          </div>
+        ) : suggestions.length > 0 ? (
+          <div className="py-1">
+            {suggestions.map((suggestion, index) => (
+              <button
+                key={suggestion.id}
+                onClick={() => handleSelect(suggestion)}
+                className={cn(
+                  "w-full flex items-center gap-2 px-3 py-2 text-left text-sm transition-colors",
+                  index === selectedIndex
+                    ? isDark ? "bg-zinc-800 text-white" : "bg-blue-50 text-blue-900"
+                    : isDark ? "hover:bg-zinc-800/50 text-zinc-300" : "hover:bg-zinc-50 text-zinc-700"
+                )}
+              >
+                {suggestion.type === 'file' ? (
+                  <FileText className="w-4 h-4 flex-shrink-0 text-blue-500" />
+                ) : (
+                  <Folder className="w-4 h-4 flex-shrink-0 text-amber-500" />
+                )}
+                <div className="flex-1 min-w-0">
+                  <div className="truncate font-medium">{suggestion.name}</div>
+                  {suggestion.path && (
+                    <div className={cn("truncate text-xs", isDark ? "text-zinc-500" : "text-zinc-400")}>
+                      {suggestion.path}
+                    </div>
+                  )}
+                </div>
+              </button>
+            ))}
+          </div>
+        ) : (
+          <div className={cn("p-4 text-sm", isDark ? "text-zinc-500" : "text-zinc-400")}>
+            검색어를 입력하세요
+          </div>
+        )}
+      </div>
+    </div>
   )
 }
