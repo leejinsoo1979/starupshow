@@ -16,6 +16,7 @@ contextBridge.exposeInMainWorld('electron', {
             contentExtensions?: string[];
         }) => ipcRenderer.invoke('fs:scan-tree', rootPath, options),
         readFile: (path: string) => ipcRenderer.invoke('fs:read-file', path),
+        readFileAsBase64: (path: string) => ipcRenderer.invoke('fs:read-file-as-base64', path),
         writeFile: (path: string, content: string) => ipcRenderer.invoke('fs:write-file', path, content),
         fileStats: (dirPath: string) => ipcRenderer.invoke('fs:file-stats', dirPath),
         scanApiRoutes: (dirPath: string) => ipcRenderer.invoke('fs:scan-api-routes', dirPath),

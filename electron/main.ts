@@ -671,6 +671,33 @@ ipcMain.handle('fs:read-file', async (_, filePath: string) => {
     return await readFile(filePath, 'utf-8');
 });
 
+// 3.1 Read File as Base64 Data URL (for images)
+ipcMain.handle('fs:read-file-as-base64', async (_, filePath: string) => {
+    try {
+        const buffer = fs.readFileSync(filePath);
+        const ext = path.extname(filePath).toLowerCase().slice(1);
+        const mimeTypes: Record<string, string> = {
+            'png': 'image/png',
+            'jpg': 'image/jpeg',
+            'jpeg': 'image/jpeg',
+            'gif': 'image/gif',
+            'webp': 'image/webp',
+            'svg': 'image/svg+xml',
+            'bmp': 'image/bmp',
+            'ico': 'image/x-icon',
+            'mp4': 'video/mp4',
+            'webm': 'video/webm',
+            'mov': 'video/quicktime',
+        };
+        const mimeType = mimeTypes[ext] || 'application/octet-stream';
+        const base64 = buffer.toString('base64');
+        return `data:${mimeType};base64,${base64}`;
+    } catch (error) {
+        console.error('[fs:read-file-as-base64] Failed:', error);
+        return null;
+    }
+});
+
 // 4. Write File Content
 ipcMain.handle('fs:write-file', async (_, filePath: string, content: string) => {
     await writeFile(filePath, content, 'utf-8');
@@ -1159,7 +1186,7 @@ ipcMain.handle('git:commit', async (_, cwd: string, message: string) => {
 });
 
 // Git Push
-ipcMain.handle('git:push', async (_, cwd: string, remote?: string, branch?: string) => {
+ipcMain.handle('git:push', async (_, cwd: string, remote?: string, branch?: string, setUpstream?: boolean) => {
     // Validate cwd
     if (!isValidGitPath(cwd)) {
         return { success: false, error: `잘못된 경로입니다: ${cwd || '(없음)'}` };
@@ -1173,9 +1200,23 @@ ipcMain.handle('git:push', async (_, cwd: string, remote?: string, branch?: stri
 
     try {
         console.log('[Git] Pushing from:', cwd);
+
+        // 첫 push시 자동으로 upstream 설정 시도
         let cmd = 'git push';
-        if (remote) cmd += ` ${remote}`;
-        if (branch) cmd += ` ${branch}`;
+        if (setUpstream || (!remote && !branch)) {
+            // upstream이 없으면 자동으로 -u origin <current-branch> 사용
+            try {
+                const { stdout: branchOut } = await execPromise('git branch --show-current', { cwd });
+                const currentBranch = branchOut.trim() || 'main';
+                cmd = `git push -u origin ${currentBranch}`;
+            } catch {
+                cmd = 'git push -u origin main';
+            }
+        } else {
+            if (remote) cmd += ` ${remote}`;
+            if (branch) cmd += ` ${branch}`;
+        }
+
         const { stdout, stderr } = await execPromise(cmd, { cwd, timeout: 120000 });
         return { success: true, output: stdout || stderr };
     } catch (err: any) {
@@ -2867,7 +2908,7 @@ const MODEL_API_MAP: Record<string, { provider: 'openai' | 'anthropic' | 'google
     'gpt-4o': { provider: 'openai', apiModel: 'gpt-4o' },
     // Google
     'gemini-1.5-pro': { provider: 'google', apiModel: 'gemini-1.5-pro' },
-    'gemini-3-flash': { provider: 'google', apiModel: 'gemini-3-flash-preview' },
+    'gemini-2.0-flash': { provider: 'google', apiModel: 'gemini-2.0-flash' },
     // xAI
     'grok-4.1-fast': { provider: 'xai', apiModel: 'grok-3-fast' },
 };

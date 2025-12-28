@@ -155,11 +155,14 @@ type DisplayMode = 'code' | 'markdown' | 'image' | 'video' | 'pdf' | 'text' | 'b
 function getDisplayMode(file: NeuralFile): DisplayMode {
   const name = file.name || ''
   if (file.type === 'binary') return 'binary'
+  // 🔥 이미지/비디오는 파일명으로 먼저 체크 (file.type보다 우선)
+  if (isImage(name)) return 'image'
+  if (isVideo(name)) return 'video'
+  if (file.type === 'pdf' || getExtension(name) === 'pdf') return 'pdf'
   if (isMarkdown(name) || file.type === 'markdown') return 'markdown'
   if (isCode(name) || file.type === 'code') return 'code'
-  if (isImage(name) || file.type === 'image') return 'image'
-  if (isVideo(name) || file.type === 'video') return 'video'
-  if (file.type === 'pdf' || getExtension(name) === 'pdf') return 'pdf'
+  if (file.type === 'image') return 'image'
+  if (file.type === 'video') return 'video'
   if (file.type === 'text') return 'text'
   return 'text'
 }
@@ -174,6 +177,7 @@ export function CodePreviewPanel({ className }: CodePreviewPanelProps) {
   const isDirty = useNeuralMapStore((s) => s.codePreviewDirty)
   const setDirty = useNeuralMapStore((s) => s.setCodePreviewDirty)
   const updateFileContent = useNeuralMapStore((s) => s.updateFileContent)
+  const projectPath = useNeuralMapStore((s) => s.projectPath) // 프로젝트 루트 경로
 
   const [content, setContent] = useState<string | null>(null)
   const [editedContent, setEditedContent] = useState<string>('')
@@ -183,13 +187,14 @@ export function CodePreviewPanel({ className }: CodePreviewPanelProps) {
   const [isExpanded, setIsExpanded] = useState(false)
   const [showUnsavedWarning, setShowUnsavedWarning] = useState(false)
   const [showBacklinks, setShowBacklinks] = useState(true) // 백링크 패널 토글
+  const [imageBase64Url, setImageBase64Url] = useState<string | null>(null) // 로컬 이미지 base64 데이터
 
   // AI Chat State
   const [showAIChat, setShowAIChat] = useState(true)
   const [chatInput, setChatInput] = useState('')
   const [isChatLoading, setIsChatLoading] = useState(false)
   const [chatResponse, setChatResponse] = useState<string | null>(null)
-  const [chatModel, setChatModel] = useState<ChatModelId>('gemini-3-flash')
+  const [chatModel, setChatModel] = useState<ChatModelId>('gemini-2.0-flash')
   const [isAgentMode, setIsAgentMode] = useState(false)
   const [chatPanelHeight, setChatPanelHeight] = useState(200)
   const [isChatResizing, setIsChatResizing] = useState(false)
@@ -306,12 +311,78 @@ export function CodePreviewPanel({ className }: CodePreviewPanelProps) {
     }
   }, [isChatResizing])
 
+  // 🔥 로컬 이미지/비디오 파일을 base64로 로드 (Electron에서 file:// URL이 작동하지 않음)
+  useEffect(() => {
+    if (!codePreviewFile || !codePreviewOpen) {
+      setImageBase64Url(null)
+      return
+    }
+
+    const displayMode = getDisplayMode(codePreviewFile)
+    console.log('[ImagePreview] File:', codePreviewFile.name, 'displayMode:', displayMode, 'path:', codePreviewFile.path, 'url:', codePreviewFile.url, 'projectPath:', projectPath)
+
+    if (displayMode !== 'image' && displayMode !== 'video') {
+      setImageBase64Url(null)
+      return
+    }
+
+    // URL이 없거나, file:// 프로토콜인 경우 base64로 로드
+    const url = codePreviewFile.url || ''
+    const isLocalFile = !url || url.startsWith('file://') || url.startsWith('/')
+
+    console.log('[ImagePreview] isLocalFile:', isLocalFile, 'url:', url)
+
+    if (!isLocalFile) {
+      // 일반 URL (http/https)은 그대로 사용
+      setImageBase64Url(null)
+      return
+    }
+
+    // 로컬 파일 경로 추출 - 절대 경로 생성
+    let filePath = codePreviewFile.path || ''
+    if (url.startsWith('file://')) {
+      filePath = url.replace('file://', '')
+    }
+
+    // 🔥 상대 경로인 경우 projectPath와 결합하여 절대 경로 생성
+    if (filePath && !filePath.startsWith('/') && projectPath) {
+      filePath = `${projectPath}/${filePath}`
+    }
+
+    console.log('[ImagePreview] absolutePath:', filePath)
+
+    if (!filePath) {
+      setImageBase64Url(null)
+      return
+    }
+
+    // Electron API로 base64 로드
+    const loadBase64 = async () => {
+      try {
+        // @ts-ignore
+        console.log('[ImagePreview] window.electron:', !!window.electron, 'readFileAsBase64:', !!(window.electron?.fs?.readFileAsBase64))
+        // @ts-ignore
+        if (window.electron?.fs?.readFileAsBase64) {
+          // @ts-ignore
+          const dataUrl = await window.electron.fs.readFileAsBase64(filePath)
+          console.log('[ImagePreview] dataUrl result:', dataUrl ? `${dataUrl.substring(0, 50)}...` : 'null')
+          if (dataUrl) {
+            setImageBase64Url(dataUrl)
+          }
+        } else {
+          console.log('[ImagePreview] Electron API not available')
+        }
+      } catch (err) {
+        console.error('[ImagePreview] Failed to load image as base64:', err)
+      }
+    }
+
+    loadBase64()
+  }, [codePreviewFile, codePreviewOpen, projectPath])
+
   // Fetch file content
   useEffect(() => {
-    console.log('[CodePreview useEffect] codePreviewFile:', codePreviewFile?.name, 'open:', codePreviewOpen)
-
     if (!codePreviewFile || !codePreviewOpen) {
-      console.log('[CodePreview] Early return: no file or not open')
       setContent(null)
       setEditedContent('')
       setError(null)
@@ -322,7 +393,6 @@ export function CodePreviewPanel({ className }: CodePreviewPanelProps) {
     // 로컬 파일 캐시에서 먼저 확인 (가장 빠른 경로)
     const cachedContent = (window as any).__localFileContents?.[codePreviewFile.id]
     if (cachedContent) {
-      console.log('[CodePreview] ✅ Using cached content:', codePreviewFile.name, 'length:', cachedContent.length)
       setContent(cachedContent)
       setEditedContent(cachedContent)
       setIsLoading(false)
@@ -331,11 +401,9 @@ export function CodePreviewPanel({ className }: CodePreviewPanelProps) {
     }
 
     const displayMode = getDisplayMode(codePreviewFile)
-    console.log('[CodePreview] displayMode:', displayMode, 'type:', codePreviewFile.type)
 
     // For images and videos, no content fetch needed
     if (displayMode === 'image' || displayMode === 'video' || displayMode === 'pdf' || displayMode === 'binary') {
-      console.log('[CodePreview] Early return: media type')
       setContent(null)
       setEditedContent('')
       setError(null)
@@ -345,7 +413,6 @@ export function CodePreviewPanel({ className }: CodePreviewPanelProps) {
 
     // Check if content is already cached in file object
     if (codePreviewFile.content) {
-      console.log('[CodePreview] Using file.content')
       setContent(codePreviewFile.content)
       setEditedContent(codePreviewFile.content)
       setIsLoading(false)
@@ -354,7 +421,6 @@ export function CodePreviewPanel({ className }: CodePreviewPanelProps) {
 
     // Check URL
     if (!codePreviewFile.url) {
-      console.log('[CodePreview] No URL')
       const emptyContent = '// 파일 URL이 없습니다'
       setContent(emptyContent)
       setEditedContent(emptyContent)
@@ -371,7 +437,6 @@ export function CodePreviewPanel({ className }: CodePreviewPanelProps) {
       return
     }
 
-    console.log('[CodePreview] Fetching from URL:', codePreviewFile.url)
     let isCancelled = false
     setIsLoading(true)
     setError(null)
@@ -380,19 +445,13 @@ export function CodePreviewPanel({ className }: CodePreviewPanelProps) {
       try {
         // 전역 캐시에서 로컬 파일 내용 확인
         const allCached = (window as any).__localFileContents || {}
-        console.log('[CodePreview] Looking for id:', codePreviewFile.id, 'in cache. Available keys:', Object.keys(allCached))
-
         const cachedContent = allCached[codePreviewFile.id]
-        console.log('[CodePreview] Cached value type:', typeof cachedContent, 'truthy:', !!cachedContent, 'length:', cachedContent?.length)
 
         if (cachedContent) {
-          console.log('[CodePreview] Found cached content for:', codePreviewFile.name, 'length:', cachedContent.length)
           setContent(cachedContent)
           setEditedContent(cachedContent)
           setIsLoading(false)
           return
-        } else {
-          console.log('[CodePreview] Cache miss - content not found or falsy')
         }
 
         // 로컬 파일 처리 (File 객체가 있는 경우)
@@ -606,7 +665,11 @@ ${editedContent ? `\n현재 코드:\n\`\`\`\n${editedContent.slice(0, 3000)}${ed
       ? 'Binary'
       : displayMode === 'pdf'
         ? 'PDF'
-        : language.toUpperCase()
+        : displayMode === 'image'
+          ? 'IMAGE'
+          : displayMode === 'video'
+            ? 'VIDEO'
+            : language.toUpperCase()
   const footerLabel = displayMode === 'markdown'
     ? 'Markdown Preview'
     : displayMode === 'binary'
@@ -617,20 +680,11 @@ ${editedContent ? `\n현재 코드:\n\`\`\`\n${editedContent.slice(0, 3000)}${ed
   const cachedContent = useMemo(() => {
     if (typeof window === 'undefined') return null
     if (!codePreviewFile) return null
-    const cached = (window as any).__localFileContents?.[codePreviewFile.id]
-    if (cached) {
-      console.log('[CodePreview useMemo] ✅ Found cached content for:', codePreviewFile.name, 'length:', cached.length)
-    } else {
-      console.log('[CodePreview useMemo] ❌ No cache for:', codePreviewFile.name, 'id:', codePreviewFile.id)
-      console.log('[CodePreview useMemo] Available keys:', Object.keys((window as any).__localFileContents || {}))
-    }
-    return cached || null
+    return (window as any).__localFileContents?.[codePreviewFile.id] || null
   }, [codePreviewFile])
 
   // 표시할 콘텐츠 (파일 객체 > 캐시 > state)
   const displayContent = (codePreviewFile as any)?.content || cachedContent || content || editedContent
-
-  console.log('[CodePreview] displayContent exists:', !!displayContent, 'length:', displayContent?.length, 'from file:', !!(codePreviewFile as any)?.content)
 
   return (
     <AnimatePresence mode="wait">
@@ -775,9 +829,16 @@ ${editedContent ? `\n현재 코드:\n\`\`\`\n${editedContent.slice(0, 3000)}${ed
               </div>
             ) : displayMode === 'image' ? (
               <div className="flex items-center justify-center h-full p-6 bg-checkered">
-                {codePreviewFile.url && (
+                {/* 🔥 로컬 이미지는 base64로, 원격 이미지는 URL로 표시 */}
+                {(imageBase64Url || codePreviewFile.url) && (
                   <img
-                    src={codePreviewFile.url.startsWith('mock://') ? '/placeholder-image.png' : codePreviewFile.url}
+                    src={
+                      imageBase64Url
+                        ? imageBase64Url
+                        : codePreviewFile.url?.startsWith('mock://')
+                          ? '/placeholder-image.png'
+                          : codePreviewFile.url || ''
+                    }
                     alt={codePreviewFile.name}
                     className="max-w-full max-h-full object-contain rounded shadow-lg"
                     onError={(e) => {
@@ -788,9 +849,10 @@ ${editedContent ? `\n현재 코드:\n\`\`\`\n${editedContent.slice(0, 3000)}${ed
               </div>
             ) : displayMode === 'video' ? (
               <div className="flex items-center justify-center h-full p-6">
-                {codePreviewFile.url && !codePreviewFile.url.startsWith('mock://') ? (
+                {/* 🔥 로컬 비디오는 base64로, 원격 비디오는 URL로 표시 */}
+                {(imageBase64Url || (codePreviewFile.url && !codePreviewFile.url.startsWith('mock://'))) ? (
                   <video
-                    src={codePreviewFile.url}
+                    src={imageBase64Url || codePreviewFile.url || ''}
                     controls
                     className="max-w-full max-h-full rounded shadow-lg"
                   />
