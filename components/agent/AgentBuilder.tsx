@@ -70,7 +70,7 @@ import type { AgentNodeData, AgentType } from "@/lib/agent"
 import { TerminalPanel, TerminalPanelRef } from "@/components/editor"
 import { useMcpRealtimeBridge } from "@/hooks/useMcpRealtimeBridge"
 import { Logo } from "@/components/ui"
-import { Clipboard, Check, Wifi, WifiOff } from "lucide-react"
+import { Clipboard, Check, Wifi, WifiOff, X } from "lucide-react"
 
 const nodeTypes: NodeTypes = {
   llm: LLMNode,
@@ -212,7 +212,7 @@ function AgentBuilderInner({ agentId }: AgentBuilderInnerProps) {
   }, [agentId, setNodes, setEdges, fitView])
 
   // MCP Bridge - Claude Code에서 노드 조작 가능하게 함 (Supabase Realtime 사용)
-  const { isConnected: isMcpConnected, sessionId: mcpSessionId } = useMcpRealtimeBridge({
+  const { isConnected: isMcpConnected, isMcpServerConnected, sessionId: mcpSessionId } = useMcpRealtimeBridge({
     nodes,
     edges,
     setNodes,
@@ -220,6 +220,29 @@ function AgentBuilderInner({ agentId }: AgentBuilderInnerProps) {
     fitView,
     onLog: handleMcpLog,
   })
+
+  // MCP 연결 알림 토스트
+  const [mcpToast, setMcpToast] = useState<{ show: boolean; message: string; type: 'success' | 'info' } | null>(null)
+  const prevMcpServerConnected = useRef(isMcpServerConnected)
+
+  useEffect(() => {
+    if (isMcpServerConnected && !prevMcpServerConnected.current) {
+      // MCP Server 연결됨
+      setMcpToast({ show: true, message: 'Claude Code MCP 연결 성공!', type: 'success' })
+      if (terminalRef.current) {
+        terminalRef.current.write(`\r\n\x1b[42m\x1b[30m ✓ MCP 연결 성공 \x1b[0m Claude Code가 Agent Builder에 연결되었습니다.`)
+      }
+      setTimeout(() => setMcpToast(null), 4000)
+    } else if (!isMcpServerConnected && prevMcpServerConnected.current) {
+      // MCP Server 연결 해제됨
+      setMcpToast({ show: true, message: 'Claude Code MCP 연결 해제됨', type: 'info' })
+      if (terminalRef.current) {
+        terminalRef.current.write(`\r\n\x1b[43m\x1b[30m ⚠ MCP 연결 해제 \x1b[0m Claude Code 연결이 종료되었습니다.`)
+      }
+      setTimeout(() => setMcpToast(null), 3000)
+    }
+    prevMcpServerConnected.current = isMcpServerConnected
+  }, [isMcpServerConnected])
 
   // 세션 ID 복사 상태
   const [sessionIdCopied, setSessionIdCopied] = useState(false)
@@ -304,6 +327,18 @@ function AgentBuilderInner({ agentId }: AgentBuilderInnerProps) {
       // 🆕 현재 에이전트 폴더 정보 저장 (노드 추가 시 파일 생성용)
       setCurrentAgentFolder(folderName)
       setCurrentProjectPath(projectPathParam || null)
+
+      // 🆕 터미널이 열려있으면 에이전트 폴더로 cd
+      if (showTerminal && projectPathParam) {
+        const agentPath = `${projectPathParam}/agents/${folderName}`
+        const electronApi = (window as any).electron?.terminal
+        if (electronApi) {
+          setTimeout(() => {
+            electronApi.write('1', `cd "${agentPath}" && clear\n`)
+            console.log('[AgentBuilder] Sent cd command to terminal:', agentPath)
+          }, 500)
+        }
+      }
 
       // 선택된 노드가 있으면 해당 노드로 포커스 이동
       if (selectedNodeId) {
@@ -1063,10 +1098,16 @@ function AgentBuilderInner({ agentId }: AgentBuilderInnerProps) {
           <Button variant="outline" size="sm" onClick={handleCopyJson} className="bg-white dark:bg-zinc-900 border-zinc-300/50 dark:border-zinc-700/50 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 h-8 text-xs !rounded-md">
             <span className="mr-2">&lt;/&gt;</span> Export Code
           </Button>
-          {/* MCP 세션 정보 */}
-          <div className="flex items-center gap-1.5 px-2 py-1 bg-zinc-100 dark:bg-zinc-800 rounded-md border border-zinc-200 dark:border-zinc-700">
-            {isMcpConnected ? (
-              <Wifi className="w-3 h-3 text-emerald-500" />
+          {/* MCP 세션 정보 - Claude Code MCP Server 연결 시 초록불 */}
+          <div className={`flex items-center gap-1.5 px-2 py-1 rounded-md border transition-all ${
+            isMcpServerConnected
+              ? 'bg-emerald-100 dark:bg-emerald-900/30 border-emerald-300 dark:border-emerald-700'
+              : 'bg-zinc-100 dark:bg-zinc-800 border-zinc-200 dark:border-zinc-700'
+          }`}>
+            {isMcpServerConnected ? (
+              <Wifi className="w-3 h-3 text-emerald-500 animate-pulse" />
+            ) : isMcpConnected ? (
+              <Wifi className="w-3 h-3 text-zinc-400" />
             ) : (
               <WifiOff className="w-3 h-3 text-zinc-400" />
             )}
@@ -1093,7 +1134,21 @@ function AgentBuilderInner({ agentId }: AgentBuilderInnerProps) {
           <Button
             variant="outline"
             size="sm"
-            onClick={() => setShowTerminal(!showTerminal)}
+            onClick={() => {
+              const newShowTerminal = !showTerminal
+              setShowTerminal(newShowTerminal)
+              // 터미널을 열 때 에이전트 폴더로 cd
+              if (newShowTerminal && currentAgentFolder && currentProjectPath) {
+                const agentPath = `${currentProjectPath}/agents/${currentAgentFolder}`
+                const electronApi = (window as any).electron?.terminal
+                if (electronApi) {
+                  setTimeout(() => {
+                    electronApi.write('1', `cd "${agentPath}" && clear\n`)
+                    console.log('[AgentBuilder] Terminal opened, sent cd command:', agentPath)
+                  }, 1000)
+                }
+              }
+            }}
             className={`bg-white dark:bg-zinc-900 border-zinc-300/50 dark:border-zinc-700/50 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 h-8 text-xs !rounded-md ${showTerminal ? 'bg-zinc-100 dark:bg-zinc-800' : ''}`}
           >
             <Terminal className="w-3 h-3 mr-2" />
@@ -1743,6 +1798,40 @@ function AgentBuilderInner({ agentId }: AgentBuilderInnerProps) {
               </>
             )}
           </div>
+        </div>
+      )}
+
+      {/* MCP 연결 토스트 알림 */}
+      {mcpToast && (
+        <div className={`fixed top-4 right-4 z-[9999] animate-in slide-in-from-top-2 fade-in duration-300 ${
+          mcpToast.type === 'success'
+            ? 'bg-emerald-500'
+            : 'bg-amber-500'
+        } text-white px-6 py-4 rounded-xl shadow-2xl flex items-center gap-3`}>
+          {mcpToast.type === 'success' ? (
+            <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center">
+              <Check className="w-5 h-5" />
+            </div>
+          ) : (
+            <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center">
+              <WifiOff className="w-5 h-5" />
+            </div>
+          )}
+          <div>
+            <p className="font-semibold">{mcpToast.message}</p>
+            <p className="text-sm text-white/80">
+              {mcpToast.type === 'success'
+                ? 'Claude Code에서 노드를 제어할 수 있습니다'
+                : '다시 연결하려면 Claude Code에서 connect 명령을 실행하세요'
+              }
+            </p>
+          </div>
+          <button
+            onClick={() => setMcpToast(null)}
+            className="ml-2 p-1 hover:bg-white/20 rounded-full transition-colors"
+          >
+            <X className="w-4 h-4" />
+          </button>
         </div>
       )}
     </div>
