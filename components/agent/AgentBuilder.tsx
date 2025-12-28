@@ -406,7 +406,7 @@ function AgentBuilderInner({ agentId }: AgentBuilderInnerProps) {
     const channel = new BroadcastChannel('agent-builder')
     const responseChannel = new BroadcastChannel('agent-builder-response')
 
-    channel.onmessage = (event) => {
+    channel.onmessage = async (event) => {
       const { type, payload } = event.data
       console.log('[AgentBuilder] Received message:', type, payload)
 
@@ -470,14 +470,16 @@ function AgentBuilderInner({ agentId }: AgentBuilderInnerProps) {
         }
 
         case 'GENERATE_WORKFLOW': {
-          // 새 워크플로우 생성 - 기존 노드/엣지 교체
+          // 🔥 새 워크플로우 생성 - 에이전트 폴더 + 파일 저장 + 캔버스 반영
+          const workflowName = payload.name || `workflow-${Date.now()}`
+
+          // 1. 캔버스에 노드/엣지 생성 (먼저 UI 반영)
           const newNodes = payload.nodes.map((n: any) =>
             createAgentNode({
               type: n.type,
               position: n.position,
             })
           ).map((node: Node, i: number) => {
-            // ID 매핑을 위해 원래 ID 유지
             const originalNode = payload.nodes[i]
             return {
               ...node,
@@ -501,10 +503,72 @@ function AgentBuilderInner({ agentId }: AgentBuilderInnerProps) {
             label: e.label,
           }))
 
-          setAgentName(payload.name || '')
+          setAgentName(workflowName)
           setNodes(newNodes)
           setEdges(newEdges)
           setTimeout(() => fitView({ padding: 0.2 }), 100)
+
+          // 2. 에이전트 폴더 + 파일 저장 (비동기)
+          try {
+            console.log('[AgentBuilder] Creating agent folder with workflow:', workflowName)
+
+            // ReactFlow 형태로 변환된 노드/엣지 사용
+            const apiNodes = newNodes.map((n: Node<AgentNodeData>) => ({
+              id: n.id,
+              type: n.data?.type || n.type,
+              data: n.data,
+              position: n.position,
+            }))
+
+            const apiEdges = newEdges.map((e: Edge) => ({
+              id: e.id,
+              source: e.source,
+              target: e.target,
+              sourceHandle: e.sourceHandle,
+              targetHandle: e.targetHandle,
+            }))
+
+            // /api/agents/folder POST로 전체 폴더 구조 생성
+            const response = await fetch('/api/agents/folder', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                name: workflowName,
+                description: payload.description || '',
+                nodes: apiNodes,
+                edges: apiEdges,
+                projectPath: projectPath || undefined,
+              }),
+            })
+
+            if (response.ok) {
+              const result = await response.json()
+              console.log('[AgentBuilder] Workflow saved:', result)
+
+              // 현재 폴더 설정
+              const folderName = result.folderName || workflowName.replace(/\s+/g, '-')
+              setCurrentAgentFolder(folderName)
+              setCurrentProjectPath(result.projectPath || projectPath || null)
+
+              // 터미널에 알림
+              if (terminalRef.current) {
+                terminalRef.current.write(`\r\n\x1b[32m[Agent]\x1b[0m 워크플로우 "${workflowName}" 생성됨: agents/${folderName}`)
+              }
+
+              // 파일트리 리스캔 트리거
+              const rescanChannel = new BroadcastChannel('neural-map-rescan')
+              rescanChannel.postMessage({ type: 'RESCAN_FILES' })
+              rescanChannel.close()
+
+              // 에이전트 목록 새로고침
+              setAgentListRefresh(prev => prev + 1)
+            } else {
+              const error = await response.json()
+              console.error('[AgentBuilder] Failed to save workflow:', error)
+            }
+          } catch (error) {
+            console.error('[AgentBuilder] GENERATE_WORKFLOW error:', error)
+          }
           break
         }
 
@@ -1131,9 +1195,9 @@ function AgentBuilderInner({ agentId }: AgentBuilderInnerProps) {
           {(editingAgentId || currentAgentFolder) && agentName && (
             <>
               <span className="text-zinc-300 dark:text-zinc-600">/</span>
-              <div className="flex items-center gap-2">
-                <Bot className="w-4 h-4 text-purple-500" />
-                <span className="text-sm font-medium text-purple-500">{agentName}</span>
+              <div className="flex items-center gap-2 max-w-[200px]">
+                <Bot className="w-4 h-4 text-purple-500 shrink-0" />
+                <span className="text-sm font-medium text-purple-500 truncate" title={agentName}>{agentName}</span>
               </div>
             </>
           )}
