@@ -9,7 +9,7 @@ export async function POST(
   { params }: { params: { roomId: string } }
 ) {
   try {
-    const supabase = createClient()
+    const supabase = await createClient()
     const adminClient = createAdminClient()
     const { data: { user } } = await supabase.auth.getUser()
 

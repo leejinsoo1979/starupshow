@@ -109,7 +109,7 @@ function pythonSchemaToZod(properties: Record<string, {
         zodType = z.array(z.any())
         break
       case 'object':
-        zodType = z.record(z.string(), z.any())
+        zodType = z.object({}).passthrough()
         break
       default:
         zodType = z.any()

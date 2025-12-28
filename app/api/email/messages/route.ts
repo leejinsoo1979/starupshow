@@ -5,7 +5,7 @@ import { EmailService } from '@/lib/email/email-service'
 
 // GET /api/email/messages - Get emails for an account
 export async function GET(request: Request) {
-  const supabase = createClient()
+  const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
 
   if (!user) {
@@ -49,7 +49,7 @@ export async function GET(request: Request) {
 
 // PATCH /api/email/messages - Update email (read, star, trash)
 export async function PATCH(request: Request) {
-  const supabase = createClient()
+  const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
 
   if (!user) {

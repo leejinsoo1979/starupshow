@@ -9,7 +9,7 @@ export async function POST(
   { params }: { params: { groupId: string } }
 ) {
   try {
-    const supabase = createClient()
+    const supabase = await createClient()
     const adminClient = createAdminClient()
     const { data: { user } } = await supabase.auth.getUser()
 
@@ -79,7 +79,7 @@ export async function DELETE(
   { params }: { params: { groupId: string } }
 ) {
   try {
-    const supabase = createClient()
+    const supabase = await createClient()
     const adminClient = createAdminClient()
     const { data: { user } } = await supabase.auth.getUser()
 
@@ -122,7 +122,7 @@ export async function PATCH(
   { params }: { params: { groupId: string } }
 ) {
   try {
-    const supabase = createClient()
+    const supabase = await createClient()
     const adminClient = createAdminClient()
     const { data: { user } } = await supabase.auth.getUser()
 

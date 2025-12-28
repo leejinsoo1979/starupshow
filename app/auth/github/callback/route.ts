@@ -67,7 +67,7 @@ export async function GET(request: Request) {
     const githubUser = await userResponse.json()
 
     // 3. Get current Supabase user
-    const supabase = createClient()
+    const supabase = await createClient()
     const { data: { user }, error: authError } = await supabase.auth.getUser()
 
     if (authError || !user) {

@@ -10,7 +10,7 @@ export async function POST(
   { params }: { params: { id: string; nodeId: string } }
 ) {
   try {
-    const supabase = createClientForApi()
+    const supabase = await createClientForApi()
     const { user } = await getAuthUser(supabase)
 
     if (!user) {

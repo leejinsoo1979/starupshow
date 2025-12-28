@@ -6,7 +6,7 @@ import type { EmailProvider } from '@/types/email'
 
 // GET /api/email/accounts - Get all email accounts for current user
 export async function GET() {
-  const supabase = createClient()
+  const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
 
   if (!user) {
@@ -29,7 +29,7 @@ export async function GET() {
 
 // POST /api/email/accounts - Add new email account
 export async function POST(request: Request) {
-  const supabase = createClient()
+  const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
 
   if (!user) {
@@ -89,7 +89,7 @@ export async function POST(request: Request) {
 
 // DELETE /api/email/accounts - Delete email account
 export async function DELETE(request: Request) {
-  const supabase = createClient()
+  const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
 
   if (!user) {

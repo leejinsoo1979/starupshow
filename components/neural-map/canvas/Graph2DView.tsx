@@ -3,8 +3,9 @@
 import React, { useCallback, useEffect, useRef, useMemo, useState } from 'react'
 import { useTheme } from 'next-themes'
 import { useNeuralMapStore } from '@/lib/neural-map/store'
-import type { NeuralNode, NeuralEdge, NeuralFile } from '@/lib/neural-map/types'
+import type { NeuralNode, NeuralEdge, NeuralFile, LayoutMode } from '@/lib/neural-map/types'
 import { forceRadial, forceY } from 'd3-force'
+import { Atom, Circle, GitBranch, Network } from 'lucide-react'
 
 // ForceGraph2D를 React 외부에서 직접 관리
 let ForceGraph2DClass: any = null
@@ -40,7 +41,7 @@ const FILE_TYPE_COLORS: Record<string, string> = {
 
 // 노드 타입별 색상 (fallback)
 const NODE_COLORS: Record<string, string> = {
-  self: '#8b5cf6',      // Purple (테마색 - 중심 노드)
+  self: '#8b5cf6',      // Purple (테마색 - 중심 노드) - deprecated
   concept: '#3b82f6',   // Blue
   project: '#10b981',   // Green
   doc: '#f59e0b',       // Amber
@@ -50,6 +51,7 @@ const NODE_COLORS: Record<string, string> = {
   task: '#ef4444',      // Red
   person: '#f97316',    // Orange
   insight: '#a855f7',   // Violet
+  agent: '#06b6d4',     // Cyan - AI 에이전트
 }
 
 // 선택된 노드 색상
@@ -208,6 +210,7 @@ export function Graph2DView({ className }: Graph2DViewProps) {
   const isDark = resolvedTheme === 'dark'
   const containerRef = useRef<HTMLDivElement>(null)
   const graphRef = useRef<any>(null)
+  const graphDataRef = useRef<{ nodes: GraphNode[], links: GraphLink[] }>({ nodes: [], links: [] })
   const layoutMode = useNeuralMapStore((s) => s.layoutMode)
 
   const [dimensions, setDimensions] = useState({ width: 0, height: 0 })
@@ -228,6 +231,7 @@ export function Graph2DView({ className }: Graph2DViewProps) {
   const currentTheme = useNeuralMapStore((s) => s.currentTheme)
   const focusNodeId = useNeuralMapStore((s) => s.focusNodeId)
   const setFocusNodeId = useNeuralMapStore((s) => s.setFocusNodeId)
+  const setLayoutMode = useNeuralMapStore((s) => s.setLayoutMode)  // 🆕 레이아웃 모드 변경
 
   // 컨테이너 크기 감지
   useEffect(() => {
@@ -291,7 +295,7 @@ export function Graph2DView({ className }: Graph2DViewProps) {
     const isVisible = (nodeId: string): boolean => {
       const node = nodeMap.get(nodeId)
       if (!node) return false
-      if (node.type === 'self') return true // 루트는 항상 보임
+      if (node.type === 'project') return true // 루트는 항상 보임
       if (!node.parentId) return true // 부모가 없으면 보임
 
       // 부모가 확장목록에 없으면(닫힘) -> 안보임
@@ -306,23 +310,6 @@ export function Graph2DView({ className }: Graph2DViewProps) {
     const visibleNodes = graph.nodes.filter(node => isVisible(node.id))
     const visibleNodeIds = new Set(visibleNodes.map(n => n.id))
 
-    // 🔍 디버그: 폴더 노드 상세 정보
-    const folderNodes = graph.nodes.filter(n => n.type === 'folder')
-    const selfNode = graph.nodes.find(n => n.type === 'self')
-    console.log('[Graph2DView] 📊 Stats:', {
-      totalNodes: graph.nodes.length,
-      visibleNodes: visibleNodes.length,
-      folderNodes: folderNodes.length,
-      selfNode: selfNode?.id,
-      expandedNodeIds: Array.from(expandedNodeIds)
-    })
-    console.log('[Graph2DView] 📁 Folder details:', folderNodes.map(n => ({
-      id: n.id,
-      title: n.title,
-      parentId: (n as any).parentId,
-      parentInExpanded: expandedNodeIds.has((n as any).parentId),
-      isVisible: isVisible(n.id)
-    })))
 
     const nodes: GraphNode[] = visibleNodes.map((node, index) => {
       // 노드 제목으로 파일 매칭
@@ -330,8 +317,13 @@ export function Graph2DView({ className }: Graph2DViewProps) {
       const ext = getExtension(node.title)
       const hasFileExt = ext && FILE_TYPE_COLORS[ext]
 
+      // 에이전트 노드 감지 (sourceRef.isAgent)
+      const isAgentNode = (node.sourceRef as any)?.isAgent === true
+
       // 색상 결정
-      let nodeColor = NODE_COLORS[node.type] || '#6b7280'
+      let nodeColor = isAgentNode
+        ? NODE_COLORS['agent']
+        : (NODE_COLORS[node.type] || '#6b7280')
       if (hasFileExt) {
         nodeColor = FILE_TYPE_COLORS[ext]
       }
@@ -339,8 +331,10 @@ export function Graph2DView({ className }: Graph2DViewProps) {
 
       // 크기 결정 - 더 작게!
       let nodeSize = 4 // 기본 크기 (작게)
-      if (node.type === 'self') {
+      if (node.type === 'project') {
         nodeSize = 12 // Self 노드
+      } else if (isAgentNode) {
+        nodeSize = 8 // 에이전트 노드 (중간 크기)
       } else if (node.type === 'folder') {
         nodeSize = 5 // 폴더는 약간 크게
       } else if (matchedFile?.size) {
@@ -352,7 +346,7 @@ export function Graph2DView({ className }: Graph2DViewProps) {
       }
 
       // SELF 노드 위치 고정, 나머지는 원형으로 균등 배치
-      const isSelf = node.type === 'self'
+      const isSelf = node.type === 'project'
 
       // 균등한 각도로 배치 (겹침 방지)
       const totalNonSelfNodes = visibleNodes.filter(n => n.type !== 'self').length
@@ -429,8 +423,11 @@ export function Graph2DView({ className }: Graph2DViewProps) {
     return connected
   }, [selectedNodeIds, graph?.edges, graph?.nodes])
 
-  // 디버그: graphData 내용 출력
-  console.log('[Graph2DView] graphData nodes:', graphData.nodes.map(n => ({ id: n.id, name: n.name, x: n.x, y: n.y, type: n.type })))
+
+  // 🔥 graphDataRef 항상 최신 상태로 유지 (initGraph에서 접근 가능하도록)
+  useEffect(() => {
+    graphDataRef.current = graphData
+  }, [graphData])
 
   // 노드 클릭 핸들러 - 선택 + 코드 미리보기 + 카메라 이동
   const handleNodeClick = useCallback((node: any) => {
@@ -448,20 +445,10 @@ export function Graph2DView({ className }: Graph2DViewProps) {
       }
 
       // 폴더 노드는 파일을 열지 않음
-      if (node.type === 'folder' || node.type === 'self') {
+      if (node.type === 'folder' || node.type === 'project') {
         return
       }
 
-      // 🔍 디버그 로그: 노드와 파일 배열 정보
-      console.log('[Graph2DView] 🎯 Node click:', {
-        nodeId: node.id,
-        nodeName: node.name,
-        nodeTitle: node.title,
-        nodeType: node.type,
-        sourceRef: node.sourceRef,
-        filesCount: files.length,
-        filesIds: files.slice(0, 5).map(f => ({ id: f.id, name: f.name }))
-      })
 
       // 다양한 방법으로 파일 매칭 시도
       let targetFile = null
@@ -510,28 +497,13 @@ export function Graph2DView({ className }: Graph2DViewProps) {
       }
 
       if (targetFile) {
-        console.log('[Graph2DView] ✅ Opening file:', {
-          fileName: targetFile.name,
-          fileId: targetFile.id,
-          filePath: targetFile.path,
-          nodeId: node.id,
-          sourceRefFileId: node.sourceRef?.fileId
-        })
-        // 🎯 MD 파일은 마크다운 에디터로, 그 외는 코드 미리보기로 열기
+        // MD 파일은 마크다운 에디터로, 그 외는 코드 미리보기로 열기
         const isMarkdown = targetFile.name.toLowerCase().endsWith('.md')
         if (isMarkdown) {
           openEditorWithFile(targetFile)
         } else {
           openCodePreview(targetFile)
         }
-      } else {
-        console.warn('[Graph2DView] ❌ No file found for node:', {
-          nodeId: node.id,
-          nodeName: node.name,
-          nodeTitle: node.title,
-          sourceRef: node.sourceRef,
-          availableFiles: files.map(f => ({ id: f.id, name: f.name }))
-        })
       }
     }
   }, [setSelectedNodes, files, openCodePreview, openEditorWithFile])
@@ -580,34 +552,13 @@ export function Graph2DView({ className }: Graph2DViewProps) {
     const isConnected = connectedNodeIds.has(node.id)
     const isDimmed = hasSelection && !isConnected && !isSelected && !isHovered
 
-    // 🌌 은하 효과: 줌아웃 시 반짝이는 별처럼 보이게 (더 멀리 줌아웃해야 활성화)
-    const isGalaxyMode = globalScale < 0.6 // 0.6 미만에서만 은하 모드 (더 멀리 줌아웃 필요)
-    const time = Date.now() / 1000
-    // 각 노드마다 고유한 반짝임 패턴 (노드 ID 해시 기반)
-    const nodeHash = node.id.split('').reduce((a: number, c: string) => a + c.charCodeAt(0), 0)
-    const twinkleSpeed = 1.5 + (nodeHash % 10) / 5 // 1.5~3.5 속도 변화
-    const twinklePhase = (nodeHash % 100) / 100 * Math.PI * 2 // 위상 차이
-    const twinkle = Math.sin(time * twinkleSpeed + twinklePhase) * 0.5 + 0.5 // 0~1
-
-    // 노드 크기 (고정 크기, 줌에 따라 자연스럽게 스케일)
+    // 노드 크기
     const baseSize = node.val || 4
-    // 선택된 노드는 더 크게, 연결된 노드는 약간 크게 표시
-    let sizeMultiplier = isSelected ? 1.8 : (isConnected && hasSelection) ? 1.15 : 1
+    let sizeMultiplier = isSelected ? 1.5 : (isConnected && hasSelection) ? 1.1 : 1
+    const actualSize = baseSize * sizeMultiplier
 
     // 테마 액센트 색상
     const accentColor = currentTheme?.ui?.accentColor || '#3b82f6'
-
-    // 🫀 선택된 노드: 맥박 효과 (심장 박동처럼)
-    const pulse = Math.sin(time * 5) * 0.5 + 0.5 // 0~1, 빠른 맥박
-    if (isSelected) {
-      sizeMultiplier *= 1 + pulse * 0.15 // 1.0~1.15 크기 변화 (맥박)
-    }
-
-    // 은하 모드: 반짝임에 따라 크기 변화
-    if (isGalaxyMode && !isSelected && !isHovered) {
-      sizeMultiplier *= 0.8 + twinkle * 0.4 // 0.8~1.2 크기 변화
-    }
-    const actualSize = baseSize * sizeMultiplier
 
     // 색상 결정
     let fillColor = node.color || '#6b7280'
@@ -616,34 +567,16 @@ export function Graph2DView({ className }: Graph2DViewProps) {
       fillColor = FILE_TYPE_COLORS[node.fileType.toLowerCase()] || '#6b7280'
     }
 
-    // 투명도 설정: 기본 1.0, 조건에 따라 변경
-    if (isDimmed) {
-      // 선택된 노드와 연결되지 않은 노드는 매우 흐리게
-      ctx.globalAlpha = 0.08
-    } else if (isGalaxyMode && !isSelected && !isHovered) {
-      // 은하 모드 (줌 < 0.6): 반짝임에 따라 투명도 변화
-      ctx.globalAlpha = 0.6 + twinkle * 0.4 // 0.6~1.0 (더 밝게)
-    } else {
-      // 기본 상태: 완전 불투명
-      ctx.globalAlpha = 1.0
-    }
+    // 투명도 설정
+    ctx.globalAlpha = isDimmed ? 0.1 : 1.0
 
-    // 그림자/글로우 효과
+    // 그림자/글로우 효과 (선택/호버 시에만 - 성능 최적화)
     if (isSelected) {
-      // 선택된 노드: 테마색 강한 글로우 + 맥박 효과
       ctx.shadowColor = accentColor
-      ctx.shadowBlur = (25 + pulse * 15) / globalScale // 25~40 맥박에 따라 변화
+      ctx.shadowBlur = 20 / globalScale
     } else if (isHovered) {
       ctx.shadowColor = fillColor
-      ctx.shadowBlur = 15 / globalScale
-    } else if (isConnected && hasSelection) {
-      // 연결된 노드: 테마색 글로우로 강조
-      ctx.shadowColor = fillColor
-      ctx.shadowBlur = 12 / globalScale
-    } else if (isGalaxyMode) {
-      // 🌟 은하 모드: 별처럼 반짝이는 글로우
-      ctx.shadowColor = fillColor
-      ctx.shadowBlur = (8 + twinkle * 15) / globalScale // 반짝일 때 더 강한 글로우
+      ctx.shadowBlur = 10 / globalScale
     } else {
       ctx.shadowBlur = 0
     }
@@ -654,57 +587,18 @@ export function Graph2DView({ className }: Graph2DViewProps) {
     ctx.fillStyle = fillColor
     ctx.fill()
 
-    // 🌌 은하 모드: 밝은 별에 십자 광선 효과
-    if (isGalaxyMode && twinkle > 0.7 && !isDimmed) {
-      const rayLength = actualSize * (1.5 + twinkle)
-      const rayAlpha = (twinkle - 0.7) / 0.3 * 0.6 // 0~0.6
-
-      ctx.save()
-      ctx.strokeStyle = fillColor
-      ctx.globalAlpha = rayAlpha
-      ctx.lineWidth = 1 / globalScale
-
-      // 수직 광선
-      ctx.beginPath()
-      ctx.moveTo(node.x, node.y - rayLength)
-      ctx.lineTo(node.x, node.y + rayLength)
-      ctx.stroke()
-
-      // 수평 광선
-      ctx.beginPath()
-      ctx.moveTo(node.x - rayLength, node.y)
-      ctx.lineTo(node.x + rayLength, node.y)
-      ctx.stroke()
-
-      ctx.restore()
-    }
-
-    // 테두리 (선택/호버/연결 시)
+    // 테두리 (선택/호버/연결 시) - 간소화된 버전
     if (isSelected) {
-      // 선택된 노드: 테마색 두꺼운 테두리 + 이중 글로우 + 맥박 효과
-      ctx.save()
-      // 외부 글로우 링 (맥박에 따라 확장)
+      // 선택된 노드: 테마색 테두리
       ctx.beginPath()
-      ctx.arc(node.x, node.y, actualSize + (4 + pulse * 3) / globalScale, 0, 2 * Math.PI)
-      ctx.strokeStyle = accentColor
-      ctx.lineWidth = (2 + pulse) / globalScale
-      ctx.globalAlpha = 0.3 + pulse * 0.3 // 0.3~0.6 맥박
-      ctx.shadowColor = accentColor
-      ctx.shadowBlur = (20 + pulse * 15) / globalScale
-      ctx.stroke()
-      ctx.restore()
-      // 내부 테두리
-      ctx.beginPath()
-      ctx.arc(node.x, node.y, actualSize, 0, 2 * Math.PI)
+      ctx.arc(node.x, node.y, actualSize + 2 / globalScale, 0, 2 * Math.PI)
       ctx.strokeStyle = accentColor
       ctx.lineWidth = 3 / globalScale
-      ctx.shadowColor = accentColor
-      ctx.shadowBlur = (15 + pulse * 10) / globalScale
       ctx.stroke()
     } else if (isConnected && hasSelection) {
-      // 연결된 노드: 얇은 흰색 테두리로 강조
-      ctx.strokeStyle = 'rgba(255, 255, 255, 0.8)'
-      ctx.lineWidth = 2 / globalScale
+      // 연결된 노드: 얇은 흰색 테두리
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.6)'
+      ctx.lineWidth = 1.5 / globalScale
       ctx.stroke()
     } else if (isHovered) {
       ctx.strokeStyle = '#ffffff'
@@ -715,7 +609,7 @@ export function Graph2DView({ className }: Graph2DViewProps) {
     ctx.shadowBlur = 0
 
     // 파일 타입 아이콘 그리기 (SELF 노드는 프로젝트 아이콘 우선)
-    if (node.type === 'self') {
+    if (node.type === 'project') {
       // Self 노드 - 프로젝트 중앙 아이콘
       ctx.save()
 
@@ -766,6 +660,54 @@ export function Graph2DView({ className }: Graph2DViewProps) {
       ctx.arc(node.x - s * 0.4, dotY, dotR, 0, Math.PI * 2)
       ctx.arc(node.x, dotY, dotR, 0, Math.PI * 2)
       ctx.arc(node.x + s * 0.4, dotY, dotR, 0, Math.PI * 2)
+      ctx.fill()
+
+      ctx.restore()
+    } else if (node.sourceRef?.isAgent) {
+      // AI 에이전트 노드 - 로봇 아이콘
+      ctx.save()
+
+      // 외곽 글로우 링 (시안색)
+      const gradient = ctx.createRadialGradient(
+        node.x, node.y, actualSize * 0.6,
+        node.x, node.y, actualSize * 1.3
+      )
+      gradient.addColorStop(0, 'rgba(6, 182, 212, 0.4)')
+      gradient.addColorStop(1, 'rgba(6, 182, 212, 0)')
+      ctx.beginPath()
+      ctx.arc(node.x, node.y, actualSize * 1.3, 0, Math.PI * 2)
+      ctx.fillStyle = gradient
+      ctx.fill()
+
+      // 로봇 아이콘
+      const s = actualSize * 0.4
+      ctx.strokeStyle = '#ffffff'
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.15)'
+      ctx.lineWidth = 2
+      ctx.lineCap = 'round'
+      ctx.lineJoin = 'round'
+
+      // 머리 (사각형)
+      ctx.beginPath()
+      ctx.roundRect(node.x - s * 0.8, node.y - s * 0.9, s * 1.6, s * 1.2, s * 0.2)
+      ctx.fill()
+      ctx.stroke()
+
+      // 눈 (두 개의 원)
+      ctx.fillStyle = '#ffffff'
+      ctx.beginPath()
+      ctx.arc(node.x - s * 0.35, node.y - s * 0.4, s * 0.2, 0, Math.PI * 2)
+      ctx.arc(node.x + s * 0.35, node.y - s * 0.4, s * 0.2, 0, Math.PI * 2)
+      ctx.fill()
+
+      // 안테나
+      ctx.beginPath()
+      ctx.moveTo(node.x, node.y - s * 0.9)
+      ctx.lineTo(node.x, node.y - s * 1.4)
+      ctx.stroke()
+      ctx.beginPath()
+      ctx.arc(node.x, node.y - s * 1.5, s * 0.15, 0, Math.PI * 2)
+      ctx.fillStyle = '#06b6d4'
       ctx.fill()
 
       ctx.restore()
@@ -830,6 +772,11 @@ export function Graph2DView({ className }: Graph2DViewProps) {
 
     if (!start || !end || typeof start.x !== 'number') return
 
+    // 🆕 줌 레벨에 따른 연결선 투명도 (줌아웃 시 흐려짐)
+    // globalScale: 0.1(줌아웃) ~ 15(줌인), 기준 1.0
+    // 0.3 이하: 거의 안 보임, 0.3~1.0: 서서히 나타남, 1.0 이상: 완전히 보임
+    const zoomOpacity = Math.min(1, Math.max(0, (globalScale - 0.2) / 0.8))
+
     // 선택된 노드가 있을 때 연결되지 않은 링크는 흐리게 처리
     const hasSelection = selectedNodeIds.length > 0
     const sourceId = typeof start === 'string' ? start : start.id
@@ -837,14 +784,15 @@ export function Graph2DView({ className }: Graph2DViewProps) {
     const isLinkConnected = connectedNodeIds.has(sourceId) || connectedNodeIds.has(targetId)
     const isLinkDimmed = hasSelection && !isLinkConnected
 
-    if (isLinkDimmed) {
-      ctx.globalAlpha = 0.05
-    }
-
     // 연결된 링크인지 확인 (양쪽 노드가 모두 연결된 노드인 경우)
     const isLinkHighlighted = hasSelection &&
       (selectedNodeIds.includes(sourceId) || selectedNodeIds.includes(targetId)) &&
       (connectedNodeIds.has(sourceId) && connectedNodeIds.has(targetId))
+
+    // 🆕 줌아웃 시 연결선 숨김 (강조된 연결선 제외)
+    if (zoomOpacity < 0.1 && !isLinkHighlighted) {
+      return // 너무 줌아웃되면 그리지 않음
+    }
 
     const isImport = link.type === 'imports'
     const isSemantic = link.type === 'semantic'
@@ -854,36 +802,36 @@ export function Graph2DView({ className }: Graph2DViewProps) {
     ctx.moveTo(start.x, start.y)
     ctx.lineTo(end.x, end.y)
 
-    if (isImport) {
-      // 의존성 라인: 테마 색상, 얇고 세련되게, 점선, 강한 발광
-      ctx.strokeStyle = accentColor
-      ctx.lineWidth = isLinkHighlighted ? 2.5 / globalScale : 1.5 / globalScale
-      ctx.setLineDash([4 / globalScale, 4 / globalScale]) // 점선 간격 조정
+    // 성능 최적화: 그림자 효과 제거, 간소화된 스타일
+    ctx.shadowBlur = 0
 
-      // 빛나는 효과 (Glow) 강화 - 연결된 링크는 더 강하게
-      ctx.shadowBlur = isLinkHighlighted ? 20 : 15
-      ctx.shadowColor = accentColor
+    if (isImport) {
+      // 의존성 라인: 점선
+      ctx.globalAlpha = isLinkDimmed ? 0.05 : (isLinkHighlighted ? 1 : zoomOpacity * 0.8)
+      ctx.strokeStyle = accentColor
+      ctx.lineWidth = isLinkHighlighted ? 2 / globalScale : 1.5 / globalScale
+      ctx.setLineDash([4 / globalScale, 4 / globalScale])
     } else if (isSemantic) {
       // 기능적 라인
+      ctx.globalAlpha = isLinkDimmed ? 0.05 : (isLinkHighlighted ? 1 : zoomOpacity * 0.5)
       ctx.strokeStyle = isDark ? 'rgba(148, 163, 184, 0.4)' : 'rgba(100, 116, 139, 0.5)'
       ctx.lineWidth = isLinkHighlighted ? 1.5 / globalScale : 1.0 / globalScale
       ctx.setLineDash([2 / globalScale, 2 / globalScale])
-      ctx.shadowBlur = isLinkHighlighted ? 10 : 0
-      ctx.shadowColor = accentColor
     } else {
-      // 구조 라인(폴더-파일): 테마 색상을 따르되 은은하게 (투명도 조절)
+      // 구조 라인(폴더-파일)
       if (isLinkHighlighted) {
-        // 연결된 링크는 더 밝게 강조
         ctx.globalAlpha = 1
         ctx.strokeStyle = accentColor
-        ctx.lineWidth = 2.0 / globalScale
-        ctx.shadowBlur = 12
-        ctx.shadowColor = accentColor
-      } else {
-        ctx.globalAlpha = isDark ? 0.3 : 0.4
-        ctx.strokeStyle = accentColor
+        ctx.lineWidth = 2 / globalScale
+      } else if (isLinkDimmed) {
+        ctx.globalAlpha = 0.05
+        ctx.strokeStyle = isDark ? '#ffffff' : '#000000'
         ctx.lineWidth = 1.0 / globalScale
-        ctx.shadowBlur = 0
+      } else {
+        const baseOpacity = isDark ? 0.25 : 0.2
+        ctx.globalAlpha = baseOpacity * zoomOpacity
+        ctx.strokeStyle = isDark ? '#ffffff' : '#000000'
+        ctx.lineWidth = 1.0 / globalScale
       }
       ctx.setLineDash([])
     }
@@ -940,10 +888,6 @@ export function Graph2DView({ className }: Graph2DViewProps) {
 
       ctx.restore()
     }
-
-    // 그림자 효과 초기화
-    ctx.shadowBlur = 0
-    ctx.shadowColor = 'transparent'
   }, [isDark, currentTheme, selectedNodeIds, connectedNodeIds])
 
   // 그래프 로드 후 자동 줌 맞춤 (SELF 노드 중심)
@@ -965,6 +909,68 @@ export function Graph2DView({ className }: Graph2DViewProps) {
     }
   }, [radialDistance])
 
+  // 🆕 레이아웃 적용 함수들
+  const applyForceLayout = useCallback((fg: any) => {
+    // Force: 기본 물리 시뮬레이션 - 노드들이 자연스럽게 분산
+    fg.d3Force('radial', null)
+    fg.d3Force('y', null)
+    fg.d3Force('x', null)
+    fg.d3Force('charge')?.strength(-200)?.distanceMax(300)
+    fg.d3Force('link')?.distance(80)?.strength(0.8)
+  }, [])
+
+  const applyRadialLayout = useCallback((fg: any) => {
+    // Radial: 중심에서 동심원 형태로 배치
+    fg.d3Force('y', null)
+    fg.d3Force('x', null)
+    fg.d3Force('charge')?.strength(-80)?.distanceMax(200)
+    fg.d3Force('link')?.distance(50)?.strength(0.5)
+    fg.d3Force('radial', forceRadial((n: any) => {
+      if (n.type === 'project') return 0
+      if (n.type === 'folder') return 100
+      return 180
+    }, 0, 0).strength(0.9))
+  }, [])
+
+  const applyCircularLayout = useCallback((fg: any) => {
+    // Circular: 모든 노드가 원형으로 배치 (겹침 방지)
+    fg.d3Force('y', null)
+    fg.d3Force('x', null)
+    // 노드 간 반발력 (적당히)
+    fg.d3Force('charge')?.strength(-100)?.distanceMax(300)
+    fg.d3Force('link')?.distance(40)?.strength(0.2)
+
+    // 노드 수에 따라 반경 조절 (너무 크지 않게)
+    const nodeCount = graphData.nodes.length || 10
+    const baseRadius = Math.max(120, Math.min(300, nodeCount * 8))
+
+    // 모든 노드를 동일한 반경의 원에 배치
+    fg.d3Force('radial', forceRadial((n: any) => {
+      if (n.type === 'project') return 0
+      return baseRadius
+    }, 0, 0).strength(0.9))
+
+    // 카메라 줌아웃하여 전체 보이게
+    setTimeout(() => {
+      fg.centerAt(0, 0, 500)
+      fg.zoom(0.8, 500)
+    }, 100)
+  }, [graphData.nodes.length])
+
+  const applyTreeLayout = useCallback((fg: any) => {
+    // Tree: 계층적 트리 구조 (위에서 아래로)
+    fg.d3Force('radial', null)
+    fg.d3Force('x', null)
+    fg.d3Force('charge')?.strength(-150)?.distanceMax(250)
+    fg.d3Force('link')?.distance(60)?.strength(0.9)
+    // Y축 계층 배치: project → folder → file
+    fg.d3Force('y', forceY((n: any) => {
+      if (n.type === 'project') return -120
+      if (n.type === 'folder') return 0
+      return 120
+    }).strength(0.7))
+  }, [])
+
   // Layout Mode Change Effect
   useEffect(() => {
     // Wait for graph ref and data
@@ -972,50 +978,21 @@ export function Graph2DView({ className }: Graph2DViewProps) {
 
     const applyLayout = () => {
       const fg = graphRef.current
-      const effectiveDistance = radialDistance || 150
-      console.log('Applying Layout Mode:', layoutMode) // Debug log
 
-      // 1. Force: Charge (Repulsion) - 더 약하게 밀어냄
-      fg.d3Force('charge')
-        ?.strength(layoutMode === 'radial' ? -80 : -200)
-        ?.distanceMax(200)
-
-      // 2. Force: Link (Distance) - 더 짧게
-      fg.d3Force('link')?.distance((link: any) => {
-        if (layoutMode === 'radial') {
-          return link.type === 'parent_child' ? 20 : 50
-        }
-        if (layoutMode === 'structural') {
-          return link.type === 'parent_child' ? 30 : 80
-        }
-        return link.type === 'imports' ? effectiveDistance * 0.5 : effectiveDistance * 0.8
-      })
-
-      // 3. Force: Radial (Circular Layout) - 더 조밀하게
-      if (layoutMode === 'radial') {
-        fg.d3Force('radial', forceRadial((n: any) => {
-          if (n.type === 'self') return 0
-          if (n.type === 'folder' || n.depth === 1) return 80
-          return 160
-        }, 0, 0).strength(0.8))
-
-        fg.d3Force('y', null) // Disable Y force
-      }
-      // 4. Force: Structural (Tree-like Layout) - 더 조밀하게
-      else if (layoutMode === 'structural') {
-        fg.d3Force('radial', null) // Disable Radial force
-
-        // Simple hierarchy simulation: folders on top, files below
-        fg.d3Force('y', forceY((n: any) => {
-          if (n.type === 'self') return -80
-          if (n.type === 'folder') return -40
-          return 40
-        }).strength(0.5))
-      }
-      // 5. Force: Organic (Default)
-      else {
-        fg.d3Force('radial', null)
-        fg.d3Force('y', null)
+      switch (layoutMode) {
+        case 'radial':
+          applyRadialLayout(fg)
+          break
+        case 'circular':
+          applyCircularLayout(fg)
+          break
+        case 'tree':
+          applyTreeLayout(fg)
+          break
+        case 'force':
+        default:
+          applyForceLayout(fg)
+          break
       }
 
       // Restart simulation - 부드럽게 재시작
@@ -1026,7 +1003,7 @@ export function Graph2DView({ className }: Graph2DViewProps) {
     const timer = setTimeout(applyLayout, 50)
 
     return () => clearTimeout(timer)
-  }, [layoutMode, radialDistance, graphData.nodes.length])
+  }, [layoutMode, radialDistance, graphData.nodes.length, applyForceLayout, applyRadialLayout, applyCircularLayout, applyTreeLayout])
 
   // Imperative ForceGraph2D 마운트 (완전히 React 외부에서 관리)
   const graphContainerRef = useRef<HTMLDivElement>(null)
@@ -1098,10 +1075,8 @@ export function Graph2DView({ className }: Graph2DViewProps) {
           })
           .linkCanvasObject((link: any, ctx: any, globalScale: number) =>
             callbacksRef.current.linkCanvasObject(link, ctx, globalScale))
-          .linkDirectionalParticles((link: any) => link.type === 'imports' ? 4 : 0)
-          .linkDirectionalParticleWidth(3)
-          .linkDirectionalParticleSpeed(0.01)
-          .linkDirectionalParticleColor(() => currentTheme.ui.accentColor)
+          // 🆕 파티클 애니메이션 비활성화
+          .linkDirectionalParticles(0)
           .d3VelocityDecay(0.7)  // 노드가 빨리 멈춤 (높을수록 빨리 감속)
           .d3AlphaDecay(0.08)   // 시뮬레이션이 빨리 안정됨
           .cooldownTicks(50)    // 시뮬레이션 빨리 종료
@@ -1122,7 +1097,18 @@ export function Graph2DView({ className }: Graph2DViewProps) {
         graphRef.current = graph
         isGraphReadyRef.current = true
 
-        console.log('[Graph2DView] Graph initialized successfully')
+        // 🔥 초기화 직후 graphData 업데이트 (타이밍 이슈 해결)
+        // graphDataRef에서 최신 데이터 가져옴
+        setTimeout(() => {
+          if (mounted && graphInstanceRef.current && graphDataRef.current) {
+            const data = graphDataRef.current
+            if (data.nodes.length > 0) {
+              graphInstanceRef.current.graphData(data)
+              graphInstanceRef.current.centerAt(0, 0, 300)
+              graphInstanceRef.current.zoom(data.nodes.length === 1 ? 0.3 : 1.0, 300)
+            }
+          }
+        }, 100)
       } catch (error) {
         console.error('[Graph2DView] Failed to initialize graph:', error)
       }
@@ -1148,55 +1134,16 @@ export function Graph2DView({ className }: Graph2DViewProps) {
     }
   }, []) // 빈 의존성 - 한 번만 마운트
 
-  // 🌌 은하 효과 애니메이션 루프 (줌아웃 시 반짝임)
-  useEffect(() => {
-    if (!graphInstanceRef.current || !isGraphReadyRef.current) return
-
-    let animationId: number
-    let lastTime = 0
-    const fps = 30 // 30fps로 제한하여 성능 최적화
-
-    const animate = (currentTime: number) => {
-      if (currentTime - lastTime >= 1000 / fps) {
-        // 줌 레벨 체크하여 은하 모드일 때만 리렌더
-        const currentZoom = graphInstanceRef.current?.zoom?.() || 1
-        if (currentZoom < 0.6) {
-          // 강제 리렌더링으로 반짝임 효과 적용
-          graphInstanceRef.current?.refresh?.()
-        }
-        lastTime = currentTime
-      }
-      animationId = requestAnimationFrame(animate)
-    }
-
-    animationId = requestAnimationFrame(animate)
-
-    return () => {
-      cancelAnimationFrame(animationId)
-    }
-  }, [graphData.nodes.length]) // 노드가 있을 때만 애니메이션
+  // 🌌 은하 효과 애니메이션 - 성능 최적화로 비활성화
+  // 필요시 줌아웃 상태에서만 낮은 fps로 실행 가능
+  // useEffect(() => { ... }, [graphData.nodes.length])
 
   // graphData 변경 시 업데이트 (imperative)
   useEffect(() => {
-    console.log('[Graph2DView] 🔄 graphData useEffect triggered:', {
-      graphReady: isGraphReadyRef.current,
-      hasInstance: !!graphInstanceRef.current,
-      nodeCount: graphData.nodes.length,
-      linkCount: graphData.links.length,
-      folderNodes: graphData.nodes.filter((n: any) => n.type === 'folder').length
-    })
-
-    if (!graphInstanceRef.current || !isGraphReadyRef.current) {
-      console.log('[Graph2DView] ⏳ Graph not ready yet, skipping update')
-      return
-    }
-    if (!graphData.nodes.length) {
-      console.log('[Graph2DView] ⚠️ No nodes to render')
-      return
-    }
+    if (!graphInstanceRef.current || !isGraphReadyRef.current) return
+    if (!graphData.nodes.length) return
 
     try {
-      console.log('[Graph2DView] ✅ Updating graph with:', graphData.nodes.length, 'nodes')
       graphInstanceRef.current.graphData(graphData)
 
       // 시뮬레이션을 낮은 에너지로 시작 (산만한 움직임 방지)
@@ -1235,8 +1182,6 @@ export function Graph2DView({ className }: Graph2DViewProps) {
     const targetNode = graphData.nodes.find(n => n.id === focusNodeId)
 
     if (targetNode && typeof targetNode.x === 'number' && typeof targetNode.y === 'number') {
-      console.log('[Graph2DView] 🎯 Focusing on node:', focusNodeId, targetNode.x, targetNode.y)
-
       // 부드러운 카메라 이동 애니메이션
       graphInstanceRef.current.centerAt(targetNode.x, targetNode.y, 800)
 
@@ -1259,7 +1204,6 @@ export function Graph2DView({ className }: Graph2DViewProps) {
           n.id.includes(file.id)
         )
         if (nodeByName && typeof nodeByName.x === 'number') {
-          console.log('[Graph2DView] 🎯 Focusing on node by name:', nodeByName.name)
           graphInstanceRef.current.centerAt(nodeByName.x, nodeByName.y, 800)
           setTimeout(() => {
             graphInstanceRef.current?.zoom(2.5, 600)
@@ -1272,6 +1216,14 @@ export function Graph2DView({ className }: Graph2DViewProps) {
       }, 1000)
     }
   }, [focusNodeId, graphData.nodes, files, setFocusNodeId])
+
+  // 레이아웃 버튼 설정
+  const layoutButtons: { mode: LayoutMode; icon: React.ReactNode; label: string }[] = [
+    { mode: 'force', icon: <Atom className="w-4 h-4" />, label: 'Force' },
+    { mode: 'radial', icon: <Network className="w-4 h-4" />, label: 'Radial' },
+    { mode: 'circular', icon: <Circle className="w-4 h-4" />, label: 'Circular' },
+    { mode: 'tree', icon: <GitBranch className="w-4 h-4" />, label: 'Tree' },
+  ]
 
   return (
     <div
@@ -1288,6 +1240,27 @@ export function Graph2DView({ className }: Graph2DViewProps) {
         ref={graphContainerRef}
         style={{ width: '100%', height: '100%', position: 'relative' }}
       />
+
+      {/* 🆕 레이아웃 선택 버튼 (우측 하단) */}
+      <div className="absolute bottom-4 right-4 flex gap-1 p-1 rounded-lg bg-zinc-900/80 backdrop-blur-sm border border-zinc-700/50">
+        {layoutButtons.map(({ mode, icon, label }) => (
+          <button
+            key={mode}
+            onClick={() => setLayoutMode(mode)}
+            title={label}
+            className={`
+              flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-all
+              ${layoutMode === mode
+                ? 'bg-violet-600 text-white shadow-lg shadow-violet-500/30'
+                : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800'
+              }
+            `}
+          >
+            {icon}
+            <span className="hidden sm:inline">{label}</span>
+          </button>
+        ))}
+      </div>
 
       {/* 노드 정보 툴팁 - DOM 직접 조작으로 업데이트 */}
       <div

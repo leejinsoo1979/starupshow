@@ -10,7 +10,7 @@ export async function GET(
   { params }: { params: { meetingId: string } }
 ) {
   try {
-    const supabase = createClient()
+    const supabase = await createClient()
     const adminClient = createAdminClient()
 
     const devUser = getDevUserIfEnabled()
@@ -85,7 +85,7 @@ export async function PATCH(
   { params }: { params: { meetingId: string } }
 ) {
   try {
-    const supabase = createClient()
+    const supabase = await createClient()
     const adminClient = createAdminClient()
 
     const devUser = getDevUserIfEnabled()
@@ -160,7 +160,7 @@ export async function DELETE(
   { params }: { params: { meetingId: string } }
 ) {
   try {
-    const supabase = createClient()
+    const supabase = await createClient()
     const adminClient = createAdminClient()
 
     const devUser = getDevUserIfEnabled()

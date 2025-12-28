@@ -39,7 +39,7 @@ export async function GET(
   { params }: { params: { roomId: string } }
 ) {
   try {
-    const supabase = createClient()
+    const supabase = await createClient()
     const adminClient = createAdminClient()
 
     // DEV 바이패스 체크
@@ -162,7 +162,7 @@ export async function POST(
 ) {
   console.log('[Messages API] POST 요청 시작')
   try {
-    const supabase = createClient()
+    const supabase = await createClient()
     const adminClient = createAdminClient()
 
     // DEV 바이패스 체크

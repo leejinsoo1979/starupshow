@@ -6,7 +6,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 // POST: 파일 업로드
 export async function POST(request: NextRequest) {
   try {
-    const supabase = createClient()
+    const supabase = await createClient()
     const adminClient = createAdminClient()
     const { data: { user }, error: authError } = await supabase.auth.getUser()
 

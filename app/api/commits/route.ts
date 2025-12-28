@@ -4,7 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 
 // GET /api/commits - List commits
 export async function GET(request: NextRequest) {
-  const supabase = createClient()
+  const supabase = await createClient()
   const { searchParams } = new URL(request.url)
   
   const teamId = searchParams.get('teamId')
@@ -49,7 +49,7 @@ export async function GET(request: NextRequest) {
 
 // POST /api/commits - Create commit
 export async function POST(request: NextRequest) {
-  const supabase = createClient()
+  const supabase = await createClient()
   
   // Check auth
   const { data: { user } } = await supabase.auth.getUser()

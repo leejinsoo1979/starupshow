@@ -20,7 +20,7 @@ export interface LogicNodeData {
 }
 
 function getIcon(type: string, name: string) {
-    if (type === 'self') return GitBranch
+    if (type === 'project') return GitBranch
     if (type === 'folder') return Folder
 
     const ext = name.split('.').pop()?.toLowerCase() || ''
@@ -67,7 +67,7 @@ const getNodeStyles = (type: string, name: string, isDark: boolean) => {
         style = isDark
             ? { bg: 'bg-emerald-950/30', border: 'border-emerald-800/50', text: 'text-emerald-200', icon: 'text-emerald-400' }
             : { bg: 'bg-emerald-50', border: 'border-emerald-200', text: 'text-emerald-800', icon: 'text-emerald-600' }
-    } else if (type === 'self') {
+    } else if (type === 'project') {
         style = isDark
             ? { bg: 'bg-blue-950/30', border: 'border-blue-800/50', text: 'text-blue-200', icon: 'text-blue-400' }
             : { bg: 'bg-blue-50', border: 'border-blue-200', text: 'text-blue-800', icon: 'text-blue-600' }
@@ -134,7 +134,7 @@ const LogicNode = ({ id, data, selected }: NodeProps<LogicNodeData>) => {
     if (data.type === 'folder') {
         colorClasses = "bg-emerald-50 border-emerald-200 text-emerald-800 dark:bg-emerald-950/40 dark:border-emerald-800/50 dark:text-emerald-200"
         iconColor = "text-emerald-600 dark:text-emerald-400"
-    } else if (data.type === 'self') {
+    } else if (data.type === 'project') {
         colorClasses = "bg-blue-50 border-blue-200 text-blue-800 dark:bg-blue-950/40 dark:border-blue-800/50 dark:text-blue-200"
         iconColor = "text-blue-600 dark:text-blue-400"
     } else {

@@ -7,7 +7,7 @@ import { getDevUserIfEnabled } from '@/lib/dev-user'
 // GET: 회의록 목록 조회
 export async function GET(request: NextRequest) {
   try {
-    const supabase = createClient()
+    const supabase = await createClient()
     const adminClient = createAdminClient()
 
     const devUser = getDevUserIfEnabled()
@@ -73,7 +73,7 @@ export async function GET(request: NextRequest) {
 // POST: 회의 종료 시 회의록 생성
 export async function POST(request: NextRequest) {
   try {
-    const supabase = createClient()
+    const supabase = await createClient()
     const adminClient = createAdminClient()
 
     const devUser = getDevUserIfEnabled()

@@ -5,7 +5,7 @@ import { createClient } from '@/lib/supabase/server'
 // GET - 공공 API 프리셋 목록 조회
 export async function GET(request: NextRequest) {
   try {
-    const supabase = createClient()
+    const supabase = await createClient()
     const { searchParams } = new URL(request.url)
     const category = searchParams.get('category')
 

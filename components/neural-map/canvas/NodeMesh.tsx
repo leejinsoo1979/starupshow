@@ -225,7 +225,7 @@ function PlanetNode({
   const { camera } = useThree()
   const isDragging = useRef(false)
 
-  const isSelf = node.type === 'self'
+  const isSelf = node.type === 'project'
   const nodeColor = isSelf ? SELF_NODE_COLOR : NODE_COLORS[node.type]
 
   // Calculate size based on type and importance

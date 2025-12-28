@@ -144,7 +144,7 @@ export async function POST(request: NextRequest) {
       description: `Orchestrator가 위임한 ${targetAgent} 작업`,
       capabilities: agentConfig.capabilities,
       llm_provider: 'gemini',
-      model: getApiModelId('gemini-3-flash'),
+      model: getApiModelId('gemini-2.0-flash'),
       temperature: agentConfig.temperature,
       system_prompt: agentConfig.systemPrompt,
       identity: null,

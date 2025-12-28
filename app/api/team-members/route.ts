@@ -20,7 +20,7 @@ interface UserProfile {
 // GET /api/team-members - List team members for a startup
 export async function GET(request: NextRequest) {
   try {
-    const supabase = createClient()
+    const supabase = await createClient()
     const { searchParams } = new URL(request.url)
 
     const { data: { user } } = await supabase.auth.getUser()
@@ -58,7 +58,7 @@ export async function GET(request: NextRequest) {
 // POST /api/team-members - Add team member (invite)
 export async function POST(request: NextRequest) {
   try {
-    const supabase = createClient()
+    const supabase = await createClient()
 
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) {
@@ -169,7 +169,7 @@ export async function POST(request: NextRequest) {
 // DELETE /api/team-members - Remove team member
 export async function DELETE(request: NextRequest) {
   try {
-    const supabase = createClient()
+    const supabase = await createClient()
     const { searchParams } = new URL(request.url)
 
     const { data: { user } } = await supabase.auth.getUser()

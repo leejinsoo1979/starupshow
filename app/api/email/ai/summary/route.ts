@@ -5,7 +5,7 @@ import { EmailAIAgent } from '@/lib/email/email-ai-agent'
 
 // GET /api/email/ai/summary - Get latest summary
 export async function GET(request: Request) {
-  const supabase = createClient()
+  const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
 
   if (!user) {
@@ -40,7 +40,7 @@ export async function GET(request: Request) {
 
 // POST /api/email/ai/summary - Generate new summary
 export async function POST(request: Request) {
-  const supabase = createClient()
+  const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
 
   if (!user) {

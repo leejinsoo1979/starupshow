@@ -256,11 +256,11 @@ export function AgentTeamTabs({ isDark }: AgentTeamTabsProps) {
 
   // 각 에이전트별 모델 설정 저장
   const [agentModels, setAgentModels] = useState<Record<AgentRole, ChatModelId>>({
-    orchestrator: 'gemini-3-flash',
-    planner: 'gemini-3-flash',
-    implementer: 'gemini-3-flash',
-    tester: 'gemini-3-flash',
-    reviewer: 'gemini-3-flash',
+    orchestrator: 'gemini-2.0-flash',
+    planner: 'gemini-2.0-flash',
+    implementer: 'gemini-2.0-flash',
+    tester: 'gemini-2.0-flash',
+    reviewer: 'gemini-2.0-flash',
   })
 
   // 각 에이전트별 Agent 모드 on/off - 🔥 모두 기본 true!

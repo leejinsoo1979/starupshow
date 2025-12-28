@@ -8,7 +8,7 @@
 // ============================================
 
 export type NodeType =
-  | 'self'      // 중심 (유일)
+  | 'self'      // 중심 (유일) - deprecated, use 'project'
   | 'concept'   // 개념
   | 'project'   // 프로젝트
   | 'doc'       // 문서
@@ -20,6 +20,7 @@ export type NodeType =
   | 'insight'   // AI 인사이트
   | 'folder'    // 폴더
   | 'file'      // 파일
+  | 'agent'     // AI 에이전트
 
 export interface SourceRef {
   fileId: string
@@ -135,7 +136,7 @@ export interface NeuralCluster {
 
 export type ViewTab = 'map' | 'life-stream' | 'agent-builder' | 'data' | 'logic' | 'test' | 'browser' | 'mermaid' | 'git'
 export type MermaidDiagramType = 'flowchart' | 'sequence' | 'class' | 'er' | 'pie' | 'state' | 'gitgraph' | 'gantt'
-export type LayoutMode = 'organic' | 'radial' | 'structural'
+export type LayoutMode = 'force' | 'radial' | 'circular' | 'tree'
 
 export interface CameraState {
   position: NodePosition

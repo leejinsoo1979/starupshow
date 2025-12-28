@@ -9,7 +9,7 @@ export async function GET(
   { params }: { params: { id: string; nodeId: string } }
 ) {
   try {
-    const supabase = createClientForApi()
+    const supabase = await createClientForApi()
     const { user } = await getAuthUser(supabase)
 
     if (!user) {
@@ -102,7 +102,7 @@ export async function PATCH(
   { params }: { params: { id: string; nodeId: string } }
 ) {
   try {
-    const supabase = createClientForApi()
+    const supabase = await createClientForApi()
     const { user } = await getAuthUser(supabase)
 
     if (!user) {
@@ -157,7 +157,7 @@ export async function DELETE(
   { params }: { params: { id: string; nodeId: string } }
 ) {
   try {
-    const supabase = createClientForApi()
+    const supabase = await createClientForApi()
     const { user } = await getAuthUser(supabase)
 
     if (!user) {

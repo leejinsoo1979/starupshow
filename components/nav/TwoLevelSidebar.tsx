@@ -16,6 +16,7 @@ import { CreateWorkModal } from '@/app/dashboard-group/works/create-modal'
 import { EmailSidebarChat } from '@/components/email/EmailSidebarChat'
 import { ThemeDropdown } from './ThemeDropdown'
 import { FileTreePanel } from '@/components/neural-map/panels/FileTreePanel'
+import GitPanel from '@/components/neural-map/panels/GitPanel'
 import { useNeuralMapStore } from '@/lib/neural-map/store'
 import type { EmailAccount, EmailMessage } from '@/types/email'
 import { useTeamStore } from '@/stores/teamStore'
@@ -1030,6 +1031,7 @@ export function TwoLevelSidebar({ hideLevel2 = false }: TwoLevelSidebarProps) {
   const [isSyncingEmail, setIsSyncingEmail] = useState(false)
   const [isToolbarMenuOpen, setIsToolbarMenuOpen] = useState(false)
   const [pinnedToolbarItems, setPinnedToolbarItems] = useState<Set<string>>(new Set(['explorer', 'search', 'git', 'extensions']))
+  const [activeToolbarItem, setActiveToolbarItem] = useState<string>('explorer')
 
   // Toolbar menu items (VS Code style)
   const toolbarMenuItems = [
@@ -1489,15 +1491,16 @@ export function TwoLevelSidebar({ hideLevel2 = false }: TwoLevelSidebarProps) {
                 isDark ? 'border-zinc-800' : 'border-zinc-200'
               )}>
                 {/* 고정된 툴바 아이템들 */}
-                {toolbarMenuItems.filter(item => pinnedToolbarItems.has(item.id)).slice(0, 4).map((item, index) => {
+                {toolbarMenuItems.filter(item => pinnedToolbarItems.has(item.id)).slice(0, 4).map((item) => {
                   const IconComponent = item.icon
-                  const isFirst = index === 0
+                  const isActive = activeToolbarItem === item.id
                   return (
                     <button
                       key={item.id}
+                      onClick={() => setActiveToolbarItem(item.id)}
                       className={cn(
                         "p-1.5 rounded-md transition-all",
-                        isFirst
+                        isActive
                           ? isDark ? "bg-zinc-700 text-zinc-100" : "bg-zinc-200 text-zinc-900"
                           : isDark ? "text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800" : "text-zinc-400 hover:text-zinc-600 hover:bg-zinc-100"
                       )}
@@ -1610,9 +1613,30 @@ export function TwoLevelSidebar({ hideLevel2 = false }: TwoLevelSidebarProps) {
                 </div>
               </div>
 
-              {/* FileTreePanel */}
+              {/* FileTreePanel / GitPanel - 툴바 선택에 따라 전환 */}
               <div className="flex-1 overflow-hidden min-w-0" style={{ width: level2Width }}>
-                <FileTreePanel mapId={neuralMapId} />
+                {activeToolbarItem === 'git' ? (
+                  <GitPanel />
+                ) : activeToolbarItem === 'search' ? (
+                  <div className={cn("p-3", isDark ? "text-zinc-400" : "text-zinc-500")}>
+                    <input
+                      type="text"
+                      placeholder="검색..."
+                      className={cn(
+                        "no-focus-ring w-full px-3 py-2 rounded-lg border text-sm outline-none",
+                        isDark
+                          ? "bg-zinc-800 border-zinc-700 text-zinc-200 placeholder-zinc-500"
+                          : "bg-zinc-50 border-zinc-200 text-zinc-800 placeholder-zinc-400"
+                      )}
+                    />
+                  </div>
+                ) : activeToolbarItem === 'extensions' ? (
+                  <div className={cn("p-4 text-sm", isDark ? "text-zinc-400" : "text-zinc-500")}>
+                    확장 기능 준비 중...
+                  </div>
+                ) : (
+                  <FileTreePanel mapId={neuralMapId} />
+                )}
               </div>
 
               {/* 리사이즈 핸들 */}

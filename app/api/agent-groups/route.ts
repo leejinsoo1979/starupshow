@@ -7,7 +7,7 @@ import type { InteractionMode } from '@/types/database'
 // GET: List all agent groups
 export async function GET(request: NextRequest) {
   try {
-    const supabase = createClient()
+    const supabase = await createClient()
     const adminClient = createAdminClient()
     const { data: { user } } = await supabase.auth.getUser()
 
@@ -51,7 +51,7 @@ export async function GET(request: NextRequest) {
 // POST: Create a new agent group
 export async function POST(request: NextRequest) {
   try {
-    const supabase = createClient()
+    const supabase = await createClient()
     const adminClient = createAdminClient()
     const { data: { user } } = await supabase.auth.getUser()
 

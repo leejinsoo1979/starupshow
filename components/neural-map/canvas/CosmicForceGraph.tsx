@@ -349,11 +349,11 @@ export function CosmicForceGraph({ className }: CosmicForceGraphProps) {
     const nodeMap = new Map<string, GraphNode>()
 
     // Find root/self node
-    const selfNode = graph.nodes.find(n => n.type === 'self')
+    const selfNode = graph.nodes.find(n => n.type === 'project')
 
     // Build all nodes first
     graph.nodes.forEach((node, index) => {
-      const depth = node.type === 'self' ? 0 :
+      const depth = node.type === 'project' ? 0 :
         node.parentId ? 2 : 1
 
       // 파일 매칭
@@ -362,7 +362,7 @@ export function CosmicForceGraph({ className }: CosmicForceGraphProps) {
 
       // 노드 크기 계산 (더 균일하게)
       let nodeSize = 10 // 기본 크기
-      if (node.type === 'self') {
+      if (node.type === 'project') {
         nodeSize = 14 // Self 노드
       } else if (matchedFile?.size) {
         nodeSize = fileSizeToNodeSize(matchedFile.size, fileSizeRange.min, fileSizeRange.max)
@@ -395,8 +395,8 @@ export function CosmicForceGraph({ className }: CosmicForceGraphProps) {
     if (visibleNodes.length > MAX_VISIBLE_NODES) {
       // Sort: self first, then folders, then files by importance
       const sorted = visibleNodes.sort((a, b) => {
-        if (a.type === 'self') return -1
-        if (b.type === 'self') return 1
+        if (a.type === 'project') return -1
+        if (b.type === 'project') return 1
         if (a.type === 'folder' && b.type !== 'folder') return -1
         if (b.type === 'folder' && a.type !== 'folder') return 1
         return (b.__node?.importance || 0) - (a.__node?.importance || 0)
@@ -620,14 +620,14 @@ export function CosmicForceGraph({ className }: CosmicForceGraphProps) {
       })
       .nodeThreeObject((n: any) => {
         const isSelected = selectedNodeIds.includes(n.id)
-        const baseSize = n.nodeSize || (n.type === 'self' ? 16 : n.depth === 1 ? 9 : 6)
+        const baseSize = n.nodeSize || (n.type === 'project' ? 16 : n.depth === 1 ? 9 : 6)
         const isZoomedOut = zoomLevelRef.current > 400
 
         // Use cached geometry (12 segments instead of 24)
         const geom = getCachedGeometry(baseSize)
         const colorNum = getNodeColor(n, isSelected)
         // Increase emissive when zoomed out for twinkling star effect
-        const emissive = isZoomedOut ? 0.9 : (n.type === 'self' ? 0.8 : 0.5)
+        const emissive = isZoomedOut ? 0.9 : (n.type === 'project' ? 0.8 : 0.5)
 
         // Use cached material
         const mat = getCachedMaterial(colorNum, emissive)
@@ -671,7 +671,7 @@ export function CosmicForceGraph({ className }: CosmicForceGraphProps) {
         }
 
         // Self Node visuals - always show but simplified when zoomed out
-        if (n.type === 'self') {
+        if (n.type === 'project') {
           const glowGeom = getCachedGeometry(baseSize * 1.5)
           const glowMat = new THREE.MeshBasicMaterial({ color: 0xffd700, transparent: true, opacity: isZoomedOut ? 0.3 : 0.15 })
           mesh.add(new THREE.Mesh(glowGeom, glowMat))
@@ -692,11 +692,8 @@ export function CosmicForceGraph({ className }: CosmicForceGraphProps) {
       .linkOpacity((l: any) => l.kind === 'imports' ? 0.6 : 0.3)
       .linkWidth((l: any) => l.kind === 'imports' ? 1.5 : 0.8)
       .linkColor((l: any) => l.color) // Use injected color
-      .linkDirectionalParticles((l: any) => l.particles)
-      .linkDirectionalParticleSpeed(0.01)
-      .linkDirectionalParticleWidth((l: any) => l.particleWidth)
-      .linkDirectionalParticleResolution(10)
-      .linkDirectionalParticleColor((l: any) => l.particleColor)
+      // 🆕 파티클 애니메이션 비활성화
+      .linkDirectionalParticles(0)
 
       // Update Data
       .graphData({ nodes, links })
@@ -790,7 +787,7 @@ export function CosmicForceGraph({ className }: CosmicForceGraphProps) {
       // 'radial' 모드일 때 중심으로부터의 거리 강제
       if (layoutMode === 'radial') {
         graphInstance.d3Force('radial', forceRadial((n: any) => {
-          if (n.type === 'self') return 0
+          if (n.type === 'project') return 0
           if (n.type === 'folder') return 120
           return 240
         }, 0, 0, 0).strength(0.8))
@@ -801,7 +798,7 @@ export function CosmicForceGraph({ className }: CosmicForceGraphProps) {
         graphInstance.d3Force('radial', null)
         // Simple hierarchy simulation: folders on top, files below
         graphInstance.d3Force('y', forceY((n: any) => {
-          if (n.type === 'self') return -200
+          if (n.type === 'project') return -200
           if (n.type === 'folder') return -100
           return 100
         }).strength(0.5))

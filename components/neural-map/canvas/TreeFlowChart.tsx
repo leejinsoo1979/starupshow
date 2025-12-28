@@ -58,7 +58,7 @@ function getNodeIcon(node: NeuralNode) {
   const title = node.title?.toLowerCase() || ''
 
   if (type === 'folder') return Folder
-  if (type === 'self') return GitBranch
+  if (type === 'project') return GitBranch
 
   const ext = title.split('.').pop() || ''
 
@@ -98,7 +98,7 @@ function getNodeColor(node: NeuralNode, isDark: boolean) {
   const type = node.type as string
   const title = node.title?.toLowerCase() || ''
 
-  if (type === 'self') {
+  if (type === 'project') {
     return isDark
       ? { bg: '#1e40af', border: '#3b82f6', text: '#ffffff', shadow: 'rgba(59, 130, 246, 0.4)' }
       : { bg: '#3b82f6', border: '#1d4ed8', text: '#ffffff', shadow: 'rgba(59, 130, 246, 0.3)' }
@@ -132,7 +132,7 @@ function getNodeColor(node: NeuralNode, isDark: boolean) {
 function buildTree(nodes: NeuralNode[], edges: NeuralEdge[]): TreeNode | null {
   if (nodes.length === 0) return null
 
-  const selfNode = nodes.find(n => n.type === 'self')
+  const selfNode = nodes.find(n => n.type === 'project')
   const rootNode = selfNode || nodes[0]
 
   const childrenMap = new Map<string, string[]>()
@@ -487,7 +487,7 @@ export function TreeFlowChart({ className }: TreeFlowChartProps) {
     const Icon = getNodeIcon(node)
     const colors = getNodeColor(node, isDark)
     const isSelected = selectedNodeIds.includes(node.id)
-    const isRoot = node.type === 'self'
+    const isRoot = node.type === 'project'
 
     // Edge connection points
     const getEdgePoints = (parentNode: TreeNode, childNode: TreeNode) => {

@@ -346,7 +346,7 @@ const initialState: NeuralMapState = {
   // Graph Settings
   radialDistance: 150, // 기본 방사 거리
   graphExpanded: true, // 기본 펼침 상태
-  layoutMode: 'organic',
+  layoutMode: 'force',  // 🆕 기본 레이아웃: force (물리 시뮬레이션)
   focusNodeId: null, // 검색 시 포커스할 노드 ID
 
   // Terminal
@@ -1207,6 +1207,31 @@ export const useNeuralMapStore = create<NeuralMapState & NeuralMapActions>()(
             graphNodes: state.graph?.nodes?.length || 0
           })
 
+          // 🆕 기존 그래프에서 DB에서 온 노드들 (에이전트 등) 보존
+          const existingGraph = state.graph
+          const existingDbNodes = existingGraph?.nodes?.filter((n: NeuralNode) => {
+            // DB에서 온 노드는 UUID 형태이고 sourceRef가 있음 (에이전트, person 등)
+            const hasSourceRef = n.sourceRef && (
+              (n.sourceRef as any).isAgent === true ||
+              (n.sourceRef as any).agentId
+            )
+            // 또는 DB에서 온 project/person 노드 (UUID 형태 ID)
+            const isDbNode = n.id.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i)
+            return hasSourceRef || isDbNode
+          }) || []
+
+          const existingDbEdges = existingGraph?.edges?.filter((e: NeuralEdge) => {
+            // DB 노드와 연결된 엣지 보존
+            return existingDbNodes.some((n) => n.id === e.sourceId || n.id === e.targetId)
+          }) || []
+
+          console.log('[buildGraphFromFilesAsync] 📌 Preserving DB nodes:', existingDbNodes.map((n: NeuralNode) => ({
+            id: n.id,
+            title: n.title,
+            type: n.type,
+            isAgent: (n.sourceRef as any)?.isAgent
+          })))
+
           // 파일이 없어도 프로젝트 루트 노드는 생성
           if (!currentFiles || currentFiles.length === 0) {
             console.log('[buildGraphFromFilesAsync] Creating empty project graph for:', state.linkedProjectName || state.projectPath || 'My Project')
@@ -1221,7 +1246,9 @@ export const useNeuralMapStore = create<NeuralMapState & NeuralMapActions>()(
             }
             const projectName = getProjectName()
 
-            const rootNode: NeuralNode = {
+            // 🆕 기존 DB 루트 노드가 있으면 재사용, 없으면 새로 생성
+            const existingRootNode = existingDbNodes.find((n: NeuralNode) => n.type === 'project' || n.type === 'self')
+            const rootNode: NeuralNode = existingRootNode || {
               id: 'node-root',
               type: 'self',
               title: projectName,
@@ -1234,19 +1261,22 @@ export const useNeuralMapStore = create<NeuralMapState & NeuralMapActions>()(
               updatedAt: new Date().toISOString(),
             }
 
+            // 🆕 DB 노드들을 포함한 그래프 생성
+            const mergedNodes = [rootNode, ...existingDbNodes.filter((n: NeuralNode) => n.id !== rootNode.id)]
+
             const emptyGraph: NeuralGraph = {
               version: '2.0',
               userId: '',
               rootNodeId: rootNode.id,
               title: projectName,
-              nodes: [rootNode],
-              edges: [],
+              nodes: mergedNodes,
+              edges: existingDbEdges,
               clusters: [],
               createdAt: new Date().toISOString(),
               updatedAt: new Date().toISOString(),
               viewState: {
                 activeTab: 'map',
-                expandedNodeIds: [rootNode.id],
+                expandedNodeIds: mergedNodes.map((n) => n.id),
                 pinnedNodeIds: [],
                 selectedNodeIds: [],
                 cameraPosition: { x: 0, y: 0, z: 0 },
@@ -1257,11 +1287,12 @@ export const useNeuralMapStore = create<NeuralMapState & NeuralMapActions>()(
 
             set((s) => {
               s.graph = emptyGraph
-              s.expandedNodeIds = new Set([rootNode.id])
+              s.expandedNodeIds = new Set(mergedNodes.map((n) => n.id))
             })
             console.log('[buildGraphFromFilesAsync] ✅ Empty project graph created:', {
               title: projectName,
-              nodes: 1
+              nodes: mergedNodes.length,
+              dbNodes: existingDbNodes.length
             })
             return
           }
@@ -1288,15 +1319,36 @@ export const useNeuralMapStore = create<NeuralMapState & NeuralMapActions>()(
             })))
 
             set((s) => {
+              // 🆕 파일 기반 노드와 DB 노드를 병합
+              // DB 노드는 이미 existingDbNodes에 보존됨
+              const fileNodeIds = new Set(result.graph.nodes.map((n) => n.id))
+              const dbNodesToAdd = existingDbNodes.filter((n: NeuralNode) => !fileNodeIds.has(n.id))
+              const mergedNodes = [...result.graph.nodes, ...dbNodesToAdd]
+
+              // 엣지도 병합
+              const fileEdgeIds = new Set(result.graph.edges.map((e) => e.id))
+              const dbEdgesToAdd = existingDbEdges.filter((e: NeuralEdge) => !fileEdgeIds.has(e.id))
+              const mergedEdges = [...result.graph.edges, ...dbEdgesToAdd]
+
+              console.log('[buildGraphFromFilesAsync] 📌 Merging nodes:', {
+                fileNodes: result.graph.nodes.length,
+                dbNodes: dbNodesToAdd.length,
+                total: mergedNodes.length
+              })
+
               if (s.graph) {
-                s.graph.nodes = result.graph.nodes
-                s.graph.edges = result.graph.edges
+                s.graph.nodes = mergedNodes
+                s.graph.edges = mergedEdges
                 s.graph.updatedAt = result.graph.updatedAt
               } else {
-                s.graph = result.graph
+                s.graph = {
+                  ...result.graph,
+                  nodes: mergedNodes,
+                  edges: mergedEdges
+                }
               }
               // 🔥 모든 노드를 기본적으로 펼침 (방사형 그래프에서 모든 노드 표시)
-              const allNodeIds = result.graph.nodes.map((n) => n.id)
+              const allNodeIds = mergedNodes.map((n) => n.id)
 
               s.expandedNodeIds = new Set(allNodeIds)
               console.log('[buildGraphFromFilesAsync] ✅ expandedNodeIds set (all nodes):', allNodeIds.length, 'nodes')

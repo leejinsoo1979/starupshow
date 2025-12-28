@@ -54,6 +54,9 @@ import {
   Link,
   Plus,
   Bot,
+  Palette,
+  Briefcase,
+  Folder,
 } from 'lucide-react'
 
 // react-icons - VS Code 스타일 파일 아이콘
@@ -166,6 +169,9 @@ function buildFileTree(files: NeuralFile[]): TreeNode[] {
 
   const root: TreeNode[] = []
 
+  // 🆕 agents 폴더를 필터링하지 않음 - 프로젝트 내 agents 폴더가 표시되어야 함
+  // (에이전트가 프로젝트 내에 저장되므로 다른 프로젝트를 열면 자동으로 해당 프로젝트 에이전트만 표시)
+
   // path가 없는 파일들 (단일 파일 업로드)
   const standaloneFiles = files.filter(f => !f.path)
   console.log('[buildFileTree] Standalone files (no path):', standaloneFiles.length, standaloneFiles.map(f => f.name))
@@ -253,6 +259,50 @@ export function FileTreePanel({ mapId }: FileTreePanelProps) {
   const fileInputRef = useRef<HTMLInputElement>(null)
   const folderInputRef = useRef<HTMLInputElement>(null)
 
+  // 에이전트 폴더 상태
+  const [agentFolders, setAgentFolders] = useState<Array<{
+    folderName: string
+    name: string
+    description: string
+    nodeCount: number
+    edgeCount: number
+  }>>([])
+  const [isLoadingAgents, setIsLoadingAgents] = useState(false)
+
+  // 에이전트 폴더 목록 가져오기 (프로젝트 연결 시 해당 프로젝트 에이전트만)
+  const fetchAgentFolders = useCallback(async (projectId: string | null) => {
+    setIsLoadingAgents(true)
+    try {
+      // 🆕 프로젝트가 연결된 경우: DB에서 해당 프로젝트의 에이전트만 조회
+      if (projectId) {
+        const res = await fetch(`/api/agents?project_id=${projectId}`)
+        if (res.ok) {
+          const agents = await res.json()
+          // DB 에이전트를 폴더 형식으로 변환
+          const agentFolders = (agents || []).map((agent: any) => ({
+            folderName: agent.name.toLowerCase().replace(/\s+/g, '-'),
+            name: agent.name,
+            description: agent.description || '',
+            nodeCount: agent.workflow_nodes?.length || 0,
+            edgeCount: agent.workflow_edges?.length || 0,
+            agentId: agent.id,  // DB ID 추가
+          }))
+          setAgentFolders(agentFolders)
+          console.log('[FileTree] Loaded project agents:', agentFolders.length)
+        }
+      } else {
+        // 프로젝트 연결 없음: 빈 목록 (글로벌 에이전트 표시 안 함)
+        setAgentFolders([])
+        console.log('[FileTree] No project linked, clearing agents')
+      }
+    } catch (error) {
+      console.error('[FileTree] Failed to fetch agents:', error)
+      setAgentFolders([])
+    } finally {
+      setIsLoadingAgents(false)
+    }
+  }, [])
+
   // Store
   const files = useNeuralMapStore((s) => s.files)
   const addFile = useNeuralMapStore((s) => s.addFile)
@@ -284,6 +334,18 @@ export function FileTreePanel({ mapId }: FileTreePanelProps) {
   const linkedProjectId = useNeuralMapStore((s) => s.linkedProjectId)
   const setLinkedProject = useNeuralMapStore((s) => s.setLinkedProject)
   const clearLinkedProject = useNeuralMapStore((s) => s.clearLinkedProject)
+
+  // 🆕 linkedProjectId가 변경되면 에이전트 목록 새로고침
+  useEffect(() => {
+    fetchAgentFolders(linkedProjectId)
+
+    // 에이전트 생성 이벤트 수신하여 목록 새로고침
+    const channel = new BroadcastChannel('agent-folder-refresh')
+    channel.onmessage = () => {
+      fetchAgentFolders(linkedProjectId)
+    }
+    return () => channel.close()
+  }, [linkedProjectId, fetchAgentFolders])
 
   // API
   const { uploadFile, deleteFile, createNode, createEdge, analyzeFile, removeNode } = useNeuralMapApi(mapId)
@@ -317,6 +379,46 @@ export function FileTreePanel({ mapId }: FileTreePanelProps) {
   const [createGitHubRepo, setCreateGitHubRepo] = useState(false)
   const [isGitHubConnected, setIsGitHubConnected] = useState(false)
   const projectNameInputRef = useRef<HTMLInputElement>(null)
+
+  // 카테고리 상태
+  interface ProjectCategory {
+    id: string
+    name: string
+    description: string | null
+    icon: string
+    color: string
+    sort_order: number
+  }
+  const [categories, setCategories] = useState<ProjectCategory[]>([
+    { id: '11111111-1111-1111-1111-111111111111', name: '개발', description: '코드 프로젝트', icon: 'Code', color: '#10b981', sort_order: 0 },
+    { id: '22222222-2222-2222-2222-222222222222', name: '문서', description: '기획 & 문서', icon: 'FileText', color: '#3b82f6', sort_order: 1 },
+    { id: '33333333-3333-3333-3333-333333333333', name: '디자인', description: 'UI/UX & 그래픽', icon: 'Palette', color: '#8b5cf6', sort_order: 2 },
+    { id: '44444444-4444-4444-4444-444444444444', name: '업무', description: '태스크 관리', icon: 'Briefcase', color: '#f59e0b', sort_order: 3 },
+  ])
+  const [selectedCategoryId, setSelectedCategoryId] = useState<string>('11111111-1111-1111-1111-111111111111')
+
+  // 카테고리 아이콘 매핑
+  const categoryIconMap: Record<string, React.ElementType> = {
+    Code, FileText, Palette, Briefcase, Folder,
+  }
+
+  // 카테고리 로드
+  useEffect(() => {
+    const fetchCategories = async () => {
+      try {
+        const res = await fetch('/api/project-categories')
+        if (res.ok) {
+          const data = await res.json()
+          if (Array.isArray(data) && data.length > 0) {
+            setCategories(data)
+          }
+        }
+      } catch (err) {
+        console.error('[FileTree] Failed to load categories:', err)
+      }
+    }
+    fetchCategories()
+  }, [])
 
   // 최근 프로젝트 상태
   interface RecentProject {
@@ -631,14 +733,26 @@ export function FileTreePanel({ mapId }: FileTreePanelProps) {
       }
 
       // 3. Supabase에 프로젝트 메타데이터 저장
+      // 선택된 카테고리로 project_type 결정
+      const selectedCategory = categories.find(c => c.id === selectedCategoryId)
+      const projectTypeMap: Record<string, string> = {
+        '11111111-1111-1111-1111-111111111111': 'code',
+        '22222222-2222-2222-2222-222222222222': 'document',
+        '33333333-3333-3333-3333-333333333333': 'design',
+        '44444444-4444-4444-4444-444444444444': 'work',
+      }
+      const projectType = projectTypeMap[selectedCategoryId] || 'code'
+
       const response = await fetch('/api/projects', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name: trimmedName,
-          description: '',
+          description: selectedCategory?.description || '',
           status: 'active',
           folder_path: folderPath || null,
+          project_type: projectType,
+          category_id: selectedCategoryId,
           github_owner: githubData?.owner || null,
           github_repo: githubData?.repo || null,
           github_clone_url: githubData?.clone_url || null,
@@ -713,6 +827,7 @@ export function FileTreePanel({ mapId }: FileTreePanelProps) {
       setIsCreatingProject(false)
       setNewProjectName('')
       setCreateGitHubRepo(false)
+      setSelectedCategoryId('11111111-1111-1111-1111-111111111111')
 
       console.log('[FileTree] Project linked to Neural Map:', {
         id: newProject.id,
@@ -726,7 +841,7 @@ export function FileTreePanel({ mapId }: FileTreePanelProps) {
     } finally {
       setIsCreatingProjectLoading(false)
     }
-  }, [newProjectName, setProjectPath, setLinkedProject, createGitHubRepo, isGitHubConnected])
+  }, [newProjectName, setProjectPath, setLinkedProject, createGitHubRepo, isGitHubConnected, categories, selectedCategoryId])
 
   // 컨텍스트 메뉴 열기
   const handleContextMenu = useCallback((
@@ -1127,7 +1242,7 @@ export function FileTreePanel({ mapId }: FileTreePanelProps) {
 
     // 0. 루트 폴더 (슬래시 없음) → SELF 노드
     if (!folderPath.includes('/')) {
-      const selfNode = graph.nodes.find(n => n.type === 'self')
+      const selfNode = graph.nodes.find(n => n.type === 'project')
       if (selfNode) return selfNode.id
     }
 
@@ -1358,7 +1473,7 @@ export function FileTreePanel({ mapId }: FileTreePanelProps) {
           })
 
           if (newNode && graph?.nodes) {
-            const selfNode = graph.nodes.find(n => n.type === 'self')
+            const selfNode = graph.nodes.find(n => n.type === 'project')
             if (selfNode) {
               await createEdge({
                 sourceId: selfNode.id,
@@ -2319,7 +2434,7 @@ export function FileTreePanel({ mapId }: FileTreePanelProps) {
 
                 // Sync with graph: Toggle self node
                 if (graph?.nodes) {
-                  const selfNode = graph.nodes.find(n => n.type === 'self')
+                  const selfNode = graph.nodes.find(n => n.type === 'project')
                   if (selfNode) {
                     if (newExpanded) {
                       if (!expandedNodeIds.has(selfNode.id)) {
@@ -2501,6 +2616,9 @@ export function FileTreePanel({ mapId }: FileTreePanelProps) {
             />
           </div>
         )}
+
+        {/* 🤖 Agents 폴더 트리 - 비활성화 (에이전트가 프로젝트 내 파일 시스템에 저장되므로 일반 파일 트리에서 표시) */}
+        {/* agents 폴더는 이제 프로젝트별로 저장되어 파일 트리에 자동으로 표시됨 */}
 
         {/* 파일 트리 목록 - 프로젝트가 있을 때만 */}
         {hasProject && (
@@ -2783,6 +2901,44 @@ export function FileTreePanel({ mapId }: FileTreePanelProps) {
                 }}
               />
 
+              {/* 카테고리 선택 */}
+              <div className="mt-4">
+                <p className={cn(
+                  'text-xs mb-2 font-medium',
+                  isDark ? 'text-zinc-400' : 'text-zinc-600'
+                )}>
+                  카테고리
+                </p>
+                <div className="grid grid-cols-2 gap-2">
+                  {categories.map((cat) => {
+                    const IconComponent = categoryIconMap[cat.icon] || Folder
+                    const isSelected = selectedCategoryId === cat.id
+                    return (
+                      <button
+                        key={cat.id}
+                        onClick={() => setSelectedCategoryId(cat.id)}
+                        className={cn(
+                          'flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-all border-2',
+                          isSelected
+                            ? 'border-current'
+                            : isDark
+                              ? 'border-transparent bg-[#2d2d2d] hover:bg-[#3d3d3d] text-zinc-300'
+                              : 'border-transparent bg-zinc-100 hover:bg-zinc-200 text-zinc-700'
+                        )}
+                        style={{
+                          borderColor: isSelected ? cat.color : 'transparent',
+                          color: isSelected ? cat.color : undefined,
+                          backgroundColor: isSelected ? `${cat.color}15` : undefined,
+                        }}
+                      >
+                        <IconComponent className="w-4 h-4" />
+                        {cat.name}
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+
               {/* GitHub 연동은 Git 탭에서 나중에 가능 */}
               <p className={cn(
                 'text-xs mt-4 flex items-center gap-2',
@@ -2993,21 +3149,6 @@ function TreeNodeList({
               <Code className="w-3.5 h-3.5" />
             </button>
 
-            {/* 삭제 버튼 - 호버 시 표시 */}
-            <button
-              onClick={(e) => onDeleteFile(e, file.id)}
-              className={cn(
-                'p-0.5 rounded opacity-0 group-hover:opacity-100 transition-opacity',
-                isSelected
-                  ? 'hover:bg-white/20'
-                  : isDark
-                    ? 'hover:bg-zinc-700'
-                    : 'hover:bg-zinc-300'
-              )}
-              title="삭제"
-            >
-              <Trash2 className="w-3.5 h-3.5" />
-            </button>
           </div>
         )
       })}
@@ -3123,5 +3264,90 @@ function ContextMenuDivider({ isDark }: { isDark: boolean }) {
       'my-1 h-px',
       isDark ? 'bg-[#454545]' : 'bg-[#e0e0e0]'
     )} />
+  )
+}
+
+// 🤖 에이전트 폴더 트리 컴포넌트
+function AgentsFolderTree({
+  agents,
+  isDark,
+  isLoading,
+  onRefresh,
+  onAgentClick,
+}: {
+  agents: Array<{ folderName: string; name: string; description: string; nodeCount: number; edgeCount: number }>
+  isDark: boolean
+  isLoading: boolean
+  onRefresh: () => void
+  onAgentClick: (folderName: string) => void
+}) {
+  const [isExpanded, setIsExpanded] = useState(true)
+
+  return (
+    <div className="py-1">
+      {/* 폴더 헤더 */}
+      <button
+        onClick={() => setIsExpanded(!isExpanded)}
+        className={cn(
+          'w-full flex items-center gap-1 py-[3px] px-2 select-none group',
+          isDark
+            ? 'hover:bg-[#2a2d2e] text-[#cccccc]'
+            : 'hover:bg-[#e8e8e8] text-[#3d3d3d]'
+        )}
+      >
+        {isExpanded ? (
+          <ChevronDown className="w-4 h-4 flex-shrink-0 text-inherit" />
+        ) : (
+          <ChevronRight className="w-4 h-4 flex-shrink-0 text-inherit" />
+        )}
+        <Bot className={cn('w-4 h-4 flex-shrink-0', isDark ? 'text-violet-400' : 'text-violet-500')} />
+        <span className="text-[13px] font-medium flex-1 text-left">agents</span>
+        <span className={cn('text-[11px]', isDark ? 'text-zinc-500' : 'text-zinc-400')}>
+          {agents.length}
+        </span>
+        <button
+          onClick={(e) => {
+            e.stopPropagation()
+            onRefresh()
+          }}
+          className={cn(
+            'p-0.5 rounded opacity-0 group-hover:opacity-100 transition-opacity',
+            isDark ? 'hover:bg-white/10' : 'hover:bg-black/10'
+          )}
+        >
+          <RefreshCw className={cn('w-3 h-3', isLoading && 'animate-spin')} />
+        </button>
+      </button>
+
+      {/* 에이전트 폴더 목록 */}
+      <AnimatePresence>
+        {isExpanded && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.15 }}
+            className="overflow-hidden"
+          >
+            {agents.map((agent) => (
+              <button
+                key={agent.folderName}
+                onClick={() => onAgentClick(agent.folderName)}
+                className={cn(
+                  'w-full flex items-center gap-1.5 py-[3px] pr-2 select-none',
+                  isDark
+                    ? 'hover:bg-[#2a2d2e] text-[#cccccc]'
+                    : 'hover:bg-[#e8e8e8] text-[#3d3d3d]'
+                )}
+                style={{ paddingLeft: '28px' }}
+              >
+                <FolderClosed className={cn('w-4 h-4 flex-shrink-0', isDark ? 'text-violet-400' : 'text-violet-500')} />
+                <span className="text-[13px] truncate flex-1 text-left">{agent.name}</span>
+              </button>
+            ))}
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
   )
 }

@@ -10,7 +10,7 @@ export async function GET(
 ) {
   try {
     const { id: projectId } = await params
-    const supabase = createClientForApi()
+    const supabase = await createClientForApi()
     const { user } = await getAuthUser(supabase)
 
     if (!user) {
@@ -91,7 +91,7 @@ export async function POST(
 ) {
   try {
     const { id: projectId } = await params
-    const supabase = createClientForApi()
+    const supabase = await createClientForApi()
     const { user } = await getAuthUser(supabase)
 
     if (!user) {
@@ -158,7 +158,7 @@ export async function PUT(
 ) {
   try {
     await params // validate params exist
-    const supabase = createClientForApi()
+    const supabase = await createClientForApi()
     const { user } = await getAuthUser(supabase)
 
     if (!user) {

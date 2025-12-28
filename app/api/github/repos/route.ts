@@ -11,7 +11,7 @@ export async function GET(request: Request) {
     const sort = searchParams.get('sort') || 'updated' // created, updated, pushed, full_name
     const type = searchParams.get('type') || 'all' // all, owner, member
 
-    const supabase = createClient()
+    const supabase = await createClient()
     const { data: { user }, error: authError } = await supabase.auth.getUser()
 
     if (authError || !user) {
@@ -128,7 +128,7 @@ export async function POST(request: Request) {
       )
     }
 
-    const supabase = createClient()
+    const supabase = await createClient()
     const { data: { user }, error: authError } = await supabase.auth.getUser()
 
     if (authError || !user) {

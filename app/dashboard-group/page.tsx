@@ -35,7 +35,8 @@ import {
   ProductivityChart,
   CalendarWidget,
   TodoWidget,
-  CodingTeamWidget
+  CodingTeamWidget,
+  GitCommitsWidget
 } from '@/components/dashboard'
 import { cn } from '@/lib/utils'
 import { formatDistanceToNow } from 'date-fns'
@@ -519,6 +520,17 @@ export default function DashboardPage() {
         <motion.div variants={item} className="col-span-12 md:col-span-5 h-[400px]">
           <TiltCard className="h-full p-5">
             <EngagementOverview />
+          </TiltCard>
+        </motion.div>
+
+        {/* Row 4: Git Commits */}
+        <motion.div variants={item} className="col-span-12 md:col-span-6 h-[400px]">
+          <GitCommitsWidget />
+        </motion.div>
+
+        <motion.div variants={item} className="col-span-12 md:col-span-6 h-[400px]">
+          <TiltCard className="h-full p-5">
+            <TasksChart />
           </TiltCard>
         </motion.div>
 

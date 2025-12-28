@@ -715,6 +715,10 @@ export interface RespondInvestorAccessInput {
   can_download_reports?: boolean
 }
 
+// Hybrid Git System Types
+export type ProjectKind = 'code' | 'document' | 'design' | 'work'
+export type GitMode = 'separate_repo' | 'workspace_repo' | 'local_only'
+
 // Project Input Types
 export interface CreateProjectInput {
   team_id: string
@@ -729,6 +733,9 @@ export interface CreateProjectInput {
   tags?: string[]
   color?: string
   folder_path?: string  // Local file system path for the project workspace
+  // Hybrid Git System
+  project_type?: ProjectKind
+  git_mode?: GitMode
   // GitHub Integration
   github_owner?: string
   github_repo?: string
@@ -739,6 +746,11 @@ export interface CreateProjectInput {
 export interface UpdateProjectInput extends Partial<Omit<CreateProjectInput, 'team_id'>> {
   progress?: number
   folder_path?: string  // Local file system path for the project workspace
+  // Hybrid Git System
+  project_type?: ProjectKind
+  git_mode?: GitMode
+  local_git_path?: string
+  workspace_folder?: string
   // GitHub Integration
   github_owner?: string
   github_repo?: string

@@ -2,10 +2,23 @@
 
 import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { X, FolderKanban, Users, ChevronDown, Calendar } from 'lucide-react'
+import { X, FolderKanban, Users, ChevronDown, Calendar, Code, FileText, Palette, Briefcase, Github, HardDrive, FolderGit } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useThemeStore } from '@/stores/themeStore'
 import type { User } from '@/types/database'
+
+const PROJECT_TYPES = [
+  { id: 'code', label: '코드', icon: Code, description: '개발 프로젝트' },
+  { id: 'document', label: '문서', icon: FileText, description: '문서 작업' },
+  { id: 'design', label: '디자인', icon: Palette, description: '디자인 작업' },
+  { id: 'work', label: '업무', icon: Briefcase, description: '일반 업무' },
+]
+
+const GIT_MODES = [
+  { id: 'separate_repo', label: '별도 GitHub 레포', icon: Github, description: '이 프로젝트만의 GitHub 저장소 생성' },
+  { id: 'workspace_repo', label: '워크스페이스 레포', icon: FolderGit, description: '통합 워크스페이스 저장소에 폴더로 관리' },
+  { id: 'local_only', label: '로컬만 사용', icon: HardDrive, description: 'GitHub 연동 안 함 (로컬 Git만)' },
+]
 
 interface ProjectCreateModalProps {
   isOpen: boolean
@@ -24,6 +37,8 @@ export interface ProjectFormData {
   status: string
   priority: string
   deadline: string
+  project_type: 'code' | 'document' | 'design' | 'work'
+  git_mode: 'separate_repo' | 'workspace_repo' | 'local_only'
 }
 
 export function ProjectCreateModal({
@@ -43,6 +58,8 @@ export function ProjectCreateModal({
     status: 'planning',
     priority: 'medium',
     deadline: '',
+    project_type: 'code',
+    git_mode: 'local_only',
   })
   const [selectedMembers, setSelectedMembers] = useState<string[]>([])
 
@@ -86,6 +103,8 @@ export function ProjectCreateModal({
       status: 'planning',
       priority: 'medium',
       deadline: '',
+      project_type: 'code',
+      git_mode: 'local_only',
     })
     setSelectedMembers([])
     onClose()
@@ -162,6 +181,74 @@ export function ProjectCreateModal({
                     autoFocus
                     className="w-full px-4 py-3 rounded-xl bg-zinc-100 dark:bg-zinc-800 border-0 text-zinc-900 dark:text-white placeholder:text-zinc-400 dark:placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-offset-0 focus:ring-zinc-300 dark:focus:ring-zinc-600 transition-all"
                   />
+                </div>
+
+                {/* Project Type Selection */}
+                <div>
+                  <label className="block text-sm font-medium text-zinc-900 dark:text-white mb-2">
+                    프로젝트 유형
+                  </label>
+                  <div className="grid grid-cols-4 gap-2">
+                    {PROJECT_TYPES.map((type) => {
+                      const Icon = type.icon
+                      const isSelected = formData.project_type === type.id
+                      return (
+                        <button
+                          key={type.id}
+                          type="button"
+                          onClick={() => setFormData({ ...formData, project_type: type.id as ProjectFormData['project_type'] })}
+                          className={cn(
+                            "flex flex-col items-center gap-1.5 p-3 rounded-xl transition-all",
+                            isSelected
+                              ? cn(accent.bg, "text-white")
+                              : "bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-700"
+                          )}
+                        >
+                          <Icon className="w-5 h-5" />
+                          <span className="text-xs font-medium">{type.label}</span>
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+
+                {/* Git Mode Selection */}
+                <div>
+                  <label className="block text-sm font-medium text-zinc-900 dark:text-white mb-2">
+                    Git 연동 방식
+                  </label>
+                  <div className="space-y-2">
+                    {GIT_MODES.map((mode) => {
+                      const Icon = mode.icon
+                      const isSelected = formData.git_mode === mode.id
+                      return (
+                        <button
+                          key={mode.id}
+                          type="button"
+                          onClick={() => setFormData({ ...formData, git_mode: mode.id as ProjectFormData['git_mode'] })}
+                          className={cn(
+                            "w-full flex items-center gap-3 p-3 rounded-xl transition-all text-left",
+                            isSelected
+                              ? cn(accent.light, accent.text, "ring-2", `ring-${accentColor}-500/50`)
+                              : "bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-700"
+                          )}
+                        >
+                          <Icon className={cn("w-5 h-5 flex-shrink-0", isSelected && accent.text)} />
+                          <div className="flex-1 min-w-0">
+                            <div className={cn("text-sm font-medium", isSelected ? accent.text : "text-zinc-900 dark:text-white")}>
+                              {mode.label}
+                            </div>
+                            <div className="text-xs text-zinc-500 dark:text-zinc-400 truncate">
+                              {mode.description}
+                            </div>
+                          </div>
+                          {isSelected && (
+                            <div className={cn("w-2 h-2 rounded-full flex-shrink-0", accent.bg)} />
+                          )}
+                        </button>
+                      )
+                    })}
+                  </div>
                 </div>
 
                 {/* Team & Deadline - 2 Column */}

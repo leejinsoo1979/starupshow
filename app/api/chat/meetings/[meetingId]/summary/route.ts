@@ -12,7 +12,7 @@ export async function POST(
   { params }: { params: { meetingId: string } }
 ) {
   try {
-    const supabase = createClient()
+    const supabase = await createClient()
     const adminClient = createAdminClient()
 
     const devUser = getDevUserIfEnabled()

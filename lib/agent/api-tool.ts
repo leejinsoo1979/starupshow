@@ -63,7 +63,7 @@ function paramToZodSchema(param: any): z.ZodTypeAny {
       baseSchema = desc ? z.array(z.any()).describe(desc) : z.array(z.any())
       break
     case 'object':
-      baseSchema = desc ? z.record(z.string(), z.any()).describe(desc) : z.record(z.string(), z.any())
+      baseSchema = desc ? z.object({}).passthrough().describe(desc) : z.object({}).passthrough()
       break
     default:
       baseSchema = desc ? z.string().describe(desc) : z.string()
@@ -89,7 +89,7 @@ function createSchemaFromEndpoint(endpoint: ApiEndpoint): z.ZodObject<any> {
 
   // body가 필요한 메서드면 body 필드 추가
   if (['POST', 'PUT', 'PATCH'].includes(endpoint.method)) {
-    shape['body'] = z.record(z.string(), z.any()).describe('요청 본문 데이터').optional()
+    shape['body'] = z.any().describe('요청 본문 데이터').optional()
   }
 
   return z.object(shape)

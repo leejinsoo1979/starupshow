@@ -19,7 +19,7 @@ interface UserProfile {
 // GET /api/startups/[id] - Get single startup
 export async function GET(request: NextRequest, { params }: RouteParams) {
   try {
-    const supabase = createClient()
+    const supabase = await createClient()
     const { id } = params
 
     const { data: { user } } = await supabase.auth.getUser()
@@ -60,7 +60,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 // PATCH /api/startups/[id] - Update startup
 export async function PATCH(request: NextRequest, { params }: RouteParams) {
   try {
-    const supabase = createClient()
+    const supabase = await createClient()
     const { id } = params
 
     const { data: { user } } = await supabase.auth.getUser()
@@ -119,7 +119,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
 // DELETE /api/startups/[id] - Delete startup
 export async function DELETE(request: NextRequest, { params }: RouteParams) {
   try {
-    const supabase = createClient()
+    const supabase = await createClient()
     const { id } = params
 
     const { data: { user } } = await supabase.auth.getUser()

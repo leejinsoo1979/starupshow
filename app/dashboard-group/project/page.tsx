@@ -21,6 +21,16 @@ import {
   Users,
   Sparkles,
   Pencil,
+  Code,
+  FileText,
+  Palette,
+  Briefcase,
+  ArrowLeft,
+  ChevronRight,
+  X,
+  Check,
+  Trash2,
+  GripVertical,
 } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/Button"
@@ -74,6 +84,37 @@ const statusLabels: Record<string, string> = {
   cancelled: "취소",
 }
 
+// 아이콘 매핑
+const iconMap: Record<string, React.ElementType> = {
+  Code,
+  FileText,
+  Palette,
+  Briefcase,
+  Folder,
+  Users,
+  Calendar,
+  CheckCircle2,
+}
+
+// 카테고리 타입
+interface ProjectCategory {
+  id: string
+  name: string
+  description: string | null
+  icon: string
+  color: string
+  sort_order: number
+  user_id: string | null
+}
+
+// 기본 카테고리 (API 실패시 폴백)
+const defaultCategories: ProjectCategory[] = [
+  { id: "code", name: "개발", description: "코드 프로젝트", icon: "Code", color: "#10b981", sort_order: 0, user_id: null },
+  { id: "document", name: "문서", description: "기획 & 문서", icon: "FileText", color: "#3b82f6", sort_order: 1, user_id: null },
+  { id: "design", name: "디자인", description: "UI/UX & 그래픽", icon: "Palette", color: "#8b5cf6", sort_order: 2, user_id: null },
+  { id: "work", name: "업무", description: "태스크 관리", icon: "Briefcase", color: "#f59e0b", sort_order: 3, user_id: null },
+]
+
 export default function ProjectsPage() {
   const router = useRouter()
   const [projects, setProjects] = useState<ProjectWithRelations[]>([])
@@ -89,6 +130,14 @@ export default function ProjectsPage() {
   const [creating, setCreating] = useState(false)
   const [importing, setImporting] = useState(false)
   const [isElectron, setIsElectron] = useState(false)
+  const [categoryFilter, setCategoryFilter] = useState<string | null>(null)
+
+  // 카테고리 관련 상태
+  const [categories, setCategories] = useState<ProjectCategory[]>(defaultCategories)
+  const [editingCategory, setEditingCategory] = useState<string | null>(null)
+  const [editName, setEditName] = useState("")
+  const [isAddingCategory, setIsAddingCategory] = useState(false)
+  const [newCategoryName, setNewCategoryName] = useState("")
 
   // Check if running in Electron
   useEffect(() => {
@@ -98,7 +147,82 @@ export default function ProjectsPage() {
   useEffect(() => {
     fetchProjects()
     fetchTeams()
+    fetchCategories()
   }, [])
+
+  // 카테고리 조회
+  const fetchCategories = async () => {
+    try {
+      const res = await fetch('/api/project-categories')
+      if (res.ok) {
+        const data = await res.json()
+        if (Array.isArray(data) && data.length > 0) {
+          setCategories(data)
+        }
+      }
+    } catch (err) {
+      console.error('Categories fetch error:', err)
+    }
+  }
+
+  // 카테고리 이름 수정
+  const handleUpdateCategory = async (id: string, name: string) => {
+    try {
+      const res = await fetch('/api/project-categories', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, name }),
+      })
+      if (res.ok) {
+        setCategories(prev => prev.map(c => c.id === id ? { ...c, name } : c))
+        setEditingCategory(null)
+        setEditName("")
+      }
+    } catch (err) {
+      console.error('Category update error:', err)
+    }
+  }
+
+  // 새 카테고리 추가
+  const handleAddCategory = async () => {
+    if (!newCategoryName.trim()) return
+    try {
+      const res = await fetch('/api/project-categories', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: newCategoryName.trim(),
+          description: '',
+          icon: 'Folder',
+          color: '#6366f1',
+        }),
+      })
+      if (res.ok) {
+        const newCategory = await res.json()
+        setCategories(prev => [...prev, newCategory])
+        setIsAddingCategory(false)
+        setNewCategoryName("")
+      }
+    } catch (err) {
+      console.error('Category add error:', err)
+    }
+  }
+
+  // 카테고리 삭제
+  const handleDeleteCategory = async (id: string) => {
+    if (!confirm('이 카테고리를 삭제하시겠습니까?')) return
+    try {
+      const res = await fetch(`/api/project-categories?id=${id}`, { method: 'DELETE' })
+      if (res.ok) {
+        setCategories(prev => prev.filter(c => c.id !== id))
+      } else {
+        const data = await res.json()
+        alert(data.error || '삭제 실패')
+      }
+    } catch (err) {
+      console.error('Category delete error:', err)
+    }
+  }
 
   const fetchProjects = async () => {
     try {
@@ -333,7 +457,10 @@ export default function ProjectsPage() {
       .filter((project) => {
         const matchesSearch = project.name.toLowerCase().includes(searchQuery.toLowerCase())
         const matchesStatus = statusFilter === "all" || project.status === statusFilter
-        return matchesSearch && matchesStatus
+        // 카테고리 필터 추가
+        const projectType = (project as any).project_type || 'code'
+        const matchesCategory = !categoryFilter || projectType === categoryFilter
+        return matchesSearch && matchesStatus && matchesCategory
       })
       .sort((a, b) => {
         if (sortBy === "updated") {
@@ -344,7 +471,7 @@ export default function ProjectsPage() {
         }
         return new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
       })
-  }, [projects, searchQuery, statusFilter, sortBy])
+  }, [projects, searchQuery, statusFilter, sortBy, categoryFilter])
 
   const stats = useMemo(() => {
     const total = projects.length
@@ -352,6 +479,19 @@ export default function ProjectsPage() {
     const completed = projects.filter(p => p.status === "completed").length
     return { total, active, completed }
   }, [projects])
+
+  // 카테고리별 프로젝트 수
+  const categoryStats = useMemo(() => {
+    const stats: Record<string, number> = {}
+    categories.forEach(cat => {
+      // category_id 또는 project_type으로 매칭
+      stats[cat.id] = projects.filter(p => {
+        const pid = (p as any).category_id || (p as any).project_type
+        return pid === cat.id || pid === cat.name.toLowerCase()
+      }).length
+    })
+    return stats
+  }, [projects, categories])
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString)
@@ -387,26 +527,33 @@ export default function ProjectsPage() {
       <div className="sticky top-0 z-10 bg-white/80 dark:bg-zinc-950/80 backdrop-blur-xl border-b border-zinc-200/50 dark:border-zinc-800/50">
         <div className="px-6 py-4">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-6">
-              <h1 className="text-xl font-semibold text-zinc-900 dark:text-zinc-50 tracking-tight">프로젝트</h1>
-
-              {/* Stats */}
-              <div className="hidden md:flex items-center gap-6 text-sm">
-                <div className="flex items-center gap-2">
-                  <span className="text-2xl font-semibold text-zinc-900 dark:text-zinc-50">{stats.total}</span>
-                  <span className="text-zinc-500">전체</span>
-                </div>
-                <div className="w-px h-6 bg-zinc-200 dark:bg-zinc-800" />
-                <div className="flex items-center gap-2">
-                  <span className="text-2xl font-semibold text-emerald-600">{stats.active}</span>
-                  <span className="text-zinc-500">진행중</span>
-                </div>
-                <div className="w-px h-6 bg-zinc-200 dark:bg-zinc-800" />
-                <div className="flex items-center gap-2">
-                  <span className="text-2xl font-semibold text-blue-600">{stats.completed}</span>
-                  <span className="text-zinc-500">완료</span>
-                </div>
+            <div className="flex items-center gap-4">
+              {/* 타이틀 + 뒤로가기 */}
+              <div className="flex items-center gap-2">
+                {categoryFilter && (
+                  <button
+                    onClick={() => setCategoryFilter(null)}
+                    className="p-1.5 -ml-1.5 rounded-md text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+                  >
+                    <ArrowLeft className="w-4 h-4" />
+                  </button>
+                )}
+                <h1 className="text-[15px] font-medium text-zinc-900 dark:text-zinc-100">
+                  {categoryFilter
+                    ? categories.find((c: ProjectCategory) => c.id === categoryFilter)?.name || '프로젝트'
+                    : '프로젝트'}
+                </h1>
               </div>
+
+              {/* Stats - 카테고리 선택 시에만 표시 */}
+              {categoryFilter && (
+                <div className="hidden md:flex items-center gap-6 text-sm">
+                  <div className="flex items-center gap-2">
+                    <span className="text-2xl font-semibold text-zinc-900 dark:text-zinc-50">{filteredProjects.length}</span>
+                    <span className="text-zinc-500">프로젝트</span>
+                  </div>
+                </div>
+              )}
             </div>
 
             <div className="flex items-center gap-2">
@@ -433,7 +580,8 @@ export default function ProjectsPage() {
             </div>
           </div>
 
-          {/* Toolbar */}
+          {/* Toolbar - 카테고리 선택 시에만 표시 */}
+          {categoryFilter && (
           <div className="flex items-center justify-between mt-4 gap-4">
             <div className="flex items-center gap-2 flex-1">
               {/* Search */}
@@ -528,12 +676,160 @@ export default function ProjectsPage() {
               </Button>
             </div>
           </div>
+          )}
         </div>
       </div>
 
       {/* Content */}
       <div className="p-6">
-        {filteredProjects.length === 0 ? (
+        {/* 카테고리 카드 뷰 */}
+        {!categoryFilter ? (
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+              {categories.map((category, idx) => {
+                const IconComponent = iconMap[category.icon] || Folder
+                const count = categoryStats[category.id] || 0
+                const isEditing = editingCategory === category.id
+
+                return (
+                  <motion.div
+                    key={category.id}
+                    initial={{ opacity: 0, y: 12 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: idx * 0.05 }}
+                    className="group"
+                  >
+                    <div
+                      className="relative h-36 rounded-2xl p-4 overflow-hidden cursor-pointer transition-all hover:scale-[1.02]"
+                      style={{
+                        background: `linear-gradient(135deg, ${category.color} 0%, ${category.color}dd 100%)`,
+                      }}
+                      onClick={() => !isEditing && setCategoryFilter(category.id)}
+                    >
+                      {/* 편집/삭제 버튼 */}
+                      <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            setEditingCategory(category.id)
+                            setEditName(category.name)
+                          }}
+                          className="p-1.5 rounded-lg bg-white/20 hover:bg-white/30 transition-colors"
+                        >
+                          <Pencil className="w-3.5 h-3.5 text-white" />
+                        </button>
+                        {category.user_id && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              handleDeleteCategory(category.id)
+                            }}
+                            className="p-1.5 rounded-lg bg-white/20 hover:bg-red-500/50 transition-colors"
+                          >
+                            <Trash2 className="w-3.5 h-3.5 text-white" />
+                          </button>
+                        )}
+                      </div>
+
+                      {/* 컨텐츠 */}
+                      <div className="h-full flex flex-col justify-between">
+                        <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center">
+                          <IconComponent className="w-5 h-5 text-white" />
+                        </div>
+
+                        <div>
+                          {isEditing ? (
+                            <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                              <input
+                                type="text"
+                                value={editName}
+                                onChange={(e) => setEditName(e.target.value)}
+                                className="flex-1 bg-white/20 text-white text-lg font-bold px-2 py-1 rounded-lg outline-none placeholder-white/50"
+                                autoFocus
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') handleUpdateCategory(category.id, editName)
+                                  if (e.key === 'Escape') setEditingCategory(null)
+                                }}
+                              />
+                              <button
+                                onClick={() => handleUpdateCategory(category.id, editName)}
+                                className="p-1 rounded bg-white/20 hover:bg-white/30"
+                              >
+                                <Check className="w-4 h-4 text-white" />
+                              </button>
+                              <button
+                                onClick={() => setEditingCategory(null)}
+                                className="p-1 rounded bg-white/20 hover:bg-white/30"
+                              >
+                                <X className="w-4 h-4 text-white" />
+                              </button>
+                            </div>
+                          ) : (
+                            <>
+                              <h3 className="text-white text-lg font-bold">{category.name}</h3>
+                              <p className="text-white/60 text-sm">{count}개 프로젝트</p>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </motion.div>
+                )
+              })}
+
+              {/* 카테고리 추가 카드 */}
+              {isAddingCategory ? (
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.9 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  className="h-36 rounded-2xl p-4 border-2 border-dashed border-zinc-300 dark:border-zinc-700 bg-zinc-100 dark:bg-zinc-800/50"
+                >
+                  <div className="h-full flex flex-col justify-center gap-3">
+                    <input
+                      type="text"
+                      value={newCategoryName}
+                      onChange={(e) => setNewCategoryName(e.target.value)}
+                      placeholder="카테고리 이름"
+                      className="w-full bg-white dark:bg-zinc-900 text-zinc-900 dark:text-white px-3 py-2 rounded-lg border border-zinc-200 dark:border-zinc-700 outline-none focus:ring-2 focus:ring-violet-500"
+                      autoFocus
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') handleAddCategory()
+                        if (e.key === 'Escape') setIsAddingCategory(false)
+                      }}
+                    />
+                    <div className="flex gap-2">
+                      <button
+                        onClick={handleAddCategory}
+                        className="flex-1 py-1.5 rounded-lg bg-violet-500 hover:bg-violet-600 text-white text-sm font-medium transition-colors"
+                      >
+                        추가
+                      </button>
+                      <button
+                        onClick={() => setIsAddingCategory(false)}
+                        className="flex-1 py-1.5 rounded-lg bg-zinc-200 dark:bg-zinc-700 hover:bg-zinc-300 dark:hover:bg-zinc-600 text-zinc-700 dark:text-zinc-300 text-sm font-medium transition-colors"
+                      >
+                        취소
+                      </button>
+                    </div>
+                  </div>
+                </motion.div>
+              ) : (
+                <motion.div
+                  initial={{ opacity: 0, y: 12 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: categories.length * 0.05 }}
+                  onClick={() => setIsAddingCategory(true)}
+                  className="h-36 rounded-2xl p-4 border-2 border-dashed border-zinc-300 dark:border-zinc-700 hover:border-violet-400 dark:hover:border-violet-500 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 cursor-pointer transition-all flex items-center justify-center"
+                >
+                  <div className="flex flex-col items-center gap-2 text-zinc-400">
+                    <Plus className="w-8 h-8" />
+                    <span className="text-sm font-medium">카테고리 추가</span>
+                  </div>
+                </motion.div>
+              )}
+            </div>
+          </div>
+        ) : filteredProjects.length === 0 ? (
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}

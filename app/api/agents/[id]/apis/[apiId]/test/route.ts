@@ -18,7 +18,7 @@ export async function POST(
 ) {
   try {
     const { id: agentId, apiId } = await params
-    const supabase = createClient()
+    const supabase = await createClient()
     const body = await request.json()
 
     let user: any = isDevMode() ? DEV_USER : null

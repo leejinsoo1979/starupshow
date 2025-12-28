@@ -10,7 +10,7 @@ export async function GET(
   { params }: { params: { roomId: string } }
 ) {
   try {
-    const supabase = createClient()
+    const supabase = await createClient()
     const adminClient = createAdminClient()
 
     // DEV 바이패스 체크
@@ -105,7 +105,7 @@ export async function PATCH(
   { params }: { params: { roomId: string } }
 ) {
   try {
-    const supabase = createClient()
+    const supabase = await createClient()
     const adminClient = createAdminClient()
     const { data: { user }, error: authError } = await supabase.auth.getUser()
 
@@ -158,7 +158,7 @@ export async function DELETE(
   { params }: { params: { roomId: string } }
 ) {
   try {
-    const supabase = createClient()
+    const supabase = await createClient()
     const adminClient = createAdminClient()
 
     // DEV 바이패스 체크

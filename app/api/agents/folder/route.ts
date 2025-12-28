@@ -1,6 +1,7 @@
 /**
  * Agent Folder API
  * 에이전트를 폴더 기반 코드 구조로 생성/관리하는 API
+ * 🆕 projectPath가 제공되면 해당 프로젝트 내에 agents 폴더 생성
  */
 
 import { NextRequest, NextResponse } from 'next/server'
@@ -9,7 +10,6 @@ import path from 'path'
 import { generateAgentFolder } from '@/lib/agent/code-generator'
 
 const GLOWUS_ROOT = process.cwd()
-const AGENTS_DIR = path.join(GLOWUS_ROOT, 'agents')
 
 interface AgentFolderRequest {
   name: string
@@ -28,13 +28,14 @@ interface AgentFolderRequest {
     targetHandle?: string | null
   }>
   metadata?: Record<string, unknown>
+  projectPath?: string  // 🆕 프로젝트 경로 (있으면 프로젝트 내에 저장)
 }
 
 // POST: 새 에이전트 폴더 생성
 export async function POST(request: NextRequest) {
   try {
     const body: AgentFolderRequest = await request.json()
-    const { name, description = '', nodes, edges, metadata = {} } = body
+    const { name, description = '', nodes, edges, metadata = {}, projectPath } = body
 
     if (!name) {
       return NextResponse.json(
@@ -50,8 +51,19 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // agents 디렉토리 생성 (없으면)
-    await fs.mkdir(AGENTS_DIR, { recursive: true })
+    // 🆕 agents 디렉토리 경로 결정 (프로젝트 내 또는 글로벌)
+    let agentsDir: string
+    if (projectPath) {
+      // 프로젝트 경로가 있으면 해당 프로젝트 내에 agents 폴더 생성
+      agentsDir = path.join(projectPath, 'agents')
+      console.log('[API/agents/folder] Creating in project:', projectPath)
+    } else {
+      // 프로젝트 경로가 없으면 글로벌 agents 폴더 (fallback)
+      agentsDir = path.join(GLOWUS_ROOT, 'agents')
+      console.log('[API/agents/folder] Creating in global agents folder')
+    }
+
+    await fs.mkdir(agentsDir, { recursive: true })
 
     // 에이전트 폴더 구조 생성
     const folderStructure = generateAgentFolder(
@@ -62,8 +74,9 @@ export async function POST(request: NextRequest) {
       metadata
     )
 
-    // 폴더 경로 확인 (중복 처리)
-    let finalFolderPath = path.join(GLOWUS_ROOT, folderStructure.folderPath)
+    // 🆕 폴더 경로를 프로젝트 기준으로 설정
+    const agentFolderName = folderStructure.folderPath.replace('agents/', '')
+    let finalFolderPath = path.join(agentsDir, agentFolderName)
     let counter = 1
     const baseFolderPath = finalFolderPath
 
@@ -78,28 +91,27 @@ export async function POST(request: NextRequest) {
     // 파일들 생성
     const createdFiles: string[] = []
     for (const file of folderStructure.files) {
-      // 폴더 경로 업데이트 (중복 처리된 경우)
-      const relativePath = file.path.replace(
-        folderStructure.folderPath,
-        path.relative(GLOWUS_ROOT, finalFolderPath)
-      )
-      const filePath = path.join(GLOWUS_ROOT, relativePath)
+      // 🆕 파일 경로에서 agents/에이전트명/ 부분을 제거하고 finalFolderPath 기준으로 생성
+      const fileNameInFolder = file.path.replace(folderStructure.folderPath + '/', '')
+      const filePath = path.join(finalFolderPath, fileNameInFolder)
 
       // 부모 디렉토리 생성
       await fs.mkdir(path.dirname(filePath), { recursive: true })
 
       // 파일 쓰기
       await fs.writeFile(filePath, file.content, 'utf-8')
-      createdFiles.push(relativePath)
+      createdFiles.push(path.relative(projectPath || GLOWUS_ROOT, filePath))
     }
 
-    const relativeFolderPath = path.relative(GLOWUS_ROOT, finalFolderPath)
+    // 🆕 프로젝트 기준 상대 경로 반환
+    const relativeFolderPath = path.relative(projectPath || GLOWUS_ROOT, finalFolderPath)
 
     return NextResponse.json({
       success: true,
       folderPath: relativeFolderPath,
       files: createdFiles,
       agentConfig: folderStructure.agentJson,
+      projectPath: projectPath || null,
       message: `에이전트 "${name}" 폴더가 생성되었습니다`,
     })
   } catch (error) {

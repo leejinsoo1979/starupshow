@@ -687,7 +687,7 @@ ${additionalContext}
             ...chatMessages.slice(-10).map(m => ({ role: m.role, content: m.content })),
             { role: 'user', content: userMessage }
           ],
-          model: 'gemini-3-flash',
+          model: 'gemini-2.0-flash',
         }),
       })
 

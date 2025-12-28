@@ -36,13 +36,17 @@ export async function GET(request: Request, { params }: RouteParams) {
       userId = user.id
     }
 
-    // 뉴럴맵 기본 정보 조회
-    const { data: neuralMap, error: mapError } = await adminSupabase
+    // 뉴럴맵 기본 정보 조회 (DEV 모드에서는 user_id 체크 생략)
+    let mapQuery = adminSupabase
       .from('neural_maps')
       .select('*')
       .eq('id', mapId)
-      .eq('user_id', userId)
-      .single()
+
+    if (!DEV_MODE) {
+      mapQuery = mapQuery.eq('user_id', userId)
+    }
+
+    const { data: neuralMap, error: mapError } = await mapQuery.single()
 
     if (mapError || !neuralMap) {
       return NextResponse.json({ error: 'Neural map not found' }, { status: 404 })

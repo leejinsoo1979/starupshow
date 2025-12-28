@@ -221,7 +221,7 @@ const callApiTool = new DynamicStructuredTool({
   schema: z.object({
     url: z.string().describe('API URL'),
     method: z.enum(['GET', 'POST', 'PUT', 'DELETE']).describe('HTTP 메서드'),
-    headers: z.record(z.string(), z.string()).optional().describe('HTTP 헤더'),
+    headers: z.any().optional().describe('HTTP 헤더'),
     body: z.string().optional().describe('요청 바디 (JSON 문자열)'),
   }),
   func: async ({ url, method, headers, body }) => {

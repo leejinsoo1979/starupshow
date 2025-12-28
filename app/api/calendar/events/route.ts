@@ -10,7 +10,7 @@ const DEV_USER_ID = '00000000-0000-0000-0000-000000000001'
 
 // GET /api/calendar/events - Get events within date range
 export async function GET(request: Request) {
-  const supabase = createClient()
+  const supabase = await createClient()
   const adminSupabase = createAdminClient()
 
   let userId: string
@@ -70,7 +70,7 @@ export async function GET(request: Request) {
 
 // POST /api/calendar/events - Create new event
 export async function POST(request: Request) {
-  const supabase = createClient()
+  const supabase = await createClient()
   const adminSupabase = createAdminClient()
 
   let userId: string
@@ -179,7 +179,7 @@ export async function POST(request: Request) {
 
 // PATCH /api/calendar/events - Update event
 export async function PATCH(request: Request) {
-  const supabase = createClient()
+  const supabase = await createClient()
   const adminSupabase = createAdminClient()
 
   let userId: string
@@ -236,7 +236,7 @@ export async function PATCH(request: Request) {
 
 // DELETE /api/calendar/events - Delete event
 export async function DELETE(request: Request) {
-  const supabase = createClient()
+  const supabase = await createClient()
   const adminSupabase = createAdminClient()
 
   let userId: string

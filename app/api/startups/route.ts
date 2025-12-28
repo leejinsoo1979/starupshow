@@ -19,7 +19,7 @@ interface InvestorAccess {
 // GET /api/startups - List startups for current user
 export async function GET(request: NextRequest) {
   try {
-    const supabase = createClient()
+    const supabase = await createClient()
     const { searchParams } = new URL(request.url)
 
     const { data: { user } } = await supabase.auth.getUser()
@@ -108,7 +108,7 @@ export async function GET(request: NextRequest) {
 // POST /api/startups - Create new startup
 export async function POST(request: NextRequest) {
   try {
-    const supabase = createClient()
+    const supabase = await createClient()
 
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) {

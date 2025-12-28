@@ -29,7 +29,7 @@ export async function GET(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
-  const supabase = createClient()
+  const supabase = await createClient()
   const adminClient = createAdminClient()
 
   // Check auth
@@ -92,7 +92,7 @@ export async function PATCH(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
-  const supabase = createClient()
+  const supabase = await createClient()
   const adminClient = createAdminClient()
 
   // Check auth
@@ -158,7 +158,7 @@ export async function DELETE(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
-  const supabase = createClient()
+  const supabase = await createClient()
   const adminClient = createAdminClient()
 
   // Check auth

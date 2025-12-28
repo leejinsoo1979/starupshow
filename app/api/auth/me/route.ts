@@ -4,7 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 
 // GET /api/auth/me - Get current user
 export async function GET() {
-  const supabase = createClient()
+  const supabase = await createClient()
   
   const { data: { user: authUser } } = await supabase.auth.getUser()
   

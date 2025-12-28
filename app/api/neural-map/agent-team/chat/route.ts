@@ -126,7 +126,7 @@ export async function POST(request: NextRequest) {
 
     // 사용자가 선택한 모델 또는 기본값 사용
     // 내부 모델 ID → 실제 API 모델명 변환
-    const selectedModel = getApiModelId(model || 'gemini-3-flash')
+    const selectedModel = getApiModelId(model || 'gemini-2.0-flash')
 
     // Agent 모드: 사용자 선택 또는 에이전트 설정 기본값
     const useToolCalling = agentMode !== undefined ? agentMode : agentConfig.forceToolUse

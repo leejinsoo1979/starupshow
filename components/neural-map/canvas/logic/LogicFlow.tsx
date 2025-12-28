@@ -151,7 +151,7 @@ function LogicFlowContent({ className }: { className?: string }) {
     // Initialize collapsed state when graph loads
     useEffect(() => {
         if (!graph || initialized) return
-        const rootNode = graph.nodes.find(n => n.type === 'self')
+        const rootNode = graph.nodes.find(n => n.type === 'project')
         // Collapse all folders except root for performance
         const foldersToCollapse = graph.nodes
             .filter(n => n.type === 'folder' && n.id !== rootNode?.id)
@@ -212,8 +212,8 @@ function LogicFlowContent({ className }: { className?: string }) {
 
         // Filter hidden nodes (Pruning)
         const visibleNodeIds = new Set<string>()
-        if (graph.nodes.find(n => n.type === 'self')) {
-            const rootId = graph.nodes.find(n => n.type === 'self')!.id
+        if (graph.nodes.find(n => n.type === 'project')) {
+            const rootId = graph.nodes.find(n => n.type === 'project')!.id
 
             function visit(nodeId: string, isVisible: boolean) {
                 if (isVisible) visibleNodeIds.add(nodeId)
@@ -233,8 +233,8 @@ function LogicFlowContent({ className }: { className?: string }) {
             // Prioritize folders and root
             visibleNodes = visibleNodes
                 .sort((a, b) => {
-                    if (a.data.type === 'self') return -1
-                    if (b.data.type === 'self') return 1
+                    if (a.data.type === 'project') return -1
+                    if (b.data.type === 'project') return 1
                     if (a.data.type === 'folder' && b.data.type !== 'folder') return -1
                     if (b.data.type === 'folder' && a.data.type !== 'folder') return 1
                     return 0

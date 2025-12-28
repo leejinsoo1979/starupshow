@@ -60,11 +60,11 @@ export const MODELS: Record<string, ModelConfig> = {
     supportsVision: true,
     supportsStreaming: true,
   },
-  'gemini-3-flash': {
-    id: 'gemini-3-flash',
+  'gemini-2.0-flash': {
+    id: 'gemini-2.0-flash',
     provider: 'google',
-    apiModel: 'gemini-3-flash-preview',  // 2025년 12월 출시 최신 모델
-    displayName: 'Gemini 3 Flash',
+    apiModel: 'gemini-2.0-flash',  // Stable model with tool calling support
+    displayName: 'Gemini 2.0 Flash',
     supportsVision: true,
     supportsStreaming: true,
   },

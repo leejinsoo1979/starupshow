@@ -10,7 +10,7 @@ interface RouteParams {
 // GET /api/tasks/[id] - Get single task
 export async function GET(request: NextRequest, { params }: RouteParams) {
   try {
-    const supabase = createClient()
+    const supabase = await createClient()
     const { id } = params
 
     const { data: { user } } = await supabase.auth.getUser()
@@ -45,7 +45,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 // PATCH /api/tasks/[id] - Update task
 export async function PATCH(request: NextRequest, { params }: RouteParams) {
   try {
-    const supabase = createClient()
+    const supabase = await createClient()
     const { id } = params
 
     const { data: { user } } = await supabase.auth.getUser()
@@ -87,7 +87,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
 // DELETE /api/tasks/[id] - Delete task
 export async function DELETE(request: NextRequest, { params }: RouteParams) {
   try {
-    const supabase = createClient()
+    const supabase = await createClient()
     const { id } = params
 
     const { data: { user } } = await supabase.auth.getUser()

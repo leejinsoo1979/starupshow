@@ -7,7 +7,7 @@ import { getDevUserIfEnabled } from '@/lib/dev-user'
 // GET: 초대 가능한 사용자 및 에이전트 목록
 export async function GET(request: NextRequest) {
   try {
-    const supabase = createClient()
+    const supabase = await createClient()
     const adminClient = createAdminClient()
 
     const devUser = getDevUserIfEnabled()

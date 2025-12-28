@@ -8,8 +8,8 @@ const DEV_MODE = process.env.NODE_ENV === 'development' && process.env.DEV_BYPAS
 // 개발용 UUID (실제 users 테이블에 있는 ID 또는 가짜 UUID)
 const DEV_USER_ID = process.env.DEV_USER_ID || '00000000-0000-0000-0000-000000000000'
 
-export function createClient() {
-  const cookieStore = cookies()
+export async function createClient() {
+  const cookieStore = await cookies()
 
   return createServerClient<Database>(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -70,9 +70,9 @@ export function createAdminClient() {
 }
 
 // 개발 모드에서는 Admin 클라이언트 사용
-export function createClientForApi() {
+export async function createClientForApi() {
   if (DEV_MODE) {
     return createAdminClient()
   }
-  return createClient()
+  return await createClient()
 }

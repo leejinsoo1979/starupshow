@@ -5,7 +5,7 @@ import { NextResponse } from 'next/server'
 // 투자자용 스타트업 목록 조회
 export async function GET(request: Request) {
   try {
-    const supabase = createClient()
+    const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
 
     if (!user) {

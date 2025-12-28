@@ -75,6 +75,49 @@ export async function GET(request: NextRequest) {
   }
 }
 
+// PATCH: Bulk update projects
+export async function PATCH(request: NextRequest) {
+  try {
+    const adminClient = createAdminClient()
+    const body = await request.json()
+
+    // 모든 프로젝트의 project_type 업데이트
+    if (body.updateAllToCode) {
+      const { data, error } = await (adminClient as any)
+        .from('projects')
+        .update({ project_type: 'code' })
+        .is('project_type', null)
+        .select('id')
+
+      if (error) {
+        return NextResponse.json({ error: error.message }, { status: 500 })
+      }
+
+      // project_type이 null이 아닌 경우에도 'code'가 아닌 것들 업데이트
+      const { data: data2 } = await (adminClient as any)
+        .from('projects')
+        .update({ project_type: 'code' })
+        .neq('project_type', 'document')
+        .neq('project_type', 'design')
+        .neq('project_type', 'work')
+        .select('id')
+
+      return NextResponse.json({
+        updated: (data?.length || 0) + (data2?.length || 0),
+        message: '모든 프로젝트가 개발 카테고리로 업데이트되었습니다'
+      })
+    }
+
+    return NextResponse.json({ error: 'Invalid request' }, { status: 400 })
+  } catch (error) {
+    console.error('Projects PATCH error:', error)
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : '서버 오류' },
+      { status: 500 }
+    )
+  }
+}
+
 // POST: Create new project
 export async function POST(request: NextRequest) {
   try {
@@ -120,8 +163,11 @@ export async function POST(request: NextRequest) {
         progress: 0,
         // 로컬 폴더 불러오기 지원
         folder_path: (body as any).folder_path || null,
-        // metadata 컬럼은 DB에 없을 수 있음 - 필요시 마이그레이션 실행
-        // metadata: (body as any).metadata || null,
+        // 하이브리드 Git 시스템
+        project_type: (body as any).project_type || 'code',
+        git_mode: (body as any).git_mode || 'local_only',
+        // 카테고리 지원
+        category_id: (body as any).category_id || null,
       })
       .select()
       .single()
@@ -161,7 +207,76 @@ export async function POST(request: NextRequest) {
       console.warn('Workspace folder creation warning:', storageError)
     }
 
-    return NextResponse.json(project, { status: 201 })
+    // 🆕 Neural Map 생성 (프로젝트 루트 노드 포함)
+    let neuralMapId: string | null = null
+    try {
+      // 1. Neural Map 생성
+      const mapInsertData: any = {
+        user_id: user.id,
+        title: project.name,
+        theme_id: 'cosmic-dark',
+        view_state: {
+          activeTab: 'radial',
+          expandedNodeIds: [],
+          pinnedNodeIds: [],
+          selectedNodeIds: [],
+          cameraPosition: { x: 0, y: 50, z: 200 },
+          cameraTarget: { x: 0, y: 0, z: 0 },
+        },
+      }
+
+      // project_id 컬럼이 있으면 추가
+      let mapResult = await (adminClient as any)
+        .from('neural_maps')
+        .insert({ ...mapInsertData, project_id: project.id })
+        .select()
+        .single()
+
+      // project_id 컬럼이 없으면 없이 재시도
+      if (mapResult.error?.message?.includes('project_id')) {
+        mapResult = await (adminClient as any)
+          .from('neural_maps')
+          .insert(mapInsertData)
+          .select()
+          .single()
+      }
+
+      if (mapResult.data) {
+        const neuralMap = mapResult.data
+        neuralMapId = neuralMap.id
+
+        // 2. 프로젝트 루트 노드 생성
+        const { data: rootNode } = await (adminClient as any)
+          .from('neural_nodes')
+          .insert({
+            map_id: neuralMap.id,
+            type: 'project',
+            title: project.name,
+            summary: project.description || null,
+            importance: 10,
+            expanded: true,
+            pinned: true,
+            position: { x: 0, y: 0, z: 0 },
+          })
+          .select()
+          .single()
+
+        // 3. root_node_id 업데이트
+        if (rootNode) {
+          await (adminClient as any)
+            .from('neural_maps')
+            .update({ root_node_id: rootNode.id })
+            .eq('id', neuralMap.id)
+        }
+
+        console.log(`[Project] Created Neural Map ${neuralMap.id} for project ${project.id}`)
+      }
+    } catch (mapError) {
+      console.warn('[Project] Neural Map creation warning:', mapError)
+      // Neural Map 생성 실패해도 프로젝트 생성은 성공
+    }
+
+    return NextResponse.json({ ...project, neural_map_id: neuralMapId }, { status: 201 })
   } catch (error) {
     console.error('Project create API error:', error)
     return NextResponse.json(

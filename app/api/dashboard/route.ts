@@ -32,7 +32,7 @@ interface TaskWithAuthor {
 // GET /api/dashboard - Get dashboard metrics for current user's startup
 export async function GET(request: NextRequest) {
   try {
-    const supabase = createClient()
+    const supabase = await createClient()
     const { searchParams } = new URL(request.url)
 
     const { data: { user } } = await supabase.auth.getUser()

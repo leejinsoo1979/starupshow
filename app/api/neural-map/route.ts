@@ -49,10 +49,22 @@ export async function GET(request: Request) {
         .order('updated_at', { ascending: false })
 
       if (result.error?.message?.includes('project_id')) {
-        // project_id 컬럼이 없으면 전체 조회 (빈 배열 반환으로 새 맵 생성 유도)
-        console.log('[NeuralMap] project_id column not found, returning empty for new project')
-        data = []
-        error = null
+        // project_id 컬럼이 없으면 전체 조회 (기존 맵 반환해서 재사용)
+        console.log('[NeuralMap] project_id column not found, returning most recent map')
+        let fallbackQuery = adminSupabase
+          .from('neural_maps')
+          .select('*')
+          .order('updated_at', { ascending: false })
+          .limit(1)
+
+        // DEV 모드가 아니면 user_id 필터 추가
+        if (!DEV_MODE) {
+          fallbackQuery = fallbackQuery.eq('user_id', userId)
+        }
+
+        const fallbackResult = await fallbackQuery
+        data = fallbackResult.data
+        error = fallbackResult.error
       } else {
         data = result.data
         error = result.error
@@ -80,7 +92,8 @@ export async function GET(request: Request) {
   }
 }
 
-// POST /api/neural-map - 새 뉴럴맵 생성 (Self 노드 포함)
+// POST /api/neural-map - 새 뉴럴맵 생성
+// 프로젝트명이 있으면 프로젝트 루트 노드 생성, 없으면 빈 맵 생성
 export async function POST(request: Request) {
   try {
     const supabase = await createClient()
@@ -98,13 +111,14 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json()
-    const { title = 'My Neural Map', agentId, project_id } = body
+    const { title, agentId, project_id } = body
 
-    // 1. 뉴럴맵 생성 (project_id 컬럼이 없을 수 있음)
-    let neuralMap: any = null
-    let mapError: any = null
+    // title(프로젝트명)이 없으면 에러
+    if (!title) {
+      return NextResponse.json({ error: 'title (프로젝트명) is required' }, { status: 400 })
+    }
 
-    // 먼저 project_id 포함해서 시도
+    // 1. 뉴럴맵 생성
     const insertData: any = {
       user_id: userId,
       agent_id: agentId || null,
@@ -120,7 +134,6 @@ export async function POST(request: Request) {
       },
     }
 
-    // project_id가 있으면 추가 (컬럼 없으면 실패 후 재시도)
     if (project_id) {
       insertData.project_id = project_id
     }
@@ -131,9 +144,7 @@ export async function POST(request: Request) {
       .select()
       .single()
 
-    // project_id 컬럼이 없어서 실패하면 project_id 없이 재시도
     if (result.error?.message?.includes('project_id')) {
-      console.log('[NeuralMap] project_id column not found, creating without it')
       delete insertData.project_id
       result = await adminSupabase
         .from('neural_maps')
@@ -142,22 +153,20 @@ export async function POST(request: Request) {
         .single()
     }
 
-    neuralMap = result.data
-    mapError = result.error
-
-    if (mapError) {
-      console.error('Failed to create neural map:', mapError)
-      return NextResponse.json({ error: mapError.message }, { status: 500 })
+    const neuralMap = result.data
+    if (result.error || !neuralMap) {
+      console.error('Failed to create neural map:', result.error)
+      return NextResponse.json({ error: result.error?.message }, { status: 500 })
     }
 
-    // 2. Self 노드 생성
-    const { data: selfNode, error: nodeError } = await adminSupabase
+    // 2. 프로젝트 루트 노드 생성 (프로젝트명으로)
+    const { data: rootNode, error: nodeError } = await adminSupabase
       .from('neural_nodes')
       .insert({
         map_id: neuralMap.id,
-        type: 'self',
-        title: 'SELF',
-        summary: '나의 중심 노드',
+        type: 'project',
+        title: title,  // 프로젝트명 사용
+        summary: null,
         importance: 10,
         expanded: true,
         pinned: true,
@@ -167,25 +176,20 @@ export async function POST(request: Request) {
       .single()
 
     if (nodeError) {
-      console.error('Failed to create self node:', nodeError)
-      // 롤백: 맵 삭제
+      console.error('Failed to create root node:', nodeError)
       await adminSupabase.from('neural_maps').delete().eq('id', neuralMap.id)
       return NextResponse.json({ error: nodeError.message }, { status: 500 })
     }
 
     // 3. root_node_id 업데이트
-    const { error: updateError } = await adminSupabase
+    await adminSupabase
       .from('neural_maps')
-      .update({ root_node_id: selfNode.id })
+      .update({ root_node_id: rootNode.id })
       .eq('id', neuralMap.id)
-
-    if (updateError) {
-      console.error('Failed to update root_node_id:', updateError)
-    }
 
     return NextResponse.json({
       ...neuralMap,
-      root_node_id: selfNode.id,
+      root_node_id: rootNode.id,
     }, { status: 201 })
   } catch (err) {
     console.error('Neural map POST error:', err)

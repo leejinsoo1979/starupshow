@@ -45,6 +45,7 @@ import {
 } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/Button"
+import { useNeuralMapStore } from "@/lib/neural-map/store"
 import { AgentNodeLibrary } from "./AgentNodeLibrary"
 import { AgentConfigPanel } from "./AgentConfigPanel"
 import { ExecutionPanel } from "./ExecutionPanel"
@@ -106,6 +107,10 @@ function AgentBuilderInner({ agentId }: AgentBuilderInnerProps) {
   const reactFlowWrapper = useRef<HTMLDivElement>(null)
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes)
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges)
+
+  // 🆕 Neural Map 프로젝트 연결
+  const linkedProjectId = useNeuralMapStore((state) => state.linkedProjectId)
+  const projectPath = useNeuralMapStore((state) => state.projectPath)  // 🆕 프로젝트 경로
   const [selectedNode, setSelectedNode] = useState<Node<AgentNodeData> | null>(null)
   const [validationResult, setValidationResult] = useState<{
     valid: boolean
@@ -117,7 +122,10 @@ function AgentBuilderInner({ agentId }: AgentBuilderInnerProps) {
   const [showTemplates, setShowTemplates] = useState(false)
   const [showExecutionPanel, setShowExecutionPanel] = useState(false)
   const [agentName, setAgentName] = useState<string>("")
-  // 마법사 모달 제거 - Orchestrator 채팅으로 제어
+  // 새 에이전트 생성 모달 상태
+  const [showCreateModal, setShowCreateModal] = useState(false)
+  const [newAgentName, setNewAgentName] = useState("")
+  const [isCreatingAgent, setIsCreatingAgent] = useState(false)
   // 배포 모달 상태
   const [showDeployModal, setShowDeployModal] = useState(false)
   const [deployAgentName, setDeployAgentName] = useState("")
@@ -133,6 +141,8 @@ function AgentBuilderInner({ agentId }: AgentBuilderInnerProps) {
   const [editingAgentId, setEditingAgentId] = useState<string | null>(null)
   const [isLoadingAgent, setIsLoadingAgent] = useState(false)
   const terminalRef = useRef<TerminalPanelRef>(null)
+  // 에이전트 목록 새로고침 트리거
+  const [agentListRefresh, setAgentListRefresh] = useState(0)
   const { project, fitView, zoomIn, zoomOut } = useReactFlow()
 
   // MCP 로그 콜백 (memoized - 재연결 방지)
@@ -235,6 +245,59 @@ function AgentBuilderInner({ agentId }: AgentBuilderInnerProps) {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [nodes, edges])
+
+  // 에이전트 폴더 로드 핸들러 (BroadcastChannel useEffect보다 먼저 정의)
+  const handleLoadAgent = useCallback(async (folderName: string) => {
+    setIsLoadingAgent(true)
+    try {
+      const response = await fetch(`/api/agents/load-folder?folder=${encodeURIComponent(folderName)}`)
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.error || '에이전트 로드 실패')
+      }
+
+      const data = await response.json()
+      console.log('[AgentBuilder] Agent loaded:', data)
+
+      // API 노드 형식을 ReactFlow 형식으로 변환
+      const reactFlowNodes = (data.nodes || []).map((node: any) => ({
+        id: node.id,
+        type: node.type,
+        position: node.position || { x: 0, y: 0 },
+        data: {
+          label: node.config?.label || node.type,
+          ...node.config,
+        },
+      }))
+
+      // API 엣지 형식을 ReactFlow 형식으로 변환
+      const reactFlowEdges = (data.edges || []).map((edge: any) => ({
+        id: edge.id,
+        source: edge.source,
+        target: edge.target,
+        type: edge.type || 'default',
+        animated: edge.animated || false,
+      }))
+
+      // 캔버스에 노드/엣지 설정
+      setAgentName(data.name || folderName)
+      setNodes(reactFlowNodes)
+      setEdges(reactFlowEdges)
+      setEditingAgentId(null)
+
+      setTimeout(() => fitView({ padding: 0.2 }), 100)
+
+      // 터미널에 알림
+      if (terminalRef.current) {
+        terminalRef.current.write(`\r\n\x1b[36m[Agent]\x1b[0m 에이전트 "${data.name || folderName}" 로드됨 (노드: ${reactFlowNodes.length}, 엣지: ${reactFlowEdges.length})`)
+      }
+    } catch (error: any) {
+      console.error('[AgentBuilder] Load agent error:', error)
+      alert(error.message || '에이전트 로드 중 오류가 발생했습니다')
+    } finally {
+      setIsLoadingAgent(false)
+    }
+  }, [setNodes, setEdges, fitView])
 
   // 🔥 Orchestrator 채팅에서 BroadcastChannel 메시지 수신
   useEffect(() => {
@@ -390,6 +453,14 @@ function AgentBuilderInner({ agentId }: AgentBuilderInnerProps) {
           setTimeout(() => fitView({ padding: 0.2 }), 100)
           break
         }
+
+        case 'LOAD_AGENT': {
+          // 파일 트리에서 에이전트 클릭 시 로드
+          if (payload.folderName) {
+            handleLoadAgent(payload.folderName)
+          }
+          break
+        }
       }
     }
 
@@ -397,7 +468,7 @@ function AgentBuilderInner({ agentId }: AgentBuilderInnerProps) {
       channel.close()
       responseChannel.close()
     }
-  }, [setNodes, setEdges, fitView, nodes, edges, agentName])
+  }, [setNodes, setEdges, fitView, nodes, edges, agentName, handleLoadAgent])
 
   const onConnect = useCallback(
     (params: Connection) => {
@@ -582,6 +653,66 @@ function AgentBuilderInner({ agentId }: AgentBuilderInnerProps) {
     alert("JSON이 클립보드에 복사되었습니다!")
   }, [nodes, edges])
 
+  // 새 에이전트 생성 핸들러
+  const handleCreateAgent = useCallback(async () => {
+    if (!newAgentName.trim()) {
+      alert("에이전트 이름을 입력해주세요")
+      return
+    }
+
+    // 폴더명으로 사용할 수 있도록 정리 (영문, 숫자, 하이픈, 언더스코어만)
+    const folderName = newAgentName.trim().toLowerCase().replace(/[^a-z0-9가-힣_-]/g, '_')
+
+    setIsCreatingAgent(true)
+    try {
+      // agents 폴더에 에이전트 생성
+      const response = await fetch('/api/agents/create-folder', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: newAgentName.trim(),
+          folderName,
+        }),
+      })
+
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.error || '에이전트 생성 실패')
+      }
+
+      const result = await response.json()
+      console.log('[AgentBuilder] Agent created:', result)
+
+      // 캔버스 초기화 - Start 노드로 시작
+      setAgentName(newAgentName.trim())
+      setNodes([createAgentNode({ type: "start", position: { x: 250, y: 200 } })])
+      setEdges([])
+      setEditingAgentId(null)
+      setShowCreateModal(false)
+      setNewAgentName("")
+
+      setTimeout(() => fitView({ padding: 0.2 }), 100)
+
+      // 터미널에 알림
+      if (terminalRef.current) {
+        terminalRef.current.write(`\r\n\x1b[32m[Agent]\x1b[0m 에이전트 "${newAgentName}" 폴더 생성됨: agents/${folderName}`)
+      }
+
+      // 에이전트 목록 새로고침
+      setAgentListRefresh(prev => prev + 1)
+
+      // 파일 트리 패널에도 알림 (BroadcastChannel)
+      const refreshChannel = new BroadcastChannel('agent-folder-refresh')
+      refreshChannel.postMessage({ type: 'REFRESH' })
+      refreshChannel.close()
+    } catch (error: any) {
+      console.error('[AgentBuilder] Create agent error:', error)
+      alert(error.message || '에이전트 생성 중 오류가 발생했습니다')
+    } finally {
+      setIsCreatingAgent(false)
+    }
+  }, [newAgentName, setNodes, setEdges, fitView])
+
   // 에이전트 배포/업데이트 핸들러
   const handleDeploy = useCallback(async () => {
     if (!deployAgentName.trim()) {
@@ -625,10 +756,16 @@ function AgentBuilderInner({ agentId }: AgentBuilderInnerProps) {
       const url = isUpdate ? `/api/agents/${editingAgentId}` : "/api/agents"
       const method = isUpdate ? "PATCH" : "POST"
 
+      // 🆕 프로젝트 연결된 경우 project_id 추가
+      const requestData = {
+        ...workflowData,
+        ...(linkedProjectId && !isUpdate ? { project_id: linkedProjectId } : {}),
+      }
+
       const response = await fetch(url, {
         method,
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(workflowData),
+        body: JSON.stringify(requestData),
       })
 
       if (!response.ok) {
@@ -644,6 +781,7 @@ function AgentBuilderInner({ agentId }: AgentBuilderInnerProps) {
       }
 
       // 에이전트 폴더 생성 (코드 파일로 저장)
+      // 🆕 projectPath가 있으면 해당 프로젝트 내에 에이전트 폴더 생성
       try {
         const folderResponse = await fetch('/api/agents/folder', {
           method: 'POST',
@@ -659,6 +797,7 @@ function AgentBuilderInner({ agentId }: AgentBuilderInnerProps) {
               llmModel: deployLlmModel,
               interactionMode: deployInteractionMode,
             },
+            projectPath: projectPath || undefined,  // 🆕 프로젝트 경로 전달
           }),
         })
 
@@ -675,6 +814,15 @@ function AgentBuilderInner({ agentId }: AgentBuilderInnerProps) {
       } catch (folderError) {
         console.warn('[AgentBuilder] 폴더 생성 중 오류:', folderError)
         // 폴더 생성 실패해도 배포는 성공으로 처리
+      }
+
+      // 🆕 Neural Map 동기화는 /api/agents POST에서 자동으로 처리됨 (project_id 기반)
+      if (linkedProjectId && !isUpdate) {
+        console.log('[AgentBuilder] Agent will be added to Neural Map for project:', linkedProjectId)
+        if (terminalRef.current) {
+          terminalRef.current.write(`\r\n\x1b[35m[Neural Map]\x1b[0m 프로젝트에 에이전트 노드 추가됨`)
+        }
+        // 동기화 실패해도 배포는 성공으로 처리
       }
 
       setDeploySuccess(true)
@@ -911,13 +1059,12 @@ function AgentBuilderInner({ agentId }: AgentBuilderInnerProps) {
         <AgentNodeLibrary
           onDragStart={onDragStart}
           onCreateAgent={() => {
-            // 캔버스 초기화 - 빈 Start 노드로 시작
-            setAgentName("")
-            setNodes([createAgentNode({ type: "start", position: { x: 250, y: 200 } })])
-            setEdges([])
-            setEditingAgentId(null)
-            setTimeout(() => fitView({ padding: 0.2 }), 100)
+            // 새 에이전트 생성 모달 열기
+            setNewAgentName("")
+            setShowCreateModal(true)
           }}
+          onLoadAgent={handleLoadAgent}
+          refreshTrigger={agentListRefresh}
         />
 
         {/* Canvas + Terminal 영역 */}
@@ -1168,6 +1315,76 @@ function AgentBuilderInner({ agentId }: AgentBuilderInnerProps) {
         />
 
       </div>
+
+      {/* 새 에이전트 생성 모달 */}
+      {showCreateModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[100]">
+          <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-xl p-6 w-[380px] shadow-xl">
+            <div className="flex items-center gap-3 mb-6">
+              <div className="w-10 h-10 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
+                <Bot className="w-5 h-5 text-blue-500" />
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold text-zinc-900 dark:text-white">
+                  새 에이전트 생성
+                </h3>
+                <p className="text-sm text-zinc-500">
+                  agents/ 폴더에 에이전트를 생성합니다
+                </p>
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1.5">
+                  에이전트 이름 *
+                </label>
+                <input
+                  type="text"
+                  value={newAgentName}
+                  onChange={(e) => setNewAgentName(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && newAgentName.trim()) {
+                      handleCreateAgent()
+                    } else if (e.key === 'Escape') {
+                      setShowCreateModal(false)
+                    }
+                  }}
+                  placeholder="예: CustomerSupportAgent"
+                  className="w-full px-3 py-2 bg-zinc-100 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500"
+                  autoFocus
+                />
+                <p className="text-xs text-zinc-500 mt-1">
+                  폴더명: agents/{newAgentName.trim().toLowerCase().replace(/[^a-z0-9가-힣_-]/g, '_') || '...'}
+                </p>
+              </div>
+
+              <div className="flex gap-2 pt-2">
+                <button
+                  onClick={() => setShowCreateModal(false)}
+                  className="flex-1 px-4 py-2 text-sm text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg transition-colors"
+                >
+                  취소
+                </button>
+                <button
+                  onClick={handleCreateAgent}
+                  disabled={!newAgentName.trim() || isCreatingAgent}
+                  className="flex-1 px-4 py-2 text-sm bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
+                >
+                  {isCreatingAgent ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      생성 중...
+                    </>
+                  ) : (
+                    '생성'
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* 에이전트 배포 모달 */}
       {showDeployModal && (

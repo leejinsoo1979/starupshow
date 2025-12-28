@@ -985,7 +985,7 @@ AI 에이전트 워크플로우의 각 단계를 노드로 표현합니다.
   schema: z.object({
     type: z.enum(['start', 'end', 'llm', 'prompt', 'router', 'memory', 'tool', 'rag', 'javascript', 'function', 'input', 'output', 'image_generation', 'embedding', 'evaluator', 'chain']).describe('노드 타입'),
     label: z.string().describe('노드 라벨 (표시 이름)'),
-    config: z.record(z.string(), z.unknown()).describe('노드 설정 (model, temperature, prompt 등)').optional(),
+    config: z.any().describe('노드 설정 (model, temperature, prompt 등)').optional(),
     position: z.object({
       x: z.number(),
       y: z.number(),
@@ -1058,7 +1058,7 @@ export const agentBuilderUpdateNodeTool = new DynamicStructuredTool({
   schema: z.object({
     nodeId: z.string().describe('수정할 노드 ID'),
     label: z.string().describe('새 라벨').optional(),
-    config: z.record(z.string(), z.unknown()).describe('새 설정').optional(),
+    config: z.any().describe('새 설정').optional(),
   }),
   func: async (params) => {
     return JSON.stringify({
@@ -1086,7 +1086,7 @@ export const agentBuilderGenerateWorkflowTool = new DynamicStructuredTool({
       id: z.string(),
       type: z.string(),
       label: z.string(),
-      config: z.record(z.string(), z.unknown()).optional(),
+      config: z.any().optional(),
       position: z.object({ x: z.number(), y: z.number() }),
     })).describe('생성할 노드 목록'),
     edges: z.array(z.object({

@@ -5,7 +5,7 @@ import { createClient as createAdminClient } from '@supabase/supabase-js'
 // GET: Get current user's GitHub connection info
 export async function GET() {
   try {
-    const supabase = createClient()
+    const supabase = await createClient()
     const { data: { user }, error: authError } = await supabase.auth.getUser()
 
     if (authError || !user) {
@@ -15,16 +15,18 @@ export async function GET() {
       )
     }
 
-    // Get GitHub connection
+    // Get GitHub connection from user_app_connections
     const adminClient = createAdminClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.SUPABASE_SERVICE_ROLE_KEY!
     )
 
     const { data: connection, error } = await adminClient
-      .from('user_github_connections')
-      .select('id, github_username, github_email, github_avatar_url, scopes, created_at, updated_at')
+      .from('user_app_connections')
+      .select('id, account_info, permissions, access_token, created_at, updated_at')
       .eq('user_id', user.id)
+      .eq('provider_id', 'github')
+      .eq('status', 'connected')
       .single()
 
     if (error && error.code !== 'PGRST116') { // PGRST116 = no rows returned
@@ -35,9 +37,20 @@ export async function GET() {
       )
     }
 
+    // Transform to expected format
+    const transformedConnection = connection ? {
+      id: connection.id,
+      github_username: connection.account_info?.login || connection.account_info?.username,
+      github_email: connection.account_info?.email,
+      github_avatar_url: connection.account_info?.avatar_url,
+      scopes: connection.permissions,
+      created_at: connection.created_at,
+      updated_at: connection.updated_at,
+    } : null
+
     return NextResponse.json({
       connected: !!connection,
-      connection: connection || null,
+      connection: transformedConnection,
     })
 
   } catch (err: any) {
@@ -52,7 +65,7 @@ export async function GET() {
 // DELETE: Disconnect GitHub account
 export async function DELETE() {
   try {
-    const supabase = createClient()
+    const supabase = await createClient()
     const { data: { user }, error: authError } = await supabase.auth.getUser()
 
     if (authError || !user) {

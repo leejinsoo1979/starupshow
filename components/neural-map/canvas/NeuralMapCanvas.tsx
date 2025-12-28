@@ -139,7 +139,7 @@ function SceneContent() {
     // Filter nodes based on visibility
     const visibleNodes = graph.nodes.filter(n => {
       // 1. Self node always visible
-      if (n.type === 'self') return true;
+      if (n.type === 'project') return true;
       // 2. Recursive visibility check
       return isNodeVisible(n.id);
     });
@@ -161,7 +161,7 @@ function SceneContent() {
     const simulation = createSimulation({
       nodeCount: visibleNodes.length,
       enableRadialLayout: true,
-      centerNodeId: graph.nodes.find((n) => n.type === 'self')?.id,
+      centerNodeId: graph.nodes.find((n) => n.type === 'project')?.id,
       radialDistance: radialDistance, // Inject dynamic radial distance
       onTick: (state) => {
         setSimNodes([...state.nodes])

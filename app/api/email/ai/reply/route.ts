@@ -34,7 +34,7 @@ const REPLY_TYPE_PROMPTS: Record<string, { prompt: string, tone: string }> = {
 
 // POST /api/email/ai/reply - Generate AI reply draft
 export async function POST(request: Request) {
-  const supabase = createClient()
+  const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
 
   if (!user) {

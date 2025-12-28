@@ -128,7 +128,7 @@ function InspectorTab({ isDark, currentAccent }: { isDark: boolean; currentAccen
   // 노드 삭제
   const handleDelete = async () => {
     if (!mapId || !selectedNode) return
-    if (selectedNode.type === 'self') {
+    if (selectedNode.type === 'project') {
       alert('Self 노드는 삭제할 수 없습니다.')
       return
     }
@@ -184,19 +184,19 @@ function InspectorTab({ isDark, currentAccent }: { isDark: boolean; currentAccen
           <Select
             value={selectedNode.type}
             onValueChange={(value) => updateNode(selectedNode.id, { type: value as NodeType })}
-            disabled={selectedNode.type === 'self'}
+            disabled={selectedNode.type === 'project'}
           >
             <SelectTrigger className={cn(
               'flex-1 h-9',
               isDark
                 ? 'bg-zinc-800 border-zinc-700 text-zinc-200'
                 : 'bg-zinc-50 border-zinc-200 text-zinc-800',
-              selectedNode.type === 'self' && 'opacity-50 cursor-not-allowed'
+              selectedNode.type === 'project' && 'opacity-50 cursor-not-allowed'
             )}>
               <SelectValue placeholder="타입 선택" />
             </SelectTrigger>
             <SelectContent>
-              {selectedNode.type === 'self' && (
+              {selectedNode.type === 'project' && (
                 <SelectItem value="self">Self (중심)</SelectItem>
               )}
               {nodeTypes.map((type) => (
@@ -343,13 +343,13 @@ function InspectorTab({ isDark, currentAccent }: { isDark: boolean; currentAccen
         </button>
         <button
           onClick={handleDelete}
-          disabled={isDeleting || selectedNode.type === 'self'}
+          disabled={isDeleting || selectedNode.type === 'project'}
           className={cn(
             'px-4 py-2 rounded-lg text-sm font-medium transition-colors',
             isDark
               ? 'bg-zinc-800 hover:bg-red-900/50 text-zinc-400 hover:text-red-400'
               : 'bg-zinc-200 hover:bg-red-100 text-zinc-600 hover:text-red-600',
-            (isDeleting || selectedNode.type === 'self') && 'opacity-50 cursor-not-allowed'
+            (isDeleting || selectedNode.type === 'project') && 'opacity-50 cursor-not-allowed'
           )}
         >
           {isDeleting ? (
@@ -669,7 +669,7 @@ function SettingsTab({ isDark, currentAccent }: { isDark: boolean; currentAccent
     if (!graph) return
 
     // 폴더 노드들만 추출 (project, folder 타입 모두 폴더로 처리)
-    const folderNodes = graph.nodes.filter(n => n.type === 'folder' || n.type === 'project' || n.type === 'self')
+    const folderNodes = graph.nodes.filter(n => n.type === 'folder' || n.type === 'project' || n.type === 'project')
 
     if (newExpanded) {
       // 전체 펼치기
@@ -693,7 +693,7 @@ function SettingsTab({ isDark, currentAccent }: { isDark: boolean; currentAccent
     if (!graph) return
 
     // 폴더 노드들만 추출하고 계층 구조 정렬 (project, folder 타입 모두 폴더로 처리)
-    const folderNodes = graph.nodes.filter(n => n.type === 'folder' || n.type === 'project' || n.type === 'self')
+    const folderNodes = graph.nodes.filter(n => n.type === 'folder' || n.type === 'project' || n.type === 'project')
 
     // parentId를 기반으로 depth 계산
     const getDepth = (nodeId: string, nodes: typeof folderNodes, depth = 0): number => {

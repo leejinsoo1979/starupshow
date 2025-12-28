@@ -255,6 +255,7 @@ export default function NeuralMapPage() {
   const setNeuralMapRightPanelTab = useNeuralMapStore((s) => s.setRightPanelTab)
   const setProjectPath = useNeuralMapStore((s) => s.setProjectPath)
   const setMapId = useNeuralMapStore((s) => s.setMapId)
+  const setLinkedProject = useNeuralMapStore((s) => s.setLinkedProject)
 
   // URL 파라미터에서 mapId 처리
   const searchParams = useSearchParams()
@@ -331,6 +332,29 @@ export default function NeuralMapPage() {
       linkedProjectName: currentState.linkedProjectName
     })
 
+    // 🆕 URL에 projectId가 있지만 스토어에 없으면 프로젝트 정보를 가져와서 설정
+    if (projectIdFromUrl && !currentState.linkedProjectId) {
+      console.log('[NeuralMap] Setting linked project from URL:', projectIdFromUrl)
+      // 프로젝트 정보 가져와서 스토어에 설정
+      fetch(`/api/projects/${projectIdFromUrl}`)
+        .then(res => res.ok ? res.json() : null)
+        .then(project => {
+          if (project) {
+            console.log('[NeuralMap] Project fetched, setting linked project:', project.id, project.name)
+            setLinkedProject(project.id, project.name)
+          } else {
+            // 프로젝트 정보가 없어도 ID라도 설정
+            console.log('[NeuralMap] Project not found, setting ID only:', projectIdFromUrl)
+            setLinkedProject(projectIdFromUrl, null)
+          }
+        })
+        .catch(err => {
+          console.error('[NeuralMap] Failed to fetch project:', err)
+          // 에러 시에도 ID 설정
+          setLinkedProject(projectIdFromUrl, null)
+        })
+    }
+
     // URL에 projectId가 없고, 스토어에도 프로젝트가 없는 경우에만 초기화
     // (즉, 완전히 새로운 진입인 경우만)
     if (!projectIdFromUrl && !hasLinkedProject) {
@@ -357,7 +381,7 @@ export default function NeuralMapPage() {
         // ignore
       }
     }
-  }, [])
+  }, [setLinkedProject])
 
   // Expose store to window for debugging + keyboard shortcut
   useEffect(() => {
@@ -789,20 +813,23 @@ export default function NeuralMapPage() {
       try {
         let targetMapId: string | null = null
 
-        // 🔥 1. 해당 프로젝트의 맵이 있는지 조회
-        if (linkedProjectId) {
-          const listRes = await fetch(`/api/neural-map?project_id=${linkedProjectId}`)
-          if (listRes.ok) {
-            const maps = await listRes.json()
-            if (Array.isArray(maps) && maps.length > 0) {
-              targetMapId = maps[0].id
-              console.log('[NeuralMap] Found existing map for project:', targetMapId)
-            }
+        // 🔥 1. 기존 맵이 있는지 조회 (프로젝트가 없어도 조회!)
+        const apiUrl = linkedProjectId
+          ? `/api/neural-map?project_id=${linkedProjectId}`
+          : '/api/neural-map'
+
+        const listRes = await fetch(apiUrl)
+        if (listRes.ok) {
+          const maps = await listRes.json()
+          if (Array.isArray(maps) && maps.length > 0) {
+            targetMapId = maps[0].id
+            console.log('[NeuralMap] Found existing map:', targetMapId)
           }
         }
 
-        // 🔥 2. 없으면 새 맵 생성
+        // 🔥 2. 기존 맵이 없을 때만 새 맵 생성
         if (!targetMapId) {
+          console.log('[NeuralMap] No existing map found, creating new one...')
           const createRes = await fetch('/api/neural-map', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -827,11 +854,17 @@ export default function NeuralMapPage() {
             setMapId(targetMapId)
             if (loadedGraph?.nodes?.length > 0) {
               setGraph(loadedGraph)
-            }
-            if (loadedFiles?.length > 0) {
+              // 🔥 API에서 그래프를 로드했으면 files 설정 안 함
+              // files 설정하면 다른 useEffect가 그래프를 다시 빌드해서 덮어씀
+              console.log('[NeuralMap] Graph loaded from API:', {
+                nodes: loadedGraph.nodes.length,
+                skippingFiles: loadedFiles?.length || 0
+              })
+            } else if (loadedFiles?.length > 0) {
+              // 그래프가 없을 때만 파일 설정 (새 맵인 경우)
               setFiles(loadedFiles)
+              console.log('[NeuralMap] No graph, setting files:', loadedFiles.length)
             }
-            console.log('[NeuralMap] Graph loaded:', { nodes: loadedGraph?.nodes?.length || 0 })
           }
         }
 

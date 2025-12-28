@@ -302,7 +302,7 @@ async function runGoogleAgent(
 
 export async function POST(request: NextRequest) {
   try {
-    const { messages, model = 'gemini-3-flash', context } = await request.json() as {
+    const { messages, model = 'gemini-2.0-flash', context } = await request.json() as {
       messages: ChatMessage[]
       model: string
       context?: AgentContext

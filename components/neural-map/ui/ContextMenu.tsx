@@ -322,7 +322,7 @@ function buildNodeMenu(
     selectedCount: number
   }
 ): MenuItem[] {
-  const isSelf = node.type === 'self'
+  const isSelf = node.type === 'project'
 
   return [
     {

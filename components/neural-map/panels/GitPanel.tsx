@@ -43,12 +43,24 @@ interface GitCommitInfo {
   date: string
 }
 
+type ProjectType = 'code' | 'document' | 'design' | 'work'
+type GitMode = 'separate_repo' | 'workspace_repo' | 'local_only'
+
+interface ProjectGitInfo {
+  project_type: ProjectType
+  git_mode: GitMode
+  github_owner?: string
+  github_repo?: string
+  workspace_folder?: string
+}
+
 export default function GitPanel() {
   // linkedProjectId = 사용자가 선택한 프로젝트 ID
   // projectPath는 linkedProjectId가 있을 때만 사용해야 함
   const { projectPath, linkedProjectId, linkedProjectName } = useNeuralMapStore()
   const [isGitRepo, setIsGitRepo] = useState(false)
   const [projectGitPath, setProjectGitPath] = useState<string | null>(null)
+  const [projectGitInfo, setProjectGitInfo] = useState<ProjectGitInfo | null>(null)
   const [currentBranch, setCurrentBranch] = useState<string | null>(null)
   const [status, setStatus] = useState<GitStatus>({ staged: [], unstaged: [], untracked: [] })
   const [commits, setCommits] = useState<GitCommitInfo[]>([])
@@ -99,9 +111,9 @@ export default function GitPanel() {
     return dangerousPatterns.some(pattern => pattern.test(path))
   }
 
-  // 프로젝트의 실제 Git 경로 가져오기
+  // 프로젝트의 실제 Git 경로 및 Git 설정 가져오기
   const fetchProjectGitPath = useCallback(async () => {
-    // 1. linkedProjectId가 있으면 DB에서 folder_path 조회
+    // 1. linkedProjectId가 있으면 DB에서 folder_path 및 git 설정 조회
     if (linkedProjectId) {
       try {
         const response = await fetch(`/api/projects/${linkedProjectId}`)
@@ -109,9 +121,18 @@ export default function GitPanel() {
           const project = await response.json()
           const folderPath = project.folder_path
 
+          // Git 설정 정보 저장
+          setProjectGitInfo({
+            project_type: project.project_type || 'code',
+            git_mode: project.git_mode || 'local_only',
+            github_owner: project.github_owner,
+            github_repo: project.github_repo,
+            workspace_folder: project.workspace_folder,
+          })
+
           if (folderPath) {
             setProjectGitPath(folderPath)
-            console.log('[GitPanel] Using project folder_path:', folderPath)
+            console.log('[GitPanel] Using project folder_path:', folderPath, 'git_mode:', project.git_mode)
             return
           }
         }
@@ -123,12 +144,14 @@ export default function GitPanel() {
     // 2. linkedProjectId 없어도 projectPath가 있으면 직접 사용
     if (projectPath) {
       setProjectGitPath(projectPath)
+      setProjectGitInfo({ project_type: 'code', git_mode: 'local_only' })
       console.log('[GitPanel] Using direct projectPath:', projectPath)
       return
     }
 
     // 둘 다 없으면 비활성화
     setProjectGitPath(null)
+    setProjectGitInfo(null)
     setIsGitRepo(false)
     setIsLoading(false)
   }, [linkedProjectId, projectPath])
@@ -244,7 +267,7 @@ export default function GitPanel() {
 
   // GitHub 연결 버튼 클릭 핸들러
   const handleConnectGitHub = async () => {
-    if (!projectGitPath || !linkedProjectName) return
+    if (!projectGitPath) return
 
     // GitHub 계정이 연결되지 않았으면 OAuth로 이동
     if (!isGitHubConnected) {
@@ -252,10 +275,13 @@ export default function GitPanel() {
       return
     }
 
+    // 프로젝트명: linkedProjectName 또는 경로에서 추출
+    const projectName = linkedProjectName || projectGitPath.split('/').pop() || 'my-project'
+
     // GitHub 계정이 연결되어 있으면 레포 생성 모달 열기
-    const defaultRepoName = linkedProjectName.replace(/[^a-zA-Z0-9-_]/g, '-').toLowerCase()
+    const defaultRepoName = projectName.replace(/[^a-zA-Z0-9-_]/g, '-').toLowerCase()
     setRepoName(defaultRepoName)
-    setRepoDescription(`${linkedProjectName} - Created with GlowUS`)
+    setRepoDescription(`${projectName} - Created with GlowUS`)
     setIsRepoModalOpen(true)
   }
 
@@ -344,8 +370,8 @@ export default function GitPanel() {
   }
 
   const refreshGitStatus = async () => {
-    // projectGitPath만 사용 (사용자 프로젝트의 실제 경로)
-    if (!projectGitPath || !linkedProjectId || !window.electron?.git) return
+    // projectGitPath만 있으면 됨 (linkedProjectId 불필요)
+    if (!projectGitPath || !window.electron?.git) return
 
     setIsRefreshing(true)
     setError(null)
@@ -503,6 +529,12 @@ export default function GitPanel() {
     setError(null)
 
     try {
+      // 자동으로 모든 변경사항 스테이징 (unstaged/untracked 파일 있으면)
+      const hasChanges = status.unstaged.length > 0 || status.untracked.length > 0
+      if (hasChanges) {
+        await window.electron.git.add?.(projectGitPath, '.')
+      }
+
       const result = await window.electron.git.commit?.(projectGitPath, commitMessage.trim())
       if (result?.success) {
         setCommitMessage('')
@@ -730,7 +762,7 @@ export default function GitPanel() {
           {projectGitPath || 'No path'}
         </div>
         {/* Branch and remote status */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <GitBranch className={`w-4 h-4 ${isDark ? 'text-green-400' : 'text-green-600'}`} />
           <span className={`font-medium ${isDark ? 'text-zinc-200' : 'text-zinc-800'}`}>
             {currentBranch || 'main'}
@@ -741,20 +773,36 @@ export default function GitPanel() {
               연결됨
             </span>
           )}
+          {/* Git Mode Badge */}
+          {projectGitInfo && (
+            <span className={`text-[10px] px-1.5 py-0.5 rounded ${
+              projectGitInfo.git_mode === 'separate_repo'
+                ? 'bg-blue-500/20 text-blue-400'
+                : projectGitInfo.git_mode === 'workspace_repo'
+                  ? 'bg-purple-500/20 text-purple-400'
+                  : 'bg-zinc-500/20 text-zinc-400'
+            }`}>
+              {projectGitInfo.git_mode === 'separate_repo'
+                ? '독립 레포'
+                : projectGitInfo.git_mode === 'workspace_repo'
+                  ? '워크스페이스'
+                  : '로컬'}
+            </span>
+          )}
         </div>
       </div>
 
-      {/* No remote - show GitHub connect prompt */}
-      {!hasRemote && (
+      {/* No remote - show GitHub connect prompt (only for separate_repo mode) */}
+      {!hasRemote && projectGitInfo?.git_mode === 'separate_repo' && (
         <div className={`mx-4 mt-3 p-3 rounded-lg border ${isDark ? 'bg-zinc-800/50 border-zinc-700' : 'bg-zinc-50 border-zinc-200'}`}>
           <div className="flex items-center gap-2 mb-2">
             <Link2 className={`w-4 h-4 ${isDark ? 'text-zinc-400' : 'text-zinc-500'}`} />
             <span className={`text-sm font-medium ${isDark ? 'text-zinc-300' : 'text-zinc-700'}`}>
-              GitHub에 연결되지 않음
+              GitHub 레포지토리 연결 필요
             </span>
           </div>
           <p className={`text-xs mb-3 ${isDark ? 'text-zinc-500' : 'text-zinc-500'}`}>
-            GitHub에 연동하면 원격 저장소에 백업하고 협업할 수 있습니다.
+            이 코드 프로젝트는 별도의 GitHub 레포지토리로 관리됩니다.
           </p>
           <button
             onClick={handleConnectGitHub}
@@ -772,6 +820,41 @@ export default function GitPanel() {
                 ? 'GitHub 레포지토리 생성'
                 : 'GitHub 연결하기'}
           </button>
+        </div>
+      )}
+
+      {/* Workspace Repo Mode Info */}
+      {projectGitInfo?.git_mode === 'workspace_repo' && (
+        <div className={`mx-4 mt-3 p-3 rounded-lg border ${isDark ? 'bg-purple-500/10 border-purple-500/20' : 'bg-purple-50 border-purple-200'}`}>
+          <div className="flex items-center gap-2 mb-1">
+            <FolderGit className="w-4 h-4 text-purple-400" />
+            <span className={`text-sm font-medium ${isDark ? 'text-purple-300' : 'text-purple-700'}`}>
+              워크스페이스 레포 모드
+            </span>
+          </div>
+          <p className={`text-xs ${isDark ? 'text-purple-400/70' : 'text-purple-500'}`}>
+            이 프로젝트는 통합 워크스페이스 레포지토리에서 관리됩니다.
+            {projectGitInfo.workspace_folder && (
+              <span className="block mt-1 font-mono">
+                폴더: {projectGitInfo.workspace_folder}
+              </span>
+            )}
+          </p>
+        </div>
+      )}
+
+      {/* Local Only Mode Info */}
+      {projectGitInfo?.git_mode === 'local_only' && !hasRemote && (
+        <div className={`mx-4 mt-3 p-3 rounded-lg border ${isDark ? 'bg-zinc-800/50 border-zinc-700' : 'bg-zinc-50 border-zinc-200'}`}>
+          <div className="flex items-center gap-2 mb-1">
+            <GitBranch className="w-4 h-4 text-zinc-400" />
+            <span className={`text-sm font-medium ${isDark ? 'text-zinc-300' : 'text-zinc-700'}`}>
+              로컬 전용 모드
+            </span>
+          </div>
+          <p className={`text-xs ${isDark ? 'text-zinc-500' : 'text-zinc-500'}`}>
+            GitHub 연동 없이 로컬에서만 버전 관리합니다.
+          </p>
         </div>
       )}
 

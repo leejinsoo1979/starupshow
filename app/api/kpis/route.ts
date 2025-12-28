@@ -30,7 +30,7 @@ const KPI_TYPES = [
 // GET /api/kpis - List KPI metrics for a startup
 export async function GET(request: NextRequest) {
   try {
-    const supabase = createClient()
+    const supabase = await createClient()
     const { searchParams } = new URL(request.url)
 
     const { data: { user } } = await supabase.auth.getUser()
@@ -82,7 +82,7 @@ export async function GET(request: NextRequest) {
 // POST /api/kpis - Create new KPI metric
 export async function POST(request: NextRequest) {
   try {
-    const supabase = createClient()
+    const supabase = await createClient()
 
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) {
@@ -153,7 +153,7 @@ export async function POST(request: NextRequest) {
 // DELETE /api/kpis - Delete KPI metric
 export async function DELETE(request: NextRequest) {
   try {
-    const supabase = createClient()
+    const supabase = await createClient()
     const { searchParams } = new URL(request.url)
 
     const { data: { user } } = await supabase.auth.getUser()

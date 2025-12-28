@@ -33,7 +33,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ message: `Event ${event} ignored` })
     }
 
-    const supabase = createClient()
+    const supabase = await createClient()
 
     // 저장소 정보
     const repository = payload.repository

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import {
   Brain,
@@ -23,9 +23,14 @@ import {
   Flag,
   Plus,
   Zap,
+  Folder,
+  FolderOpen,
+  RefreshCw,
 } from "lucide-react"
 import { AGENT_NODE_CONFIGS, getCategoryLabel } from "@/lib/agent"
 import type { AgentType, AgentNodeTypeConfig } from "@/lib/agent"
+
+// 🆕 AgentFolder 인터페이스 제거 - 에이전트는 프로젝트 폴더 내에 저장됨
 
 const iconMap: Record<string, React.ComponentType<{ className?: string; style?: React.CSSProperties }>> = {
   Brain,
@@ -50,9 +55,11 @@ const iconMap: Record<string, React.ComponentType<{ className?: string; style?: 
 interface AgentNodeLibraryProps {
   onDragStart: (event: React.DragEvent, nodeType: AgentType) => void
   onCreateAgent?: () => void
+  onLoadAgent?: (folderName: string) => void
+  refreshTrigger?: number
 }
 
-export function AgentNodeLibrary({ onDragStart, onCreateAgent }: AgentNodeLibraryProps) {
+export function AgentNodeLibrary({ onDragStart, onCreateAgent, onLoadAgent, refreshTrigger }: AgentNodeLibraryProps) {
   const [searchTerm, setSearchTerm] = useState("")
   // Expand all by default to show everything
   const [expandedCategories, setExpandedCategories] = useState<string[]>([
@@ -62,6 +69,8 @@ export function AgentNodeLibrary({ onDragStart, onCreateAgent }: AgentNodeLibrar
     "memory",
     "io",
   ])
+
+  // 🆕 에이전트 목록 fetch 제거 - 에이전트는 프로젝트 폴더 내에 저장됨
 
   // Custom ordering to match reference: Start, Prompt, Text Model, Image Gen, HTTP Request, Conditional, JS, Embedding, Tool, End
   // This logic reconstructs the list based on a priority queue if needed, or we rely on category grouping.
@@ -118,6 +127,8 @@ export function AgentNodeLibrary({ onDragStart, onCreateAgent }: AgentNodeLibrar
 
       {/* Node Categories */}
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
+        {/* 🆕 "내 에이전트" 섹션 제거 - 에이전트는 프로젝트 폴더 내에 저장되므로 파일 트리에서 접근 */}
+
         {categories.map((category) => {
           const categoryNodes = filteredNodes.filter(
             (node) => node.category === category

@@ -5,7 +5,7 @@ import { NextResponse } from 'next/server'
 // 스타트업 접근 요청
 export async function POST(request: Request) {
   try {
-    const supabase = createClient()
+    const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
 
     if (!user) {
@@ -77,7 +77,7 @@ export async function POST(request: Request) {
 // 접근 요청 목록 조회 (투자자용)
 export async function GET() {
   try {
-    const supabase = createClient()
+    const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
 
     if (!user) {

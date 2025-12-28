@@ -5,7 +5,7 @@ import { NextResponse } from 'next/server'
 // 파이프라인 목록 조회
 export async function GET() {
   try {
-    const supabase = createClient()
+    const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
 
     if (!user) {
@@ -52,7 +52,7 @@ export async function GET() {
 // 파이프라인에 스타트업 추가
 export async function POST(request: Request) {
   try {
-    const supabase = createClient()
+    const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
 
     if (!user) {
@@ -105,7 +105,7 @@ export async function POST(request: Request) {
 // 파이프라인 스테이지 업데이트
 export async function PATCH(request: Request) {
   try {
-    const supabase = createClient()
+    const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
 
     if (!user) {

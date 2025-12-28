@@ -9,7 +9,7 @@ export async function POST(
   { params }: { params: { id: string } }
 ) {
   try {
-    const supabase = createClientForApi()
+    const supabase = await createClientForApi()
     const { user } = await getAuthUser(supabase)
 
     if (!user) {
@@ -97,7 +97,7 @@ export async function DELETE(
   { params }: { params: { id: string } }
 ) {
   try {
-    const supabase = createClientForApi()
+    const supabase = await createClientForApi()
     const { user } = await getAuthUser(supabase)
 
     if (!user) {

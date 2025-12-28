@@ -667,7 +667,7 @@ export const TerminalPanel = forwardRef<TerminalPanelRef, TerminalPanelProps>(({
     <div
       ref={panelRef}
       className={`terminal-panel flex flex-col bg-white dark:bg-zinc-900 border-t border-zinc-200 dark:border-zinc-800 shrink-0 relative ${className} ${!isOpen ? 'hidden' : ''}`}
-      style={{ height: '100%', transition: 'none', animation: 'none', willChange: 'auto' }}
+      style={{ height: panelHeight, transition: 'none', animation: 'none', willChange: 'auto' }}
       aria-hidden={!isOpen}
     >
       {/* 리사이즈 핸들 */}

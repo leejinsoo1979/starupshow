@@ -16,7 +16,7 @@ export async function GET(
   { params }: { params: { roomId: string } }
 ) {
   try {
-    const supabase = createClient()
+    const supabase = await createClient()
     const adminClient = createAdminClient()
 
     const devUser = getDevUserIfEnabled()
@@ -69,7 +69,7 @@ export async function POST(
   { params }: { params: { roomId: string } }
 ) {
   try {
-    const supabase = createClient()
+    const supabase = await createClient()
     const adminClient = createAdminClient()
 
     const devUser = getDevUserIfEnabled()
@@ -128,7 +128,7 @@ export async function DELETE(
   { params }: { params: { roomId: string } }
 ) {
   try {
-    const supabase = createClient()
+    const supabase = await createClient()
     const adminClient = createAdminClient()
 
     const devUser = getDevUserIfEnabled()
