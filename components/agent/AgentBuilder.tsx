@@ -1145,8 +1145,10 @@ function AgentBuilderInner({ agentId }: AgentBuilderInnerProps) {
               const newShowTerminal = !showTerminal
               setShowTerminal(newShowTerminal)
               // 터미널을 열 때 에이전트 폴더로 cd
-              if (newShowTerminal && currentAgentFolder && currentProjectPath) {
-                const agentPath = `${currentProjectPath}/agents/${currentAgentFolder}`
+              const agentFolder = currentAgentFolder || agentName
+              const agentProjectPath = currentProjectPath || projectPath
+              if (newShowTerminal && agentFolder && agentProjectPath) {
+                const agentPath = `${agentProjectPath}/agents/${agentFolder}`
                 const electronApi = (window as any).electron?.terminal
                 if (electronApi) {
                   setTimeout(() => {
@@ -1451,10 +1453,13 @@ function AgentBuilderInner({ agentId }: AgentBuilderInnerProps) {
 
           {/* Terminal Panel - 캔버스 하단 */}
           {(() => {
-            const terminalCwd = currentAgentFolder && currentProjectPath
-              ? `${currentProjectPath}/agents/${currentAgentFolder}`
+            // store의 projectPath와 agentName 사용 (새로고침해도 유지됨)
+            const agentFolder = currentAgentFolder || agentName
+            const agentProjectPath = currentProjectPath || projectPath
+            const terminalCwd = agentFolder && agentProjectPath
+              ? `${agentProjectPath}/agents/${agentFolder}`
               : undefined
-            console.log('[AgentBuilder] Terminal cwd:', terminalCwd, { currentAgentFolder, currentProjectPath })
+            console.log('[AgentBuilder] Terminal cwd:', terminalCwd, { agentFolder, agentProjectPath, agentName, projectPath })
             return (
               <TerminalPanel
                 ref={terminalRef}
