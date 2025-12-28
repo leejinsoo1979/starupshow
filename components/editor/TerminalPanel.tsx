@@ -100,15 +100,23 @@ export const TerminalPanel = forwardRef<TerminalPanelRef, TerminalPanelProps>(({
   // 링크된 프로젝트의 folder_path 사용 (없으면 전역 projectPath 폴백)
   const { projectPath, linkedProjectId } = useLinkedProjectPath()
 
+  // 디버그: cwd 값 확인
+  console.log('[TerminalPanel] RENDER - cwd:', cwd, 'isOpen:', isOpen)
+
   // cwd가 있으면 2초마다 체크해서 cd 명령 전송
   useEffect(() => {
-    if (!cwd) return
+    console.log('[TerminalPanel] useEffect - cwd:', cwd, 'isOpen:', isOpen)
+    if (!cwd) {
+      console.log('[TerminalPanel] cwd is empty, skipping')
+      return
+    }
 
     const intervalId = setInterval(() => {
       const electronApi = (window as any).electron?.terminal
+      console.log('[TerminalPanel] interval check - electronApi:', !!electronApi, 'isOpen:', isOpen)
       if (electronApi && isOpen) {
         electronApi.write(activeTerminalId || '1', `cd "${cwd}"\n`)
-        console.log('[TerminalPanel] Force cd to:', cwd)
+        console.log('[TerminalPanel] SENT cd to:', cwd)
         clearInterval(intervalId)
       }
     }, 2000)
