@@ -29,10 +29,13 @@ export function CompanyPage() {
   // 회사 데이터 로드 시 이미지 URL 설정
   useEffect(() => {
     if (company) {
-      if (company.logo_url) {
-        setCompanyLogo(company.logo_url)
+      // 로고 로드: DB → localStorage
+      const logoUrl = company.logo_url ||
+        (typeof window !== 'undefined' ? localStorage.getItem(`company_${company.id}_logo_url`) : null)
+      if (logoUrl) {
+        setCompanyLogo(logoUrl)
       }
-      // business_registration_url 로드 시도: DB → localStorage
+      // 사업자등록증 로드: DB → localStorage
       const businessRegUrl = company.business_registration_url ||
         (company.settings as any)?.business_registration_url ||
         (typeof window !== 'undefined' ? localStorage.getItem(`company_${company.id}_business_registration_url`) : null)
@@ -91,8 +94,19 @@ export function CompanyPage() {
     const url = await uploadToStorage(file, 'logos', file.name)
     if (url) {
       setCompanyLogo(url)
-      // DB에 저장
-      handleChange('logo_url', url)
+      // localStorage에 즉시 저장 (백업)
+      if (company?.id && typeof window !== 'undefined') {
+        localStorage.setItem(`company_${company.id}_logo_url`, url)
+      }
+      // DB에 즉시 저장
+      if (company?.id) {
+        try {
+          await mutate('PUT', { logo_url: url })
+          refresh()
+        } catch (err) {
+          console.error('로고 저장 실패:', err)
+        }
+      }
     }
 
     if (logoInputRef.current) {

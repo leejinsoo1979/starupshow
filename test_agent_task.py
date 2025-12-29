@@ -42,29 +42,22 @@ def test_agent_task():
             chat_btn.click()
             print("   Clicked 채팅 button!")
             time.sleep(2)
-        else:
-            print("   채팅 button not found, trying alternative...")
-            # Try clicking on the chat icon/tab
-            page.locator('text=채팅').first.click()
-            time.sleep(2)
 
         page.screenshot(path='/tmp/task_1_chat_view.png', full_page=True)
         print("5. Chat view screenshot saved")
 
-        # Scroll down to find the chat input
-        print("6. Scrolling to chat input...")
-        page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
-        time.sleep(1)
+        # Find the chat input using placeholder
+        print("6. Looking for chat input...")
+        chat_input = page.locator('input[placeholder*="JARVIS에게 메시지"]')
+        if not chat_input.is_visible():
+            # Try another selector
+            chat_input = page.locator('input[placeholder*="메시지 보내기"]')
 
-        # Find and fill chat input
-        chat_input = page.locator('textarea[placeholder*="메시지"]').first
         if chat_input.is_visible():
-            print("7. Found chat input!")
-            chat_input.scroll_into_view_if_needed()
-            time.sleep(0.5)
+            print("7. Found chat input (input field)!")
             chat_input.click()
             time.sleep(0.3)
-            chat_input.fill('안녕! 오늘 날짜가 뭐야? 간단하게 알려줘.')
+            chat_input.fill('안녕! 오늘 날짜가 뭐야?')
             time.sleep(0.5)
             page.screenshot(path='/tmp/task_2_input_filled.png')
             print("   Message typed")
@@ -80,8 +73,23 @@ def test_agent_task():
             page.screenshot(path='/tmp/task_3_response.png', full_page=True)
             print("   Response screenshot saved")
         else:
-            print("   Chat input not visible after scrolling")
-            page.screenshot(path='/tmp/task_2_no_input.png', full_page=True)
+            # Try clicking "메시지 보내기" button first
+            print("   Input not found, trying 메시지 보내기 button...")
+            msg_btn = page.locator('button:has-text("메시지 보내기")').first
+            if msg_btn.is_visible():
+                msg_btn.click()
+                print("   Clicked 메시지 보내기!")
+                time.sleep(1)
+                page.screenshot(path='/tmp/task_2_after_btn.png')
+
+                # Now find input
+                chat_input = page.locator('textarea, input[type="text"]').last
+                if chat_input.is_visible():
+                    chat_input.fill('안녕! 오늘 날짜가 뭐야?')
+                    chat_input.press('Enter')
+                    print("8. Sent message!")
+                    time.sleep(10)
+                    page.screenshot(path='/tmp/task_3_response.png', full_page=True)
 
         print("\n✅ Test completed!")
         time.sleep(2)
