@@ -26,6 +26,7 @@ import {
   Palette,
   Briefcase,
   ArrowLeft,
+  ArrowRight,
   ChevronRight,
   X,
   Check,
@@ -37,6 +38,7 @@ import { Button } from "@/components/ui/Button"
 import { ProjectCreateModal, ProjectFormData } from "@/components/project/ProjectCreateModal"
 import type { ProjectWithRelations, User } from "@/types/database"
 import { useNeuralMapStore } from "@/lib/neural-map/store"
+import { useThemeStore, accentColors } from "@/stores/themeStore"
 
 const statusStyles: Record<string, { bg: string; text: string; dot: string; gradient: string; icon: string }> = {
   planning: {
@@ -117,6 +119,8 @@ const defaultCategories: ProjectCategory[] = [
 
 export default function ProjectsPage() {
   const router = useRouter()
+  const { accentColor } = useThemeStore()
+  const themeAccentColor = accentColors.find(c => c.id === accentColor)?.color || '#3b82f6'
   const [projects, setProjects] = useState<ProjectWithRelations[]>([])
   const [loading, setLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState("")
@@ -581,100 +585,99 @@ export default function ProjectsPage() {
 
           {/* Toolbar - 카테고리 선택 시에만 표시 */}
           {categoryFilter && (
-          <div className="flex items-center justify-between mt-4 gap-4">
-            <div className="flex items-center gap-2 flex-1">
-              {/* Search */}
-              <div className="relative max-w-xs flex-1">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400" />
-                <input
-                  type="text"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="프로젝트 검색..."
-                  className="w-full h-9 pl-9 pr-3 text-sm bg-zinc-100 dark:bg-zinc-800/50 border-0 rounded-xl text-zinc-900 dark:text-zinc-100 placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-zinc-300 dark:focus:ring-zinc-600 transition-shadow"
-                />
-              </div>
+            <div className="flex items-center justify-between mt-4 gap-4">
+              <div className="flex items-center gap-2 flex-1">
+                {/* Search */}
+                <div className="relative max-w-xs flex-1">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400" />
+                  <input
+                    type="text"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder="프로젝트 검색..."
+                    className="w-full h-9 pl-9 pr-3 text-sm bg-zinc-100 dark:bg-zinc-800/50 border-0 rounded-xl text-zinc-900 dark:text-zinc-100 placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-zinc-300 dark:focus:ring-zinc-600 transition-shadow"
+                  />
+                </div>
 
-              {/* Filters */}
-              <div className="relative">
-                <Button
-                  onClick={() => setIsFilterOpen(!isFilterOpen)}
-                  variant={statusFilter !== "all" ? "accent" : "outline"}
-                  size="sm"
-                  leftIcon={<SlidersHorizontal className="w-4 h-4" />}
-                  rightIcon={statusFilter !== "all" ? (
-                    <span className="flex items-center justify-center w-5 h-5 text-xs bg-white/20 rounded">1</span>
-                  ) : undefined}
-                >
-                  필터
-                </Button>
+                {/* Filters */}
+                <div className="relative">
+                  <Button
+                    onClick={() => setIsFilterOpen(!isFilterOpen)}
+                    variant={statusFilter !== "all" ? "accent" : "outline"}
+                    size="sm"
+                    leftIcon={<SlidersHorizontal className="w-4 h-4" />}
+                    rightIcon={statusFilter !== "all" ? (
+                      <span className="flex items-center justify-center w-5 h-5 text-xs bg-white/20 rounded">1</span>
+                    ) : undefined}
+                  >
+                    필터
+                  </Button>
 
-                <AnimatePresence>
-                  {isFilterOpen && (
-                    <motion.div
-                      initial={{ opacity: 0, y: 8, scale: 0.96 }}
-                      animate={{ opacity: 1, y: 0, scale: 1 }}
-                      exit={{ opacity: 0, y: 8, scale: 0.96 }}
-                      transition={{ duration: 0.15 }}
-                      className="absolute top-full left-0 mt-2 w-48 bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 shadow-xl p-1.5 z-50"
-                    >
-                      <div className="px-2 py-1.5 text-xs font-medium text-zinc-500 uppercase tracking-wider">상태</div>
-                      {["all", "planning", "active", "on_hold", "completed"].map((status) => (
-                        <button
-                          key={status}
-                          onClick={() => {
-                            setStatusFilter(status)
-                            setIsFilterOpen(false)
-                          }}
-                          className={`w-full flex items-center gap-2 px-2 py-1.5 text-sm rounded-lg transition-colors ${
-                            statusFilter === status
+                  <AnimatePresence>
+                    {isFilterOpen && (
+                      <motion.div
+                        initial={{ opacity: 0, y: 8, scale: 0.96 }}
+                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                        exit={{ opacity: 0, y: 8, scale: 0.96 }}
+                        transition={{ duration: 0.15 }}
+                        className="absolute top-full left-0 mt-2 w-48 bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 shadow-xl p-1.5 z-50"
+                      >
+                        <div className="px-2 py-1.5 text-xs font-medium text-zinc-500 uppercase tracking-wider">상태</div>
+                        {["all", "planning", "active", "on_hold", "completed"].map((status) => (
+                          <button
+                            key={status}
+                            onClick={() => {
+                              setStatusFilter(status)
+                              setIsFilterOpen(false)
+                            }}
+                            className={`w-full flex items-center gap-2 px-2 py-1.5 text-sm rounded-lg transition-colors ${statusFilter === status
                               ? "bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100"
                               : "text-zinc-600 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-800/50"
-                          }`}
-                        >
-                          {status !== "all" && (
-                            <span className={`w-2 h-2 rounded-full ${statusStyles[status]?.dot}`} />
-                          )}
-                          {status === "all" ? "전체" : statusLabels[status]}
-                        </button>
-                      ))}
-                    </motion.div>
-                  )}
-                </AnimatePresence>
+                              }`}
+                          >
+                            {status !== "all" && (
+                              <span className={`w-2 h-2 rounded-full ${statusStyles[status]?.dot}`} />
+                            )}
+                            {status === "all" ? "전체" : statusLabels[status]}
+                          </button>
+                        ))}
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
+
+                {/* Sort */}
+                <select
+                  value={sortBy}
+                  onChange={(e) => setSortBy(e.target.value)}
+                  className="h-9 px-3 text-sm bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl text-zinc-700 dark:text-zinc-300 focus:outline-none focus:ring-2 focus:ring-zinc-300 dark:focus:ring-zinc-600 cursor-pointer"
+                >
+                  <option value="updated">최근 수정순</option>
+                  <option value="created">생성일순</option>
+                  <option value="name">이름순</option>
+                </select>
               </div>
 
-              {/* Sort */}
-              <select
-                value={sortBy}
-                onChange={(e) => setSortBy(e.target.value)}
-                className="h-9 px-3 text-sm bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl text-zinc-700 dark:text-zinc-300 focus:outline-none focus:ring-2 focus:ring-zinc-300 dark:focus:ring-zinc-600 cursor-pointer"
-              >
-                <option value="updated">최근 수정순</option>
-                <option value="created">생성일순</option>
-                <option value="name">이름순</option>
-              </select>
+              {/* View Toggle */}
+              <div className="flex p-1 bg-zinc-100 dark:bg-zinc-800/50 rounded-xl">
+                <Button
+                  onClick={() => setViewMode("list")}
+                  variant={viewMode === "list" ? "secondary" : "ghost"}
+                  size="icon-sm"
+                  className={viewMode === "list" ? "shadow-sm" : ""}
+                >
+                  <AlignJustify className="w-4 h-4" />
+                </Button>
+                <Button
+                  onClick={() => setViewMode("grid")}
+                  variant={viewMode === "grid" ? "secondary" : "ghost"}
+                  size="icon-sm"
+                  className={viewMode === "grid" ? "shadow-sm" : ""}
+                >
+                  <LayoutGrid className="w-4 h-4" />
+                </Button>
+              </div>
             </div>
-
-            {/* View Toggle */}
-            <div className="flex p-1 bg-zinc-100 dark:bg-zinc-800/50 rounded-xl">
-              <Button
-                onClick={() => setViewMode("list")}
-                variant={viewMode === "list" ? "secondary" : "ghost"}
-                size="icon-sm"
-                className={viewMode === "list" ? "shadow-sm" : ""}
-              >
-                <AlignJustify className="w-4 h-4" />
-              </Button>
-              <Button
-                onClick={() => setViewMode("grid")}
-                variant={viewMode === "grid" ? "secondary" : "ghost"}
-                size="icon-sm"
-                className={viewMode === "grid" ? "shadow-sm" : ""}
-              >
-                <LayoutGrid className="w-4 h-4" />
-              </Button>
-            </div>
-          </div>
           )}
         </div>
       </div>
@@ -689,44 +692,70 @@ export default function ProjectsPage() {
                 const IconComponent = iconMap[category.icon] || Folder
                 const count = categoryStats[category.id] || 0
                 const isEditing = editingCategory === category.id
+                const safeColor = category.color || '#6366f1'
 
                 return (
                   <motion.div
                     key={category.id}
-                    initial={{ opacity: 0, y: 20, scale: 0.95 }}
-                    animate={{ opacity: 1, y: 0, scale: 1 }}
-                    transition={{ delay: idx * 0.08, type: "spring", stiffness: 200 }}
+                    initial={{ opacity: 0, scale: 0.95 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    transition={{ delay: idx * 0.05 }}
                     className="group"
                   >
                     <div
-                      className="relative h-44 rounded-3xl p-5 overflow-hidden cursor-pointer transition-all duration-300 hover:scale-[1.03] hover:shadow-2xl"
-                      style={{
-                        background: `linear-gradient(145deg, ${category.color}15 0%, ${category.color}08 100%)`,
-                        border: `1px solid ${category.color}30`,
-                      }}
+                      className="relative h-48 rounded-[2rem] p-6 cursor-pointer transition-all duration-300 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 hover:border-transparent hover:shadow-2xl hover:-translate-y-1"
                       onClick={() => !isEditing && setCategoryFilter(category.id)}
+                      style={{
+                        '--category-color': safeColor
+                      } as React.CSSProperties}
                     >
-                      {/* 배경 장식 */}
+                      {/* Hover Ring (Color) */}
+                      <div className="absolute inset-0 rounded-[2rem] ring-2 ring-transparent group-hover:ring-[var(--category-color)] transition-all duration-300 opacity-50" />
+
+                      {/* Subtle Tint Background */}
                       <div
-                        className="absolute -top-10 -right-10 w-32 h-32 rounded-full opacity-20 blur-2xl transition-all duration-500 group-hover:opacity-40 group-hover:scale-125"
-                        style={{ background: category.color }}
-                      />
-                      <div
-                        className="absolute -bottom-8 -left-8 w-24 h-24 rounded-full opacity-10 blur-xl"
-                        style={{ background: category.color }}
+                        className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300"
+                        style={{ background: `linear-gradient(to bottom right, ${safeColor}10, transparent)` }}
                       />
 
-                      {/* 편집/삭제 버튼 */}
-                      <div className="absolute top-3 right-3 flex gap-1.5 opacity-0 group-hover:opacity-100 transition-all duration-200 z-10">
+                      {/* Header: Icon & Count Badge */}
+                      <div className="relative z-10 flex items-start justify-between mb-8">
+                        {/* Icon */}
+                        <div
+                          className="w-14 h-14 rounded-2xl flex items-center justify-center text-white shadow-md transition-transform duration-300 group-hover:scale-110 group-hover:rotate-6"
+                          style={{
+                            background: safeColor,
+                            boxShadow: `0 4px 10px -2px ${safeColor}50`
+                          }}
+                        >
+                          <IconComponent className="w-7 h-7" strokeWidth={2} />
+                        </div>
+
+                        {/* Project Count Badge - High Visibility */}
+                        <div
+                          className="px-3 py-1.5 rounded-full text-xs font-bold border"
+                          style={{
+                            backgroundColor: `${safeColor}10`,
+                            color: safeColor,
+                            borderColor: `${safeColor}30`
+                          }}
+                        >
+                          {count} Projects
+                        </div>
+                      </div>
+
+                      {/* Edit Actions (Absolute Positioned Top Right, revealed on Hover) */}
+                      {/* Replaces Count when hovering? No, simpler to be next to it of overlapping */}
+                      <div className="absolute top-6 right-20 flex gap-1 opacity-0 group-hover:opacity-100 transition-all duration-200 translate-x-2 group-hover:translate-x-0 z-20">
                         <button
                           onClick={(e) => {
                             e.stopPropagation()
                             setEditingCategory(category.id)
                             setEditName(category.name)
                           }}
-                          className="p-2 rounded-xl bg-white/10 hover:bg-white/20 backdrop-blur-sm transition-all border border-white/10"
+                          className="p-1.5 rounded-lg bg-zinc-100 dark:bg-zinc-800 hover:bg-white dark:hover:bg-zinc-700 shadow-sm ring-1 ring-zinc-200 dark:ring-zinc-700 transition-all text-zinc-600 dark:text-zinc-300"
                         >
-                          <Pencil className="w-3.5 h-3.5 text-zinc-300" />
+                          <Pencil className="w-3.5 h-3.5" />
                         </button>
                         {category.user_id && (
                           <button
@@ -734,127 +763,94 @@ export default function ProjectsPage() {
                               e.stopPropagation()
                               handleDeleteCategory(category.id)
                             }}
-                            className="p-2 rounded-xl bg-white/10 hover:bg-red-500/30 backdrop-blur-sm transition-all border border-white/10"
+                            className="p-1.5 rounded-lg bg-zinc-100 dark:bg-zinc-800 hover:bg-red-500 hover:text-white shadow-sm ring-1 ring-zinc-200 dark:ring-zinc-700 transition-all text-zinc-600 dark:text-zinc-300"
                           >
-                            <Trash2 className="w-3.5 h-3.5 text-zinc-300" />
+                            <Trash2 className="w-3.5 h-3.5" />
                           </button>
                         )}
                       </div>
 
-                      {/* 컨텐츠 */}
-                      <div className="relative h-full flex flex-col justify-between z-10">
-                        <div
-                          className="w-12 h-12 rounded-2xl flex items-center justify-center transition-transform duration-300 group-hover:scale-110 group-hover:rotate-3"
-                          style={{
-                            background: `linear-gradient(135deg, ${category.color} 0%, ${category.color}cc 100%)`,
-                            boxShadow: `0 8px 24px ${category.color}40`
-                          }}
-                        >
-                          <IconComponent className="w-6 h-6 text-white" />
-                        </div>
-
-                        <div>
-                          {isEditing ? (
-                            <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
-                              <input
-                                type="text"
-                                value={editName}
-                                onChange={(e) => setEditName(e.target.value)}
-                                className="flex-1 bg-white/10 text-white text-lg font-bold px-3 py-1.5 rounded-xl outline-none placeholder-white/50 backdrop-blur-sm border border-white/20"
-                                autoFocus
-                                onKeyDown={(e) => {
-                                  if (e.key === 'Enter') handleUpdateCategory(category.id, editName)
-                                  if (e.key === 'Escape') setEditingCategory(null)
-                                }}
-                              />
-                              <button
-                                onClick={() => handleUpdateCategory(category.id, editName)}
-                                className="p-1.5 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/40 border border-emerald-500/30"
-                              >
-                                <Check className="w-4 h-4 text-emerald-400" />
-                              </button>
-                              <button
-                                onClick={() => setEditingCategory(null)}
-                                className="p-1.5 rounded-lg bg-red-500/20 hover:bg-red-500/40 border border-red-500/30"
-                              >
-                                <X className="w-4 h-4 text-red-400" />
-                              </button>
-                            </div>
-                          ) : (
-                            <>
-                              <h3 className="text-zinc-100 text-xl font-bold tracking-tight mb-1">{category.name}</h3>
-                              <div className="flex items-center gap-2">
-                                <span
-                                  className="text-3xl font-black"
-                                  style={{ color: category.color }}
-                                >
-                                  {count}
-                                </span>
-                                <span className="text-zinc-500 text-sm font-medium">프로젝트</span>
-                              </div>
-                            </>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* 호버 시 화살표 */}
-                      <div className="absolute bottom-5 right-5 opacity-0 group-hover:opacity-100 transition-all duration-300 transform translate-x-2 group-hover:translate-x-0">
-                        <ChevronRight className="w-5 h-5 text-zinc-400" />
+                      {/* Main Content */}
+                      <div className="relative z-10 flex flex-col justify-end h-full">
+                        {isEditing ? (
+                          <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                            <input
+                              type="text"
+                              value={editName}
+                              onChange={(e) => setEditName(e.target.value)}
+                              className="w-full bg-zinc-50 dark:bg-zinc-800 text-lg font-bold px-3 py-2 rounded-xl outline-none ring-2 ring-[var(--category-color)] text-zinc-900 dark:text-white"
+                              autoFocus
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') handleUpdateCategory(category.id, editName)
+                                if (e.key === 'Escape') setEditingCategory(null)
+                              }}
+                            />
+                          </div>
+                        ) : (
+                          <>
+                            {/* Category Name */}
+                            <h3 className="text-xl font-bold tracking-tight text-zinc-900 dark:text-zinc-100 mb-1 group-hover:translate-x-1 transition-transform">
+                              {category.name}
+                            </h3>
+                            <p className="text-sm font-medium text-zinc-400 dark:text-zinc-500 line-clamp-1 group-hover:translate-x-1 transition-transform delay-75">
+                              {category.description || "No description"}
+                            </p>
+                          </>
+                        )}
                       </div>
                     </div>
                   </motion.div>
                 )
               })}
 
-              {/* 카테고리 추가 카드 */}
+              {/* Add Category Card - High Visibility Styled */}
               {isAddingCategory ? (
                 <motion.div
-                  initial={{ opacity: 0, scale: 0.9 }}
+                  initial={{ opacity: 0, scale: 0.95 }}
                   animate={{ opacity: 1, scale: 1 }}
-                  className="h-44 rounded-3xl p-5 border border-violet-500/30 bg-violet-500/5 backdrop-blur-sm"
+                  className="h-48 rounded-[2rem] p-1 bg-white dark:bg-zinc-900 shadow-xl ring-2 ring-indigo-500"
                 >
-                  <div className="h-full flex flex-col justify-center gap-4">
+                  <div className="h-full rounded-[1.8rem] bg-zinc-50 dark:bg-zinc-900 flex flex-col justify-center gap-3 p-5">
                     <input
                       type="text"
                       value={newCategoryName}
                       onChange={(e) => setNewCategoryName(e.target.value)}
-                      placeholder="카테고리 이름"
-                      className="w-full bg-zinc-900/50 text-white px-4 py-3 rounded-xl border border-zinc-700 outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent placeholder-zinc-500"
+                      placeholder="Category Name"
+                      className="w-full bg-white dark:bg-zinc-800 px-4 py-3 rounded-xl shadow-sm ring-1 ring-zinc-300 dark:ring-zinc-700 outline-none focus:ring-2 focus:ring-indigo-500 text-lg font-bold placeholder-zinc-400 text-zinc-900 dark:text-white"
                       autoFocus
                       onKeyDown={(e) => {
                         if (e.key === 'Enter') handleAddCategory()
                         if (e.key === 'Escape') setIsAddingCategory(false)
                       }}
                     />
-                    <div className="flex gap-3">
+                    <div className="flex gap-2 mt-auto">
                       <button
                         onClick={handleAddCategory}
-                        className="flex-1 py-2.5 rounded-xl bg-gradient-to-r from-violet-600 to-purple-600 hover:from-violet-500 hover:to-purple-500 text-white text-sm font-semibold transition-all shadow-lg shadow-violet-500/25"
+                        className="flex-1 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold transition-all shadow-md text-sm"
                       >
-                        추가
+                        Create
                       </button>
                       <button
                         onClick={() => setIsAddingCategory(false)}
-                        className="flex-1 py-2.5 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-sm font-semibold transition-all border border-zinc-700"
+                        className="px-5 py-2.5 rounded-xl bg-white dark:bg-zinc-800 hover:bg-zinc-100 text-zinc-600 dark:text-zinc-300 font-bold transition-all border border-zinc-200 dark:border-zinc-700 text-sm"
                       >
-                        취소
+                        Cancel
                       </button>
                     </div>
                   </div>
                 </motion.div>
               ) : (
                 <motion.div
-                  initial={{ opacity: 0, y: 20, scale: 0.95 }}
-                  animate={{ opacity: 1, y: 0, scale: 1 }}
-                  transition={{ delay: categories.length * 0.08, type: "spring", stiffness: 200 }}
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, scale: 1 }}
                   onClick={() => setIsAddingCategory(true)}
-                  className="group h-44 rounded-3xl p-5 border border-dashed border-zinc-700 hover:border-violet-500/50 bg-zinc-900/30 hover:bg-violet-500/5 cursor-pointer transition-all duration-300 flex items-center justify-center"
+                  className="group h-48 rounded-[2rem] border-3 border-dashed border-zinc-300 dark:border-zinc-700 hover:border-indigo-500 hover:bg-indigo-50 dark:hover:bg-indigo-900/10 cursor-pointer transition-all duration-300 relative overflow-hidden bg-zinc-50 dark:bg-zinc-900/30"
                 >
-                  <div className="flex flex-col items-center gap-3 text-zinc-500 group-hover:text-violet-400 transition-colors">
-                    <div className="w-12 h-12 rounded-2xl bg-zinc-800 group-hover:bg-violet-500/20 flex items-center justify-center transition-all duration-300 group-hover:scale-110">
-                      <Plus className="w-6 h-6" />
+                  <div className="h-full flex flex-col items-center justify-center gap-3">
+                    <div className="w-14 h-14 rounded-full bg-white dark:bg-zinc-800 group-hover:bg-indigo-500 group-hover:text-white text-zinc-400 dark:text-zinc-500 transition-all duration-300 flex items-center justify-center shadow-sm border border-zinc-200 dark:border-zinc-700 group-hover:scale-110 group-hover:border-transparent">
+                      <Plus className="w-7 h-7" strokeWidth={2.5} />
                     </div>
-                    <span className="text-sm font-semibold">카테고리 추가</span>
+                    <span className="text-base font-bold text-zinc-500 dark:text-zinc-400 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">Add Category</span>
                   </div>
                 </motion.div>
               )}
@@ -937,9 +933,12 @@ export default function ProjectsPage() {
                   <div className="col-span-4 flex items-center gap-3.5 min-w-0">
                     <div className={`relative w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${style.bg}`}>
                       <Folder className={`w-5 h-5 ${style.icon}`} />
-                      {/* 폴더 연결 표시 */}
+                      {/* 폴더 연결 표시 - 테마 색상 */}
                       {folderPath && (
-                        <div className="absolute -bottom-1 -right-1 w-4 h-4 rounded-full bg-emerald-500 flex items-center justify-center ring-2 ring-white dark:ring-zinc-900">
+                        <div
+                          className="absolute -bottom-1 -right-1 w-4 h-4 rounded-full flex items-center justify-center ring-2 ring-white dark:ring-zinc-900"
+                          style={{ backgroundColor: themeAccentColor }}
+                        >
                           <FolderOpen className="w-2.5 h-2.5 text-white" />
                         </div>
                       )}
@@ -978,12 +977,25 @@ export default function ProjectsPage() {
                     <ArrowUpRight className="w-4 h-4 text-zinc-400 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0" />
                   </div>
 
-                  {/* Status */}
+                  {/* Status - 진행중은 테마 색상 사용 */}
                   <div className="col-span-2">
-                    <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold rounded-full ${style.bg} ${style.text}`}>
-                      <span className={`w-1.5 h-1.5 rounded-full ${style.dot}`} />
-                      {statusLabels[project.status]}
-                    </span>
+                    {project.status === 'active' ? (
+                      <span
+                        className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold rounded-full"
+                        style={{
+                          backgroundColor: `${themeAccentColor}15`,
+                          color: themeAccentColor
+                        }}
+                      >
+                        <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: themeAccentColor }} />
+                        {statusLabels[project.status]}
+                      </span>
+                    ) : (
+                      <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold rounded-full ${style.bg} ${style.text}`}>
+                        <span className={`w-1.5 h-1.5 rounded-full ${style.dot}`} />
+                        {statusLabels[project.status]}
+                      </span>
+                    )}
                   </div>
 
                   {/* Progress */}
@@ -991,11 +1003,11 @@ export default function ProjectsPage() {
                     <div className="flex items-center gap-2">
                       <div className="flex-1 h-2 bg-zinc-100 dark:bg-zinc-800 rounded-full overflow-hidden">
                         <div
-                          className={`h-full rounded-full transition-all ${style.dot}`}
-                          style={{ width: `${progress}%` }}
+                          className="h-full rounded-full transition-all"
+                          style={{ width: `${progress}%`, backgroundColor: themeAccentColor }}
                         />
                       </div>
-                      <span className="text-xs font-medium text-zinc-600 dark:text-zinc-400 w-8 text-right">{progress}%</span>
+                      <span className="text-xs font-bold w-8 text-right" style={{ color: themeAccentColor }}>{progress}%</span>
                     </div>
                   </div>
 
@@ -1050,7 +1062,13 @@ export default function ProjectsPage() {
                         }
                         router.push("/dashboard-group/neural-map")
                       }}
-                      className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-violet-600 dark:text-violet-400 bg-violet-50 dark:bg-violet-900/30 hover:bg-violet-100 dark:hover:bg-violet-900/50 rounded-lg transition-colors"
+                      className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg transition-colors"
+                      style={{
+                        color: themeAccentColor,
+                        backgroundColor: `${themeAccentColor}15`,
+                      }}
+                      onMouseEnter={(e) => e.currentTarget.style.backgroundColor = `${themeAccentColor}25`}
+                      onMouseLeave={(e) => e.currentTarget.style.backgroundColor = `${themeAccentColor}15`}
                     >
                       <Pencil className="w-3.5 h-3.5" />
                       Edit
@@ -1061,188 +1079,211 @@ export default function ProjectsPage() {
             })}
           </div>
         ) : (
-          /* Grid View - 카테고리 테마 적용 */
+          /* Grid View - 테마 액센트 색상 적용 */
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
             {(() => {
-              // 현재 카테고리 색상 가져오기
-              const currentCategory = categoryFilter ? categories.find(c => c.id === categoryFilter) : null
-              const themeColor = currentCategory?.color || '#8b5cf6'
+              // 테마 액센트 색상 사용
+              const themeColor = themeAccentColor
 
               return filteredProjects.map((project, idx) => {
-              const members = (project as any).project_members || project.members || []
-              const agents = (project as any).project_agents || project.agents || []
-              const memberCount = members.length + agents.length
-              const progress = project.progress || 0
-              const style = statusStyles[project.status] || statusStyles.planning
-              const hasDeadline = project.deadline || project.end_date
-              const folderPath = (project as any).folder_path
-              const metadata = (project as any).metadata || {}
-              const projectType = metadata.type as string | undefined
+                const members = (project as any).project_members || project.members || []
+                const agents = (project as any).project_agents || project.agents || []
+                const memberCount = members.length + agents.length
+                const progress = project.progress || 0
+                const style = statusStyles[project.status] || statusStyles.planning
+                const hasDeadline = project.deadline || project.end_date
+                const folderPath = (project as any).folder_path
+                const metadata = (project as any).metadata || {}
+                const projectType = metadata.type as string | undefined
 
-              return (
-                <motion.div
-                  key={project.id}
-                  initial={{ opacity: 0, y: 16 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: idx * 0.04, duration: 0.3 }}
-                  whileHover={{ y: -4, transition: { duration: 0.2 } }}
-                  className="group relative rounded-2xl overflow-hidden cursor-pointer transition-all duration-300 hover:shadow-2xl"
-                  style={{
-                    background: `linear-gradient(145deg, ${themeColor}08 0%, transparent 100%)`,
-                    border: `1px solid ${themeColor}25`,
-                  }}
-                  onClick={() => router.push(`/dashboard-group/project/${project.id}`)}
-                >
-                  {/* 배경 장식 */}
-                  <div
-                    className="absolute -top-16 -right-16 w-32 h-32 rounded-full opacity-10 blur-2xl"
-                    style={{ background: themeColor }}
-                  />
+                return (
+                  <motion.div
+                    key={project.id}
+                    initial={{ opacity: 0, y: 16 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: idx * 0.04, duration: 0.3 }}
+                    whileHover={{ y: -4, transition: { duration: 0.2 } }}
+                    className="group relative rounded-[1.5rem] overflow-hidden cursor-pointer transition-all duration-300 hover:shadow-2xl bg-white dark:bg-zinc-900 ring-1 ring-zinc-200/80 dark:ring-zinc-800 hover:ring-2"
+                    style={{
+                      '--theme-color': themeColor,
+                      borderColor: 'transparent',
+                    } as React.CSSProperties}
+                    onClick={() => router.push(`/dashboard-group/project/${project.id}`)}
+                  >
+                    {/* Dynamic Border via Box Shadow or Ring Color on Hover */}
+                    <div className="absolute inset-0 pointer-events-none rounded-[1.5rem] ring-inset ring-2 ring-transparent group-hover:ring-[var(--theme-color)] transition-all duration-300 opacity-20" />
 
-                  {/* 상단 악센트 라인 */}
-                  <div
-                    className="absolute top-0 left-0 right-0 h-1"
-                    style={{ background: `linear-gradient(90deg, ${themeColor} 0%, ${themeColor}60 100%)` }}
-                  />
-
-                  {/* 호버시 Edit 버튼 */}
-                  <div className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity z-10">
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        setLinkedProject(project.id, project.name)
-                        // folder_path가 있으면 projectPath도 설정
-                        if ((project as any).folder_path) {
-                          useNeuralMapStore.getState().setProjectPath((project as any).folder_path)
-                        }
-                        router.push("/dashboard-group/neural-map")
+                    {/* Premium Gradient Background Fade */}
+                    <div
+                      className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500"
+                      style={{
+                        background: `linear-gradient(to bottom right, ${themeColor}10, transparent 40%)`
                       }}
-                      className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white rounded-lg transition-colors shadow-lg"
-                      style={{ background: themeColor }}
-                    >
-                      <Pencil className="w-3.5 h-3.5" />
-                      Edit
-                    </button>
-                  </div>
+                    />
 
-                  <div className="p-5">
-                    {/* 상태 및 타입 뱃지 */}
-                    <div className="flex items-center gap-2 mb-4 flex-wrap">
-                      <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold rounded-full ${style.bg} ${style.text}`}>
-                        <span className={`w-1.5 h-1.5 rounded-full ${style.dot} animate-pulse`} />
-                        {statusLabels[project.status]}
-                      </span>
-                      {/* 프로젝트 타입 뱃지 */}
-                      {projectType === 'node' && (
-                        <span className="px-2 py-1 text-xs font-medium rounded-full bg-green-50 dark:bg-green-900/30 text-green-600 dark:text-green-400">
-                          Node
-                        </span>
-                      )}
-                      {projectType === 'python' && (
-                        <span className="px-2 py-1 text-xs font-medium rounded-full bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400">
-                          Python
-                        </span>
-                      )}
-                      {/* 폴더 연결 뱃지 */}
-                      {folderPath && (
-                        <span className="px-2 py-1 text-xs font-medium rounded-full bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
-                          <FolderOpen className="w-3 h-3" />
-                          연결됨
-                        </span>
-                      )}
-                      {project.priority === 'high' || project.priority === 'urgent' ? (
-                        <span className="px-2 py-1 text-xs font-medium rounded-full bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400">
-                          {project.priority === 'urgent' ? '긴급' : '높음'}
-                        </span>
-                      ) : null}
+                    {/* Top Glow Accent */}
+                    <div
+                      className="absolute top-0 inset-x-0 h-32 opacity-20 dark:opacity-10 transition-opacity duration-300 group-hover:opacity-30"
+                      style={{ background: `radial-gradient(ellipse at top, ${themeColor}60, transparent 70%)` }}
+                    />
+
+                    {/* 호버시 Edit 버튼 */}
+                    <div className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity z-10">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          setLinkedProject(project.id, project.name)
+                          // folder_path가 있으면 projectPath도 설정
+                          if ((project as any).folder_path) {
+                            useNeuralMapStore.getState().setProjectPath((project as any).folder_path)
+                          }
+                          router.push("/dashboard-group/neural-map")
+                        }}
+                        className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white rounded-lg transition-colors shadow-lg"
+                        style={{ background: themeColor }}
+                      >
+                        <Pencil className="w-3.5 h-3.5" />
+                        Edit
+                      </button>
                     </div>
 
-                    {/* 프로젝트 이름 */}
-                    <h3 className="text-base font-semibold text-zinc-900 dark:text-zinc-50 mb-2 line-clamp-1 group-hover:text-zinc-700 dark:group-hover:text-white transition-colors">
-                      {project.name}
-                    </h3>
-
-                    {/* 설명 또는 폴더 경로 */}
-                    <p className="text-sm text-zinc-500 dark:text-zinc-400 mb-4 line-clamp-2 min-h-[40px]">
-                      {project.description || (folderPath ? `📁 ${folderPath.split('/').slice(-2).join('/')}` : '설명 없음')}
-                    </p>
-
-                    {/* 진행률 바 */}
-                    <div className="mb-4">
-                      <div className="flex items-center justify-between text-xs mb-1.5">
-                        <span className="text-zinc-500">진행률</span>
-                        <span className="font-medium" style={{ color: themeColor }}>{progress}%</span>
+                    <div className="p-5">
+                      {/* 상태 및 타입 뱃지 - 진행중은 테마 색상 */}
+                      <div className="flex items-center gap-2 mb-4 flex-wrap">
+                        {project.status === 'active' ? (
+                          <span
+                            className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold rounded-full"
+                            style={{
+                              backgroundColor: `${themeColor}15`,
+                              color: themeColor
+                            }}
+                          >
+                            <span className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ backgroundColor: themeColor }} />
+                            {statusLabels[project.status]}
+                          </span>
+                        ) : (
+                          <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold rounded-full ${style.bg} ${style.text}`}>
+                            <span className={`w-1.5 h-1.5 rounded-full ${style.dot} animate-pulse`} />
+                            {statusLabels[project.status]}
+                          </span>
+                        )}
+                        {/* 프로젝트 타입 뱃지 */}
+                        {projectType === 'node' && (
+                          <span className="px-2 py-1 text-xs font-medium rounded-full bg-green-50 dark:bg-green-900/30 text-green-600 dark:text-green-400">
+                            Node
+                          </span>
+                        )}
+                        {projectType === 'python' && (
+                          <span className="px-2 py-1 text-xs font-medium rounded-full bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400">
+                            Python
+                          </span>
+                        )}
+                        {/* 폴더 연결 뱃지 - 테마 색상 */}
+                        {folderPath && (
+                          <span
+                            className="px-2 py-1 text-xs font-medium rounded-full flex items-center gap-1"
+                            style={{
+                              backgroundColor: `${themeColor}15`,
+                              color: themeColor
+                            }}
+                          >
+                            <FolderOpen className="w-3 h-3" />
+                            연결됨
+                          </span>
+                        )}
+                        {project.priority === 'high' || project.priority === 'urgent' ? (
+                          <span className="px-2 py-1 text-xs font-medium rounded-full bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400">
+                            {project.priority === 'urgent' ? '긴급' : '높음'}
+                          </span>
+                        ) : null}
                       </div>
-                      <div className="h-1.5 bg-zinc-800 rounded-full overflow-hidden">
-                        <motion.div
-                          initial={{ width: 0 }}
-                          animate={{ width: `${progress}%` }}
-                          transition={{ duration: 0.8, delay: idx * 0.05 }}
-                          className="h-full rounded-full"
-                          style={{ background: `linear-gradient(90deg, ${themeColor} 0%, ${themeColor}aa 100%)` }}
-                        />
-                      </div>
-                    </div>
 
-                    {/* 메타 정보 */}
-                    <div className="flex items-center gap-4 text-xs text-zinc-500 dark:text-zinc-400 mb-4">
-                      {hasDeadline && (
-                        <div className="flex items-center gap-1">
-                          <Calendar className="w-3.5 h-3.5" />
-                          <span>{formatDate(project.deadline || project.end_date!)}</span>
+                      {/* 프로젝트 이름 */}
+                      <h3 className="text-lg font-bold text-zinc-900 dark:text-white mb-2 line-clamp-1 group-hover:text-[var(--theme-color)] transition-colors" style={{ transitionDuration: '200ms' }}>
+                        {project.name}
+                      </h3>
+
+                      {/* 설명 또는 폴더 경로 */}
+                      <p className="text-sm text-zinc-500 dark:text-zinc-400 mb-4 line-clamp-2 min-h-[40px]">
+                        {project.description || (folderPath ? `📁 ${folderPath.split('/').slice(-2).join('/')}` : '설명 없음')}
+                      </p>
+
+                      {/* 진행률 바 */}
+                      <div className="mb-4">
+                        <div className="flex items-center justify-between text-xs mb-1.5">
+                          <span className="text-zinc-500">진행률</span>
+                          <span className="font-bold text-lg" style={{ color: themeColor }}>{progress}%</span>
                         </div>
-                      )}
-                      <div className="flex items-center gap-1">
-                        <Clock className="w-3.5 h-3.5" />
-                        <span>{formatRelativeDate(project.updated_at || project.created_at)}</span>
+                        <div className="h-1.5 bg-zinc-100 dark:bg-zinc-800 rounded-full overflow-hidden">
+                          <motion.div
+                            initial={{ width: 0 }}
+                            animate={{ width: `${progress}%` }}
+                            transition={{ duration: 0.8, delay: idx * 0.05 }}
+                            className="h-full rounded-full"
+                            style={{ background: `linear-gradient(90deg, ${themeColor} 0%, ${themeColor}aa 100%)` }}
+                          />
+                        </div>
                       </div>
-                    </div>
 
-                    {/* 하단 - 멤버 & 에이전트 */}
-                    <div className="flex items-center justify-between pt-4 border-t border-zinc-100 dark:border-zinc-800">
-                      {memberCount > 0 ? (
-                        <div className="flex items-center gap-2">
-                          <div className="flex -space-x-2">
-                            {members.slice(0, 3).map((member: any) => (
-                              <img
-                                key={member.id}
-                                src={member.user?.avatar_url || `https://api.dicebear.com/7.x/initials/svg?seed=${member.user?.name}&backgroundColor=e4e4e7`}
-                                alt={member.user?.name}
-                                title={member.user?.name}
-                                className="w-7 h-7 rounded-full ring-2 ring-white dark:ring-zinc-900 bg-zinc-100 object-cover"
-                              />
-                            ))}
-                            {agents.slice(0, 2).map((a: any) => (
-                              <div
-                                key={a.id}
-                                title={a.agent?.name}
-                                className="w-7 h-7 rounded-full ring-2 ring-white dark:ring-zinc-900 bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center"
-                              >
-                                <Sparkles className="w-3.5 h-3.5 text-white" />
-                              </div>
-                            ))}
+                      {/* 메타 정보 */}
+                      <div className="flex items-center gap-4 text-xs text-zinc-500 dark:text-zinc-400 mb-4">
+                        {hasDeadline && (
+                          <div className="flex items-center gap-1">
+                            <Calendar className="w-3.5 h-3.5" />
+                            <span>{formatDate(project.deadline || project.end_date!)}</span>
                           </div>
-                          {memberCount > 5 && (
-                            <span className="text-xs font-medium text-zinc-500">+{memberCount - 5}</span>
-                          )}
+                        )}
+                        <div className="flex items-center gap-1">
+                          <Clock className="w-3.5 h-3.5" />
+                          <span>{formatRelativeDate(project.updated_at || project.created_at)}</span>
                         </div>
-                      ) : (
-                        <div className="flex items-center gap-1.5 text-xs text-zinc-400">
-                          <Users className="w-3.5 h-3.5" />
-                          <span>멤버 없음</span>
-                        </div>
-                      )}
+                      </div>
 
-                      {/* 태스크 카운트 (있으면) */}
-                      <div className="flex items-center gap-1 text-xs text-zinc-500">
-                        <CheckCircle2 className="w-3.5 h-3.5" />
-                        <span>0 태스크</span>
+                      {/* 하단 - 멤버 & 에이전트 */}
+                      <div className="flex items-center justify-between pt-4 border-t border-zinc-100 dark:border-zinc-800">
+                        {memberCount > 0 ? (
+                          <div className="flex items-center gap-2">
+                            <div className="flex -space-x-2">
+                              {members.slice(0, 3).map((member: any) => (
+                                <img
+                                  key={member.id}
+                                  src={member.user?.avatar_url || `https://api.dicebear.com/7.x/initials/svg?seed=${member.user?.name}&backgroundColor=e4e4e7`}
+                                  alt={member.user?.name}
+                                  title={member.user?.name}
+                                  className="w-7 h-7 rounded-full ring-2 ring-white dark:ring-zinc-900 bg-zinc-100 object-cover"
+                                />
+                              ))}
+                              {agents.slice(0, 2).map((a: any) => (
+                                <div
+                                  key={a.id}
+                                  title={a.agent?.name}
+                                  className="w-7 h-7 rounded-full ring-2 ring-white dark:ring-zinc-900 bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center"
+                                >
+                                  <Sparkles className="w-3.5 h-3.5 text-white" />
+                                </div>
+                              ))}
+                            </div>
+                            {memberCount > 5 && (
+                              <span className="text-xs font-medium text-zinc-500">+{memberCount - 5}</span>
+                            )}
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-1.5 text-xs text-zinc-400">
+                            <Users className="w-3.5 h-3.5" />
+                            <span>멤버 없음</span>
+                          </div>
+                        )}
+
+                        {/* 태스크 카운트 (있으면) */}
+                        <div className="flex items-center gap-1 text-xs text-zinc-500">
+                          <CheckCircle2 className="w-3.5 h-3.5" />
+                          <span>0 태스크</span>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                </motion.div>
-              )
-            })
+                  </motion.div>
+                )
+              })
             })()}
           </div>
         )}
