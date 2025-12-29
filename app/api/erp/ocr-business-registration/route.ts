@@ -96,10 +96,11 @@ export async function POST(request: NextRequest) {
       success: true,
       data: extractedData,
     })
-  } catch (error) {
+  } catch (error: any) {
     console.error('[ERP OCR] Error:', error)
+    const errorMessage = error?.message || error?.error?.message || 'OCR 처리 중 오류가 발생했습니다.'
     return NextResponse.json(
-      { success: false, error: 'OCR 처리 중 오류가 발생했습니다.' },
+      { success: false, error: errorMessage, details: String(error) },
       { status: 500 }
     )
   }

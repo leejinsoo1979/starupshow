@@ -209,38 +209,49 @@ export function CompanyPage() {
     if (!file) return
 
     setOcrLoading(true)
+
+    // 1. 먼저 이미지 미리보기 설정 (즉시)
+    const reader = new FileReader()
+    reader.onload = (event) => {
+      setUploadedImage(event.target?.result as string)
+    }
+    reader.readAsDataURL(file)
+
+    // 2. Storage에 원본 파일 업로드 (PDF든 이미지든)
     try {
-      let fileToSend: File | Blob = file
-      let fileName = file.name
-      let imageForPreview: Blob = file
-
-      // PDF인 경우 이미지로 변환
-      if (file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')) {
-        console.log('PDF 파일 감지, 이미지로 변환 중...')
-        const imageBlob = await convertPdfToImage(file)
-        fileToSend = new File([imageBlob], 'converted.png', { type: 'image/png' })
-        fileName = 'converted.png'
-        imageForPreview = imageBlob
-      }
-
-      // 이미지 미리보기 설정
-      const reader = new FileReader()
-      reader.onload = (event) => {
-        setUploadedImage(event.target?.result as string)
-      }
-      reader.readAsDataURL(imageForPreview)
-
-      // Supabase Storage에 업로드
-      const uploadedUrl = await uploadToStorage(imageForPreview, 'business-registration', fileName)
+      const uploadedUrl = await uploadToStorage(file, 'business-registration', file.name)
       if (uploadedUrl) {
         setUploadedImage(uploadedUrl)
-        // localStorage에 저장 (DB 마이그레이션 전 대체 저장소)
+        // localStorage에 저장
         if (company?.id && typeof window !== 'undefined') {
           localStorage.setItem(`company_${company.id}_business_registration_url`, uploadedUrl)
         }
+        console.log('✅ 파일 저장 완료:', uploadedUrl)
+      }
+    } catch (uploadError) {
+      console.error('파일 업로드 실패:', uploadError)
+    }
+
+    // 3. OCR 처리 (별도 try-catch로 분리 - 실패해도 저장은 완료됨)
+    try {
+      let fileToSend: File | Blob = file
+      let fileName = file.name
+
+      // PDF인 경우 이미지로 변환 시도
+      if (file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')) {
+        console.log('PDF 파일 감지, OCR용 이미지 변환 중...')
+        try {
+          const imageBlob = await convertPdfToImage(file)
+          fileToSend = new File([imageBlob], 'converted.png', { type: 'image/png' })
+          fileName = 'converted.png'
+        } catch (pdfError) {
+          console.error('PDF 변환 실패, OCR 건너뜀:', pdfError)
+          setOcrLoading(false)
+          return // PDF 변환 실패시 OCR 건너뜀 (파일 저장은 이미 완료)
+        }
       }
 
-      // OCR 처리
+      // OCR 요청
       const formDataToSend = new FormData()
       formDataToSend.append('file', fileToSend, fileName)
 
@@ -266,12 +277,14 @@ export function CompanyPage() {
           phone: ocrData.phone || prev.phone,
         }))
       } else {
-        console.error('OCR failed:', result.error)
-        alert('사업자등록증 인식에 실패했습니다. 다시 시도해주세요.')
+        console.error('OCR failed:', result.error, result.details)
+        // OCR 실패해도 이미지는 저장됨
+        console.log('이미지는 저장됨, OCR만 실패')
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('OCR error:', error)
-      alert('OCR 처리 중 오류가 발생했습니다.')
+      // OCR 오류가 발생해도 이미지 저장은 완료됨
+      console.log('이미지는 저장됨, OCR 오류 발생:', error?.message)
     } finally {
       setOcrLoading(false)
       if (fileInputRef.current) {
