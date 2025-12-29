@@ -6,6 +6,10 @@ export { PayrollPage } from './PayrollPage'
 export { TransactionsPage } from './TransactionsPage'
 export { ExpensesPage } from './ExpensesPage'
 export { GenericPage } from './GenericPage'
+export { TeamMembersPage } from './TeamMembersPage'
+export { OrgChartPage } from './OrgChartPage'
+export { AttendancePage } from './AttendancePage'
+export { ApprovalPage } from './ApprovalPage'
 
 // Shared Components
 export * from './shared'

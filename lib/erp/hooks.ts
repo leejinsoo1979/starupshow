@@ -313,3 +313,37 @@ export function useCorporateCards() {
 export function useLocations() {
   return useListData<any>('/api/erp/locations')
 }
+
+// 근태 관련 훅
+export function useAttendanceStats(date?: string) {
+  const params: Record<string, string> = {}
+  if (date) params.date = date
+  return useData<any>('/api/erp/attendance/stats?' + new URLSearchParams(params).toString())
+}
+
+export function useMyAttendance(employeeId: string, date?: string) {
+  const params: Record<string, string> = { employee_id: employeeId }
+  if (date) params.date = date
+  return useData<any>('/api/erp/attendance/my?' + new URLSearchParams(params).toString())
+}
+
+// 전자결재 관련 훅
+export function useApprovalTemplates(category?: string) {
+  const params: Record<string, string> = {}
+  if (category) params.category = category
+  return useListData<any>('/api/erp/approval/templates', params)
+}
+
+export function useApprovalDocuments(params?: Record<string, string>) {
+  return usePaginatedData<any>('/api/erp/approval/documents', params)
+}
+
+export function useApprovalDocument(id: string) {
+  return useData<any>('/api/erp/approval/documents', id)
+}
+
+export function useApprovalStats(employeeId?: string) {
+  const params: Record<string, string> = {}
+  if (employeeId) params.employee_id = employeeId
+  return useData<any>('/api/erp/approval/stats?' + new URLSearchParams(params).toString())
+}

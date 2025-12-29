@@ -19,10 +19,14 @@ export async function GET(request: NextRequest) {
     const status = searchParams.get('status')
 
     let query = supabase
-      .from('attendance')
+      .from('attendance_records')
       .select(`
         *,
-        employee:employees!attendance_employee_id_fkey(id, name, employee_number)
+        employee:employees!attendance_records_employee_id_fkey(
+          id, name, employee_number, profile_image_url,
+          department:departments(id, name),
+          position:positions!employees_position_id_fkey(id, name)
+        )
       `, { count: 'exact' })
       .eq('company_id', companyId)
 
@@ -85,8 +89,9 @@ export async function POST(request: NextRequest) {
 
     // 오늘 출근 기록 확인
     const { data: existing } = await supabase
-      .from('attendance')
+      .from('attendance_records')
       .select('*')
+      .eq('company_id', companyId)
       .eq('employee_id', employee_id)
       .eq('work_date', today)
       .single()
@@ -101,16 +106,16 @@ export async function POST(request: NextRequest) {
       const status = checkInHour >= 9 ? 'late' : 'normal'
 
       const { data, error } = await supabase
-        .from('attendance')
+        .from('attendance_records')
         .insert({
           company_id: companyId,
           employee_id,
           work_date: today,
-          check_in_time: now,
+          check_in: now,
           check_in_location: location,
           status,
-          overtime_hours: 0,
-          night_hours: 0,
+          work_minutes: 0,
+          overtime_minutes: 0,
         })
         .select()
         .single()
@@ -126,43 +131,35 @@ export async function POST(request: NextRequest) {
         return apiError('출근 기록이 없습니다.')
       }
 
-      if (existing.check_out_time) {
+      if (existing.check_out) {
         return apiError('이미 퇴근 기록이 있습니다.')
       }
 
-      // 근무시간 계산
-      const checkIn = new Date(existing.check_in_time)
+      // 근무시간 계산 (분 단위)
+      const checkIn = new Date(existing.check_in)
       const checkOut = new Date()
-      const workHours = (checkOut.getTime() - checkIn.getTime()) / (1000 * 60 * 60)
+      const workMinutes = Math.round((checkOut.getTime() - checkIn.getTime()) / 60000)
 
-      // 연장/야간 근무 계산
-      let overtimeHours = 0
-      let nightHours = 0
-
-      if (workHours > 8) {
-        overtimeHours = workHours - 8
-      }
-
-      // 야간 근무 (22시 ~ 익일 6시)
-      const checkOutHour = checkOut.getHours()
-      if (checkOutHour >= 22 || checkOutHour < 6) {
-        nightHours = Math.min(overtimeHours, 2) // 간단히 2시간까지
+      // 연장 근무 계산 (8시간 = 480분 초과)
+      let overtimeMinutes = 0
+      if (workMinutes > 480) {
+        overtimeMinutes = workMinutes - 480
       }
 
       // 조퇴 여부 (18시 이전 퇴근)
+      const checkOutHour = checkOut.getHours()
       let status = existing.status
       if (checkOutHour < 18 && status === 'normal') {
         status = 'early_leave'
       }
 
       const { data, error } = await supabase
-        .from('attendance')
+        .from('attendance_records')
         .update({
-          check_out_time: now,
+          check_out: now,
           check_out_location: location,
-          work_hours: Math.round(workHours * 100) / 100,
-          overtime_hours: Math.round(overtimeHours * 100) / 100,
-          night_hours: Math.round(nightHours * 100) / 100,
+          work_minutes: workMinutes,
+          overtime_minutes: overtimeMinutes,
           status,
           updated_at: now,
         })

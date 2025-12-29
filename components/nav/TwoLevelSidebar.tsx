@@ -124,6 +124,7 @@ const companyMenuItems: NestedMenuItem[] = [
       { name: 'ERP 대시보드', href: '/dashboard-group/erp', icon: PieChart },
       { name: '회사정보 관리', href: '/dashboard-group/erp/company', icon: Building2 },
       { name: '비전, 목표·OKR', href: '/dashboard-group/company/vision', icon: Target },
+      { name: '조직도', href: '/dashboard-group/company/org-chart', icon: Users },
       { name: '팀원 현황', href: '/dashboard-group/company/members', icon: Users },
       { name: '문서함', href: '/dashboard-group/company/documents', icon: FolderOpen },
     ]
@@ -167,6 +168,7 @@ const companyMenuItems: NestedMenuItem[] = [
           {
             name: '근태관리',
             children: [
+              { name: '출퇴근 현황', href: '/dashboard-group/hr/attendance' },
               { name: '근무그룹 관리', href: '/dashboard-group/hr/work-groups' },
               { name: '보상휴가 관리', href: '/dashboard-group/hr/comp-leave' },
               { name: '휴일대체 관리', href: '/dashboard-group/hr/holiday-sub' },
@@ -223,6 +225,18 @@ const companyMenuItems: NestedMenuItem[] = [
             children: [
               { name: '교육관리', href: '/dashboard-group/hr/training-manage' },
               { name: '교육현황', href: '/dashboard-group/hr/training-status' },
+            ]
+          },
+        ]
+      },
+      {
+        name: '전자결재',
+        icon: FileText,
+        children: [
+          {
+            name: '전자결재',
+            children: [
+              { name: '결재함', href: '/dashboard-group/hr/approval' },
             ]
           },
         ]
@@ -925,7 +939,9 @@ function NestedMenuItemComponent({
           onClick={() => toggleExpand(item.name)}
           className={cn(
             'w-full flex items-center gap-2 py-1.5 text-xs font-medium transition-all duration-200 rounded-md',
-            depth === 0 ? 'text-zinc-300 font-semibold' : 'text-zinc-400',
+            depth === 0
+              ? (isDark ? 'text-zinc-300 font-semibold' : 'text-zinc-700 font-semibold')
+              : (isDark ? 'text-zinc-400' : 'text-zinc-600'),
             isDark ? 'hover:bg-zinc-800/50' : 'hover:bg-zinc-100'
           )}
           style={{ paddingLeft: `${paddingLeft}px`, paddingRight: '8px' }}
@@ -1315,7 +1331,9 @@ export function TwoLevelSidebar({ hideLevel2 = false }: TwoLevelSidebarProps) {
         className={cn(
           'w-16 h-full flex flex-col items-center py-4 border-r transition-colors duration-300 z-20',
           isDashboardRoot
-            ? 'bg-black/20 backdrop-blur-xl border-white/10'
+            ? (isDark
+              ? 'bg-black/20 backdrop-blur-xl border-white/10'
+              : 'bg-white/60 backdrop-blur-xl border-zinc-200/50')
             : isDark ? 'bg-zinc-900 border-zinc-800' : 'bg-white border-zinc-200'
         )}
       >
@@ -1366,7 +1384,9 @@ export function TwoLevelSidebar({ hideLevel2 = false }: TwoLevelSidebarProps) {
                   isActive
                     ? 'bg-accent text-white shadow-lg shadow-accent/25'
                     : isDashboardRoot
-                      ? 'text-white/70 hover:bg-white/10 hover:text-white'
+                      ? (isDark
+                        ? 'text-white/70 hover:bg-white/10 hover:text-white'
+                        : 'text-zinc-500 hover:bg-zinc-200/50 hover:text-zinc-900')
                       : isDark
                         ? 'text-zinc-500 hover:bg-zinc-800 hover:text-zinc-300'
                         : 'text-zinc-500 hover:bg-zinc-200 hover:text-zinc-700'
@@ -1647,7 +1667,7 @@ export function TwoLevelSidebar({ hideLevel2 = false }: TwoLevelSidebarProps) {
               className={cn(
                 'h-full border-r overflow-hidden bg-white dark:bg-zinc-950',
                 isDashboardRoot
-                  ? 'border-white/10'
+                  ? (isDark ? 'border-white/10' : 'border-zinc-200/50')
                   : isDark ? 'border-zinc-800' : 'border-zinc-200'
               )}
             >
