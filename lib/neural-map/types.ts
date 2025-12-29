@@ -20,7 +20,7 @@ export type NodeType =
   | 'insight'   // AI 인사이트
   | 'folder'    // 폴더
   | 'file'      // 파일
-  | 'agent'     // AI 에이전트
+  | 'agent'     // 스킬
 
 export interface SourceRef {
   fileId: string

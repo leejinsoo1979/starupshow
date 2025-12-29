@@ -3233,10 +3233,10 @@ function TreeNodeList({
                   <FolderClosed className="w-4 h-4 text-blue-500 flex-shrink-0" />
                 )}
                 <span className="truncate">{node.name}</span>
-                {/* agents 하위 폴더에 에이전트 배지 표시 */}
+                {/* agents 하위 폴더에 스킬 배지 표시 */}
                 {nodePath.startsWith('agents/') && !nodePath.includes('/', 7) && (
                   <span className="ml-auto text-[10px] px-1.5 py-0.5 bg-violet-100 dark:bg-violet-900/30 text-violet-600 dark:text-violet-400 rounded-full">
-                    Agent
+                    Skill
                   </span>
                 )}
               </div>

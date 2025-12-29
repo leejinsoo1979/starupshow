@@ -1682,7 +1682,7 @@ function AgentBuilderInner({ agentId }: AgentBuilderInnerProps) {
                     <div className="flex items-center justify-between mb-3">
                       <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100 flex items-center gap-2">
                         <Sparkles className="w-4 h-4 text-violet-500 dark:text-violet-400" />
-                        에이전트 템플릿
+                        스킬 템플릿
                       </h3>
                       <button
                         onClick={() => setShowTemplates(false)}
@@ -1724,7 +1724,7 @@ function AgentBuilderInner({ agentId }: AgentBuilderInnerProps) {
                     {validationResult.valid ? (
                       <>
                         <CheckCircle2 className="w-4 h-4" />
-                        <span>에이전트 설정이 유효합니다!</span>
+                        <span>스킬 설정이 유효합니다!</span>
                       </>
                     ) : (
                       <>
@@ -1827,10 +1827,10 @@ function AgentBuilderInner({ agentId }: AgentBuilderInnerProps) {
               </div>
               <div>
                 <h3 className="text-lg font-semibold text-zinc-900 dark:text-white">
-                  새 에이전트 생성
+                  새 스킬 생성
                 </h3>
                 <p className="text-sm text-zinc-500">
-                  agents/ 폴더에 에이전트를 생성합니다
+                  agents/ 폴더에 스킬을 생성합니다
                 </p>
               </div>
             </div>
@@ -1838,7 +1838,7 @@ function AgentBuilderInner({ agentId }: AgentBuilderInnerProps) {
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1.5">
-                  에이전트 이름 *
+                  스킬 이름 *
                 </label>
                 <input
                   type="text"
@@ -1897,10 +1897,10 @@ function AgentBuilderInner({ agentId }: AgentBuilderInnerProps) {
                   <CheckCircle2 className="w-8 h-8 text-emerald-500" />
                 </div>
                 <h3 className="text-lg font-semibold text-zinc-900 dark:text-white mb-2">
-                  {editingAgentId ? '업데이트 완료!' : '배포 완료!'}
+                  {editingAgentId ? '업데이트 완료!' : '저장 완료!'}
                 </h3>
                 <p className="text-sm text-zinc-500">
-                  {editingAgentId ? '에이전트 설정이 업데이트되었습니다' : '에이전트가 팀에 추가되었습니다'}
+                  {editingAgentId ? '스킬 설정이 업데이트되었습니다' : '스킬이 저장되었습니다'}
                 </p>
               </div>
             ) : (
@@ -1911,10 +1911,10 @@ function AgentBuilderInner({ agentId }: AgentBuilderInnerProps) {
                   </div>
                   <div>
                     <h3 className="text-lg font-semibold text-zinc-900 dark:text-white">
-                      {editingAgentId ? '에이전트 설정' : '에이전트 배포'}
+                      {editingAgentId ? '스킬 설정' : '스킬 저장'}
                     </h3>
                     <p className="text-sm text-zinc-500">
-                      {editingAgentId ? '에이전트 설정을 수정합니다' : '팀에 AI 에이전트를 추가합니다'}
+                      {editingAgentId ? '스킬 설정을 수정합니다' : '스킬을 저장합니다'}
                     </p>
                   </div>
                 </div>
@@ -1922,13 +1922,13 @@ function AgentBuilderInner({ agentId }: AgentBuilderInnerProps) {
                 <div className="space-y-4">
                   <div>
                     <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1.5">
-                      에이전트 이름 *
+                      스킬 이름 *
                     </label>
                     <input
                       type="text"
                       value={deployAgentName}
                       onChange={(e) => setDeployAgentName(e.target.value)}
-                      placeholder="예: 마케팅 분석 봇"
+                      placeholder="예: 마케팅 분석 스킬"
                       className="w-full px-4 py-2.5 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm text-zinc-900 dark:text-white placeholder-zinc-400 outline-none focus:ring-2 focus:ring-emerald-500/50"
                       autoFocus
                     />
@@ -1941,7 +1941,7 @@ function AgentBuilderInner({ agentId }: AgentBuilderInnerProps) {
                     <textarea
                       value={deployAgentDescription}
                       onChange={(e) => setDeployAgentDescription(e.target.value)}
-                      placeholder="이 에이전트가 하는 일을 설명해주세요"
+                      placeholder="이 스킬이 하는 일을 설명해주세요"
                       className="w-full px-4 py-2.5 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm text-zinc-900 dark:text-white placeholder-zinc-400 outline-none focus:ring-2 focus:ring-emerald-500/50 resize-none h-20"
                     />
                   </div>
@@ -2073,11 +2073,11 @@ function AgentBuilderInner({ agentId }: AgentBuilderInnerProps) {
 
                     {/* 모드 설명 */}
                     <p className="mt-2 text-xs text-zinc-400 dark:text-zinc-500">
-                      {deployInteractionMode === 'solo' && '에이전트가 독립적으로 응답합니다.'}
-                      {deployInteractionMode === 'sequential' && '에이전트들이 순서대로 응답합니다.'}
-                      {deployInteractionMode === 'debate' && '에이전트들이 서로 토론하며 결론을 도출합니다.'}
-                      {deployInteractionMode === 'collaborate' && '에이전트들이 역할을 분담하여 협업합니다.'}
-                      {deployInteractionMode === 'supervisor' && '감독자 에이전트가 다른 에이전트들을 조율합니다.'}
+                      {deployInteractionMode === 'solo' && '스킬이 독립적으로 실행됩니다.'}
+                      {deployInteractionMode === 'sequential' && '스킬들이 순서대로 실행됩니다.'}
+                      {deployInteractionMode === 'debate' && '스킬들이 서로 토론하며 결론을 도출합니다.'}
+                      {deployInteractionMode === 'collaborate' && '스킬들이 역할을 분담하여 협업합니다.'}
+                      {deployInteractionMode === 'supervisor' && '감독자가 다른 스킬들을 조율합니다.'}
                     </p>
                   </div>
 

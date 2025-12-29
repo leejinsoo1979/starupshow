@@ -85,7 +85,7 @@ const NODE_TYPE_LABELS: Record<NodeType, string> = {
   insight: '인사이트',
   folder: '폴더',
   file: '파일',
-  agent: '에이전트',
+  agent: '스킬',
 }
 
 // ============================================
