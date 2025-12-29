@@ -213,7 +213,7 @@ export default function AgentsPage() {
                 </Button>
               )}
               <Button
-                onClick={() => router.push("/agent-builder/new")}
+                onClick={() => router.push("/dashboard-group/agents/create")}
                 className="text-white shadow-lg hover:shadow-xl transition-shadow"
                 style={{ background: mounted ? `linear-gradient(135deg, ${currentAccent.color}, ${currentAccent.hoverColor})` : "linear-gradient(135deg, #8b5cf6, #7c3aed)" }}
               >
@@ -367,7 +367,7 @@ export default function AgentsPage() {
             </p>
             {!searchQuery && selectedCategory === "all" && (
               <Button
-                onClick={() => router.push("/agent-builder/new")}
+                onClick={() => router.push("/dashboard-group/agents/create")}
                 className="mt-6 text-white shadow-lg"
                 style={{ background: mounted ? `linear-gradient(135deg, ${currentAccent.color}, ${currentAccent.hoverColor})` : "linear-gradient(135deg, #8b5cf6, #7c3aed)" }}
               >

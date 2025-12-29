@@ -121,20 +121,8 @@ const companyMenuItems: NestedMenuItem[] = [
     name: '기업 현황',
     icon: Building2,
     children: [
-      {
-        name: '회사개요',
-        href: '/dashboard-group/company/overview',
-        children: [
-          { name: '기업명', href: '/dashboard-group/company/overview#name' },
-          { name: '대표자', href: '/dashboard-group/company/overview#ceo' },
-          { name: '설립일', href: '/dashboard-group/company/overview#founded' },
-          { name: '소재지', href: '/dashboard-group/company/overview#location' },
-          { name: '업태', href: '/dashboard-group/company/overview#business' },
-          { name: '업종', href: '/dashboard-group/company/overview#industry' },
-          { name: '사업자번호', href: '/dashboard-group/company/overview#bizno' },
-          { name: '연락처', href: '/dashboard-group/company/overview#contact' },
-        ]
-      },
+      { name: 'ERP 대시보드', href: '/dashboard-group/erp', icon: PieChart },
+      { name: '회사정보 관리', href: '/dashboard-group/erp/company', icon: Building2 },
       { name: '비전, 목표·OKR', href: '/dashboard-group/company/vision', icon: Target },
       { name: '팀원 현황', href: '/dashboard-group/company/members', icon: Users },
       { name: '문서함', href: '/dashboard-group/company/documents', icon: FolderOpen },
@@ -700,7 +688,7 @@ const categories: Category[] = [
     icon: Bot,
     items: [
       { name: '에이전트 목록', href: '/dashboard-group/agents', icon: Bot },
-      { name: '슈퍼 에이전트 생성', href: '/agent-builder/new', icon: Plus },
+      { name: '슈퍼 에이전트 생성', href: '/dashboard-group/agents/create', icon: Plus },
       { name: '워크플로우', href: '/dashboard-group/workflows', icon: Workflow },
     ]
   },
@@ -1213,7 +1201,8 @@ export function TwoLevelSidebar({ hideLevel2 = false }: TwoLevelSidebarProps) {
       pathname.startsWith('/dashboard-group/finance') ||
       pathname.startsWith('/dashboard-group/tax') ||
       pathname.startsWith('/dashboard-group/payroll') ||
-      pathname.startsWith('/dashboard-group/expense')) return 'company'
+      pathname.startsWith('/dashboard-group/expense') ||
+      pathname.startsWith('/dashboard-group/erp')) return 'company'
     if (pathname.startsWith('/dashboard-group/project')) return 'workspace'
     if (pathname.startsWith('/dashboard-group/files')) return 'files'
     if (pathname.startsWith('/dashboard-group/calendar')) return 'calendar'
@@ -1254,7 +1243,7 @@ export function TwoLevelSidebar({ hideLevel2 = false }: TwoLevelSidebarProps) {
       '/dashboard-group/team',
       '/dashboard-group/messenger',
       '/dashboard-group/agents',
-      '/agent-builder/new',
+      '/dashboard-group/agents/create',
     ]
     paths.forEach(path => router.prefetch(path))
   }, [router])
