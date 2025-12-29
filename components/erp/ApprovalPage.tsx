@@ -9,10 +9,14 @@ import {
 import { useApprovalDocuments, useApprovalTemplates, useApprovalStats, useEmployees } from '@/lib/erp/hooks'
 import { PageHeader, StatCard, StatGrid, StatusBadge } from './shared'
 import type { ApprovalDocumentStatus, ApprovalCategory } from '@/lib/erp/types'
+import { useThemeStore, accentColors } from '@/stores/themeStore'
 
 type TabType = 'inbox' | 'sent' | 'drafts' | 'completed'
 
 export function ApprovalPage() {
+  const { accentColor } = useThemeStore()
+  const themeColor = accentColors.find(c => c.id === accentColor)?.color || '#3b82f6'
+
   const [activeTab, setActiveTab] = useState<TabType>('inbox')
   const [search, setSearch] = useState('')
   const [categoryFilter, setCategoryFilter] = useState<string>('all')
@@ -191,11 +195,13 @@ export function ApprovalPage() {
 
       {/* 알림 메시지 */}
       {submitMessage && (
-        <div className={`p-4 rounded-lg text-sm ${
-          submitMessage.type === 'success'
-            ? 'bg-green-500/10 text-green-500'
-            : 'bg-red-500/10 text-red-500'
-        }`}>
+        <div
+          className="p-4 rounded-lg text-sm"
+          style={submitMessage.type === 'success'
+            ? { backgroundColor: `${themeColor}15`, color: themeColor }
+            : { backgroundColor: 'rgb(239 68 68 / 0.1)', color: 'rgb(239 68 68)' }
+          }
+        >
           {submitMessage.text}
         </div>
       )}
@@ -224,7 +230,7 @@ export function ApprovalPage() {
           title="완료"
           value={stats.completed}
           icon={CheckCircle}
-          iconColor="text-green-500"
+          iconColor="text-accent"
         />
       </StatGrid>
 
@@ -395,9 +401,14 @@ export function ApprovalPage() {
                                 idx < doc.approval_step
                                   ? doc.status === 'rejected' && idx === doc.approval_step - 1
                                     ? 'bg-red-500'
-                                    : 'bg-green-500'
+                                    : ''
                                   : 'bg-theme-secondary'
                               }`}
+                              style={
+                                idx < doc.approval_step && !(doc.status === 'rejected' && idx === doc.approval_step - 1)
+                                  ? { backgroundColor: themeColor }
+                                  : undefined
+                              }
                             />
                           ))}
                         </div>
@@ -477,15 +488,21 @@ export function ApprovalPage() {
                   <div className="flex items-center gap-2 overflow-x-auto pb-2">
                     {selectedDocument.approval_lines.map((line: any, idx: number) => (
                       <React.Fragment key={line.id}>
-                        <div className={`flex-shrink-0 p-3 rounded-lg border ${
-                          line.status === 'approved'
-                            ? 'border-green-500 bg-green-500/10'
-                            : line.status === 'rejected'
-                            ? 'border-red-500 bg-red-500/10'
-                            : line.status === 'pending'
-                            ? 'border-yellow-500 bg-yellow-500/10'
-                            : 'border-theme bg-theme-secondary'
-                        }`}>
+                        <div
+                          className={`flex-shrink-0 p-3 rounded-lg border ${
+                            line.status === 'rejected'
+                              ? 'border-red-500 bg-red-500/10'
+                              : line.status === 'pending'
+                              ? 'border-yellow-500 bg-yellow-500/10'
+                              : line.status !== 'approved'
+                              ? 'border-theme bg-theme-secondary'
+                              : ''
+                          }`}
+                          style={line.status === 'approved' ? {
+                            borderColor: themeColor,
+                            backgroundColor: `${themeColor}15`
+                          } : undefined}
+                        >
                           <div className="flex items-center gap-2">
                             <div className="w-8 h-8 rounded-full bg-accent/10 flex items-center justify-center">
                               <span className="text-xs font-bold text-accent">
@@ -528,7 +545,8 @@ export function ApprovalPage() {
                 <button
                   onClick={() => handleApprovalAction(selectedDocument.id, 'approve')}
                   disabled={isSubmitting}
-                  className="px-4 py-2 bg-green-500 hover:bg-green-600 disabled:opacity-50 text-white rounded-lg transition-colors"
+                  className="px-4 py-2 disabled:opacity-50 text-white rounded-lg transition-colors hover:brightness-110"
+                  style={{ backgroundColor: themeColor }}
                 >
                   {isSubmitting ? (
                     <Loader2 className="w-4 h-4 animate-spin" />

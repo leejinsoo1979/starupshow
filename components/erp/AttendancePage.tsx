@@ -8,8 +8,12 @@ import {
 import { useAttendance, useAttendanceStats, useEmployees } from '@/lib/erp/hooks'
 import { PageHeader, StatCard, StatGrid, StatusBadge } from './shared'
 import type { AttendanceStatus } from '@/lib/erp/types'
+import { useThemeStore, accentColors } from '@/stores/themeStore'
 
 export function AttendancePage() {
+  const { accentColor } = useThemeStore()
+  const themeColor = accentColors.find(c => c.id === accentColor)?.color || '#3b82f6'
+
   const [currentDate, setCurrentDate] = useState(new Date())
   const [viewMode, setViewMode] = useState<'daily' | 'weekly' | 'monthly'>('daily')
   const [selectedEmployee, setSelectedEmployee] = useState<string | null>(null)
@@ -233,7 +237,7 @@ export function AttendancePage() {
           title="출근"
           value={stats.present}
           icon={LogIn}
-          iconColor="text-green-500"
+          iconColor="text-accent"
         />
         <StatCard
           title="지각"
@@ -392,7 +396,7 @@ export function AttendancePage() {
                       </td>
                       <td className="px-4 py-3 text-center">
                         <div className="flex items-center justify-center gap-1">
-                          <LogIn className="w-3.5 h-3.5 text-green-500" />
+                          <LogIn className="w-3.5 h-3.5" style={{ color: themeColor }} />
                           <span className="text-sm text-theme">
                             {formatTime(record.check_in)}
                           </span>
@@ -443,11 +447,13 @@ export function AttendancePage() {
         <h3 className="text-lg font-semibold text-theme mb-4">나의 출퇴근</h3>
 
         {checkMessage && (
-          <div className={`mb-4 p-3 rounded-lg text-sm ${
-            checkMessage.type === 'success'
-              ? 'bg-green-500/10 text-green-500'
-              : 'bg-red-500/10 text-red-500'
-          }`}>
+          <div
+            className="mb-4 p-3 rounded-lg text-sm"
+            style={checkMessage.type === 'success'
+              ? { backgroundColor: `${themeColor}15`, color: themeColor }
+              : { backgroundColor: 'rgb(239 68 68 / 0.1)', color: 'rgb(239 68 68)' }
+            }
+          >
             {checkMessage.text}
           </div>
         )}
@@ -456,7 +462,8 @@ export function AttendancePage() {
           <button
             onClick={handleCheckIn}
             disabled={isCheckingIn}
-            className="flex-1 flex items-center justify-center gap-2 py-4 bg-green-500 hover:bg-green-600 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl font-medium transition-colors"
+            className="flex-1 flex items-center justify-center gap-2 py-4 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl font-medium transition-colors hover:brightness-110"
+            style={{ backgroundColor: themeColor }}
           >
             {isCheckingIn ? (
               <Loader2 className="w-5 h-5 animate-spin" />
