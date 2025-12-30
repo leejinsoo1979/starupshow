@@ -31,7 +31,24 @@
         "filter": [
           "**/*"
         ]
+      },
+      {
+        "from": "server",
+        "to": "terminal-server",
+        "filter": [
+          "terminal-server.js"
+        ]
+      },
+      {
+        "from": "node_modules/node-pty",
+        "to": "node_modules/node-pty",
+        "filter": [
+          "**/*"
+        ]
       }
+    ],
+    "asarUnpack": [
+      "node_modules/node-pty/**/*"
     ],
     "mac": {
       "icon": "build/icon.png",
@@ -56,16 +73,19 @@
     "test:coverage": "jest --coverage",
     "electron:compile": "tsc electron/main.ts electron/preload.ts --outDir electron/dist --target ES2022 --module commonjs --moduleResolution node --esModuleInterop --skipLibCheck",
     "electron:start": "wait-on tcp:3000 && electron .",
-    "electron:dev": "concurrently -k \"npm run dev\" \"node server/terminal-server.js || true\" \"node server/neural-map-ws-server.js || true\" \"npm run electron:compile && npm run electron:start\"",
+    "electron:dev": "concurrently -k \"npm run dev\" \"node server/terminal-server.js || true\" \"node server/neural-map-ws-server.js || true\" \"node server/stagehand-server.js || true\" \"npm run electron:compile && npm run electron:start\"",
+    "dev:full": "concurrently -k \"npm run dev\" \"node server/stagehand-server.js || true\"",
     "electron:pack": "npm run build && mkdir -p .next/standalone/.next && cp -R public .next/standalone/ && cp -R .next/static .next/standalone/.next/ && npm run electron:compile && electron-builder",
     "mcp:neural-map-ws": "node server/neural-map-ws-server.js",
-    "mcp:neural-map": "node server/neural-map-mcp-server.js"
+    "mcp:neural-map": "node server/neural-map-mcp-server.js",
+    "mcp:stagehand": "node server/stagehand-server.js"
   },
   "dependencies": {
     "@ai-sdk/google": "^2.0.45",
     "@ai-sdk/openai": "^2.0.80",
     "@babel/parser": "^7.28.5",
     "@babel/traverse": "^7.28.5",
+    "@browserbasehq/stagehand": "^3.0.7",
     "@codemirror/autocomplete": "^6.20.0",
     "@codemirror/commands": "^6.10.1",
     "@codemirror/lang-markdown": "^6.5.0",
@@ -104,6 +124,7 @@
     "@milkdown/utils": "^7.17.3",
     "@modelcontextprotocol/sdk": "^1.24.3",
     "@monaco-editor/react": "^4.7.0",
+    "@pdf-lib/fontkit": "^1.1.1",
     "@radix-ui/react-avatar": "^1.1.11",
     "@radix-ui/react-dialog": "^1.1.15",
     "@radix-ui/react-dropdown-menu": "^2.1.16",
@@ -162,10 +183,12 @@
     "node-pty": "^1.1.0",
     "nodemailer": "^7.0.11",
     "openai": "^6.10.0",
-    "pdf-parse": "^2.4.5",
+    "pdf-lib": "^1.17.1",
     "pdfjs-dist": "^5.4.449",
+    "playwright": "^1.57.0",
     "pptxgenjs": "^4.0.1",
     "prismjs": "^1.30.0",
+    "puppeteer-core": "^24.34.0",
     "react": "^18.2.0",
     "react-countup": "^6.5.3",
     "react-dom": "^18.2.0",
@@ -181,8 +204,11 @@
     "replicate": "^1.4.0",
     "resend": "^6.6.0",
     "tailwind-merge": "^2.2.0",
+    "telnyx": "^4.6.0",
     "tesseract.js": "^7.0.0",
     "three": "^0.182.0",
+    "twilio": "^5.11.1",
+    "unpdf": "^1.4.0",
     "ws": "^8.18.3",
     "xlsx": "^0.18.5",
     "xterm": "^5.3.0",

@@ -7,6 +7,15 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server'
+
+// 파일 업로드 크기 제한 설정 (10MB)
+export const config = {
+  api: {
+    bodyParser: {
+      sizeLimit: '10mb',
+    },
+  },
+}
 import { createClient } from '@/lib/supabase/server'
 import { isDevMode, DEV_USER } from '@/lib/dev-user'
 import {
@@ -61,7 +70,6 @@ export async function GET(request: NextRequest, { params }: Params) {
     const accessLevel = searchParams.get('accessLevel') as AccessLevel | undefined
     const limit = parseInt(searchParams.get('limit') || '20', 10)
     const offset = parseInt(searchParams.get('offset') || '0', 10)
-    const includeStats = searchParams.get('includeStats') === 'true'
 
     const { documents, total } = await listKnowledgeDocuments(agentId, {
       category,
@@ -70,6 +78,15 @@ export async function GET(request: NextRequest, { params }: Params) {
       offset,
     })
 
+    // 통계 항상 포함 (UI에서 기대하는 필드명으로 변환)
+    const rawStats = await getKnowledgeStats(agentId)
+    const lastUpdated = documents.length > 0
+      ? documents.reduce((latest: string | null, doc: any) => {
+          if (!latest) return doc.created_at
+          return new Date(doc.created_at) > new Date(latest) ? doc.created_at : latest
+        }, null as string | null)
+      : null
+
     const response: any = {
       success: true,
       documents,
@@ -77,11 +94,13 @@ export async function GET(request: NextRequest, { params }: Params) {
       limit,
       offset,
       hasMore: offset + documents.length < total,
-    }
-
-    // 통계 포함
-    if (includeStats) {
-      response.stats = await getKnowledgeStats(agentId)
+      stats: {
+        documentCount: rawStats.totalDocuments,
+        chunkCount: rawStats.totalChunks,
+        lastUpdated,
+        byCategory: rawStats.byCategory,
+        byAccessLevel: rawStats.byAccessLevel,
+      },
     }
 
     return NextResponse.json(response)
@@ -96,6 +115,12 @@ export async function GET(request: NextRequest, { params }: Params) {
 
 /**
  * POST - 문서 업로드
+ *
+ * 지원 형식:
+ * 1. 텍스트: { type: 'text', text: '내용', title: '제목' }
+ * 2. URL: { type: 'url', url: 'https://...', title?: '제목' }
+ * 3. 파일: FormData (file)
+ * 4. 직접: { title: '제목', content: '내용' }
  */
 export async function POST(request: NextRequest, { params }: Params) {
   try {
@@ -128,26 +153,158 @@ export async function POST(request: NextRequest, { params }: Params) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
-    const body = await request.json()
-    const {
-      title,
-      content,
-      fileUrl,
-      fileType,
-      category,
-      accessLevel,
-      tags,
-      chunkSize,
-      chunkOverlap,
-    } = body
+    // Content-Type 확인
+    const contentType = request.headers.get('content-type') || ''
 
+    let title: string
+    let content: string
+    let fileUrl: string | undefined
+    let fileType: string | undefined
+    let category: string | undefined
+    let accessLevel: AccessLevel | undefined
+    let tags: string[] | undefined
+
+    // 📁 파일 업로드 (FormData)
+    if (contentType.includes('multipart/form-data')) {
+      const formData = await request.formData()
+      const file = formData.get('file') as File | null
+
+      if (!file) {
+        return NextResponse.json({ error: 'No file provided' }, { status: 400 })
+      }
+
+      // 파일 타입 검증
+      const allowedTypes = ['text/plain', 'text/markdown', 'application/pdf']
+      const allowedExtensions = ['.txt', '.md', '.markdown', '.pdf']
+      const fileName = file.name.toLowerCase()
+      const isAllowed = allowedTypes.includes(file.type) ||
+                        allowedExtensions.some(ext => fileName.endsWith(ext))
+
+      if (!isAllowed) {
+        return NextResponse.json(
+          { error: '지원하지 않는 파일 형식입니다. (txt, md, pdf만 가능)' },
+          { status: 400 }
+        )
+      }
+
+      // PDF 파일 처리
+      if (file.type === 'application/pdf' || fileName.endsWith('.pdf')) {
+        try {
+          // unpdf 라이브러리로 PDF 텍스트 추출
+          const { extractText } = await import('unpdf')
+          const arrayBuffer = await file.arrayBuffer()
+          const pdfData = await extractText(new Uint8Array(arrayBuffer))
+
+          // text는 페이지별 배열로 반환됨
+          content = Array.isArray(pdfData.text) ? pdfData.text.join('\n\n') : String(pdfData.text)
+          title = file.name.replace(/\.pdf$/i, '')
+          fileType = 'pdf'
+
+          console.log(`[Knowledge] PDF upload: ${file.name}, ${pdfData.totalPages} pages, ${content.length} chars`)
+        } catch (pdfError) {
+          console.error('[Knowledge] PDF parse error:', pdfError)
+          return NextResponse.json(
+            { error: 'PDF 파일을 읽을 수 없습니다. 파일이 손상되었거나 암호로 보호되어 있을 수 있습니다.' },
+            { status: 400 }
+          )
+        }
+      } else {
+        // 텍스트/마크다운 파일 처리
+        content = await file.text()
+        title = file.name.replace(/\.(txt|md|markdown)$/i, '')
+        fileType = fileName.endsWith('.md') || fileName.endsWith('.markdown') ? 'markdown' : 'text'
+
+        console.log(`[Knowledge] File upload: ${file.name}, ${content.length} chars`)
+      }
+    }
+    // 📝 JSON 요청 (텍스트/URL/직접)
+    else {
+      const body = await request.json()
+
+      // 타입별 처리
+      if (body.type === 'text') {
+        // 텍스트 입력
+        title = body.title || '직접 입력'
+        content = body.text
+        fileType = 'text'
+      } else if (body.type === 'url') {
+        // URL에서 가져오기
+        const url = body.url
+        if (!url) {
+          return NextResponse.json({ error: 'URL is required' }, { status: 400 })
+        }
+
+        try {
+          console.log(`[Knowledge] Fetching URL: ${url}`)
+          const response = await fetch(url, {
+            headers: {
+              'User-Agent': 'Mozilla/5.0 (compatible; GlowUS/1.0; +https://glowus.ai)',
+            },
+          })
+
+          if (!response.ok) {
+            return NextResponse.json(
+              { error: `URL 가져오기 실패: ${response.status}` },
+              { status: 400 }
+            )
+          }
+
+          content = await response.text()
+
+          // HTML인 경우 텍스트만 추출 (간단한 방법)
+          if (content.includes('<html') || content.includes('<!DOCTYPE')) {
+            content = content
+              .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
+              .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
+              .replace(/<[^>]+>/g, ' ')
+              .replace(/\s+/g, ' ')
+              .trim()
+          }
+
+          // 제목 추출 (URL의 마지막 경로 또는 사용자 입력)
+          const urlObj = new URL(url)
+          title = body.title || urlObj.pathname.split('/').pop() || urlObj.hostname
+          fileUrl = url
+          fileType = 'url'
+
+          console.log(`[Knowledge] URL content: ${content.length} chars`)
+        } catch (fetchError) {
+          console.error('[Knowledge] URL fetch error:', fetchError)
+          return NextResponse.json(
+            { error: 'URL을 가져올 수 없습니다.' },
+            { status: 400 }
+          )
+        }
+      } else {
+        // 직접 입력 (기존 방식)
+        title = body.title
+        content = body.content
+        fileUrl = body.fileUrl
+        fileType = body.fileType
+      }
+
+      category = body.category
+      accessLevel = body.accessLevel
+      tags = body.tags
+    }
+
+    // 필수 값 검증
     if (!title || !content) {
       return NextResponse.json(
-        { error: 'Title and content are required' },
+        { error: '제목과 내용이 필요합니다.' },
         { status: 400 }
       )
     }
 
+    // 내용 길이 검증 (5MB)
+    if (content.length > 5000000) {
+      return NextResponse.json(
+        { error: '내용이 너무 깁니다. (최대 5MB)' },
+        { status: 400 }
+      )
+    }
+
+    // 문서 업로드
     const result = await uploadDocument({
       agentId,
       title,
@@ -157,8 +314,6 @@ export async function POST(request: NextRequest, { params }: Params) {
       category,
       accessLevel,
       tags,
-      chunkSize,
-      chunkOverlap,
     })
 
     if (!result.success) {
@@ -167,6 +322,8 @@ export async function POST(request: NextRequest, { params }: Params) {
         { status: 400 }
       )
     }
+
+    console.log(`[Knowledge] Document created: ${title}, ${result.chunksCreated} chunks`)
 
     return NextResponse.json({
       success: true,

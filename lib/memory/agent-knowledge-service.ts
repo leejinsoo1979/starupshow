@@ -142,6 +142,9 @@ export async function uploadDocument(
     const chunkEmbeddings = await embedder.embedDocuments(chunks)
 
     // 첫 번째 청크 (원본 문서 대표)
+    // pgvector는 '[0.1, 0.2, ...]' 형식의 문자열 필요
+    const formatEmbedding = (emb: number[]) => `[${emb.join(',')}]`
+
     const parentDoc = {
       agent_id: params.agentId,
       title: params.title,
@@ -155,7 +158,7 @@ export async function uploadDocument(
       chunk_index: 0,
       total_chunks: totalChunks,
       parent_doc_id: null,
-      embedding: chunkEmbeddings[0],
+      embedding: formatEmbedding(chunkEmbeddings[0]),
     }
 
     const { data: parentData, error: parentError } = await (supabase as any)
@@ -191,7 +194,7 @@ export async function uploadDocument(
         chunk_index: index + 1,
         total_chunks: totalChunks,
         parent_doc_id: parentId,
-        embedding: chunkEmbeddings[index + 1],
+        embedding: formatEmbedding(chunkEmbeddings[index + 1]),
       }))
 
       const { error: childError } = await (supabase as any)
@@ -571,7 +574,7 @@ export async function buildKnowledgeContext(
     query,
     limit: maxResults,
     category: options?.category,
-    similarityThreshold: 0.6,
+    similarityThreshold: 0.35,  // 한글 임베딩은 낮은 유사도도 허용
   })
 
   if (results.length === 0) {
