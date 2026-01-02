@@ -506,9 +506,32 @@ export function Toolbar() {
     </AnimatePresence>
   )
 
-  // 접힌 상태 - Toolbar와 ViewTabs 모두 접힘 (토스트는 유지)
+  // 접힌 상태 - 펼치기 버튼만 표시
   if (headerCollapsed) {
-    return SaveToastComponent
+    return (
+      <>
+        <div
+          className={cn(
+            'h-10 flex items-center justify-end px-4 border-b relative z-50',
+            isDark ? 'bg-zinc-900/95 border-zinc-800' : 'bg-white border-zinc-200'
+          )}
+        >
+          <button
+            onClick={toggleHeader}
+            className={cn(
+              'p-2 rounded-lg transition-colors',
+              isDark
+                ? 'hover:bg-zinc-800 text-zinc-400 hover:text-zinc-200'
+                : 'hover:bg-zinc-100 text-zinc-500 hover:text-zinc-700'
+            )}
+            title="헤더 펼치기"
+          >
+            <ChevronDown className="w-4 h-4" />
+          </button>
+        </div>
+        {SaveToastComponent}
+      </>
+    )
   }
 
   return (
