@@ -44,9 +44,13 @@ import {
     XCircle,
     ArrowRight,
     Filter,
-    SortAsc
+    SortAsc,
+    Chrome,
+    MonitorPlay,
+    Power
 } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { useThemeStore, accentColors } from "@/stores/themeStore"
 
 // 블로그 플랫폼 타입
 type BlogPlatform = 'tistory' | 'naver'
@@ -57,6 +61,8 @@ interface BlogSettings {
     tistory?: {
         apiKey: string
         blogName: string
+        kakaoEmail?: string
+        kakaoPassword?: string
         accessToken?: string
         connected: boolean
     }
@@ -120,6 +126,10 @@ interface CommentTask {
 type GenerationStep = 'idle' | 'generating' | 'preview' | 'saving' | 'saved'
 
 export default function AIBlogPage() {
+    // 테마 설정
+    const { accentColor } = useThemeStore()
+    const themeColor = accentColors.find(c => c.id === accentColor)?.color || '#3b82f6'
+
     // 탭 상태
     const [activeTab, setActiveTab] = useState<ActiveTab>('write')
     const [platform, setPlatform] = useState<BlogPlatform>('naver')
@@ -138,6 +148,10 @@ export default function AIBlogPage() {
     const [bulkKeywords, setBulkKeywords] = useState<string[]>([])
     const [bulkProgress, setBulkProgress] = useState(0)
     const [isBulkMode, setIsBulkMode] = useState(false)
+    const [writingStyle, setWritingStyle] = useState<'info' | 'review' | 'story' | 'list'>('info')
+    const [toneStyle, setToneStyle] = useState<'haeyo' | 'formal' | 'casual'>('haeyo')
+    const [includeImages, setIncludeImages] = useState(true)
+    const [imageStyle, setImageStyle] = useState<'photography' | 'artistic' | 'digital_art' | 'realistic'>('photography')
 
     // === 키워드 채굴 관련 ===
     const [seedKeyword, setSeedKeyword] = useState('')
@@ -167,11 +181,26 @@ export default function AIBlogPage() {
     // 설정 입력 상태
     const [tistoryApiKey, setTistoryApiKey] = useState('')
     const [tistoryBlogName, setTistoryBlogName] = useState('')
+    const [tistoryKakaoEmail, setTistoryKakaoEmail] = useState('')
+    const [tistoryKakaoPassword, setTistoryKakaoPassword] = useState('')
     const [naverUsername, setNaverUsername] = useState('')
     const [naverPassword, setNaverPassword] = useState('')
     const [naverBlogId, setNaverBlogId] = useState('')
     const [naverApiClientId, setNaverApiClientId] = useState('')
     const [naverApiClientSecret, setNaverApiClientSecret] = useState('')
+
+    // === Chrome 브라우저 자동화 상태 (네이버) ===
+    const [chromeConnected, setChromeConnected] = useState(false)
+    const [naverLoggedIn, setNaverLoggedIn] = useState(false)
+    const [chromeLoading, setChromeLoading] = useState(false)
+    const [loginLoading, setLoginLoading] = useState(false)
+    const [postLoading, setPostLoading] = useState(false)
+    const [automationMessage, setAutomationMessage] = useState('')
+
+    // === 티스토리 상태 ===
+    const [tistoryAccessToken, setTistoryAccessToken] = useState('')
+    const [tistoryLoggedIn, setTistoryLoggedIn] = useState(false)
+    const [tistoryLoading, setTistoryLoading] = useState(false)
 
     // 설정 로드
     useEffect(() => {
@@ -188,6 +217,8 @@ export default function AIBlogPage() {
                 if (parsed.tistory) {
                     setTistoryApiKey(parsed.tistory.apiKey || '')
                     setTistoryBlogName(parsed.tistory.blogName || '')
+                    setTistoryKakaoEmail(parsed.tistory.kakaoEmail || '')
+                    setTistoryKakaoPassword(parsed.tistory.kakaoPassword || '')
                 }
                 if (parsed.naver) {
                     setNaverUsername(parsed.naver.username || '')
@@ -208,7 +239,9 @@ export default function AIBlogPage() {
             tistory: {
                 apiKey: tistoryApiKey,
                 blogName: tistoryBlogName,
-                connected: !!tistoryApiKey && !!tistoryBlogName
+                kakaoEmail: tistoryKakaoEmail,
+                kakaoPassword: tistoryKakaoPassword,
+                connected: !!tistoryBlogName && (!!tistoryKakaoEmail || !!tistoryApiKey)
             },
             naver: {
                 username: naverUsername,
@@ -224,6 +257,372 @@ export default function AIBlogPage() {
         alert('설정이 저장되었습니다!')
     }
 
+    // === Chrome 브라우저 자동화 함수 ===
+    const connectToChrome = async () => {
+        setChromeLoading(true)
+        setAutomationMessage('')
+        try {
+            const response = await fetch('/api/skills/blog-writer/post-naver', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'connect' })
+            })
+            const data = await response.json()
+            if (data.success) {
+                setChromeConnected(true)
+                setAutomationMessage(data.message)
+            } else {
+                setAutomationMessage(data.message)
+            }
+        } catch (error: any) {
+            setAutomationMessage(`오류: ${error.message}`)
+        } finally {
+            setChromeLoading(false)
+        }
+    }
+
+    // 네이버: Chrome 연결 + 자동 로그인 (통합)
+    const connectAndCheckNaver = async () => {
+        setChromeLoading(true)
+        setAutomationMessage('브라우저 연결 중...')
+        try {
+            // 1. Chrome 연결
+            const connectRes = await fetch('/api/skills/blog-writer/post-naver', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'connect' })
+            })
+            const connectData = await connectRes.json()
+            if (!connectData.success) {
+                setAutomationMessage('Chrome 연결 실패. 아래 안내를 확인하세요.')
+                return
+            }
+            setChromeConnected(true)
+
+            // 2. 로그인 상태 확인
+            setAutomationMessage('로그인 상태 확인 중...')
+            const checkRes = await fetch('/api/skills/blog-writer/post-naver', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'checkLogin' })
+            })
+            const checkData = await checkRes.json()
+
+            if (checkData.loggedIn) {
+                setNaverLoggedIn(true)
+                setAutomationMessage('')
+                return
+            }
+
+            // 3. 로그인 안되어 있으면 자동 로그인 시도
+            if (!naverUsername || !naverPassword) {
+                setAutomationMessage('설정에서 네이버 아이디/비밀번호를 입력해주세요')
+                return
+            }
+
+            setAutomationMessage('네이버 로그인 중...')
+            const loginRes = await fetch('/api/skills/blog-writer/post-naver', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    action: 'login',
+                    credentials: { username: naverUsername, password: naverPassword }
+                })
+            })
+            const loginData = await loginRes.json()
+
+            if (loginData.success) {
+                setNaverLoggedIn(true)
+                setAutomationMessage('')
+            } else {
+                setAutomationMessage(loginData.message || '로그인 실패')
+            }
+        } catch (error: any) {
+            setAutomationMessage('연결 실패. Chrome이 디버깅 모드로 실행 중인지 확인하세요.')
+        } finally {
+            setChromeLoading(false)
+        }
+    }
+
+    const loginToNaver = async () => {
+        if (!naverUsername || !naverPassword) {
+            setAutomationMessage('네이버 아이디와 비밀번호를 설정에서 입력해주세요.')
+            return
+        }
+        setLoginLoading(true)
+        setAutomationMessage('')
+        try {
+            const response = await fetch('/api/skills/blog-writer/post-naver', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    action: 'login',
+                    credentials: {
+                        username: naverUsername,
+                        password: naverPassword
+                    }
+                })
+            })
+            const data = await response.json()
+            if (data.success) {
+                setNaverLoggedIn(true)
+                setAutomationMessage(data.message)
+            } else {
+                setAutomationMessage(data.message)
+            }
+        } catch (error: any) {
+            setAutomationMessage(`오류: ${error.message}`)
+        } finally {
+            setLoginLoading(false)
+        }
+    }
+
+    const postToNaverBlog = async () => {
+        if (!editTitle || !editContent) {
+            setAutomationMessage('제목과 본문이 필요합니다.')
+            return
+        }
+        setPostLoading(true)
+        setAutomationMessage('')
+        try {
+            const response = await fetch('/api/skills/blog-writer/post-naver', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    action: 'post',
+                    post: {
+                        title: editTitle,
+                        content: editContent,
+                        tags: editTags
+                    }
+                })
+            })
+            const data = await response.json()
+            setAutomationMessage(data.message)
+            if (data.success) {
+                setGenerationStep('saved')
+            }
+        } catch (error: any) {
+            setAutomationMessage(`오류: ${error.message}`)
+        } finally {
+            setPostLoading(false)
+        }
+    }
+
+    const checkAutomationStatus = async () => {
+        try {
+            const response = await fetch('/api/skills/blog-writer/post-naver', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'status' })
+            })
+            const data = await response.json()
+            if (data.success) {
+                setChromeConnected(data.connected)
+                setNaverLoggedIn(data.loggedIn)
+            }
+        } catch (error) {
+            console.error('상태 확인 실패:', error)
+        }
+    }
+
+    // === 티스토리 Chrome 자동화 함수 ===
+    const connectTistoryChrome = async () => {
+        setTistoryLoading(true)
+        setAutomationMessage('브라우저 연결 중...')
+        try {
+            // 1. Chrome 연결
+            const connectRes = await fetch('/api/skills/blog-writer/post-tistory', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'connect' })
+            })
+            const connectData = await connectRes.json()
+            if (!connectData.success) {
+                setAutomationMessage('Chrome 연결 실패. 아래 안내를 확인하세요.')
+                return
+            }
+            setTistoryAccessToken('connected')
+
+            // 2. 로그인 상태 확인
+            setAutomationMessage('로그인 상태 확인 중...')
+            const checkRes = await fetch('/api/skills/blog-writer/post-tistory', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'checkLogin' })
+            })
+            const checkData = await checkRes.json()
+
+            if (checkData.loggedIn) {
+                setTistoryLoggedIn(true)
+                setAutomationMessage('')
+                return
+            }
+
+            // 3. 로그인 안되어 있으면 자동 로그인 시도
+            if (!tistoryKakaoEmail || !tistoryKakaoPassword) {
+                setAutomationMessage('설정에서 카카오 이메일/비밀번호를 입력해주세요')
+                return
+            }
+
+            setAutomationMessage('티스토리 로그인 중...')
+            const loginRes = await fetch('/api/skills/blog-writer/post-tistory', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    action: 'login',
+                    credentials: { email: tistoryKakaoEmail, password: tistoryKakaoPassword }
+                })
+            })
+            const loginData = await loginRes.json()
+
+            if (loginData.success) {
+                setTistoryLoggedIn(true)
+                setAutomationMessage('')
+            } else {
+                setAutomationMessage(loginData.message || '로그인 실패')
+            }
+        } catch (error: any) {
+            setAutomationMessage('연결 실패. Chrome이 디버깅 모드로 실행 중인지 확인하세요.')
+        } finally {
+            setTistoryLoading(false)
+        }
+    }
+
+    const loginTistory = async () => {
+        setTistoryLoading(true)
+        setAutomationMessage('Chrome 연결 확인 중...')
+        try {
+            // 1. Chrome 재연결 시도
+            const connectRes = await fetch('/api/skills/blog-writer/post-tistory', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'connect' })
+            })
+            const connectData = await connectRes.json()
+            if (!connectData.success) {
+                setAutomationMessage(`Chrome 연결 실패: ${connectData.message}`)
+                return
+            }
+
+            // 2. 이미 로그인되어 있는지 확인
+            setAutomationMessage('로그인 상태 확인 중...')
+            const checkRes = await fetch('/api/skills/blog-writer/post-tistory', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'checkLogin' })
+            })
+            const checkData = await checkRes.json()
+
+            if (checkData.loggedIn) {
+                setAutomationMessage('이미 로그인되어 있습니다!')
+                setTistoryLoggedIn(true)
+                return
+            }
+
+            // 3. 로그인 필요 - 자격증명 확인
+            if (!tistoryKakaoEmail || !tistoryKakaoPassword) {
+                setAutomationMessage('Chrome에서 직접 티스토리에 로그인해주세요.')
+                return
+            }
+
+            // 4. 자동 로그인 시도
+            setAutomationMessage('로그인 시도 중...')
+            const loginRes = await fetch('/api/skills/blog-writer/post-tistory', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    action: 'login',
+                    credentials: {
+                        email: tistoryKakaoEmail,
+                        password: tistoryKakaoPassword
+                    }
+                })
+            })
+            const loginData = await loginRes.json()
+            setAutomationMessage(loginData.message)
+            if (loginData.success) {
+                setTistoryLoggedIn(true)
+            }
+        } catch (error: any) {
+            setAutomationMessage(`오류: ${error.message}`)
+        } finally {
+            setTistoryLoading(false)
+        }
+    }
+
+    const postToTistory = async () => {
+        if (!editTitle || !editContent) {
+            setAutomationMessage('제목과 본문이 필요합니다.')
+            return
+        }
+        if (!tistoryBlogName) {
+            setAutomationMessage('설정에서 티스토리 블로그명을 입력해주세요.')
+            return
+        }
+        const blogName = tistoryBlogName
+        setPostLoading(true)
+        setAutomationMessage('')
+        try {
+            const response = await fetch('/api/skills/blog-writer/post-tistory', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    action: 'post',
+                    post: {
+                        blogName: blogName,
+                        title: editTitle,
+                        content: editContent,
+                        tags: editTags
+                    }
+                })
+            })
+            const data = await response.json()
+            setAutomationMessage(data.message)
+            if (data.success) {
+                setGenerationStep('saved')
+            }
+        } catch (error: any) {
+            setAutomationMessage(`오류: ${error.message}`)
+        } finally {
+            setPostLoading(false)
+        }
+    }
+
+    const checkTistoryStatus = async () => {
+        try {
+            const response = await fetch('/api/skills/blog-writer/post-tistory', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'status' })
+            })
+            const data = await response.json()
+            if (data.success) {
+                setTistoryLoggedIn(data.loggedIn)
+                // Chrome 연결 상태도 확인
+                if (data.connected) {
+                    setTistoryAccessToken('connected')
+                }
+            }
+        } catch (error) {
+            console.error('티스토리 상태 확인 실패:', error)
+        }
+    }
+
+    // 티스토리 상태 주기적 확인
+    useEffect(() => {
+        checkTistoryStatus()
+        const interval = setInterval(checkTistoryStatus, 30000)
+        return () => clearInterval(interval)
+    }, [])
+
+    // 상태 주기적 확인
+    useEffect(() => {
+        checkAutomationStatus()
+        const interval = setInterval(checkAutomationStatus, 30000) // 30초마다
+        return () => clearInterval(interval)
+    }, [])
+
     // === 글 생성 함수 ===
     const generatePost = async () => {
         if (!keyword.trim()) return
@@ -236,7 +635,12 @@ export default function AIBlogPage() {
                 body: JSON.stringify({
                     keyword: keyword.trim(),
                     platform,
-                    collectTop3: true // 상위 3개 글 수집 후 조합
+                    style: writingStyle,
+                    toneStyle, // 말투 스타일
+                    collectTop3: true, // 상위 3개 글 수집 후 조합
+                    includeImages,
+                    imageCount: 3,
+                    imageStyle
                 })
             })
 
@@ -507,17 +911,15 @@ export default function AIBlogPage() {
     const goldenKeywords = keywords.filter(k => k.isGolden)
 
     return (
-        <div className="h-[calc(100vh-64px)] flex flex-col bg-zinc-950">
+        <div className="h-full flex flex-col bg-zinc-950">
             {/* Header */}
-            <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-800">
+            <div className="h-16 flex items-center justify-between px-6 border-b border-zinc-800 flex-shrink-0">
                 <div className="flex items-center gap-3">
-                    <div className="p-2 bg-gradient-to-br from-orange-500 to-pink-500 rounded-xl">
+                    <div className="p-2 rounded-xl" style={{ backgroundColor: themeColor }}>
                         <BookOpen className="w-6 h-6 text-white" />
                     </div>
-                    <div>
-                        <h1 className="text-xl font-bold text-white">AI 블로그 자동화</h1>
-                        <p className="text-xs text-zinc-500">글쓰기 · 키워드 · 이웃 · 댓글 올인원</p>
-                    </div>
+                    <h1 className="text-xl font-bold text-white">AI 블로그 자동화</h1>
+                    <p className="text-xs text-zinc-500">글쓰기 · 키워드 · 이웃 · 댓글 올인원</p>
                 </div>
 
                 {/* Tabs */}
@@ -535,9 +937,10 @@ export default function AIBlogPage() {
                             className={cn(
                                 "flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all",
                                 activeTab === tab.id
-                                    ? "bg-gradient-to-r from-orange-500 to-pink-500 text-white shadow-lg"
+                                    ? "text-white shadow-lg"
                                     : "text-zinc-400 hover:text-white hover:bg-zinc-800"
                             )}
+                            style={activeTab === tab.id ? { backgroundColor: themeColor } : undefined}
                         >
                             <tab.icon className="w-4 h-4" />
                             {tab.label}
@@ -552,7 +955,88 @@ export default function AIBlogPage() {
                 {activeTab === 'write' && (
                     <div className="h-full flex">
                         {/* 왼쪽: 입력 영역 */}
-                        <div className="w-1/3 border-r border-zinc-800 p-6 flex flex-col">
+                        <div className="w-1/3 border-r border-zinc-800 p-6 flex flex-col overflow-auto">
+                            {/* 자동 포스팅 상태 - 통합된 단순 UI */}
+                            <div
+                                className="mb-6 p-4 rounded-xl border"
+                                style={{
+                                    background: `linear-gradient(to bottom right, ${themeColor}15, ${themeColor}08)`,
+                                    borderColor: `${themeColor}33`
+                                }}
+                            >
+                                <div className="flex items-center justify-between mb-3">
+                                    <span className="text-sm font-bold text-white">자동 포스팅</span>
+                                    <div className={cn(
+                                        "px-2 py-1 rounded-full text-xs font-medium",
+                                        (platform === 'naver' ? naverLoggedIn : tistoryLoggedIn)
+                                            ? "bg-green-500/20 text-green-400"
+                                            : "bg-yellow-500/20 text-yellow-400"
+                                    )}>
+                                        {(platform === 'naver' ? naverLoggedIn : tistoryLoggedIn) ? '준비됨' : '설정 필요'}
+                                    </div>
+                                </div>
+
+                                {/* 상태 메시지 */}
+                                {automationMessage && (
+                                    <p className="text-xs text-zinc-400 mb-3">{automationMessage}</p>
+                                )}
+
+                                {/* 준비 안됨 → 설정 버튼 */}
+                                {!(platform === 'naver' ? naverLoggedIn : tistoryLoggedIn) && (
+                                    <div className="space-y-3">
+                                        <p className="text-xs text-zinc-500">
+                                            {platform === 'naver'
+                                                ? 'Chrome에서 네이버에 로그인한 상태로 연결하세요'
+                                                : 'Chrome에서 티스토리에 로그인한 상태로 연결하세요'
+                                            }
+                                        </p>
+                                        <button
+                                            onClick={platform === 'naver' ? connectAndCheckNaver : connectTistoryChrome}
+                                            disabled={chromeLoading || tistoryLoading}
+                                            className="w-full py-2.5 rounded-lg text-sm font-medium flex items-center justify-center gap-2 transition-all text-white hover:opacity-90"
+                                            style={{ backgroundColor: themeColor }}
+                                        >
+                                            {(chromeLoading || tistoryLoading) ? (
+                                                <><Loader2 className="w-4 h-4 animate-spin" /> 연결 중...</>
+                                            ) : (
+                                                <><Chrome className="w-4 h-4" /> 브라우저 연결</>
+                                            )}
+                                        </button>
+
+                                        {/* Chrome 실행 안내 - 접이식 */}
+                                        <details className="text-xs">
+                                            <summary className="text-zinc-500 cursor-pointer hover:text-zinc-400">
+                                                Chrome이 연결되지 않나요?
+                                            </summary>
+                                            <div className="mt-2 p-2 bg-zinc-900/50 rounded-lg">
+                                                <p className="text-zinc-500 mb-1">터미널에서 실행:</p>
+                                                <code className="text-green-400 block break-all">
+                                                    /Applications/Google\ Chrome.app/Contents/MacOS/Google\ Chrome --remote-debugging-port=9222
+                                                </code>
+                                            </div>
+                                        </details>
+                                    </div>
+                                )}
+
+                                {/* 준비됨 → 블로그명 입력 (티스토리만) */}
+                                {platform === 'tistory' && tistoryLoggedIn && (
+                                    <div className="mt-2">
+                                        <label className="text-xs text-zinc-400 block mb-1">블로그 주소</label>
+                                        <div className="flex items-center gap-1 text-sm">
+                                            <span className="text-zinc-500">https://</span>
+                                            <input
+                                                type="text"
+                                                value={tistoryBlogName}
+                                                onChange={(e) => setTistoryBlogName(e.target.value)}
+                                                placeholder="블로그명"
+                                                className="flex-1 bg-zinc-800 border border-zinc-700 rounded px-2 py-1 text-white placeholder-zinc-500 focus:outline-none focus:border-zinc-500"
+                                            />
+                                            <span className="text-zinc-500">.tistory.com</span>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+
                             {/* 플랫폼 선택 */}
                             <div className="mb-6">
                                 <label className="text-sm font-medium text-zinc-400 mb-2 block">블로그 플랫폼</label>
@@ -562,9 +1046,10 @@ export default function AIBlogPage() {
                                         className={cn(
                                             "flex-1 py-3 rounded-lg font-medium transition-all",
                                             platform === 'naver'
-                                                ? "bg-green-500 text-white shadow-lg shadow-green-500/25"
+                                                ? "text-white shadow-lg"
                                                 : "bg-zinc-800 text-zinc-400 hover:bg-zinc-700"
                                         )}
+                                        style={platform === 'naver' ? { backgroundColor: themeColor, boxShadow: `0 10px 15px -3px ${themeColor}40` } : undefined}
                                     >
                                         네이버
                                     </button>
@@ -573,9 +1058,10 @@ export default function AIBlogPage() {
                                         className={cn(
                                             "flex-1 py-3 rounded-lg font-medium transition-all",
                                             platform === 'tistory'
-                                                ? "bg-orange-500 text-white shadow-lg shadow-orange-500/25"
+                                                ? "text-white shadow-lg"
                                                 : "bg-zinc-800 text-zinc-400 hover:bg-zinc-700"
                                         )}
+                                        style={platform === 'tistory' ? { backgroundColor: themeColor, boxShadow: `0 10px 15px -3px ${themeColor}40` } : undefined}
                                     >
                                         티스토리
                                     </button>
@@ -605,15 +1091,132 @@ export default function AIBlogPage() {
                                     value={keyword}
                                     onChange={(e) => setKeyword(e.target.value)}
                                     placeholder="글을 작성할 키워드를 입력하세요&#10;예: 2024 여름 여행지 추천"
-                                    className="w-full h-32 bg-zinc-900 border border-zinc-700 rounded-xl px-4 py-3 text-white placeholder-zinc-500 focus:outline-none focus:border-orange-500 resize-none"
+                                    className="w-full h-32 bg-zinc-900 border border-zinc-700 rounded-xl px-4 py-3 text-white placeholder-zinc-500 focus:outline-none focus:border-zinc-500 resize-none"
                                     disabled={generationStep === 'generating'}
                                 />
+                            </div>
+
+                            {/* 작성 스타일 선택 */}
+                            <div className="mb-6">
+                                <label className="text-sm font-medium text-zinc-400 mb-3 block">작성 스타일</label>
+                                <div className="grid grid-cols-2 gap-2">
+                                    {[
+                                        { id: 'info', label: '정보 전달', desc: '깔끔하게 정보 위주로' },
+                                        { id: 'review', label: '후기/리뷰', desc: '실제 경험담처럼' },
+                                        { id: 'story', label: '스토리텔링', desc: '에세이 느낌으로' },
+                                        { id: 'list', label: '리스트형', desc: '항목별 정리' },
+                                    ].map((style) => (
+                                        <button
+                                            key={style.id}
+                                            onClick={() => setWritingStyle(style.id as any)}
+                                            className={cn(
+                                                "p-3 rounded-lg text-left transition-all border",
+                                                writingStyle === style.id
+                                                    ? "text-white"
+                                                    : "bg-zinc-900 border-zinc-700 text-zinc-400 hover:border-zinc-500"
+                                            )}
+                                            style={writingStyle === style.id ? {
+                                                backgroundColor: `${themeColor}33`,
+                                                borderColor: themeColor
+                                            } : undefined}
+                                        >
+                                            <div className="font-medium text-sm">{style.label}</div>
+                                            <div className="text-xs opacity-70">{style.desc}</div>
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+
+                            {/* 말투 선택 */}
+                            <div className="mb-6">
+                                <label className="text-sm font-medium text-zinc-400 mb-3 block">
+                                    말투 <span style={{ color: themeColor }}>*</span>
+                                </label>
+                                <div className="grid grid-cols-3 gap-2">
+                                    {[
+                                        { id: 'haeyo', label: '~해요체' },
+                                        { id: 'formal', label: '~습니다체' },
+                                        { id: 'casual', label: '반말' },
+                                    ].map((tone) => (
+                                        <button
+                                            key={tone.id}
+                                            onClick={() => setToneStyle(tone.id as any)}
+                                            className={cn(
+                                                "py-3 rounded-lg text-sm font-medium transition-all border",
+                                                toneStyle === tone.id
+                                                    ? "text-white"
+                                                    : "bg-zinc-900 border-zinc-700 text-zinc-400 hover:border-zinc-500"
+                                            )}
+                                            style={toneStyle === tone.id ? {
+                                                backgroundColor: `${themeColor}33`,
+                                                borderColor: themeColor
+                                            } : undefined}
+                                        >
+                                            {tone.label}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+
+                            {/* AI 이미지 생성 옵션 */}
+                            <div
+                                className="mb-6 p-4 rounded-xl border"
+                                style={{
+                                    background: `linear-gradient(to bottom right, ${themeColor}15, ${themeColor}08)`,
+                                    borderColor: `${themeColor}33`
+                                }}
+                            >
+                                <div className="flex items-center justify-between mb-3">
+                                    <div className="flex items-center gap-2">
+                                        <ImageIcon className="w-4 h-4" style={{ color: themeColor }} />
+                                        <span className="text-sm font-medium text-white">AI 이미지 생성</span>
+                                    </div>
+                                    <button
+                                        onClick={() => setIncludeImages(!includeImages)}
+                                        className="relative w-12 h-6 rounded-full transition-colors"
+                                        style={{ backgroundColor: includeImages ? themeColor : '#3f3f46' }}
+                                    >
+                                        <div className={cn(
+                                            "absolute top-1 w-4 h-4 bg-white rounded-full transition-transform",
+                                            includeImages ? "right-1" : "left-1"
+                                        )} />
+                                    </button>
+                                </div>
+                                {includeImages && (
+                                    <>
+                                        <p className="text-xs text-zinc-400 mb-3">
+                                            나노바나나 AI로 3개의 관련 이미지를 자동 생성하여 본문에 삽입합니다.
+                                        </p>
+                                        <div className="grid grid-cols-4 gap-2">
+                                            {[
+                                                { id: 'photography', label: '사진' },
+                                                { id: 'artistic', label: '아트' },
+                                                { id: 'digital_art', label: '디지털' },
+                                                { id: 'realistic', label: '실사' },
+                                            ].map((style) => (
+                                                <button
+                                                    key={style.id}
+                                                    onClick={() => setImageStyle(style.id as any)}
+                                                    className={cn(
+                                                        "py-2 rounded-lg text-xs font-medium transition-all",
+                                                        imageStyle === style.id
+                                                            ? "text-white"
+                                                            : "bg-zinc-800 text-zinc-400 hover:bg-zinc-700"
+                                                    )}
+                                                    style={imageStyle === style.id ? { backgroundColor: themeColor } : undefined}
+                                                >
+                                                    {style.label}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </>
+                                )}
                             </div>
 
                             {/* 상위 글 수집 옵션 */}
                             <div className="mb-6 p-4 bg-zinc-900 rounded-xl">
                                 <div className="flex items-center gap-2 mb-2">
-                                    <Target className="w-4 h-4 text-orange-400" />
+                                    <Target className="w-4 h-4" style={{ color: themeColor }} />
                                     <span className="text-sm font-medium text-white">상위 노출 글 분석</span>
                                 </div>
                                 <p className="text-xs text-zinc-500">
@@ -626,11 +1229,13 @@ export default function AIBlogPage() {
                                 onClick={generatePost}
                                 disabled={!keyword.trim() || generationStep === 'generating'}
                                 className={cn(
-                                    "w-full py-4 rounded-xl font-bold text-white flex items-center justify-center gap-2 transition-all",
-                                    generationStep === 'generating'
-                                        ? "bg-zinc-700 cursor-not-allowed"
-                                        : "bg-gradient-to-r from-orange-500 to-pink-500 hover:from-orange-600 hover:to-pink-600 shadow-lg shadow-orange-500/25"
+                                    "w-full py-4 rounded-xl font-bold text-white flex items-center justify-center gap-2 transition-all hover:opacity-90",
+                                    generationStep === 'generating' && "bg-zinc-700 cursor-not-allowed"
                                 )}
+                                style={generationStep !== 'generating' ? {
+                                    backgroundColor: themeColor,
+                                    boxShadow: `0 10px 15px -3px ${themeColor}40`
+                                } : undefined}
                             >
                                 {generationStep === 'generating' ? (
                                     <>
@@ -694,10 +1299,28 @@ export default function AIBlogPage() {
                                             <button
                                                 onClick={saveDraft}
                                                 disabled={generationStep === 'saving'}
-                                                className="px-6 py-2 rounded-lg bg-gradient-to-r from-green-500 to-emerald-500 text-white font-medium hover:from-green-600 hover:to-emerald-600 transition-colors flex items-center gap-2 text-sm disabled:opacity-50"
+                                                className="px-4 py-2 rounded-lg bg-zinc-700 text-white hover:bg-zinc-600 transition-colors flex items-center gap-2 text-sm disabled:opacity-50"
                                             >
                                                 {generationStep === 'saving' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
                                                 임시저장
+                                            </button>
+                                            {/* 자동 포스팅 버튼 - 단순화 */}
+                                            <button
+                                                onClick={platform === 'naver' ? postToNaverBlog : postToTistory}
+                                                disabled={postLoading || !(platform === 'naver' ? naverLoggedIn : tistoryLoggedIn)}
+                                                className={cn(
+                                                    "px-6 py-2 rounded-lg font-medium flex items-center gap-2 text-sm transition-all hover:opacity-90",
+                                                    !(platform === 'naver' ? naverLoggedIn : tistoryLoggedIn) && "bg-zinc-700 text-zinc-400 cursor-not-allowed"
+                                                )}
+                                                style={(platform === 'naver' ? naverLoggedIn : tistoryLoggedIn) ? {
+                                                    backgroundColor: themeColor,
+                                                    color: 'white',
+                                                    boxShadow: `0 10px 15px -3px ${themeColor}40`
+                                                } : undefined}
+                                                title={!(platform === 'naver' ? naverLoggedIn : tistoryLoggedIn) ? '왼쪽 패널에서 브라우저 연결을 먼저 해주세요' : ''}
+                                            >
+                                                {postLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+                                                {platform === 'naver' ? '네이버' : '티스토리'} 자동 포스팅
                                             </button>
                                         </div>
                                     </div>
@@ -709,7 +1332,8 @@ export default function AIBlogPage() {
                                                     type="text"
                                                     value={editTitle}
                                                     onChange={(e) => setEditTitle(e.target.value)}
-                                                    className="text-2xl font-bold bg-transparent text-white border-b border-zinc-700 pb-3 mb-4 focus:outline-none focus:border-orange-500"
+                                                    className="text-2xl font-bold bg-transparent text-white border-b border-zinc-700 pb-3 mb-4 focus:outline-none"
+                                                    style={{ '--focus-color': themeColor } as React.CSSProperties}
                                                     placeholder="제목을 입력하세요"
                                                 />
                                                 <div className="mb-4">
@@ -728,7 +1352,7 @@ export default function AIBlogPage() {
                                                             onChange={(e) => setNewTag(e.target.value)}
                                                             onKeyDown={(e) => e.key === 'Enter' && addTag()}
                                                             placeholder="태그 추가"
-                                                            className="flex-1 bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-white placeholder-zinc-500 focus:outline-none focus:border-orange-500"
+                                                            className="flex-1 bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-white placeholder-zinc-500 focus:outline-none focus:border-zinc-500"
                                                         />
                                                         <button onClick={addTag} className="px-4 py-2 bg-zinc-700 text-white rounded-lg hover:bg-zinc-600"><Plus className="w-4 h-4" /></button>
                                                     </div>
@@ -741,15 +1365,66 @@ export default function AIBlogPage() {
                                                 />
                                             </div>
                                         ) : (
-                                            <div className="flex-1 p-6 overflow-auto">
+                                            <div className="flex-1 p-6 overflow-auto select-text">
                                                 <h1 className="text-2xl font-bold text-white mb-4">{editTitle}</h1>
                                                 <div className="flex flex-wrap gap-2 mb-6">
                                                     {editTags.map(tag => (
                                                         <span key={tag} className="px-3 py-1 bg-zinc-800 text-zinc-400 rounded-full text-sm">#{tag}</span>
                                                     ))}
                                                 </div>
-                                                <div className="prose prose-invert max-w-none text-zinc-300 leading-relaxed whitespace-pre-wrap">
-                                                    {editContent}
+                                                <div className="prose prose-invert max-w-none text-zinc-300 leading-relaxed select-text">
+                                                    {editContent.split('\n\n').map((paragraph, idx) => {
+                                                        // [IMAGE:...] 패턴 확인
+                                                        const imageMatch = paragraph.match(/\[IMAGE:(data:image\/[^;]+;base64,[^\]]+)\]/)
+                                                        if (imageMatch) {
+                                                            const imgSrc = imageMatch[1]
+                                                            return (
+                                                                <div key={idx} className="my-6 relative group">
+                                                                    <img
+                                                                        src={imgSrc}
+                                                                        alt={`AI 생성 이미지 ${idx + 1}`}
+                                                                        className="w-full rounded-xl shadow-lg"
+                                                                    />
+                                                                    <div className="absolute top-2 right-2 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                                        <button
+                                                                            onClick={async () => {
+                                                                                try {
+                                                                                    const res = await fetch(imgSrc)
+                                                                                    const blob = await res.blob()
+                                                                                    await navigator.clipboard.write([
+                                                                                        new ClipboardItem({ [blob.type]: blob })
+                                                                                    ])
+                                                                                    alert('이미지가 복사되었습니다!')
+                                                                                } catch (e) {
+                                                                                    // 폴백: 새 탭에서 열기
+                                                                                    window.open(imgSrc, '_blank')
+                                                                                }
+                                                                            }}
+                                                                            className="px-3 py-1.5 bg-black/70 hover:bg-black text-white text-xs rounded-lg flex items-center gap-1"
+                                                                        >
+                                                                            <Copy className="w-3 h-3" />
+                                                                            복사
+                                                                        </button>
+                                                                        <button
+                                                                            onClick={() => {
+                                                                                const a = document.createElement('a')
+                                                                                a.href = imgSrc
+                                                                                a.download = `image_${idx + 1}.png`
+                                                                                a.click()
+                                                                            }}
+                                                                            className="px-3 py-1.5 bg-black/70 hover:bg-black text-white text-xs rounded-lg flex items-center gap-1"
+                                                                        >
+                                                                            <Download className="w-3 h-3" />
+                                                                            저장
+                                                                        </button>
+                                                                    </div>
+                                                                </div>
+                                                            )
+                                                        }
+                                                        return paragraph.trim() ? (
+                                                            <p key={idx} className="mb-4 whitespace-pre-wrap">{paragraph}</p>
+                                                        ) : null
+                                                    })}
                                                 </div>
                                             </div>
                                         )}
@@ -785,7 +1460,7 @@ export default function AIBlogPage() {
                                     value={seedKeyword}
                                     onChange={(e) => setSeedKeyword(e.target.value)}
                                     placeholder="예: 맛집, 여행, 육아"
-                                    className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-4 py-3 text-white placeholder-zinc-500 focus:outline-none focus:border-blue-500"
+                                    className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-4 py-3 text-white placeholder-zinc-500 focus:outline-none focus:border-zinc-500"
                                 />
                             </div>
 
@@ -797,7 +1472,7 @@ export default function AIBlogPage() {
                                     onChange={(e) => setKeywordCount(Number(e.target.value))}
                                     min={10}
                                     max={10000}
-                                    className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500"
+                                    className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-zinc-500"
                                 />
                                 <p className="text-xs text-zinc-500 mt-1">최대 10,000개까지 수집 가능</p>
                             </div>
@@ -813,7 +1488,7 @@ export default function AIBlogPage() {
                                         type="number"
                                         value={minSearch}
                                         onChange={(e) => setMinSearch(Number(e.target.value))}
-                                        className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500"
+                                        className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-zinc-500"
                                     />
                                 </div>
                                 <div>
@@ -825,7 +1500,7 @@ export default function AIBlogPage() {
                                         step={0.1}
                                         min={0}
                                         max={1}
-                                        className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500"
+                                        className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-zinc-500"
                                     />
                                 </div>
                             </div>
@@ -834,11 +1509,13 @@ export default function AIBlogPage() {
                                 onClick={mineKeywords}
                                 disabled={!seedKeyword.trim() || keywordLoading}
                                 className={cn(
-                                    "w-full py-4 rounded-xl font-bold text-white flex items-center justify-center gap-2 transition-all",
-                                    keywordLoading
-                                        ? "bg-zinc-700 cursor-not-allowed"
-                                        : "bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600 shadow-lg shadow-blue-500/25"
+                                    "w-full py-4 rounded-xl font-bold text-white flex items-center justify-center gap-2 transition-all hover:opacity-90",
+                                    keywordLoading && "bg-zinc-700 cursor-not-allowed"
                                 )}
+                                style={!keywordLoading ? {
+                                    backgroundColor: themeColor,
+                                    boxShadow: `0 10px 15px -3px ${themeColor}40`
+                                } : undefined}
                             >
                                 {keywordLoading ? (
                                     <>
@@ -945,7 +1622,7 @@ export default function AIBlogPage() {
                                     value={neighborKeyword}
                                     onChange={(e) => setNeighborKeyword(e.target.value)}
                                     placeholder="해당 키워드로 글 쓴 블로거 찾기"
-                                    className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-4 py-3 text-white placeholder-zinc-500 focus:outline-none focus:border-purple-500"
+                                    className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-4 py-3 text-white placeholder-zinc-500 focus:outline-none focus:border-zinc-500"
                                 />
                             </div>
 
@@ -955,7 +1632,7 @@ export default function AIBlogPage() {
                                     value={neighborMessage}
                                     onChange={(e) => setNeighborMessage(e.target.value)}
                                     placeholder="이웃 신청 시 보낼 메시지"
-                                    className="w-full h-24 bg-zinc-900 border border-zinc-700 rounded-xl px-4 py-3 text-white placeholder-zinc-500 focus:outline-none focus:border-purple-500 resize-none"
+                                    className="w-full h-24 bg-zinc-900 border border-zinc-700 rounded-xl px-4 py-3 text-white placeholder-zinc-500 focus:outline-none focus:border-zinc-500 resize-none"
                                 />
                             </div>
 
@@ -967,7 +1644,7 @@ export default function AIBlogPage() {
                                     onChange={(e) => setNeighborCount(Number(e.target.value))}
                                     min={1}
                                     max={100}
-                                    className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-purple-500"
+                                    className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-zinc-500"
                                 />
                                 <p className="text-xs text-zinc-500 mt-1">하루 최대 100명까지 가능</p>
                             </div>
@@ -978,7 +1655,7 @@ export default function AIBlogPage() {
                                     <span className="text-lg font-bold text-white">{dailyNeighborCount}/100</span>
                                 </div>
                                 <div className="w-full h-2 bg-zinc-800 rounded-full overflow-hidden">
-                                    <div className="h-full bg-purple-500 transition-all" style={{ width: `${dailyNeighborCount}%` }} />
+                                    <div className="h-full transition-all" style={{ width: `${dailyNeighborCount}%`, backgroundColor: themeColor }} />
                                 </div>
                             </div>
 
@@ -986,11 +1663,13 @@ export default function AIBlogPage() {
                                 onClick={startNeighborAutomation}
                                 disabled={!neighborKeyword.trim() || neighborLoading || dailyNeighborCount >= 100}
                                 className={cn(
-                                    "w-full py-4 rounded-xl font-bold text-white flex items-center justify-center gap-2 transition-all",
-                                    neighborLoading || dailyNeighborCount >= 100
-                                        ? "bg-zinc-700 cursor-not-allowed"
-                                        : "bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 shadow-lg shadow-purple-500/25"
+                                    "w-full py-4 rounded-xl font-bold text-white flex items-center justify-center gap-2 transition-all hover:opacity-90",
+                                    (neighborLoading || dailyNeighborCount >= 100) && "bg-zinc-700 cursor-not-allowed"
                                 )}
+                                style={!(neighborLoading || dailyNeighborCount >= 100) ? {
+                                    backgroundColor: themeColor,
+                                    boxShadow: `0 10px 15px -3px ${themeColor}40`
+                                } : undefined}
                             >
                                 {neighborLoading ? (
                                     <>
@@ -1045,9 +1724,15 @@ export default function AIBlogPage() {
                 {activeTab === 'comments' && (
                     <div className="h-full flex">
                         <div className="w-1/3 border-r border-zinc-800 p-6">
-                            <div className="mb-6 p-4 bg-gradient-to-br from-cyan-500/10 to-blue-500/10 border border-cyan-500/20 rounded-xl">
+                            <div
+                                className="mb-6 p-4 rounded-xl border"
+                                style={{
+                                    background: `linear-gradient(to bottom right, ${themeColor}15, ${themeColor}08)`,
+                                    borderColor: `${themeColor}33`
+                                }}
+                            >
                                 <div className="flex items-center gap-2 mb-2">
-                                    <Bot className="w-5 h-5 text-cyan-400" />
+                                    <Bot className="w-5 h-5" style={{ color: themeColor }} />
                                     <span className="text-sm font-medium text-white">AI 자동 댓글</span>
                                 </div>
                                 <p className="text-xs text-zinc-400">
@@ -1063,7 +1748,7 @@ export default function AIBlogPage() {
                                     onChange={(e) => setCommentCount(Number(e.target.value))}
                                     min={1}
                                     max={100}
-                                    className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-cyan-500"
+                                    className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-zinc-500"
                                 />
                             </div>
 
@@ -1073,7 +1758,7 @@ export default function AIBlogPage() {
                                     <span className="text-lg font-bold text-white">{commentTasks.filter(t => t.status === 'completed').length}/{commentCount}</span>
                                 </div>
                                 <div className="w-full h-2 bg-zinc-800 rounded-full overflow-hidden">
-                                    <div className="h-full bg-cyan-500 transition-all" style={{ width: `${commentProgress}%` }} />
+                                    <div className="h-full transition-all" style={{ width: `${commentProgress}%`, backgroundColor: themeColor }} />
                                 </div>
                             </div>
 
@@ -1081,11 +1766,13 @@ export default function AIBlogPage() {
                                 onClick={startCommentAutomation}
                                 disabled={commentLoading}
                                 className={cn(
-                                    "w-full py-4 rounded-xl font-bold text-white flex items-center justify-center gap-2 transition-all",
-                                    commentLoading
-                                        ? "bg-zinc-700 cursor-not-allowed"
-                                        : "bg-gradient-to-r from-cyan-500 to-blue-500 hover:from-cyan-600 hover:to-blue-600 shadow-lg shadow-cyan-500/25"
+                                    "w-full py-4 rounded-xl font-bold text-white flex items-center justify-center gap-2 transition-all hover:opacity-90",
+                                    commentLoading && "bg-zinc-700 cursor-not-allowed"
                                 )}
+                                style={!commentLoading ? {
+                                    backgroundColor: themeColor,
+                                    boxShadow: `0 10px 15px -3px ${themeColor}40`
+                                } : undefined}
                             >
                                 {commentLoading ? (
                                     <>
@@ -1140,7 +1827,7 @@ export default function AIBlogPage() {
                         {/* 네이버 설정 */}
                         <div className="bg-zinc-900 rounded-xl p-6 mb-6">
                             <div className="flex items-center gap-3 mb-4">
-                                <div className="p-2 bg-green-500 rounded-lg">
+                                <div className="p-2 rounded-lg" style={{ backgroundColor: themeColor }}>
                                     <Globe className="w-5 h-5 text-white" />
                                 </div>
                                 <div>
@@ -1148,7 +1835,7 @@ export default function AIBlogPage() {
                                     <p className="text-xs text-zinc-500">로그인 + API 연동</p>
                                 </div>
                                 {settings.naver?.connected && (
-                                    <span className="ml-auto px-2 py-1 bg-green-500/20 text-green-400 rounded text-xs">연결됨</span>
+                                    <span className="ml-auto px-2 py-1 rounded text-xs" style={{ backgroundColor: `${themeColor}33`, color: themeColor }}>연결됨</span>
                                 )}
                             </div>
 
@@ -1160,7 +1847,7 @@ export default function AIBlogPage() {
                                         value={naverUsername}
                                         onChange={(e) => setNaverUsername(e.target.value)}
                                         placeholder="네이버 아이디"
-                                        className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-4 py-3 text-white placeholder-zinc-500 focus:outline-none focus:border-green-500"
+                                        className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-4 py-3 text-white placeholder-zinc-500 focus:outline-none focus:border-zinc-500"
                                     />
                                 </div>
                                 <div>
@@ -1170,7 +1857,7 @@ export default function AIBlogPage() {
                                         value={naverPassword}
                                         onChange={(e) => setNaverPassword(e.target.value)}
                                         placeholder="비밀번호"
-                                        className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-4 py-3 text-white placeholder-zinc-500 focus:outline-none focus:border-green-500"
+                                        className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-4 py-3 text-white placeholder-zinc-500 focus:outline-none focus:border-zinc-500"
                                     />
                                 </div>
                                 <div>
@@ -1180,7 +1867,7 @@ export default function AIBlogPage() {
                                         value={naverBlogId}
                                         onChange={(e) => setNaverBlogId(e.target.value)}
                                         placeholder="blog.naver.com/xxx의 xxx"
-                                        className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-4 py-3 text-white placeholder-zinc-500 focus:outline-none focus:border-green-500"
+                                        className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-4 py-3 text-white placeholder-zinc-500 focus:outline-none focus:border-zinc-500"
                                     />
                                 </div>
                                 <div>
@@ -1190,7 +1877,7 @@ export default function AIBlogPage() {
                                         value={naverApiClientId}
                                         onChange={(e) => setNaverApiClientId(e.target.value)}
                                         placeholder="네이버 개발자센터 Client ID"
-                                        className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-4 py-3 text-white placeholder-zinc-500 focus:outline-none focus:border-green-500"
+                                        className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-4 py-3 text-white placeholder-zinc-500 focus:outline-none focus:border-zinc-500"
                                     />
                                 </div>
                                 <div className="col-span-2">
@@ -1200,10 +1887,10 @@ export default function AIBlogPage() {
                                         value={naverApiClientSecret}
                                         onChange={(e) => setNaverApiClientSecret(e.target.value)}
                                         placeholder="네이버 개발자센터 Client Secret"
-                                        className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-4 py-3 text-white placeholder-zinc-500 focus:outline-none focus:border-green-500"
+                                        className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-4 py-3 text-white placeholder-zinc-500 focus:outline-none focus:border-zinc-500"
                                     />
                                     <p className="text-xs text-zinc-600 mt-1">
-                                        <a href="https://developers.naver.com/apps/#/register" target="_blank" className="text-green-400 hover:underline">
+                                        <a href="https://developers.naver.com/apps/#/register" target="_blank" className="hover:underline" style={{ color: themeColor }}>
                                             네이버 개발자센터에서 API 키 발급받기 →
                                         </a>
                                     </p>
@@ -1214,34 +1901,19 @@ export default function AIBlogPage() {
                         {/* 티스토리 설정 */}
                         <div className="bg-zinc-900 rounded-xl p-6 mb-6">
                             <div className="flex items-center gap-3 mb-4">
-                                <div className="p-2 bg-orange-500 rounded-lg">
+                                <div className="p-2 rounded-lg" style={{ backgroundColor: themeColor }}>
                                     <Globe className="w-5 h-5 text-white" />
                                 </div>
                                 <div>
                                     <h3 className="text-white font-bold">티스토리</h3>
-                                    <p className="text-xs text-zinc-500">Open API 연동</p>
+                                    <p className="text-xs text-zinc-500">Chrome 자동화 (카카오 로그인)</p>
                                 </div>
                                 {settings.tistory?.connected && (
-                                    <span className="ml-auto px-2 py-1 bg-green-500/20 text-green-400 rounded text-xs">연결됨</span>
+                                    <span className="ml-auto px-2 py-1 rounded text-xs" style={{ backgroundColor: `${themeColor}33`, color: themeColor }}>연결됨</span>
                                 )}
                             </div>
 
                             <div className="space-y-4">
-                                <div>
-                                    <label className="text-sm text-zinc-400 mb-1 block">API 키 (Access Token)</label>
-                                    <input
-                                        type="password"
-                                        value={tistoryApiKey}
-                                        onChange={(e) => setTistoryApiKey(e.target.value)}
-                                        placeholder="티스토리 API Access Token"
-                                        className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-4 py-3 text-white placeholder-zinc-500 focus:outline-none focus:border-orange-500"
-                                    />
-                                    <p className="text-xs text-zinc-600 mt-1">
-                                        <a href="https://www.tistory.com/guide/api/manage/register" target="_blank" className="text-orange-400 hover:underline">
-                                            티스토리 API 키 발급받기 →
-                                        </a>
-                                    </p>
-                                </div>
                                 <div>
                                     <label className="text-sm text-zinc-400 mb-1 block">블로그 이름</label>
                                     <input
@@ -1249,7 +1921,27 @@ export default function AIBlogPage() {
                                         value={tistoryBlogName}
                                         onChange={(e) => setTistoryBlogName(e.target.value)}
                                         placeholder="xxx.tistory.com의 xxx"
-                                        className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-4 py-3 text-white placeholder-zinc-500 focus:outline-none focus:border-orange-500"
+                                        className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-4 py-3 text-white placeholder-zinc-500 focus:outline-none focus:border-zinc-500"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="text-sm text-zinc-400 mb-1 block">카카오 이메일</label>
+                                    <input
+                                        type="email"
+                                        value={tistoryKakaoEmail}
+                                        onChange={(e) => setTistoryKakaoEmail(e.target.value)}
+                                        placeholder="카카오 로그인 이메일"
+                                        className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-4 py-3 text-white placeholder-zinc-500 focus:outline-none focus:border-zinc-500"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="text-sm text-zinc-400 mb-1 block">카카오 비밀번호</label>
+                                    <input
+                                        type="password"
+                                        value={tistoryKakaoPassword}
+                                        onChange={(e) => setTistoryKakaoPassword(e.target.value)}
+                                        placeholder="카카오 로그인 비밀번호"
+                                        className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-4 py-3 text-white placeholder-zinc-500 focus:outline-none focus:border-zinc-500"
                                     />
                                 </div>
                             </div>
@@ -1257,7 +1949,8 @@ export default function AIBlogPage() {
 
                         <button
                             onClick={saveSettings}
-                            className="w-full py-4 rounded-xl bg-gradient-to-r from-blue-500 to-purple-500 text-white font-bold hover:from-blue-600 hover:to-purple-600 transition-colors flex items-center justify-center gap-2"
+                            className="w-full py-4 rounded-xl text-white font-bold transition-colors flex items-center justify-center gap-2 hover:opacity-90"
+                            style={{ backgroundColor: themeColor, boxShadow: `0 10px 15px -3px ${themeColor}40` }}
                         >
                             <Save className="w-5 h-5" />
                             설정 저장
