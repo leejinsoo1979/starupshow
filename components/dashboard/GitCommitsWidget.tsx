@@ -60,11 +60,34 @@ export function GitCommitsWidget() {
   }
 
   useEffect(() => {
-    fetchCommits()
+    // Initial sync and fetch
+    const init = async () => {
+      try {
+        await fetch('/api/git-commits/sync', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ limit: 30 })
+        })
+      } catch (err) {
+        console.error('[GitCommitsWidget] Initial sync failed:', err)
+      }
+      fetchCommits()
+    }
+    init()
   }, [])
 
-  const handleRefresh = () => {
+  const handleRefresh = async () => {
     setIsRefreshing(true)
+    // First sync commits from Git repos, then fetch
+    try {
+      await fetch('/api/git-commits/sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ limit: 30 })
+      })
+    } catch (err) {
+      console.error('[GitCommitsWidget] Sync failed:', err)
+    }
     fetchCommits()
   }
 
