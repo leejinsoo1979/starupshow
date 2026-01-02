@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { isDevMode, DEV_USER } from '@/lib/dev-user'
+import { fetchBizinfoPrograms, transformBizinfoProgram } from '@/lib/government/bizinfo'
+import { fetchKStartupPrograms, transformKStartupProgram } from '@/lib/government/kstartup'
 
 /**
  * 정부지원사업 목록 조회 API
@@ -30,7 +32,82 @@ export async function GET(request: NextRequest) {
     const limit = parseInt(searchParams.get('limit') || '50')
     const offset = parseInt(searchParams.get('offset') || '0')
 
-    // 쿼리 빌드
+    // DB 테이블 존재 확인
+    const { error: tableError } = await supabase
+      .from('government_programs')
+      .select('id')
+      .limit(1)
+
+    // 테이블이 없으면 API에서 직접 데이터 가져오기
+    if (tableError?.message?.includes('Could not find')) {
+      console.log('[GovernmentPrograms] 테이블 없음 - API에서 직접 조회')
+
+      // 기업마당 데이터
+      const bizinfoRaw = await fetchBizinfoPrograms({ searchCount: 50 })
+      const bizinfoPrograms = bizinfoRaw.map(p => {
+        const transformed = transformBizinfoProgram(p)
+        return {
+          id: transformed.program_id,
+          ...transformed
+        }
+      })
+
+      // K-Startup 데이터
+      const kstartupRaw = await fetchKStartupPrograms({ perPage: 50 })
+      const kstartupPrograms = kstartupRaw.map(p => {
+        const transformed = transformKStartupProgram(p)
+        return {
+          id: transformed.program_id,
+          ...transformed
+        }
+      })
+
+      // 합치기
+      let programs = [...bizinfoPrograms, ...kstartupPrograms]
+
+      // 필터 적용
+      if (source && source !== 'all') {
+        programs = programs.filter(p => p.source === source)
+      }
+      if (category) {
+        programs = programs.filter(p => p.category === category)
+      }
+      if (search) {
+        const q = search.toLowerCase()
+        programs = programs.filter(p =>
+          p.title.toLowerCase().includes(q) ||
+          p.organization?.toLowerCase().includes(q)
+        )
+      }
+
+      // 카테고리 통계
+      const allPrograms = [...bizinfoPrograms, ...kstartupPrograms]
+      const categoryStats: Record<string, number> = {}
+      allPrograms.forEach(p => {
+        const cat = p.category || '기타'
+        categoryStats[cat] = (categoryStats[cat] || 0) + 1
+      })
+
+      return NextResponse.json({
+        success: true,
+        programs: programs.slice(offset, offset + limit),
+        total: programs.length,
+        categoryStats,
+        sources: {
+          bizinfo: bizinfoPrograms.length,
+          kstartup: kstartupPrograms.length
+        },
+        isDemo: true,
+        message: 'DB 마이그레이션 필요 - API 직접 조회 중',
+        pagination: {
+          limit,
+          offset,
+          hasMore: programs.length > offset + limit
+        }
+      })
+    }
+
+    // DB에서 조회
     let query = supabase
       .from('government_programs')
       .select('*', { count: 'exact' })
@@ -72,9 +149,9 @@ export async function GET(request: NextRequest) {
     }
 
     // 카테고리별 통계
-    const { data: stats } = await supabase
+    const { data: stats } = await (supabase as any)
       .from('government_programs')
-      .select('category')
+      .select('category') as { data: { category: string }[] | null }
 
     const categoryStats: Record<string, number> = {}
     stats?.forEach(item => {

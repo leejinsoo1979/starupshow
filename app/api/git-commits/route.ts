@@ -15,7 +15,7 @@ export async function GET(request: Request) {
     const adminClient = createAdminClient()
 
     let query = adminClient
-      .from('git_commits')
+      .from('git_commits' as any)
       .select(`
         *,
         project:projects(id, name, project_type, color)
@@ -65,7 +65,7 @@ export async function POST(request: Request) {
     const adminClient = createAdminClient()
 
     const { data: commit, error } = await adminClient
-      .from('git_commits')
+      .from('git_commits' as any)
       .insert({
         user_id: user_id || '00000000-0000-0000-0000-000000000001',
         project_id,
@@ -77,7 +77,7 @@ export async function POST(request: Request) {
         deletions: deletions || 0,
         branch: branch || 'main',
         committed_at: committed_at || new Date().toISOString()
-      })
+      } as any)
       .select()
       .single()
 

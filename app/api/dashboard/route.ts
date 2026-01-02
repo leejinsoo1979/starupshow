@@ -60,7 +60,7 @@ export async function GET(request: NextRequest) {
       .in('priority', ['URGENT', 'HIGH'])
       .neq('status', 'DONE')
       .order('priority', { ascending: false })
-      .limit(5)
+      .limit(5) as { data: { id: string; title: string; status: string; priority: string }[] | null }
 
     // 위험 지수 계산 (BLOCKED 또는 오래된 TODO)
     const blockedTasks = tasks?.filter(t => t.status === 'BLOCKED').length || 0

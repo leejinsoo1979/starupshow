@@ -45,7 +45,7 @@ export async function GET(request: NextRequest) {
       query = query.eq('priority', priority)
     }
 
-    const { data, error, count } = await query
+    const { data, error, count } = await query as { data: any[] | null; error: any; count: number | null }
 
     if (error) {
       console.error('Tasks fetch error:', error)
@@ -53,11 +53,11 @@ export async function GET(request: NextRequest) {
     }
 
     // TodoWidget 형식에 맞게 변환 (status 매핑)
-    const mappedData = data?.map(task => ({
+    const mappedData = (data || []).map((task: Record<string, any>) => ({
       ...task,
       // project_tasks의 status를 TodoWidget 형식으로 매핑
       status: mapStatus(task.status),
-    })) || []
+    }))
 
     return NextResponse.json({
       data: mappedData,

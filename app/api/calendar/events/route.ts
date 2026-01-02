@@ -33,7 +33,7 @@ export async function GET(request: Request) {
 
   // 2. project_tasks에서 due_date가 있는 태스크를 캘린더 이벤트로 변환
   const { data: taskEvents } = await adminSupabase
-    .from('project_tasks')
+    .from('project_tasks' as any)
     .select('id, title, due_date, start_date, priority, status')
     .not('due_date', 'is', null)
     .gte('due_date', startDate.split('T')[0])
@@ -41,7 +41,7 @@ export async function GET(request: Request) {
     .order('due_date', { ascending: true })
 
   // 태스크를 캘린더 이벤트 형식으로 변환
-  const taskAsEvents = (taskEvents || []).map(task => ({
+  const taskAsEvents = ((taskEvents || []) as any[]).map(task => ({
     id: `task-${task.id}`,
     title: `📋 ${task.title}`,
     start_time: task.due_date ? `${task.due_date}T09:00:00` : task.start_date,

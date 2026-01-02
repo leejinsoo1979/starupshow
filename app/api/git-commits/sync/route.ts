@@ -123,7 +123,7 @@ export async function POST(request: NextRequest) {
 
     // Get projects with folder_path
     let query = adminSupabase
-      .from('projects')
+      .from('projects' as any)
       .select('id, name, folder_path, owner_id')
       .not('folder_path', 'is', null)
 
@@ -131,7 +131,7 @@ export async function POST(request: NextRequest) {
       query = query.eq('id', project_id)
     }
 
-    const { data: projects, error: projectsError } = await query
+    const { data: projects, error: projectsError } = await query as { data: { id: string; name: string; folder_path: string; owner_id: string }[] | null; error: any }
 
     if (projectsError) {
       console.error('[Git Sync] Projects query error:', projectsError)
@@ -158,9 +158,9 @@ export async function POST(request: NextRequest) {
 
         // Get existing commit hashes for this project
         const { data: existingCommits } = await adminSupabase
-          .from('git_commits')
+          .from('git_commits' as any)
           .select('commit_hash')
-          .eq('project_id', project.id)
+          .eq('project_id', project.id) as { data: { commit_hash: string }[] | null }
 
         const existingHashes = new Set((existingCommits || []).map(c => c.commit_hash))
 
@@ -187,8 +187,8 @@ export async function POST(request: NextRequest) {
         }))
 
         const { error: insertError } = await adminSupabase
-          .from('git_commits')
-          .insert(commitRecords)
+          .from('git_commits' as any)
+          .insert(commitRecords as any)
 
         if (insertError) {
           console.error(`[Git Sync] Insert error for ${project.name}:`, insertError)
@@ -224,7 +224,7 @@ export async function GET(request: NextRequest) {
 
     // Get latest commit timestamps per project
     let query = adminSupabase
-      .from('git_commits')
+      .from('git_commits' as any)
       .select('project_id, committed_at')
       .order('committed_at', { ascending: false })
 
@@ -232,7 +232,7 @@ export async function GET(request: NextRequest) {
       query = query.eq('project_id', project_id)
     }
 
-    const { data: commits } = await query.limit(100)
+    const { data: commits } = await query.limit(100) as { data: { project_id: string; committed_at: string }[] | null }
 
     // Group by project
     const projectStats: Record<string, { count: number; latest: string }> = {}

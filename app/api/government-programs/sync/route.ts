@@ -74,7 +74,7 @@ export async function POST(request: NextRequest) {
 
     for (const program of transformedPrograms) {
       // 기존 데이터 확인
-      const { data: existing } = await supabase
+      const { data: existing } = await (supabase as any)
         .from('government_programs')
         .select('id')
         .eq('program_id', program.program_id)
@@ -82,7 +82,7 @@ export async function POST(request: NextRequest) {
 
       if (existing) {
         // 업데이트
-        const { error } = await supabase
+        const { error } = await (supabase as any)
           .from('government_programs')
           .update({
             ...program,
@@ -93,7 +93,7 @@ export async function POST(request: NextRequest) {
         if (!error) updatedCount++
       } else {
         // 새로 삽입
-        const { data: inserted, error } = await supabase
+        const { data: inserted, error } = await (supabase as any)
           .from('government_programs')
           .insert(program)
           .select('id')

@@ -59,6 +59,14 @@ interface GovernmentProgram {
 }
 
 type StatusFilter = 'all' | 'active' | 'upcoming' | 'ended'
+type SourceFilter = 'all' | 'bizinfo' | 'kstartup'
+
+// 소스 정보
+const SOURCES = [
+  { id: 'all', label: '전체', color: '#a1a1aa' },
+  { id: 'bizinfo', label: '기업마당', color: '#22c55e' },
+  { id: 'kstartup', label: 'K-Startup', color: '#3b82f6' }
+]
 
 export default function GovernmentProgramsPage() {
   // 테마 설정
@@ -72,6 +80,7 @@ export default function GovernmentProgramsPage() {
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null)
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('active')
+  const [sourceFilter, setSourceFilter] = useState<SourceFilter>('all')
   const [categoryStats, setCategoryStats] = useState<Record<string, number>>({})
   const [total, setTotal] = useState(0)
   const [showFilters, setShowFilters] = useState(false)
@@ -84,6 +93,7 @@ export default function GovernmentProgramsPage() {
       if (selectedCategory) params.append('category', selectedCategory)
       if (searchQuery) params.append('search', searchQuery)
       if (statusFilter !== 'all') params.append('status', statusFilter)
+      if (sourceFilter !== 'all') params.append('source', sourceFilter)
 
       const response = await fetch(`/api/government-programs?${params.toString()}`)
       const data = await response.json()
@@ -98,7 +108,7 @@ export default function GovernmentProgramsPage() {
     } finally {
       setLoading(false)
     }
-  }, [selectedCategory, searchQuery, statusFilter])
+  }, [selectedCategory, searchQuery, statusFilter, sourceFilter])
 
   useEffect(() => {
     fetchPrograms()
@@ -226,6 +236,35 @@ export default function GovernmentProgramsPage() {
             </div>
           </div>
 
+          {/* 데이터 소스 필터 */}
+          <div className="mb-6">
+            <h3 className="text-xs font-medium text-zinc-500 uppercase mb-2">데이터 소스</h3>
+            <div className="space-y-1">
+              {SOURCES.map(source => (
+                <button
+                  key={source.id}
+                  onClick={() => setSourceFilter(source.id as SourceFilter)}
+                  className={cn(
+                    "w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-all",
+                    sourceFilter === source.id
+                      ? "text-white"
+                      : "text-zinc-400 hover:bg-zinc-800/50"
+                  )}
+                  style={sourceFilter === source.id ? {
+                    backgroundColor: `${source.color}20`,
+                    color: source.color
+                  } : undefined}
+                >
+                  <div
+                    className="w-2 h-2 rounded-full"
+                    style={{ backgroundColor: source.color }}
+                  />
+                  {source.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
           {/* 분야별 필터 */}
           <div>
             <h3 className="text-xs font-medium text-zinc-500 uppercase mb-2">분야</h3>
@@ -307,8 +346,18 @@ export default function GovernmentProgramsPage() {
                   >
                     <div className="flex items-start justify-between gap-4">
                       <div className="flex-1 min-w-0">
-                        {/* 카테고리 & 상태 */}
+                        {/* 소스 & 카테고리 & 상태 */}
                         <div className="flex items-center gap-2 mb-2">
+                          {/* 소스 배지 */}
+                          <span
+                            className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium"
+                            style={{
+                              backgroundColor: program.source === 'kstartup' ? '#3b82f620' : '#22c55e20',
+                              color: program.source === 'kstartup' ? '#3b82f6' : '#22c55e'
+                            }}
+                          >
+                            {program.source === 'kstartup' ? 'K-Startup' : '기업마당'}
+                          </span>
                           <span
                             className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium"
                             style={{

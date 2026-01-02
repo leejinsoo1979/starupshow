@@ -104,3 +104,18 @@ CREATE TRIGGER trigger_government_programs_updated_at
     BEFORE UPDATE ON government_programs
     FOR EACH ROW
     EXECUTE FUNCTION update_government_programs_updated_at();
+
+-- archived 컬럼 추가 (마감된 공고 정리용)
+ALTER TABLE government_programs ADD COLUMN IF NOT EXISTS archived BOOLEAN DEFAULT false;
+CREATE INDEX IF NOT EXISTS idx_government_programs_archived ON government_programs(archived);
+
+-- Cron 작업 로그 테이블
+CREATE TABLE IF NOT EXISTS cron_logs (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    job_name VARCHAR(100) NOT NULL,
+    status VARCHAR(20) NOT NULL,  -- 'success', 'error', 'running'
+    details JSONB,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX idx_cron_logs_job_name ON cron_logs(job_name, created_at DESC);
