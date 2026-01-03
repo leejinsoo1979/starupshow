@@ -313,7 +313,7 @@ export default function EmailPage() {
       const res = await fetch('/api/email/sync', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ account_id: selectedAccount.id }),
+        body: JSON.stringify({ account_id: selectedAccount.id, syncAll: true }),
       })
 
       if (res.ok) {
@@ -342,13 +342,13 @@ export default function EmailPage() {
         setSelectedAccount(account)
         setIsAddModalOpen(false)
 
-        // Sync emails for new account
+        // Sync emails for new account (all folders including spam, sent, etc.)
         setIsSyncing(true)
         try {
           await fetch('/api/email/sync', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ account_id: account.id }),
+            body: JSON.stringify({ account_id: account.id, syncAll: true }),
           })
         } catch (syncError) {
           console.error('Failed to sync emails:', syncError)
