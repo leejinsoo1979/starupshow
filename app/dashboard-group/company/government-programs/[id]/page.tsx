@@ -385,6 +385,11 @@ export default function GovernmentProgramDetailPage() {
             .government-content table:not(.preserve-table) tr {
               display: block !important;
               margin-bottom: 1em;
+              padding-bottom: 1em;
+              border-bottom: 1px solid ${isDark ? '#27272a' : '#e4e4e7'};
+            }
+            .government-content table:not(.preserve-table) tr:last-child {
+              border-bottom: none;
             }
             .government-content table:not(.preserve-table) td,
             .government-content table:not(.preserve-table) th {
@@ -393,13 +398,18 @@ export default function GovernmentProgramDetailPage() {
               border: none !important;
               padding: 0.25em 0 !important;
             }
+            .government-content table:not(.preserve-table) td:first-child,
+            .government-content table:not(.preserve-table) th:first-child {
+              color: ${themeColor};
+              font-weight: 600;
+            }
             .government-content h1,
             .government-content h2,
             .government-content h3,
             .government-content h4,
             .government-content h5,
             .government-content h6 {
-              color: ${isDark ? '#fafafa' : '#18181b'};
+              color: ${themeColor};
               font-weight: 700;
               margin-top: 1.5em;
               margin-bottom: 0.75em;
@@ -411,7 +421,7 @@ export default function GovernmentProgramDetailPage() {
             .government-content h4 { font-size: 1.1em; }
             .government-content strong,
             .government-content b {
-              color: ${isDark ? '#fafafa' : '#18181b'};
+              color: ${themeColor};
               font-weight: 600;
             }
             .government-content p {
@@ -429,6 +439,11 @@ export default function GovernmentProgramDetailPage() {
             }
             .government-content li {
               margin-bottom: 0.5em;
+              padding-bottom: 1em;
+              border-bottom: 1px solid ${isDark ? '#27272a' : '#e4e4e7'};
+            }
+            .government-content li:last-child {
+              border-bottom: none;
             }
             .government-content ul li {
               list-style-type: disc;
