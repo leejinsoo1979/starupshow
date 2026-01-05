@@ -11,12 +11,13 @@ import {
   Building2,
   ExternalLink,
   Download,
-  Bookmark,
-  BookmarkCheck,
   Clock,
   FileText,
   AlertCircle,
-  Loader2
+  Loader2,
+  Bookmark,
+  BookmarkCheck,
+  Share2
 } from 'lucide-react'
 import { AIMatchResult } from '@/components/government-programs/AIMatchResult'
 import JSZip from 'jszip'
@@ -222,39 +223,15 @@ export default function GovernmentProgramDetailPage() {
           backdropFilter: 'blur(8px)'
         }}
       >
-        <div className="max-w-4xl mx-auto flex items-center justify-between">
+        <div className="max-w-[1400px] mx-auto">
           <button
-            onClick={() => router.push('/dashboard-group/company/government-programs')}
+            onClick={() => { window.location.href = '/dashboard-group/company/government-programs' }}
             className="flex items-center gap-2 text-sm transition-colors hover:opacity-70"
             style={{ color: isDark ? '#a1a1aa' : '#71717a' }}
           >
             <ArrowLeft className="w-4 h-4" />
             목록으로
           </button>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => setIsBookmarked(!isBookmarked)}
-              className="p-2 rounded-lg transition-colors"
-              style={{
-                background: isDark ? '#27272a' : '#f4f4f5',
-                color: isBookmarked ? themeColor : (isDark ? '#a1a1aa' : '#71717a')
-              }}
-            >
-              {isBookmarked ? <BookmarkCheck className="w-5 h-5" /> : <Bookmark className="w-5 h-5" />}
-            </button>
-            {program.detail_url && (
-              <a
-                href={program.detail_url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium"
-                style={{ background: themeColor, color: '#fff' }}
-              >
-                <ExternalLink className="w-4 h-4" />
-                원문 보기
-              </a>
-            )}
-          </div>
         </div>
       </div>
 
@@ -283,9 +260,43 @@ export default function GovernmentProgramDetailPage() {
               {program.source === 'bizinfo' ? '기업마당' : program.source === 'kstartup' ? 'K-Startup' : program.source}
             </span>
           </div>
-          <h1 className="text-2xl font-bold mb-4 leading-tight" style={{ color: isDark ? '#fafafa' : '#18181b' }}>
-            {program.title}
-          </h1>
+          <div className="flex items-start gap-3 mb-4">
+            <h1 className="text-2xl font-bold leading-tight flex-1" style={{ color: isDark ? '#fafafa' : '#18181b' }}>
+              {program.title}
+            </h1>
+            <div className="flex items-center gap-2 flex-shrink-0">
+              <button
+                onClick={() => setIsBookmarked(!isBookmarked)}
+                className="p-2 rounded-lg transition-colors"
+                style={{ background: isDark ? '#27272a' : '#f4f4f5' }}
+                title={isBookmarked ? '즐겨찾기 해제' : '즐겨찾기 추가'}
+              >
+                {isBookmarked ? (
+                  <BookmarkCheck className="w-5 h-5" style={{ color: themeColor }} />
+                ) : (
+                  <Bookmark className="w-5 h-5" style={{ color: isDark ? '#a1a1aa' : '#71717a' }} />
+                )}
+              </button>
+              <button
+                onClick={() => {
+                  if (navigator.share) {
+                    navigator.share({
+                      title: program.title,
+                      url: window.location.href
+                    })
+                  } else {
+                    navigator.clipboard.writeText(window.location.href)
+                    alert('링크가 복사되었습니다')
+                  }
+                }}
+                className="p-2 rounded-lg transition-colors"
+                style={{ background: isDark ? '#27272a' : '#f4f4f5' }}
+                title="공유"
+              >
+                <Share2 className="w-5 h-5" style={{ color: isDark ? '#a1a1aa' : '#71717a' }} />
+              </button>
+            </div>
+          </div>
           <div className="flex flex-wrap items-center gap-4 text-sm">
             <div className="flex items-center gap-2" style={{ color: isDark ? '#a1a1aa' : '#71717a' }}>
               <Building2 className="w-4 h-4" />
