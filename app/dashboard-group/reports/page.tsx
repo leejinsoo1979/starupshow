@@ -1,580 +1,449 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
+import React, { useState, useEffect } from 'react'
 import {
   FileText,
   Calendar,
-  Plus,
-  Download,
-  Trash2,
-  Eye,
+  BarChart3,
   TrendingUp,
-  Users,
   CheckCircle,
   AlertTriangle,
-  Loader2,
+  Clock,
+  Target,
+  Zap,
+  RefreshCw,
+  Star,
+  FileSpreadsheet,
   ChevronRight,
-  BarChart3
+  PieChart,
+  Send,
 } from 'lucide-react'
-import { useAuthStore } from '@/stores/authStore'
+import { useTheme } from 'next-themes'
+import { cn } from '@/lib/utils'
 
-interface Report {
-  id: string
-  startup_id: string
-  type: 'weekly' | 'monthly'
-  title: string
-  summary: string
-  stats: {
-    taskStats: {
-      total: number
-      completed: number
-      inProgress: number
-      todo: number
-      completionRate: number
-      highPriority: number
-      overdue: number
-    }
-    kpiHighlights: Array<{
-      type: string
-      value: number
-      unit: string
-    }>
-    teamActivity: {
-      totalMembers: number
-      memberProductivity: Array<{
-        name: string
-        total: number
-        completed: number
-        rate: number
-      }>
-    }
-  }
-  period_start: string
-  period_end: string
-  created_at: string
-}
-
-export default function ReportsPage() {
-  const { currentStartup } = useAuthStore()
-  const [reports, setReports] = useState<Report[]>([])
-  const [isLoading, setIsLoading] = useState(true)
-  const [isGenerating, setIsGenerating] = useState(false)
-  const [selectedReport, setSelectedReport] = useState<Report | null>(null)
-  const [filterType, setFilterType] = useState<'all' | 'weekly' | 'monthly'>('all')
-  const [showGenerateModal, setShowGenerateModal] = useState(false)
-  const [generateType, setGenerateType] = useState<'weekly' | 'monthly'>('weekly')
+export default function ReportsDashboardPage() {
+  const { resolvedTheme } = useTheme()
+  const [mounted, setMounted] = useState(false)
 
   useEffect(() => {
-    if (currentStartup?.id) {
-      fetchReports()
-    }
-  }, [currentStartup?.id, filterType])
+    setMounted(true)
+  }, [])
 
-  const fetchReports = async () => {
-    if (!currentStartup?.id) return
+  const isDark = mounted ? resolvedTheme === 'dark' : true
 
-    setIsLoading(true)
-    try {
-      const typeParam = filterType !== 'all' ? `&type=${filterType}` : ''
-      const res = await fetch(`/api/reports?startup_id=${currentStartup.id}${typeParam}`)
-      if (res.ok) {
-        const data = await res.json()
-        setReports(data)
-      }
-    } catch (error) {
-      console.error('Failed to fetch reports:', error)
-    } finally {
-      setIsLoading(false)
-    }
+  // Mock data
+  const mockData = {
+    totalReports: 48,
+    weeklyReports: 32,
+    monthlyReports: 16,
+    avgCompletion: 87,
+    changePercent: 15.2,
+    pendingApprovals: 3,
+    monthlyTrend: [
+      { month: '7월', completion: 72, target: 80 },
+      { month: '8월', completion: 78, target: 80 },
+      { month: '9월', completion: 85, target: 80 },
+      { month: '10월', completion: 82, target: 85 },
+      { month: '11월', completion: 88, target: 85 },
+      { month: '12월', completion: 92, target: 90 },
+    ],
+    reportTypes: [
+      { name: '태스크 현황', count: 18, percent: 37.5 },
+      { name: '팀 생산성', count: 12, percent: 25.0 },
+      { name: 'KPI 분석', count: 8, percent: 16.7 },
+      { name: '매출 리포트', count: 6, percent: 12.5 },
+      { name: '비용 분석', count: 4, percent: 8.3 },
+    ],
+    recentReports: [
+      { id: 'RPT-048', title: '12월 4주차 주간 업무 리포트', type: 'weekly', completion: 87, date: '12.28', starred: true },
+      { id: 'RPT-047', title: '12월 월간 성과 리포트', type: 'monthly', completion: 92, date: '12.27', starred: true },
+      { id: 'RPT-046', title: '12월 3주차 주간 업무 리포트', type: 'weekly', completion: 78, date: '12.21', starred: false },
+      { id: 'RPT-045', title: '12월 2주차 주간 업무 리포트', type: 'weekly', completion: 85, date: '12.14', starred: false },
+      { id: 'RPT-044', title: '11월 월간 성과 리포트', type: 'monthly', completion: 88, date: '11.30', starred: false },
+    ],
+    scheduledReports: [
+      { title: '12월 5주차 주간 리포트', schedule: '매주 월요일 09:00', nextRun: '01.06', type: 'weekly' },
+      { title: '1월 월간 성과 리포트', schedule: '매월 1일 10:00', nextRun: '02.01', type: 'monthly' },
+      { title: 'Q4 분기 종합 리포트', schedule: '분기별', nextRun: '01.15', type: 'quarterly' },
+    ],
+    alerts: [
+      { type: 'success', message: '12월 월간 리포트 생성 완료', time: '방금 전' },
+      { type: 'info', message: '다음 주간 리포트 예정: 01.06', time: '1시간 전' },
+      { type: 'warning', message: '2건의 리포트 승인 대기 중', time: '3시간 전' },
+    ],
   }
 
-  const generateReport = async () => {
-    if (!currentStartup?.id) return
-
-    setIsGenerating(true)
-    try {
-      const res = await fetch('/api/reports', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          startup_id: currentStartup.id,
-          type: generateType
-        })
-      })
-
-      if (res.ok) {
-        const newReport = await res.json()
-        setReports(prev => [newReport, ...prev])
-        setShowGenerateModal(false)
-        setSelectedReport(newReport)
-      } else {
-        const error = await res.json()
-        alert(error.error || '리포트 생성 실패')
-      }
-    } catch (error) {
-      console.error('Failed to generate report:', error)
-      alert('리포트 생성 중 오류가 발생했습니다')
-    } finally {
-      setIsGenerating(false)
-    }
-  }
-
-  const deleteReport = async (id: string) => {
-    if (!confirm('이 리포트를 삭제하시겠습니까?')) return
-
-    try {
-      const res = await fetch(`/api/reports/${id}`, { method: 'DELETE' })
-      if (res.ok) {
-        setReports(prev => prev.filter(r => r.id !== id))
-        if (selectedReport?.id === id) {
-          setSelectedReport(null)
-        }
-      }
-    } catch (error) {
-      console.error('Failed to delete report:', error)
+  const getTypeConfig = (type: string) => {
+    switch (type) {
+      case 'weekly': return { label: '주간', className: 'bg-accent/20 text-accent' }
+      case 'monthly': return { label: '월간', className: 'bg-green-500/20 text-green-500' }
+      case 'quarterly': return { label: '분기', className: 'bg-amber-500/20 text-amber-500' }
+      default: return { label: type, className: isDark ? 'bg-zinc-700 text-zinc-400' : 'bg-zinc-200 text-zinc-600' }
     }
   }
 
-  const exportToPDF = async (report: Report) => {
-    // PDF 내보내기 - 브라우저 프린트 기능 사용
-    const printContent = document.getElementById('report-detail')
-    if (!printContent) return
-
-    const printWindow = window.open('', '_blank')
-    if (!printWindow) return
-
-    printWindow.document.write(`
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <title>${report.title}</title>
-          <style>
-            body { font-family: system-ui, -apple-system, sans-serif; padding: 40px; max-width: 800px; margin: 0 auto; }
-            h1 { font-size: 24px; margin-bottom: 8px; }
-            h2 { font-size: 18px; margin-top: 24px; margin-bottom: 12px; color: #374151; }
-            h3 { font-size: 16px; margin-top: 16px; margin-bottom: 8px; }
-            p { line-height: 1.6; color: #4b5563; }
-            .meta { color: #6b7280; font-size: 14px; margin-bottom: 24px; }
-            .stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin: 16px 0; }
-            .stat-card { background: #f3f4f6; padding: 16px; border-radius: 8px; text-align: center; }
-            .stat-value { font-size: 24px; font-weight: bold; color: #111827; }
-            .stat-label { font-size: 12px; color: #6b7280; margin-top: 4px; }
-            .summary { background: #f9fafb; padding: 20px; border-radius: 8px; margin: 20px 0; white-space: pre-wrap; }
-            table { width: 100%; border-collapse: collapse; margin: 16px 0; }
-            th, td { padding: 12px; text-align: left; border-bottom: 1px solid #e5e7eb; }
-            th { background: #f3f4f6; font-weight: 600; }
-            @media print { body { padding: 0; } }
-          </style>
-        </head>
-        <body>
-          <h1>${report.title}</h1>
-          <p class="meta">생성일: ${new Date(report.created_at).toLocaleDateString('ko-KR')} | 기간: ${report.period_start} ~ ${report.period_end}</p>
-
-          <h2>📊 태스크 현황</h2>
-          <div class="stats-grid">
-            <div class="stat-card">
-              <div class="stat-value">${report.stats?.taskStats?.total || 0}</div>
-              <div class="stat-label">전체 태스크</div>
-            </div>
-            <div class="stat-card">
-              <div class="stat-value">${report.stats?.taskStats?.completed || 0}</div>
-              <div class="stat-label">완료</div>
-            </div>
-            <div class="stat-card">
-              <div class="stat-value">${report.stats?.taskStats?.completionRate || 0}%</div>
-              <div class="stat-label">완료율</div>
-            </div>
-            <div class="stat-card">
-              <div class="stat-value">${report.stats?.taskStats?.overdue || 0}</div>
-              <div class="stat-label">지연</div>
-            </div>
-          </div>
-
-          <h2>👥 팀 활동</h2>
-          <table>
-            <thead>
-              <tr>
-                <th>팀원</th>
-                <th>전체</th>
-                <th>완료</th>
-                <th>완료율</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${(report.stats?.teamActivity?.memberProductivity || []).map(m => `
-                <tr>
-                  <td>${m.name}</td>
-                  <td>${m.total}</td>
-                  <td>${m.completed}</td>
-                  <td>${m.rate}%</td>
-                </tr>
-              `).join('')}
-            </tbody>
-          </table>
-
-          <h2>📝 AI 분석 요약</h2>
-          <div class="summary">${report.summary || '요약 없음'}</div>
-
-          <p style="margin-top: 40px; color: #9ca3af; font-size: 12px; text-align: center;">
-            Generated by GlowUS - ${new Date().toLocaleDateString('ko-KR')}
-          </p>
-        </body>
-      </html>
-    `)
-    printWindow.document.close()
-    printWindow.print()
-  }
-
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('ko-KR', {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric'
-    })
-  }
-
-  if (!currentStartup) {
-    return (
-      <div className="flex items-center justify-center h-[60vh]">
-        <div className="text-center">
-          <FileText className="w-16 h-16 text-zinc-600 mx-auto mb-4" />
-          <h2 className="text-xl font-semibold text-zinc-200 mb-2">스타트업을 선택해주세요</h2>
-          <p className="text-zinc-400">리포트를 생성하려면 먼저 스타트업을 선택하세요</p>
-        </div>
-      </div>
-    )
-  }
+  if (!mounted) return null
 
   return (
-    <div className="min-h-screen bg-zinc-950 p-6">
+    <div className={cn(
+      "min-h-screen p-8 transition-colors duration-300",
+      isDark ? "bg-zinc-950 text-zinc-100" : "bg-zinc-100 text-zinc-900"
+    )}>
       {/* Header */}
-      <div className="flex items-center justify-between mb-8">
-        <div>
-          <h1 className="text-2xl font-bold text-zinc-100">리포트</h1>
-          <p className="text-zinc-400 mt-1">주간/월간 성과 리포트를 생성하고 관리하세요</p>
+      <div className="mb-8">
+        <div className="flex items-center gap-3 mb-2">
+          <div className="p-3 rounded-2xl bg-accent/20">
+            <FileText className="w-7 h-7 text-accent" />
+          </div>
+          <div>
+            <h1 className={cn(
+              "text-3xl font-bold tracking-tight",
+              isDark ? "text-zinc-100" : "text-zinc-900"
+            )}>리포트</h1>
+            <p className={cn(
+              "text-sm",
+              isDark ? "text-zinc-500" : "text-zinc-600"
+            )}>업무 현황 및 성과 분석 리포트</p>
+          </div>
         </div>
-        <button
-          onClick={() => setShowGenerateModal(true)}
-          className="flex items-center gap-2 px-4 py-2 bg-accent text-white font-medium rounded-lg hover:bg-accent/90 transition-colors"
-        >
-          <Plus className="w-5 h-5" />
-          리포트 생성
-        </button>
       </div>
 
-      {/* Filter Tabs */}
-      <div className="flex gap-2 mb-6">
-        {(['all', 'weekly', 'monthly'] as const).map((type) => (
-          <button
-            key={type}
-            onClick={() => setFilterType(type)}
-            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-              filterType === type
-                ? 'bg-accent text-black'
-                : 'bg-zinc-800 text-zinc-300 hover:bg-zinc-700'
-            }`}
-          >
-            {type === 'all' ? '전체' : type === 'weekly' ? '주간' : '월간'}
-          </button>
+      {/* Key Stats */}
+      <div className="grid grid-cols-4 gap-4 mb-6">
+        {[
+          { title: '총 리포트', value: mockData.totalReports, sub: '이번 달 12건 생성', trend: `+${mockData.changePercent}%`, icon: FileText },
+          { title: '주간 리포트', value: mockData.weeklyReports, sub: '자동 생성 활성화', icon: Calendar },
+          { title: '월간 리포트', value: mockData.monthlyReports, sub: '분기별 4건 포함', icon: BarChart3 },
+          { title: '평균 달성률', value: `${mockData.avgCompletion}%`, sub: '목표 대비', icon: Target },
+        ].map((stat, idx) => (
+          <div key={idx} className={cn(
+            "relative overflow-hidden rounded-3xl p-6 border transition-all duration-300",
+            isDark
+              ? "bg-zinc-900 border-zinc-800"
+              : "bg-white border-zinc-200 shadow-sm"
+          )}>
+            <div className="absolute top-0 right-0 w-32 h-32 rounded-full blur-3xl opacity-10 bg-accent" />
+            <div className="flex items-center justify-between mb-4">
+              <span className={cn("text-sm font-medium", isDark ? "text-zinc-500" : "text-zinc-600")}>{stat.title}</span>
+              <div className="p-2 rounded-xl bg-accent/20">
+                <stat.icon className="w-4 h-4 text-accent" />
+              </div>
+            </div>
+            <p className={cn("text-3xl font-bold tracking-tight mb-1", isDark ? "text-zinc-100" : "text-zinc-900")}>{stat.value}</p>
+            {stat.trend && (
+              <span className="text-sm font-medium text-accent">{stat.trend} 전월 대비</span>
+            )}
+            {stat.sub && !stat.trend && (
+              <span className={cn("text-sm", isDark ? "text-zinc-500" : "text-zinc-600")}>{stat.sub}</span>
+            )}
+          </div>
         ))}
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Reports List */}
-        <div className="lg:col-span-1 space-y-3">
-          {isLoading ? (
-            <div className="flex items-center justify-center py-12">
-              <Loader2 className="w-8 h-8 text-accent animate-spin" />
-            </div>
-          ) : reports.length === 0 ? (
-            <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-8 text-center">
-              <FileText className="w-12 h-12 text-zinc-600 mx-auto mb-3" />
-              <p className="text-zinc-400">아직 생성된 리포트가 없습니다</p>
-              <button
-                onClick={() => setShowGenerateModal(true)}
-                className="mt-4 text-accent hover:underline text-sm"
-              >
-                첫 리포트 생성하기
-              </button>
-            </div>
-          ) : (
-            reports.map((report) => (
-              <motion.div
-                key={report.id}
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                className={`bg-zinc-900 border rounded-xl p-4 cursor-pointer transition-all hover:border-accent/50 ${
-                  selectedReport?.id === report.id ? 'border-accent' : 'border-zinc-800'
-                }`}
-                onClick={() => setSelectedReport(report)}
-              >
-                <div className="flex items-start justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className={`p-2 rounded-lg bg-accent/20`}>
-                      {report.type === 'weekly' ? (
-                        <Calendar className="w-5 h-5 text-accent" />
-                      ) : (
-                        <BarChart3 className="w-5 h-5 text-accent" />
-                      )}
-                    </div>
-                    <div>
-                      <p className="font-medium text-zinc-200 text-sm">
-                        {report.type === 'weekly' ? '주간' : '월간'} 리포트
-                      </p>
-                      <p className="text-xs text-zinc-500 mt-0.5">
-                        {formatDate(report.period_start)} ~ {formatDate(report.period_end)}
-                      </p>
-                    </div>
+      {/* Charts Row */}
+      <div className="grid grid-cols-3 gap-4 mb-6">
+        {/* Performance Trend */}
+        <div className={cn(
+          "rounded-3xl p-6 border transition-all duration-300",
+          isDark
+            ? "bg-zinc-900 border-zinc-800"
+            : "bg-white border-zinc-200 shadow-sm"
+        )}>
+          <div className="flex items-center justify-between mb-6">
+            <h3 className={cn("text-lg font-semibold", isDark ? "text-zinc-100" : "text-zinc-900")}>월별 달성률 추이</h3>
+            <TrendingUp className={cn("w-5 h-5", isDark ? "text-zinc-500" : "text-zinc-600")} />
+          </div>
+          <div className="h-48 flex items-end gap-2">
+            {mockData.monthlyTrend.map((item) => {
+              const completionHeight = item.completion
+              const targetHeight = item.target
+              const isAboveTarget = item.completion >= item.target
+              return (
+                <div key={item.month} className="flex-1 flex flex-col items-center gap-1">
+                  <div className="flex-1 flex items-end gap-0.5 w-full">
+                    <div
+                      className={cn("flex-1 rounded-lg", isDark ? "bg-zinc-700" : "bg-zinc-200")}
+                      style={{ height: `${targetHeight}%` }}
+                    />
+                    <div
+                      className={cn("flex-1 rounded-lg", isAboveTarget ? "bg-green-500" : "bg-accent")}
+                      style={{ height: `${completionHeight}%` }}
+                    />
                   </div>
-                  <ChevronRight className={`w-5 h-5 transition-colors ${
-                    selectedReport?.id === report.id ? 'text-accent' : 'text-zinc-600'
-                  }`} />
+                  <span className={cn("text-xs mt-2", isDark ? "text-zinc-500" : "text-zinc-600")}>{item.month}</span>
                 </div>
-
-                {report.stats?.taskStats && (
-                  <div className="mt-3 flex gap-4 text-xs">
-                    <span className="text-zinc-400">
-                      완료 <span className="text-green-400 font-medium">{report.stats.taskStats.completed}</span>
-                    </span>
-                    <span className="text-zinc-400">
-                      완료율 <span className="text-accent font-medium">{report.stats.taskStats.completionRate}%</span>
-                    </span>
-                  </div>
-                )}
-              </motion.div>
-            ))
-          )}
+              )
+            })}
+          </div>
+          <div className="flex items-center justify-center gap-6 mt-4">
+            <div className="flex items-center gap-2">
+              <div className={cn("w-3 h-3 rounded-full", isDark ? "bg-zinc-700" : "bg-zinc-300")} />
+              <span className={cn("text-xs", isDark ? "text-zinc-500" : "text-zinc-600")}>목표</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="w-3 h-3 rounded-full bg-green-500" />
+              <span className={cn("text-xs", isDark ? "text-zinc-500" : "text-zinc-600")}>달성</span>
+            </div>
+          </div>
         </div>
 
-        {/* Report Detail */}
-        <div className="lg:col-span-2">
-          {selectedReport ? (
-            <motion.div
-              id="report-detail"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              className="bg-zinc-900 border border-zinc-800 rounded-xl overflow-hidden"
-            >
-              {/* Header */}
-              <div className="p-6 border-b border-zinc-800">
-                <div className="flex items-start justify-between">
-                  <div>
-                    <div className="flex items-center gap-2 mb-2">
-                      <span className="px-2 py-1 rounded text-xs font-medium bg-accent/20 text-accent">
-                        {selectedReport.type === 'weekly' ? '주간' : '월간'}
-                      </span>
-                    </div>
-                    <h2 className="text-xl font-bold text-zinc-100">{selectedReport.title}</h2>
-                    <p className="text-sm text-zinc-500 mt-1">
-                      생성: {formatDate(selectedReport.created_at)}
-                    </p>
-                  </div>
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => exportToPDF(selectedReport)}
-                      className="p-2 bg-zinc-800 rounded-lg hover:bg-zinc-700 transition-colors"
-                      title="PDF 내보내기"
-                    >
-                      <Download className="w-5 h-5 text-zinc-300" />
-                    </button>
-                    <button
-                      onClick={() => deleteReport(selectedReport.id)}
-                      className="p-2 bg-zinc-800 rounded-lg hover:bg-red-500/20 transition-colors"
-                      title="삭제"
-                    >
-                      <Trash2 className="w-5 h-5 text-zinc-300 hover:text-red-400" />
-                    </button>
-                  </div>
-                </div>
-              </div>
-
-              {/* Stats */}
-              {selectedReport.stats?.taskStats && (
-                <div className="p-6 border-b border-zinc-800">
-                  <h3 className="text-sm font-semibold text-zinc-300 mb-4 flex items-center gap-2">
-                    <BarChart3 className="w-4 h-4" />
-                    태스크 현황
-                  </h3>
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                    <div className="bg-zinc-800/50 rounded-lg p-4 text-center">
-                      <p className="text-2xl font-bold text-zinc-100">
-                        {selectedReport.stats.taskStats.total}
-                      </p>
-                      <p className="text-xs text-zinc-500 mt-1">전체</p>
-                    </div>
-                    <div className="bg-zinc-800/50 rounded-lg p-4 text-center">
-                      <p className="text-2xl font-bold text-green-400">
-                        {selectedReport.stats.taskStats.completed}
-                      </p>
-                      <p className="text-xs text-zinc-500 mt-1">완료</p>
-                    </div>
-                    <div className="bg-zinc-800/50 rounded-lg p-4 text-center">
-                      <p className="text-2xl font-bold text-accent">
-                        {selectedReport.stats.taskStats.completionRate}%
-                      </p>
-                      <p className="text-xs text-zinc-500 mt-1">완료율</p>
-                    </div>
-                    <div className="bg-zinc-800/50 rounded-lg p-4 text-center">
-                      <p className="text-2xl font-bold text-red-400">
-                        {selectedReport.stats.taskStats.overdue}
-                      </p>
-                      <p className="text-xs text-zinc-500 mt-1">지연</p>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Team Activity */}
-              {selectedReport.stats?.teamActivity?.memberProductivity?.length > 0 && (
-                <div className="p-6 border-b border-zinc-800">
-                  <h3 className="text-sm font-semibold text-zinc-300 mb-4 flex items-center gap-2">
-                    <Users className="w-4 h-4" />
-                    팀원 생산성
-                  </h3>
-                  <div className="space-y-3">
-                    {selectedReport.stats.teamActivity.memberProductivity.map((member, idx) => (
-                      <div key={idx} className="flex items-center gap-4">
-                        <div className="w-8 h-8 bg-accent/20 rounded-full flex items-center justify-center">
-                          <span className="text-sm font-medium text-accent">
-                            {member.name.charAt(0)}
-                          </span>
-                        </div>
-                        <div className="flex-1">
-                          <div className="flex items-center justify-between mb-1">
-                            <span className="text-sm text-zinc-200">{member.name}</span>
-                            <span className="text-xs text-zinc-400">
-                              {member.completed}/{member.total} ({member.rate}%)
-                            </span>
-                          </div>
-                          <div className="h-2 bg-zinc-800 rounded-full overflow-hidden">
-                            <div
-                              className="h-full bg-accent rounded-full transition-all"
-                              style={{ width: `${member.rate}%` }}
-                            />
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* AI Summary */}
-              <div className="p-6">
-                <h3 className="text-sm font-semibold text-zinc-300 mb-4 flex items-center gap-2">
-                  <FileText className="w-4 h-4" />
-                  AI 분석 요약
-                </h3>
-                <div className="bg-zinc-800/50 rounded-lg p-4">
-                  <div className="prose prose-invert prose-sm max-w-none">
-                    <pre className="whitespace-pre-wrap text-sm text-zinc-300 font-sans">
-                      {selectedReport.summary || '요약이 생성되지 않았습니다.'}
-                    </pre>
-                  </div>
-                </div>
-              </div>
-            </motion.div>
-          ) : (
-            <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-12 text-center">
-              <Eye className="w-12 h-12 text-zinc-600 mx-auto mb-4" />
-              <p className="text-zinc-400">리포트를 선택하면 상세 내용이 표시됩니다</p>
+        {/* Report Types Donut */}
+        <div className={cn(
+          "rounded-3xl p-6 border transition-all duration-300",
+          isDark
+            ? "bg-zinc-900 border-zinc-800"
+            : "bg-white border-zinc-200 shadow-sm"
+        )}>
+          <div className="flex items-center justify-between mb-6">
+            <h3 className={cn("text-lg font-semibold", isDark ? "text-zinc-100" : "text-zinc-900")}>리포트 유형별</h3>
+            <PieChart className={cn("w-5 h-5", isDark ? "text-zinc-500" : "text-zinc-600")} />
+          </div>
+          <div className="relative w-40 h-40 mx-auto mb-4">
+            <svg className="w-full h-full transform -rotate-90">
+              <circle cx="80" cy="80" r="55" strokeWidth="20" fill="none" className={isDark ? "stroke-zinc-800" : "stroke-zinc-200"} />
+              {(() => {
+                let offset = 0
+                const circumference = 2 * Math.PI * 55
+                // Using theme-consistent colors
+                const segmentColors = ['rgb(var(--accent-color-rgb))', '#22c55e', '#a855f7', '#f59e0b', '#ef4444']
+                return mockData.reportTypes.map((type, index) => {
+                  const segmentLength = (type.percent / 100) * circumference
+                  const segment = (
+                    <circle
+                      key={type.name}
+                      cx="80"
+                      cy="80"
+                      r="55"
+                      fill="none"
+                      stroke={segmentColors[index]}
+                      strokeWidth="20"
+                      strokeDasharray={`${segmentLength} ${circumference - segmentLength}`}
+                      strokeDashoffset={-offset}
+                    />
+                  )
+                  offset += segmentLength
+                  return segment
+                })
+              })()}
+            </svg>
+            <div className="absolute inset-0 flex flex-col items-center justify-center">
+              <span className={cn("text-3xl font-bold", isDark ? "text-zinc-100" : "text-zinc-900")}>{mockData.totalReports}</span>
+              <span className={cn("text-sm", isDark ? "text-zinc-500" : "text-zinc-600")}>총 리포트</span>
             </div>
-          )}
+          </div>
+          <div className="space-y-2">
+            {mockData.reportTypes.slice(0, 4).map((type, index) => {
+              const dotColors = ['bg-accent', 'bg-green-500', 'bg-purple-500', 'bg-amber-500']
+              return (
+                <div key={type.name} className="flex items-center gap-2">
+                  <div className={cn("w-3 h-3 rounded-full", dotColors[index])} />
+                  <span className={cn("text-xs flex-1", isDark ? "text-zinc-500" : "text-zinc-600")}>{type.name}</span>
+                  <span className={cn("text-xs font-medium", isDark ? "text-zinc-100" : "text-zinc-900")}>{type.count}건</span>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+
+        {/* Scheduled Reports */}
+        <div className={cn(
+          "rounded-3xl p-6 border transition-all duration-300",
+          isDark
+            ? "bg-zinc-900 border-zinc-800"
+            : "bg-white border-zinc-200 shadow-sm"
+        )}>
+          <div className="flex items-center justify-between mb-6">
+            <h3 className={cn("text-lg font-semibold", isDark ? "text-zinc-100" : "text-zinc-900")}>예약된 리포트</h3>
+            <RefreshCw className={cn("w-5 h-5", isDark ? "text-zinc-500" : "text-zinc-600")} />
+          </div>
+          <div className="space-y-3">
+            {mockData.scheduledReports.map((report, idx) => {
+              const typeConfig = getTypeConfig(report.type)
+              return (
+                <div key={idx} className={cn(
+                  "p-4 rounded-2xl",
+                  isDark ? "bg-zinc-800" : "bg-zinc-100"
+                )}>
+                  <div className="flex items-center justify-between mb-2">
+                    <span className={cn("text-sm font-medium truncate flex-1", isDark ? "text-zinc-100" : "text-zinc-900")}>{report.title}</span>
+                    <span className={cn("px-2 py-0.5 rounded-full text-xs font-medium ml-2", typeConfig.className)}>
+                      {typeConfig.label}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2 text-xs mb-2">
+                    <Clock className={cn("w-3 h-3", isDark ? "text-zinc-500" : "text-zinc-600")} />
+                    <span className={isDark ? "text-zinc-500" : "text-zinc-600"}>{report.schedule}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className={cn("text-xs", isDark ? "text-zinc-500" : "text-zinc-600")}>다음 생성: {report.nextRun}</span>
+                    <button className="text-xs text-accent hover:text-accent/80 font-medium">실행</button>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
         </div>
       </div>
 
-      {/* Generate Modal */}
-      <AnimatePresence>
-        {showGenerateModal && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4"
-            onClick={() => setShowGenerateModal(false)}
-          >
-            <motion.div
-              initial={{ scale: 0.95, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.95, opacity: 0 }}
-              className="bg-zinc-900 border border-zinc-800 rounded-xl p-6 w-full max-w-md"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <h3 className="text-lg font-semibold text-zinc-100 mb-4">새 리포트 생성</h3>
-
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-zinc-300 mb-2">
-                    리포트 유형
-                  </label>
-                  <div className="grid grid-cols-2 gap-3">
-                    <button
-                      onClick={() => setGenerateType('weekly')}
-                      className={`p-4 rounded-lg border-2 transition-all ${
-                        generateType === 'weekly'
-                          ? 'border-accent bg-accent/10'
-                          : 'border-zinc-700 hover:border-accent/50'
-                      }`}
-                    >
-                      <Calendar className={`w-6 h-6 mx-auto mb-2 ${
-                        generateType === 'weekly' ? 'text-accent' : 'text-zinc-400'
-                      }`} />
-                      <p className={`text-sm font-medium ${
-                        generateType === 'weekly' ? 'text-accent' : 'text-zinc-300'
-                      }`}>주간 리포트</p>
-                      <p className="text-xs text-zinc-500 mt-1">최근 7일</p>
-                    </button>
-                    <button
-                      onClick={() => setGenerateType('monthly')}
-                      className={`p-4 rounded-lg border-2 transition-all ${
-                        generateType === 'monthly'
-                          ? 'border-accent bg-accent/10'
-                          : 'border-zinc-700 hover:border-accent/50'
-                      }`}
-                    >
-                      <BarChart3 className={`w-6 h-6 mx-auto mb-2 ${
-                        generateType === 'monthly' ? 'text-accent' : 'text-zinc-400'
-                      }`} />
-                      <p className={`text-sm font-medium ${
-                        generateType === 'monthly' ? 'text-accent' : 'text-zinc-300'
-                      }`}>월간 리포트</p>
-                      <p className="text-xs text-zinc-500 mt-1">최근 30일</p>
-                    </button>
+      {/* Bottom Section */}
+      <div className="grid grid-cols-2 gap-4">
+        {/* Recent Reports */}
+        <div className={cn(
+          "rounded-3xl p-6 border transition-all duration-300",
+          isDark
+            ? "bg-zinc-900 border-zinc-800"
+            : "bg-white border-zinc-200 shadow-sm"
+        )}>
+          <div className="flex items-center justify-between mb-6">
+            <h3 className={cn("text-lg font-semibold", isDark ? "text-zinc-100" : "text-zinc-900")}>최근 리포트</h3>
+            <button className="text-sm text-accent hover:text-accent/80 flex items-center gap-1">
+              전체보기 <ChevronRight className="w-4 h-4" />
+            </button>
+          </div>
+          <div className="space-y-3">
+            {mockData.recentReports.map((report) => {
+              const typeConfig = getTypeConfig(report.type)
+              return (
+                <div key={report.id} className={cn(
+                  "flex items-center gap-4 p-4 rounded-2xl transition-colors",
+                  isDark ? "bg-zinc-800 hover:bg-zinc-700" : "bg-zinc-100 hover:bg-zinc-200"
+                )}>
+                  <div className={cn("p-3 rounded-xl", isDark ? "bg-zinc-700" : "bg-white")}>
+                    {report.starred ? (
+                      <Star className="w-5 h-5 text-amber-400 fill-amber-400" />
+                    ) : (
+                      <FileText className={cn("w-5 h-5", isDark ? "text-zinc-500" : "text-zinc-600")} />
+                    )}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <span className={cn("font-medium truncate block", isDark ? "text-zinc-100" : "text-zinc-900")}>{report.title}</span>
+                    <div className="flex items-center gap-2 mt-0.5">
+                      <span className={cn("px-2 py-0.5 rounded-full text-xs font-medium", typeConfig.className)}>
+                        {typeConfig.label}
+                      </span>
+                      <span className={cn("text-xs", isDark ? "text-zinc-500" : "text-zinc-600")}>{report.date}</span>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className={cn("w-12 h-1.5 rounded-full overflow-hidden", isDark ? "bg-zinc-700" : "bg-zinc-200")}>
+                      <div
+                        className={cn("h-full rounded-full", report.completion >= 90 ? "bg-green-500" : report.completion >= 70 ? "bg-accent" : "bg-amber-500")}
+                        style={{ width: `${report.completion}%` }}
+                      />
+                    </div>
+                    <span className={cn("text-xs font-medium w-8 text-right", report.completion >= 90 ? "text-green-500" : isDark ? "text-zinc-100" : "text-zinc-900")}>
+                      {report.completion}%
+                    </span>
                   </div>
                 </div>
+              )
+            })}
+          </div>
+        </div>
 
-                <p className="text-xs text-zinc-500">
-                  AI가 해당 기간의 태스크, KPI, 팀 활동을 분석하여 리포트를 생성합니다.
-                </p>
+        {/* AI Insights & Alerts */}
+        <div className="space-y-4">
+          {/* AI Insights */}
+          <div className={cn(
+            "rounded-3xl p-6 border transition-all duration-300",
+            isDark
+              ? "bg-zinc-900 border-zinc-800"
+              : "bg-white border-zinc-200 shadow-sm"
+          )}>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className={cn("text-lg font-semibold", isDark ? "text-zinc-100" : "text-zinc-900")}>AI 인사이트</h3>
+              <Zap className="w-5 h-5 text-amber-400" />
+            </div>
+            <div className={cn("p-4 rounded-2xl", isDark ? "bg-zinc-800" : "bg-zinc-100")}>
+              <p className={cn("text-sm leading-relaxed", isDark ? "text-zinc-400" : "text-zinc-600")}>
+                12월 성과가 크게 향상되었습니다. 목표 대비 <span className="font-semibold text-green-500">102%</span> 달성으로 Q4 최고 성과를 기록했습니다.
+              </p>
+              <div className="flex items-center gap-4 mt-3">
+                <div className="flex items-center gap-1">
+                  <TrendingUp className="w-3 h-3 text-green-500" />
+                  <span className={cn("text-xs", isDark ? "text-zinc-500" : "text-zinc-600")}>생산성 +18%</span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <CheckCircle className="w-3 h-3 text-accent" />
+                  <span className={cn("text-xs", isDark ? "text-zinc-500" : "text-zinc-600")}>완료율 92%</span>
+                </div>
               </div>
+            </div>
+            <button className={cn(
+              "w-full mt-3 flex items-center justify-center gap-2 py-3 rounded-2xl text-sm font-medium transition-colors",
+              "bg-accent/20 text-accent hover:bg-accent/30"
+            )}>
+              <FileSpreadsheet className="w-4 h-4" />
+              상세 분석 보기
+            </button>
+          </div>
 
-              <div className="flex gap-3 mt-6">
-                <button
-                  onClick={() => setShowGenerateModal(false)}
-                  className="flex-1 px-4 py-2 bg-zinc-800 text-zinc-300 rounded-lg hover:bg-zinc-700 transition-colors"
-                >
-                  취소
-                </button>
-                <button
-                  onClick={generateReport}
-                  disabled={isGenerating}
-                  className="flex-1 px-4 py-2 bg-accent text-white font-medium rounded-lg hover:bg-accent/90 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
-                >
-                  {isGenerating ? (
-                    <>
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                      생성 중...
-                    </>
-                  ) : (
-                    '리포트 생성'
-                  )}
-                </button>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+          {/* Alerts */}
+          <div className={cn(
+            "rounded-3xl p-6 border transition-all duration-300",
+            isDark
+              ? "bg-zinc-900 border-zinc-800"
+              : "bg-white border-zinc-200 shadow-sm"
+          )}>
+            <h3 className={cn("text-lg font-semibold mb-4", isDark ? "text-zinc-100" : "text-zinc-900")}>알림</h3>
+            <div className="space-y-2">
+              {mockData.alerts.map((alert, idx) => (
+                <div key={idx} className={cn(
+                  "flex items-start gap-3 p-3 rounded-2xl",
+                  isDark ? "bg-zinc-800" : "bg-zinc-100"
+                )}>
+                  <div className={cn(
+                    "w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0",
+                    alert.type === 'success' ? "bg-green-500/20" :
+                    alert.type === 'warning' ? "bg-amber-400/20" :
+                    "bg-accent/20"
+                  )}>
+                    {alert.type === 'success' ? (
+                      <CheckCircle className="w-4 h-4 text-green-500" />
+                    ) : alert.type === 'warning' ? (
+                      <AlertTriangle className="w-4 h-4 text-amber-400" />
+                    ) : (
+                      <Clock className="w-4 h-4 text-accent" />
+                    )}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className={cn("text-sm", isDark ? "text-zinc-100" : "text-zinc-900")}>{alert.message}</p>
+                    <p className={cn("text-xs mt-0.5", isDark ? "text-zinc-500" : "text-zinc-600")}>{alert.time}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Quick Actions */}
+      <div className={cn(
+        "rounded-3xl p-6 border mt-4 transition-all duration-300",
+        isDark
+          ? "bg-zinc-900 border-zinc-800"
+          : "bg-white border-zinc-200 shadow-sm"
+      )}>
+        <h3 className={cn("text-lg font-semibold mb-4", isDark ? "text-zinc-100" : "text-zinc-900")}>빠른 작업</h3>
+        <div className="grid grid-cols-6 gap-3">
+          {[
+            { icon: Calendar, label: '주간 리포트' },
+            { icon: BarChart3, label: '월간 리포트' },
+            { icon: Target, label: 'KPI 분석' },
+            { icon: TrendingUp, label: '성과 리포트' },
+            { icon: Send, label: '리포트 공유' },
+            { icon: Zap, label: 'AI 생성' },
+          ].map((action, idx) => (
+            <button key={idx} className={cn(
+              "p-4 rounded-2xl text-center transition-all hover:scale-105",
+              isDark ? "bg-zinc-800 hover:bg-zinc-700" : "bg-zinc-100 hover:bg-zinc-200"
+            )}>
+              <action.icon className="w-6 h-6 mx-auto mb-2 text-accent" />
+              <span className={cn("text-xs font-medium", isDark ? "text-zinc-400" : "text-zinc-600")}>{action.label}</span>
+            </button>
+          ))}
+        </div>
+      </div>
     </div>
   )
 }
