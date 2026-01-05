@@ -374,6 +374,25 @@ export default function GovernmentProgramDetailPage() {
               font-size: 15px;
               line-height: 1.8;
             }
+            .government-content * {
+              float: none !important;
+              position: static !important;
+            }
+            .government-content table:not(.preserve-table) {
+              display: block !important;
+              width: 100% !important;
+            }
+            .government-content table:not(.preserve-table) tr {
+              display: block !important;
+              margin-bottom: 1em;
+            }
+            .government-content table:not(.preserve-table) td,
+            .government-content table:not(.preserve-table) th {
+              display: block !important;
+              width: 100% !important;
+              border: none !important;
+              padding: 0.25em 0 !important;
+            }
             .government-content h1,
             .government-content h2,
             .government-content h3,
@@ -417,26 +436,7 @@ export default function GovernmentProgramDetailPage() {
             .government-content ol li {
               list-style-type: decimal;
             }
-            .government-content table {
-              width: 100%;
-              border-collapse: collapse;
-              margin: 1em 0;
-              font-size: 14px;
-            }
-            .government-content th,
-            .government-content td {
-              border: 1px solid ${isDark ? '#3f3f46' : '#d4d4d8'};
-              padding: 10px 12px;
-              text-align: left;
-            }
-            .government-content th {
-              background: ${isDark ? '#27272a' : '#f4f4f5'};
-              color: ${isDark ? '#fafafa' : '#18181b'};
-              font-weight: 600;
-            }
-            .government-content tr:nth-child(even) {
-              background: ${isDark ? 'rgba(39, 39, 42, 0.3)' : 'rgba(244, 244, 245, 0.5)'};
-            }
+            /* 테이블은 1단 레이아웃으로 강제 (위에서 처리됨) */
             .government-content a {
               color: ${themeColor};
               text-decoration: underline;
@@ -588,7 +588,40 @@ export default function GovernmentProgramDetailPage() {
 
             /* ========== Bizinfo 전용 스타일 ========== */
             .government-content .bizinfo-original {
-              padding: 1em 0;
+              padding: 0;
+            }
+            .government-content .bizinfo-original .view_cont {
+              padding: 0;
+            }
+            .government-content .bizinfo-original .view_cont > ul {
+              list-style: none;
+              padding: 0;
+              margin: 0;
+            }
+            .government-content .bizinfo-original .view_cont > ul > li {
+              padding: 1.25em 0;
+              border-bottom: 1px solid ${isDark ? '#3f3f46' : '#e4e4e7'};
+            }
+            .government-content .bizinfo-original .view_cont > ul > li:first-child {
+              padding-top: 0;
+            }
+            .government-content .bizinfo-original .view_cont > ul > li:last-child {
+              border-bottom: none;
+            }
+            .government-content .bizinfo-original .s_title {
+              display: block;
+              font-size: 0.9em;
+              font-weight: 600;
+              color: ${themeColor};
+              margin-bottom: 0.5em;
+            }
+            .government-content .bizinfo-original .txt {
+              color: ${isDark ? '#e4e4e7' : '#27272a'};
+              font-weight: 500;
+              line-height: 1.7;
+            }
+            .government-content .bizinfo-original .txt p {
+              margin: 0.5em 0;
             }
             .government-content .bizinfo-original h3 {
               font-size: 1.15em;
@@ -597,6 +630,7 @@ export default function GovernmentProgramDetailPage() {
               margin-top: 1.5em;
               margin-bottom: 0.75em;
               padding-bottom: 0.5em;
+              border-bottom: 2px solid ${themeColor};
               display: inline-block;
             }
             .government-content .bizinfo-original h3:first-child {
