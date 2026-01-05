@@ -1,15 +1,28 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/server'
 import {
   fetchBizinfoPrograms,
   transformBizinfoProgram,
+  scrapeBizinfoDetail,
   BIZINFO_CATEGORIES,
   type BizinfoCategory
 } from '@/lib/government/bizinfo'
 import {
+  fetchBizinfoEvents,
+  transformBizinfoEvent
+} from '@/lib/government/bizinfo-events'
+import {
   fetchKStartupPrograms,
-  transformKStartupProgram
+  transformKStartupProgram,
+  scrapeKStartupDetail
 } from '@/lib/government/kstartup'
+import {
+  fetchSemasPrograms,
+  transformSemasProgram,
+  SEMAS_CATEGORIES,
+  type SemasCategory
+} from '@/lib/government/semas'
+import { notifyMatchedUsers, sendEndingSoonNotifications } from '@/lib/notifications'
 
 /**
  * 정부지원사업 데이터 자동 수집 스케줄러
@@ -38,7 +51,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  const supabase = await createClient()
+  const supabase = createAdminClient()
 
   try {
     console.log('[GovernmentPrograms Cron] 자동 수집 시작:', new Date().toISOString())
@@ -63,20 +76,26 @@ export async function GET(request: NextRequest) {
     const errors: string[] = []
 
     console.log('[GovernmentPrograms Cron] 기업마당 수집 시작...')
-    for (const catId of Object.keys(BIZINFO_CATEGORIES) as BizinfoCategory[]) {
-      try {
+    // 카테고리 필터 없이 전체 데이터 수집 (API가 카테고리 필터를 지원하지 않음)
+    try {
+      // 페이지별로 수집 (최대 500개까지)
+      for (let page = 1; page <= 5; page++) {
         const programs = await fetchBizinfoPrograms({
-          category: catId,
-          searchCount: 50
+          searchCount: 100,
+          pageIndex: page
         })
+
+        if (programs.length === 0) break // 더 이상 데이터 없음
+
         bizinfoPrograms.push(...programs)
+        console.log(`[GovernmentPrograms Cron] 기업마당 페이지 ${page}: ${programs.length}개`)
 
         // Rate limiting 방지
         await new Promise(resolve => setTimeout(resolve, 300))
-      } catch (error: any) {
-        console.error(`[GovernmentPrograms Cron] 기업마당 ${catId} 수집 실패:`, error.message)
-        errors.push(`bizinfo-${catId}: ${error.message}`)
       }
+    } catch (error: any) {
+      console.error('[GovernmentPrograms Cron] 기업마당 수집 실패:', error.message)
+      errors.push(`bizinfo: ${error.message}`)
     }
     console.log(`[GovernmentPrograms Cron] 기업마당 ${bizinfoPrograms.length}개 수집`)
 
@@ -96,7 +115,42 @@ export async function GET(request: NextRequest) {
       errors.push(`kstartup: ${error.message}`)
     }
 
-    // ========== 3. 데이터 변환 및 중복 제거 ==========
+    // ========== 3. 소진공 데이터 수집 ==========
+    let semasPrograms: any[] = []
+
+    console.log('[GovernmentPrograms Cron] 소진공 수집 시작...')
+    for (const catId of Object.keys(SEMAS_CATEGORIES) as SemasCategory[]) {
+      try {
+        const programs = await fetchSemasPrograms({
+          category: catId,
+          numOfRows: 50,
+          onlyActive: true
+        })
+        semasPrograms.push(...programs)
+
+        // Rate limiting 방지
+        await new Promise(resolve => setTimeout(resolve, 300))
+      } catch (error: any) {
+        console.error(`[GovernmentPrograms Cron] 소진공 ${catId} 수집 실패:`, error.message)
+        errors.push(`semas-${catId}: ${error.message}`)
+      }
+    }
+    console.log(`[GovernmentPrograms Cron] 소진공 ${semasPrograms.length}개 수집`)
+
+    // ========== 4. 행사정보 수집 ==========
+    let bizinfoEvents: any[] = []
+
+    console.log('[GovernmentPrograms Cron] 행사정보 수집 시작...')
+    try {
+      const events = await fetchBizinfoEvents({ searchCount: 100 })
+      bizinfoEvents = events
+      console.log(`[GovernmentPrograms Cron] 행사정보 ${bizinfoEvents.length}개 수집`)
+    } catch (error: any) {
+      console.error('[GovernmentPrograms Cron] 행사정보 수집 실패:', error.message)
+      errors.push(`bizinfo_event: ${error.message}`)
+    }
+
+    // ========== 5. 데이터 변환 및 중복 제거 ==========
     // 기업마당 중복 제거
     const uniqueBizinfo = new Map()
     for (const p of bizinfoPrograms) {
@@ -105,13 +159,32 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    // 소진공 중복 제거
+    const uniqueSemas = new Map()
+    for (const p of semasPrograms) {
+      const key = p.pbancSn || p.pbancNm
+      if (!uniqueSemas.has(key)) {
+        uniqueSemas.set(key, p)
+      }
+    }
+
+    // 행사정보 중복 제거
+    const uniqueEvents = new Map()
+    for (const e of bizinfoEvents) {
+      if (!uniqueEvents.has(e.eventInfoId)) {
+        uniqueEvents.set(e.eventInfoId, e)
+      }
+    }
+
     // 변환
     const transformedBizinfo = Array.from(uniqueBizinfo.values()).map(transformBizinfoProgram)
     const transformedKStartup = kstartupPrograms.map(transformKStartupProgram)
+    const transformedSemas = Array.from(uniqueSemas.values()).map(transformSemasProgram)
+    const transformedEvents = Array.from(uniqueEvents.values()).map(transformBizinfoEvent)
 
     // 합치기
-    const transformedPrograms = [...transformedBizinfo, ...transformedKStartup]
-    console.log(`[GovernmentPrograms Cron] 총 ${transformedPrograms.length}개 변환 완료`)
+    const transformedPrograms = [...transformedBizinfo, ...transformedKStartup, ...transformedSemas, ...transformedEvents]
+    console.log(`[GovernmentPrograms Cron] 총 ${transformedPrograms.length}개 변환 완료 (기업마당: ${transformedBizinfo.length}, K-Startup: ${transformedKStartup.length}, 소진공: ${transformedSemas.length}, 행사: ${transformedEvents.length})`)
 
     let insertedCount = 0
     let updatedCount = 0
@@ -157,6 +230,104 @@ export async function GET(request: NextRequest) {
 
     console.log(`[GovernmentPrograms Cron] 저장 완료: 신규 ${insertedCount}, 업데이트 ${updatedCount}`)
 
+    // ========== 6. K-Startup content 보강 (스크래핑) ==========
+    // API에서 상세 데이터가 없는 경우 상세페이지 크롤링으로 보강
+    // 시간 제한을 위해 최대 30개만 처리
+    let scrapedCount = 0
+    const maxScrape = 30
+
+    console.log('[GovernmentPrograms Cron] K-Startup 스크래핑 보강 시작...')
+
+    // content가 NULL인 K-Startup 프로그램 조회
+    const { data: needsScraping } = await (supabase as any)
+      .from('government_programs')
+      .select('id, detail_url')
+      .eq('source', 'kstartup')
+      .is('content', null)
+      .not('detail_url', 'is', null)
+      .limit(maxScrape)
+
+    if (needsScraping && needsScraping.length > 0) {
+      for (const program of needsScraping) {
+        if (!program.detail_url?.includes('pbancSn=')) continue
+
+        try {
+          const scraped = await scrapeKStartupDetail(program.detail_url)
+
+          if (scraped?.content) {
+            const updateData: any = {
+              content: scraped.content,
+              updated_at: new Date().toISOString()
+            }
+            if (scraped.attachments && scraped.attachments.length > 0) {
+              updateData.attachments_primary = scraped.attachments
+            }
+
+            await (supabase as any)
+              .from('government_programs')
+              .update(updateData)
+              .eq('id', program.id)
+
+            scrapedCount++
+          }
+
+          // Rate limiting
+          await new Promise(resolve => setTimeout(resolve, 500))
+        } catch (e) {
+          // 스크래핑 실패 무시
+        }
+      }
+      console.log(`[GovernmentPrograms Cron] K-Startup 스크래핑 보강: ${scrapedCount}/${needsScraping.length}개 성공`)
+    }
+
+    // ========== 7. 기업마당 content 보강 (스크래핑) ==========
+    let bizinfoScrapedCount = 0
+    const maxBizinfoScrape = 30
+
+    console.log('[GovernmentPrograms Cron] 기업마당 스크래핑 보강 시작...')
+
+    // content가 NULL인 기업마당 프로그램 조회
+    const { data: bizinfoNeedsScraping } = await (supabase as any)
+      .from('government_programs')
+      .select('id, detail_url')
+      .eq('source', 'bizinfo')
+      .is('content', null)
+      .not('detail_url', 'is', null)
+      .limit(maxBizinfoScrape)
+
+    if (bizinfoNeedsScraping && bizinfoNeedsScraping.length > 0) {
+      for (const program of bizinfoNeedsScraping) {
+        if (!program.detail_url) continue
+
+        try {
+          const scraped = await scrapeBizinfoDetail(program.detail_url)
+
+          if (scraped?.content) {
+            const updateData: any = {
+              content: scraped.content,
+              updated_at: new Date().toISOString()
+            }
+            if (scraped.attachments && scraped.attachments.length > 0) {
+              updateData.attachments_primary = scraped.attachments
+            }
+
+            await (supabase as any)
+              .from('government_programs')
+              .update(updateData)
+              .eq('id', program.id)
+
+            bizinfoScrapedCount++
+          }
+
+          // Rate limiting
+          await new Promise(resolve => setTimeout(resolve, 500))
+        } catch (e) {
+          // 스크래핑 실패 무시
+        }
+      }
+      console.log(`[GovernmentPrograms Cron] 기업마당 스크래핑 보강: ${bizinfoScrapedCount}/${bizinfoNeedsScraping.length}개 성공`)
+    }
+
     // 새 공고가 있으면 구독자에게 알림 생성
     if (newProgramIds.length > 0) {
       await createNotificationsForNewPrograms(supabase, newProgramIds)
@@ -177,11 +348,17 @@ export async function GET(request: NextRequest) {
     const stats = {
       sources: {
         bizinfo: transformedBizinfo.length,
-        kstartup: transformedKStartup.length
+        kstartup: transformedKStartup.length,
+        semas: transformedSemas.length,
+        bizinfo_event: transformedEvents.length
       },
       total: transformedPrograms.length,
       inserted: insertedCount,
       updated: updatedCount,
+      scraped: {
+        kstartup: scrapedCount,
+        bizinfo: bizinfoScrapedCount
+      },
       archived: archivedCount || 0,
       errors: errors.length > 0 ? errors : undefined
     }
@@ -197,7 +374,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      message: `수집 완료: 기업마당 ${transformedBizinfo.length}건, K-Startup ${transformedKStartup.length}건 (신규 ${insertedCount}, 업데이트 ${updatedCount})`,
+      message: `수집 완료: 기업마당 ${transformedBizinfo.length}건, K-Startup ${transformedKStartup.length}건, 소진공 ${transformedSemas.length}건, 행사 ${transformedEvents.length}건 (신규 ${insertedCount}, 업데이트 ${updatedCount})`,
       stats: {
         ...stats,
         newProgramIds
@@ -229,69 +406,35 @@ export async function GET(request: NextRequest) {
 }
 
 /**
- * 새 공고에 대해 구독자 알림 생성
+ * 새 공고에 대해 에이전트 알림 발송
+ * - notification_queue 테이블에 추가
+ * - 클라이언트에서 Realtime으로 구독하여 AgentNotificationPopup 표시
  */
 async function createNotificationsForNewPrograms(
   supabase: any,
   programIds: string[]
 ) {
   try {
-    // 새 공고 정보 가져오기
-    const { data: programs } = await supabase
-      .from('government_programs')
-      .select('id, title, category, hashtags')
-      .in('id', programIds)
+    let totalNotified = 0
+    let totalFailed = 0
 
-    if (!programs?.length) return
+    for (const programId of programIds) {
+      // 매칭 점수 70점 이상 사용자에게 알림 발송
+      const result = await notifyMatchedUsers(programId, 70)
+      totalNotified += result.notified
+      totalFailed += result.failed
 
-    // 모든 구독자 가져오기
-    const { data: subscribers } = await supabase
-      .from('government_program_subscriptions')
-      .select('user_id, categories, keywords')
-      .eq('push_enabled', true)
-
-    if (!subscribers?.length) return
-
-    // 각 공고에 대해 관련 구독자에게 알림 생성
-    const notifications: any[] = []
-
-    for (const program of programs) {
-      for (const subscriber of subscribers) {
-        // 카테고리 매칭 체크
-        const categoryMatch =
-          !subscriber.categories?.length ||
-          subscriber.categories.includes(program.category)
-
-        // 키워드 매칭 체크
-        const keywordMatch =
-          !subscriber.keywords?.length ||
-          subscriber.keywords.some((kw: string) =>
-            program.title?.toLowerCase().includes(kw.toLowerCase()) ||
-            program.hashtags?.some((tag: string) =>
-              tag.toLowerCase().includes(kw.toLowerCase())
-            )
-          )
-
-        if (categoryMatch || keywordMatch) {
-          notifications.push({
-            user_id: subscriber.user_id,
-            program_id: program.id,
-            is_read: false,
-            notified_at: new Date().toISOString()
-          })
-        }
-      }
+      // Rate limiting
+      await new Promise(resolve => setTimeout(resolve, 100))
     }
 
-    // 알림 일괄 삽입
-    if (notifications.length > 0) {
-      await supabase
-        .from('government_program_notifications')
-        .upsert(notifications, { onConflict: 'user_id,program_id' })
+    console.log(`[GovernmentPrograms Cron] 에이전트 알림 발송: ${totalNotified}명 성공, ${totalFailed}명 실패`)
 
-      console.log(`[GovernmentPrograms Cron] ${notifications.length}개 알림 생성`)
-    }
+    // 마감 임박 공고 알림도 함께 발송
+    const endingSoonResult = await sendEndingSoonNotifications(7)
+    console.log(`[GovernmentPrograms Cron] 마감 임박 알림: ${endingSoonResult.programsChecked}건 확인, ${endingSoonResult.notificationsSent}건 발송`)
+
   } catch (error) {
-    console.error('[GovernmentPrograms Cron] 알림 생성 오류:', error)
+    console.error('[GovernmentPrograms Cron] 알림 발송 오류:', error)
   }
 }
