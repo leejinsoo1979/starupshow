@@ -100,7 +100,7 @@ export default function GovernmentProgramDetailPage() {
     if (startDate && startDate > today) {
       return { label: '예정', color: '#f59e0b', bg: 'rgba(245, 158, 11, 0.1)' }
     }
-    return { label: '진행중', color: '#10b981', bg: 'rgba(16, 185, 129, 0.1)' }
+    return { label: '진행중', color: accentColor, bg: accentColor + '15' }
   }
 
   const formatDate = (dateStr: string | null) => {
@@ -147,7 +147,7 @@ export default function GovernmentProgramDetailPage() {
             {error || '프로그램을 찾을 수 없습니다'}
           </p>
           <button
-            onClick={() => router.back()}
+            onClick={() => router.push('/dashboard-group/company/government-programs')}
             className="px-4 py-2 rounded-lg text-sm"
             style={{ background: accentColor, color: '#fff' }}
           >
@@ -174,7 +174,7 @@ export default function GovernmentProgramDetailPage() {
       >
         <div className="max-w-4xl mx-auto flex items-center justify-between">
           <button
-            onClick={() => router.back()}
+            onClick={() => router.push('/dashboard-group/company/government-programs')}
             className="flex items-center gap-2 text-sm transition-colors hover:opacity-70"
             style={{ color: isDark ? '#a1a1aa' : '#71717a' }}
           >
@@ -246,8 +246,8 @@ export default function GovernmentProgramDetailPage() {
               <div
                 className="flex items-center gap-2 px-2 py-1 rounded"
                 style={{
-                  background: daysLeft <= 7 ? 'rgba(239, 68, 68, 0.1)' : 'rgba(16, 185, 129, 0.1)',
-                  color: daysLeft <= 7 ? '#ef4444' : '#10b981'
+                  background: daysLeft <= 7 ? 'rgba(239, 68, 68, 0.1)' : accentColor + '15',
+                  color: daysLeft <= 7 ? '#ef4444' : accentColor
                 }}
               >
                 <Clock className="w-4 h-4" />
