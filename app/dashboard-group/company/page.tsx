@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { useTheme } from 'next-themes'
 import { useThemeStore } from '@/stores/themeStore'
@@ -59,8 +59,8 @@ function WidgetHeader({
 }
 
 // 캘린더 컴포넌트
-function CalendarWidget({ isDark }: { isDark: boolean }) {
-  const [currentDate, setCurrentDate] = useState(new Date(2025, 11, 1))
+function CalendarWidget({ isDark, eventDays = [] }: { isDark: boolean; eventDays?: number[] }) {
+  const [currentDate, setCurrentDate] = useState(new Date())
   const router = useRouter()
 
   const year = currentDate.getFullYear()
@@ -85,7 +85,9 @@ function CalendarWidget({ isDark }: { isDark: boolean }) {
     days.push({ day: i, isCurrentMonth: false })
   }
 
-  const todayEvents = [12, 25, 26]
+  const todayEvents = eventDays.length > 0 ? eventDays : []
+  const today = new Date()
+  const isToday = (day: number) => today.getDate() === day && today.getMonth() === month && today.getFullYear() === year
 
   return (
     <div className={cn(
@@ -170,13 +172,28 @@ function CalendarWidget({ isDark }: { isDark: boolean }) {
 }
 
 // Todo 위젯
-function TodoWidget({ isDark }: { isDark: boolean }) {
+interface UpcomingEvent {
+  date: number
+  title: string
+}
+
+function TodoWidget({ isDark, events = [] }: { isDark: boolean; events?: UpcomingEvent[] }) {
   const router = useRouter()
-  const todos = [
-    { date: 12, label: 'Today', items: ['등록된 일정이 없습니다.'], color: 'bg-accent' },
-    { date: 13, label: '', items: ['등록된 일정이 없습니다.'], color: 'bg-zinc-400' },
-    { date: 14, label: '', items: ['등록된 일정이 없습니다.'], color: 'bg-amber-500' },
-  ]
+  const today = new Date().getDate()
+
+  // 실제 이벤트가 있으면 사용, 없으면 기본 mock 데이터
+  const todos = events.length > 0
+    ? events.map((e, i) => ({
+        date: e.date,
+        label: e.date === today ? 'Today' : '',
+        items: [e.title],
+        color: e.date === today ? 'bg-accent' : i === 1 ? 'bg-zinc-400' : 'bg-amber-500'
+      }))
+    : [
+        { date: today, label: 'Today', items: ['등록된 일정이 없습니다.'], color: 'bg-accent' },
+        { date: today + 1, label: '', items: ['등록된 일정이 없습니다.'], color: 'bg-zinc-400' },
+        { date: today + 2, label: '', items: ['등록된 일정이 없습니다.'], color: 'bg-amber-500' },
+      ]
 
   return (
     <div className={cn(
@@ -212,8 +229,20 @@ function TodoWidget({ isDark }: { isDark: boolean }) {
 }
 
 // 매출입 현황
-function SalesWidget({ isDark }: { isDark: boolean }) {
+interface Financials {
+  monthly_sales: number
+  monthly_purchases: number
+  monthly_profit: number
+}
+
+function SalesWidget({ isDark, financials }: { isDark: boolean; financials?: Financials | null }) {
   const [tab, setTab] = useState<'sales' | 'purchase'>('sales')
+
+  const formatMoney = (amount: number) => {
+    return new Intl.NumberFormat('ko-KR').format(amount)
+  }
+
+  const hasData = financials && (financials.monthly_sales > 0 || financials.monthly_purchases > 0)
 
   return (
     <div className={cn(
@@ -258,9 +287,20 @@ function SalesWidget({ isDark }: { isDark: boolean }) {
         'h-32 flex items-center justify-center rounded-lg',
         isDark ? 'bg-zinc-800/50' : 'bg-zinc-50'
       )}>
-        <p className={cn('text-sm', isDark ? 'text-zinc-500' : 'text-zinc-400')}>
-          매출 내역에 등록된 건이 없습니다.
-        </p>
+        {hasData ? (
+          <div className="text-center">
+            <p className={cn('text-2xl font-bold', isDark ? 'text-zinc-100' : 'text-zinc-900')}>
+              ₩{formatMoney(tab === 'sales' ? financials.monthly_sales : financials.monthly_purchases)}
+            </p>
+            <p className={cn('text-xs mt-1', isDark ? 'text-zinc-500' : 'text-zinc-400')}>
+              {tab === 'sales' ? '이번 달 매출' : '이번 달 매입'}
+            </p>
+          </div>
+        ) : (
+          <p className={cn('text-sm', isDark ? 'text-zinc-500' : 'text-zinc-400')}>
+            매출 내역에 등록된 건이 없습니다.
+          </p>
+        )}
       </div>
     </div>
   )
@@ -352,7 +392,17 @@ function NoticeWidget({ isDark }: { isDark: boolean }) {
 }
 
 // 전자결제 진행현황
-function PaymentProgressWidget({ isDark }: { isDark: boolean }) {
+interface ApprovalStatsData {
+  inbox: number
+  sent: number
+  drafts: number
+  completed: number
+  monthly: { total: number; approved: number; rejected: number; pending: number }
+}
+
+function PaymentProgressWidget({ isDark, approvalData }: { isDark: boolean; approvalData?: ApprovalStatsData | null }) {
+  const hasData = approvalData && (approvalData.inbox > 0 || approvalData.sent > 0 || approvalData.completed > 0)
+
   return (
     <div className={cn(
       'rounded-xl border p-4',
@@ -360,14 +410,35 @@ function PaymentProgressWidget({ isDark }: { isDark: boolean }) {
     )}>
       <WidgetHeader title="전자결제 진행현황" href="/dashboard-group/finance/transactions" isDark={isDark} />
 
-      <div className={cn(
-        'h-24 flex items-center justify-center rounded-lg',
-        isDark ? 'bg-zinc-800/50' : 'bg-zinc-50'
-      )}>
-        <p className={cn('text-sm', isDark ? 'text-zinc-500' : 'text-zinc-400')}>
-          목록이 없습니다.
-        </p>
-      </div>
+      {hasData ? (
+        <div className="grid grid-cols-4 gap-2">
+          <div className={cn('rounded-lg p-3 text-center', isDark ? 'bg-zinc-800' : 'bg-zinc-50')}>
+            <p className={cn('text-lg font-bold', 'text-blue-500')}>{approvalData.inbox}</p>
+            <p className={cn('text-xs', isDark ? 'text-zinc-500' : 'text-zinc-400')}>수신함</p>
+          </div>
+          <div className={cn('rounded-lg p-3 text-center', isDark ? 'bg-zinc-800' : 'bg-zinc-50')}>
+            <p className={cn('text-lg font-bold', 'text-amber-500')}>{approvalData.sent}</p>
+            <p className={cn('text-xs', isDark ? 'text-zinc-500' : 'text-zinc-400')}>발신함</p>
+          </div>
+          <div className={cn('rounded-lg p-3 text-center', isDark ? 'bg-zinc-800' : 'bg-zinc-50')}>
+            <p className={cn('text-lg font-bold', isDark ? 'text-zinc-400' : 'text-zinc-600')}>{approvalData.drafts}</p>
+            <p className={cn('text-xs', isDark ? 'text-zinc-500' : 'text-zinc-400')}>임시저장</p>
+          </div>
+          <div className={cn('rounded-lg p-3 text-center', isDark ? 'bg-zinc-800' : 'bg-zinc-50')}>
+            <p className={cn('text-lg font-bold', 'text-emerald-500')}>{approvalData.completed}</p>
+            <p className={cn('text-xs', isDark ? 'text-zinc-500' : 'text-zinc-400')}>완료</p>
+          </div>
+        </div>
+      ) : (
+        <div className={cn(
+          'h-24 flex items-center justify-center rounded-lg',
+          isDark ? 'bg-zinc-800/50' : 'bg-zinc-50'
+        )}>
+          <p className={cn('text-sm', isDark ? 'text-zinc-500' : 'text-zinc-400')}>
+            목록이 없습니다.
+          </p>
+        </div>
+      )}
     </div>
   )
 }
@@ -494,18 +565,26 @@ function ContractProgressWidget({ isDark }: { isDark: boolean }) {
 }
 
 // 인력 현황
-function HRStatusWidget({ isDark }: { isDark: boolean }) {
+interface HRData {
+  total: number
+  active: number
+  on_leave: number
+  today_attendance: number
+}
+
+function HRStatusWidget({ isDark, employeesData }: { isDark: boolean; employeesData?: HRData | null }) {
   const [hoveredPoint, setHoveredPoint] = useState<number | null>(null)
   const [rangeStart, setRangeStart] = useState(0)
   const [rangeEnd, setRangeEnd] = useState(100)
 
+  // 실제 데이터가 있으면 사용, 없으면 기본 mock 데이터
   const hrData = [
     { month: '2025-07', total: 0.35, joined: 0.1, left: 0.05 },
     { month: '2025-08', total: 0.4, joined: 0.15, left: 0.1 },
     { month: '2025-09', total: 0.55, joined: 0.2, left: 0.05 },
     { month: '2025-10', total: 0.65, joined: 0.1, left: 0.1 },
     { month: '2025-11', total: 0.75, joined: 0.2, left: 0.1 },
-    { month: '2025-12', total: 0.85, joined: 0.15, left: 0.05 },
+    { month: '2025-12', total: employeesData ? employeesData.total / 100 : 0.85, joined: 0.15, left: employeesData ? employeesData.on_leave / 100 : 0.05 },
   ]
 
   // viewBox 기반 반응형 차트
@@ -1156,6 +1235,53 @@ function MiniContractPreview({ isDark }: { isDark: boolean }) {
   )
 }
 
+// 위젯 미리보기 - 정부지원사업 (Government Programs)
+function MiniGovernmentProgramsPreview({ isDark }: { isDark: boolean }) {
+  const { accentColor } = useThemeStore()
+
+  const getAccentBg = () => {
+    switch (accentColor) {
+      case 'purple': return 'bg-purple-500'
+      case 'blue': return 'bg-blue-500'
+      case 'green': return 'bg-green-500'
+      case 'orange': return 'bg-orange-500'
+      case 'pink': return 'bg-pink-500'
+      case 'red': return 'bg-red-500'
+      case 'yellow': return 'bg-yellow-500'
+      case 'cyan': return 'bg-cyan-500'
+      default: return 'bg-blue-500'
+    }
+  }
+
+  return (
+    <div className="h-full flex items-center justify-center p-3">
+      <div className="flex flex-col items-center gap-2">
+        {/* 로켓 아이콘 */}
+        <div className={cn(
+          'w-8 h-8 rounded-lg flex items-center justify-center transform -rotate-45',
+          getAccentBg()
+        )}>
+          <svg className="w-5 h-5 text-white transform rotate-45" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09z"/>
+            <path d="m12 15-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 0 1-4 2z"/>
+            <path d="M9 12H4s.55-3.03 2-4c1.62-1.08 5 0 5 0"/>
+            <path d="M12 15v5s3.03-.55 4-2c1.08-1.62 0-5 0-5"/>
+          </svg>
+        </div>
+        {/* 미니 진행 바 */}
+        <div className="w-12 space-y-1">
+          <div className={cn('h-1 rounded-full', isDark ? 'bg-zinc-700' : 'bg-zinc-200')}>
+            <div className={cn('h-1 rounded-full w-3/4', getAccentBg())} />
+          </div>
+          <div className={cn('h-1 rounded-full', isDark ? 'bg-zinc-700' : 'bg-zinc-200')}>
+            <div className={cn('h-1 rounded-full w-1/2', getAccentBg(), 'opacity-70')} />
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // 위젯 미리보기 - 자료수집 (High-Fidelity Server Rack)
 function MiniDataCollectionPreview({ isDark }: { isDark: boolean }) {
   const { accentColor } = useThemeStore()
@@ -1213,13 +1339,83 @@ function MiniDataCollectionPreview({ isDark }: { isDark: boolean }) {
   )
 }
 
+// API 데이터 타입
+interface ERPDashboardData {
+  employees: { total: number; active: number; on_leave: number; today_attendance: number }
+  financials: { monthly_sales: number; monthly_purchases: number; monthly_profit: number }
+  monthly_trend: Array<{ month: string; sales: number; purchases: number }>
+}
+
+interface ApprovalStats {
+  inbox: number; sent: number; drafts: number; completed: number
+  monthly: { total: number; approved: number; rejected: number; pending: number }
+}
+
 export default function CompanyDashboardPage() {
   const { resolvedTheme } = useTheme()
   const { accentColor } = useThemeStore() // Call hook here too for container styling
   const isDark = resolvedTheme === 'dark'
   const [isWidgetBarOpen, setIsWidgetBarOpen] = useState(true)
 
+  // API 데이터 상태
+  const [erpData, setErpData] = useState<ERPDashboardData | null>(null)
+  const [approvalStats, setApprovalStats] = useState<ApprovalStats | null>(null)
+  const [calendarEvents, setCalendarEvents] = useState<number[]>([])
+  const [upcomingEvents, setUpcomingEvents] = useState<Array<{ date: number; title: string }>>([])
+
+
   const router = useRouter()
+
+  // 데이터 로드
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+        // ERP 대시보드 데이터
+        const erpRes = await fetch('/api/erp/dashboard')
+        if (erpRes.ok) {
+          const data = await erpRes.json()
+          if (data.success) setErpData(data.data)
+        }
+
+        // 결재 통계
+        const approvalRes = await fetch('/api/erp/approval/stats')
+        if (approvalRes.ok) {
+          const data = await approvalRes.json()
+          if (data.success) setApprovalStats(data.data)
+        }
+
+        // Google 캘린더
+        const now = new Date()
+        const firstDay = new Date(now.getFullYear(), now.getMonth(), 1)
+        const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0)
+        const calRes = await fetch(`/api/google-calendar/events?timeMin=${firstDay.toISOString()}&timeMax=${lastDay.toISOString()}`)
+        if (calRes.ok) {
+          const data = await calRes.json()
+          if (data.events) {
+            const eventDays = data.events.map((e: any) => new Date(e.start_time).getDate())
+            setCalendarEvents(eventDays)
+
+            // 오늘 이후 3일간의 이벤트 추출
+            const today = now.getDate()
+            const upcoming = data.events
+              .filter((e: any) => {
+                const eventDate = new Date(e.start_time).getDate()
+                return eventDate >= today && eventDate <= today + 2
+              })
+              .slice(0, 3)
+              .map((e: any) => ({
+                date: new Date(e.start_time).getDate(),
+                title: e.summary || '일정'
+              }))
+            setUpcomingEvents(upcoming)
+          }
+        }
+      } catch (err) {
+        console.error('[Company Dashboard] Load error:', err)
+      }
+    }
+    loadData()
+  }, [])
 
   const widgetPreviews = [
     { id: 'calendar', title: '자금 캘린더', href: '/dashboard-group/company/calendar', preview: <MiniCalendarPreview isDark={isDark} /> },
@@ -1230,6 +1426,7 @@ export default function CompanyDashboardPage() {
     { id: 'account', title: '계좌 잔액 현황', href: '/dashboard-group/finance/accounts', preview: <MiniAccountPreview isDark={isDark} /> },
     { id: 'education', title: '교육 현황', href: '/dashboard-group/hr/training-status', preview: <MiniPlayPreview isDark={isDark} /> },
     { id: 'contract', title: '전자계약 진행현황', href: '/dashboard-group/hr/contracts', preview: <MiniContractPreview isDark={isDark} /> },
+    { id: 'government-programs', title: '정부지원사업', href: '/dashboard-group/company/government-programs', preview: <MiniGovernmentProgramsPreview isDark={isDark} /> },
     { id: 'data-collection', title: '기관별 자료수집 이력', href: '/dashboard-group/company/data-collection', preview: <MiniDataCollectionPreview isDark={isDark} /> },
   ]
 
@@ -1290,18 +1487,18 @@ export default function CompanyDashboardPage() {
           </div>
         </div>
 
-        {/* 위젯 미리보기 그리드 */}
+        {/* 위젯 미리보기 슬라이드 */}
         <div className={cn(
           'transition-all duration-300 overflow-hidden',
           isWidgetBarOpen ? 'max-h-60 pb-6' : 'max-h-0'
         )}>
-          <div className="grid grid-cols-9 gap-3">
+          <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide">
             {widgetPreviews.map((widget) => (
               <div
                 key={widget.id}
                 onClick={() => router.push(widget.href)}
                 className={cn(
-                  'group rounded-lg border overflow-hidden cursor-pointer transition-all duration-200',
+                  'group rounded-lg border overflow-hidden cursor-pointer transition-all duration-200 flex-shrink-0 w-[calc((100%-2.25rem)/9)]',
                   isDark ? 'bg-zinc-900 border-zinc-700' : 'bg-white border-zinc-200',
                   theme.border, // Hover border color from theme
                   theme.bg // Hover background tint from theme
@@ -1337,23 +1534,23 @@ export default function CompanyDashboardPage() {
       <div className="grid grid-cols-3 gap-6">
         {/* 왼쪽 컬럼 */}
         <div className="space-y-4">
-          <CalendarWidget isDark={isDark} />
-          <TodoWidget isDark={isDark} />
-          <SalesWidget isDark={isDark} />
+          <CalendarWidget isDark={isDark} eventDays={calendarEvents} />
+          <TodoWidget isDark={isDark} events={upcomingEvents} />
+          <SalesWidget isDark={isDark} financials={erpData?.financials} />
           <TrainingWidget isDark={isDark} />
         </div>
 
         {/* 가운데 컬럼 */}
         <div className="space-y-4">
           <NoticeWidget isDark={isDark} />
-          <PaymentProgressWidget isDark={isDark} />
+          <PaymentProgressWidget isDark={isDark} approvalData={approvalStats} />
           <TaxInvoiceWidget isDark={isDark} />
           <ContractProgressWidget isDark={isDark} />
         </div>
 
         {/* 오른쪽 컬럼 */}
         <div className="space-y-4">
-          <HRStatusWidget isDark={isDark} />
+          <HRStatusWidget isDark={isDark} employeesData={erpData?.employees} />
           <AccountBalanceWidget isDark={isDark} />
           <DataCollectionWidget isDark={isDark} />
         </div>
