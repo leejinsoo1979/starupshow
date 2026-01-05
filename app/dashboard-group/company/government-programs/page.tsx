@@ -430,10 +430,10 @@ function MonthlyTrendChart({
     }))
   }, [data])
 
-  if (chartData.length === 0) {
+  if (chartData.length < 2) {
     return (
       <div className={cn("flex items-center justify-center h-full text-sm", isDark ? "text-zinc-500" : "text-gray-400")}>
-        데이터 없음
+        {chartData.length === 0 ? '데이터 없음' : '데이터 수집 중...'}
       </div>
     )
   }
@@ -1220,6 +1220,7 @@ export default function GovernmentProgramsPage() {
   const [syncing, setSyncing] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null)
+  const [selectedSupportType, setSelectedSupportType] = useState<string | null>(null)
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('active')
   const [sourceFilter, setSourceFilter] = useState<SourceFilter>('all')
   const [viewMode, setViewMode] = useState<ViewMode>('dashboard')
@@ -1230,11 +1231,17 @@ export default function GovernmentProgramsPage() {
   const [userProfile, setUserProfile] = useState<any>(null)
   const [profileLoading, setProfileLoading] = useState(false)
 
-  // URL 파라미터에서 view 모드 초기화
+  // URL 파라미터에서 view 모드 및 type 필터 초기화
   useEffect(() => {
     const view = searchParams.get('view')
+    const type = searchParams.get('type')
     if (view === 'matches' || view === 'list' || view === 'dashboard' || view === 'knowledge') {
       setViewMode(view as ViewMode)
+    }
+    if (type) {
+      setSelectedSupportType(type)
+    } else {
+      setSelectedSupportType(null)
     }
   }, [searchParams])
 
@@ -1294,6 +1301,7 @@ export default function GovernmentProgramsPage() {
     try {
       const params = new URLSearchParams()
       if (selectedCategory) params.append('category', selectedCategory)
+      if (selectedSupportType) params.append('support_type', selectedSupportType)
       if (searchQuery) params.append('search', searchQuery)
       if (statusFilter !== 'all') params.append('status', statusFilter)
       if (sourceFilter !== 'all') params.append('source', sourceFilter)
@@ -1309,7 +1317,7 @@ export default function GovernmentProgramsPage() {
     } finally {
       setLoading(false)
     }
-  }, [selectedCategory, searchQuery, statusFilter, sourceFilter])
+  }, [selectedCategory, selectedSupportType, searchQuery, statusFilter, sourceFilter])
 
   useEffect(() => {
     fetchStats()
