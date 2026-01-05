@@ -4,7 +4,7 @@
 import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { useTheme } from 'next-themes'
-import { useThemeStore } from '@/stores/themeStore'
+import { useThemeStore, accentColors } from '@/stores/themeStore'
 import {
   ArrowLeft,
   Calendar,
@@ -60,6 +60,7 @@ export default function GovernmentProgramDetailPage() {
   const { resolvedTheme } = useTheme()
   const { accentColor } = useThemeStore()
   const isDark = resolvedTheme === 'dark'
+  const themeColor = accentColors.find(c => c.id === accentColor)?.color || '#6366f1'
 
   const [program, setProgram] = useState<GovernmentProgram | null>(null)
   const [loading, setLoading] = useState(true)
@@ -149,7 +150,7 @@ export default function GovernmentProgramDetailPage() {
     if (startDate && startDate > today) {
       return { label: '예정', color: '#f59e0b', bg: 'rgba(245, 158, 11, 0.1)' }
     }
-    return { label: '진행중', color: accentColor, bg: accentColor + '15' }
+    return { label: '진행중', color: themeColor, bg: themeColor + '15' }
   }
 
   const formatDate = (dateStr: string | null) => {
@@ -177,7 +178,7 @@ export default function GovernmentProgramDetailPage() {
         style={{ background: isDark ? '#0a0a0a' : '#fafafa' }}
       >
         <div className="flex items-center gap-3">
-          <Loader2 className="w-6 h-6 animate-spin" style={{ color: accentColor }} />
+          <Loader2 className="w-6 h-6 animate-spin" style={{ color: themeColor }} />
           <span style={{ color: isDark ? '#a1a1aa' : '#71717a' }}>불러오는 중...</span>
         </div>
       </div>
@@ -198,7 +199,7 @@ export default function GovernmentProgramDetailPage() {
           <button
             onClick={() => router.push('/dashboard-group/company/government-programs')}
             className="px-4 py-2 rounded-lg text-sm"
-            style={{ background: accentColor, color: '#fff' }}
+            style={{ background: themeColor, color: '#fff' }}
           >
             돌아가기
           </button>
@@ -236,7 +237,7 @@ export default function GovernmentProgramDetailPage() {
               className="p-2 rounded-lg transition-colors"
               style={{
                 background: isDark ? '#27272a' : '#f4f4f5',
-                color: isBookmarked ? accentColor : (isDark ? '#a1a1aa' : '#71717a')
+                color: isBookmarked ? themeColor : (isDark ? '#a1a1aa' : '#71717a')
               }}
             >
               {isBookmarked ? <BookmarkCheck className="w-5 h-5" /> : <Bookmark className="w-5 h-5" />}
@@ -247,7 +248,7 @@ export default function GovernmentProgramDetailPage() {
                 target="_blank"
                 rel="noopener noreferrer"
                 className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium"
-                style={{ background: accentColor, color: '#fff' }}
+                style={{ background: themeColor, color: '#fff' }}
               >
                 <ExternalLink className="w-4 h-4" />
                 원문 보기
@@ -298,8 +299,8 @@ export default function GovernmentProgramDetailPage() {
               <div
                 className="flex items-center gap-2 px-2 py-1 rounded"
                 style={{
-                  background: daysLeft <= 7 ? 'rgba(239, 68, 68, 0.1)' : accentColor + '15',
-                  color: daysLeft <= 7 ? '#ef4444' : accentColor
+                  background: daysLeft <= 7 ? 'rgba(239, 68, 68, 0.1)' : themeColor + '15',
+                  color: daysLeft <= 7 ? '#ef4444' : themeColor
                 }}
               >
                 <Clock className="w-4 h-4" />
@@ -359,7 +360,7 @@ export default function GovernmentProgramDetailPage() {
                   target="_blank"
                   rel="noopener noreferrer"
                   className="inline-flex items-center gap-2 mt-4 text-sm"
-                  style={{ color: accentColor }}
+                  style={{ color: themeColor }}
                 >
                   <ExternalLink className="w-4 h-4" />
                   원문에서 확인하기
@@ -370,6 +371,179 @@ export default function GovernmentProgramDetailPage() {
           <style jsx global>{`
             .government-content {
               color: ${isDark ? '#d4d4d8' : '#3f3f46'};
+              font-size: 15px;
+              line-height: 1.8;
+            }
+            .government-content h1,
+            .government-content h2,
+            .government-content h3,
+            .government-content h4,
+            .government-content h5,
+            .government-content h6 {
+              color: ${isDark ? '#fafafa' : '#18181b'};
+              font-weight: 700;
+              margin-top: 1.5em;
+              margin-bottom: 0.75em;
+              line-height: 1.4;
+            }
+            .government-content h1 { font-size: 1.5em; }
+            .government-content h2 { font-size: 1.35em; }
+            .government-content h3 { font-size: 1.2em; }
+            .government-content h4 { font-size: 1.1em; }
+            .government-content strong,
+            .government-content b {
+              color: ${isDark ? '#fafafa' : '#18181b'};
+              font-weight: 600;
+            }
+            .government-content p {
+              margin-bottom: 1em;
+            }
+            .government-content hr {
+              border: none;
+              border-top: 1px solid ${isDark ? '#3f3f46' : '#e4e4e7'};
+              margin: 1.5em 0;
+            }
+            .government-content ul,
+            .government-content ol {
+              margin: 1em 0;
+              padding-left: 1.5em;
+            }
+            .government-content li {
+              margin-bottom: 0.5em;
+            }
+            .government-content ul li {
+              list-style-type: disc;
+            }
+            .government-content ol li {
+              list-style-type: decimal;
+            }
+            .government-content table {
+              width: 100%;
+              border-collapse: collapse;
+              margin: 1em 0;
+              font-size: 14px;
+            }
+            .government-content th,
+            .government-content td {
+              border: 1px solid ${isDark ? '#3f3f46' : '#d4d4d8'};
+              padding: 10px 12px;
+              text-align: left;
+            }
+            .government-content th {
+              background: ${isDark ? '#27272a' : '#f4f4f5'};
+              color: ${isDark ? '#fafafa' : '#18181b'};
+              font-weight: 600;
+            }
+            .government-content tr:nth-child(even) {
+              background: ${isDark ? 'rgba(39, 39, 42, 0.3)' : 'rgba(244, 244, 245, 0.5)'};
+            }
+            .government-content a {
+              color: ${themeColor};
+              text-decoration: underline;
+            }
+            .government-content a:hover {
+              opacity: 0.8;
+            }
+            .government-content img {
+              max-width: 100%;
+              height: auto;
+              border-radius: 8px;
+              margin: 1em 0;
+            }
+            .government-content blockquote {
+              border-left: 3px solid ${themeColor};
+              padding-left: 1em;
+              margin: 1em 0;
+              color: ${isDark ? '#a1a1aa' : '#71717a'};
+              font-style: italic;
+            }
+            .government-content pre,
+            .government-content code {
+              background: ${isDark ? '#27272a' : '#f4f4f5'};
+              border-radius: 4px;
+              padding: 2px 6px;
+              font-family: monospace;
+              font-size: 0.9em;
+            }
+            .government-content pre {
+              padding: 1em;
+              overflow-x: auto;
+            }
+            .government-content .section-title,
+            .government-content [class*="title"],
+            .government-content [class*="header"] {
+              color: ${isDark ? '#fafafa' : '#18181b'};
+              font-weight: 600;
+            }
+
+            /* ========== K-Startup 전용 스타일 ========== */
+            .government-content .k-startup-section {
+              padding-top: 1.5em;
+              padding-bottom: 1.5em;
+              border-bottom: 1px solid ${isDark ? '#3f3f46' : '#e4e4e7'};
+            }
+            .government-content .k-startup-section:first-child {
+              padding-top: 0;
+            }
+            .government-content .k-startup-section:last-child {
+              border-bottom: none;
+              padding-bottom: 0;
+            }
+            .government-content .k-startup-section > div > p:first-child {
+              font-size: 1.15em;
+              font-weight: 700;
+              color: ${isDark ? '#fafafa' : '#18181b'};
+              margin-bottom: 1em;
+              padding-bottom: 0.5em;
+              border-bottom: 2px solid ${themeColor};
+              display: inline-block;
+            }
+            .government-content .k-startup-section li > div > p:first-child {
+              font-weight: 600;
+              color: ${isDark ? '#e4e4e7' : '#27272a'};
+              margin-bottom: 0.3em;
+            }
+            .government-content .k-startup-section li > div > p:not(:first-child) {
+              color: ${isDark ? '#a1a1aa' : '#52525b'};
+              margin-bottom: 0.5em;
+            }
+            .government-content .k-startup-section ul {
+              list-style: none;
+              padding-left: 0;
+              margin: 0;
+            }
+            .government-content .k-startup-section li {
+              padding: 0.75em 0;
+              border-bottom: 1px dashed ${isDark ? '#3f3f46' : '#e4e4e7'};
+            }
+            .government-content .k-startup-section li:last-child {
+              border-bottom: none;
+            }
+
+            /* ========== Bizinfo 전용 스타일 ========== */
+            .government-content .bizinfo-original {
+              padding: 1em 0;
+            }
+            .government-content .bizinfo-original h3 {
+              font-size: 1.15em;
+              font-weight: 700;
+              color: ${isDark ? '#fafafa' : '#18181b'};
+              margin-top: 1.5em;
+              margin-bottom: 0.75em;
+              padding-bottom: 0.5em;
+              border-bottom: 2px solid ${themeColor};
+              display: inline-block;
+            }
+            .government-content .bizinfo-original h3:first-child {
+              margin-top: 0;
+            }
+
+            /* 키워드 강조 */
+            .government-content em,
+            .government-content i {
+              color: ${themeColor};
+              font-style: normal;
+              font-weight: 500;
             }
           `}</style>
         </div>
@@ -405,7 +579,7 @@ export default function GovernmentProgramDetailPage() {
                   className="flex items-center gap-3 p-3 rounded-lg transition-colors"
                   style={{ background: isDark ? '#27272a' : '#f4f4f5', color: isDark ? '#fafafa' : '#18181b' }}
                 >
-                  <FileText className="w-5 h-5" style={{ color: accentColor }} />
+                  <FileText className="w-5 h-5" style={{ color: themeColor }} />
                   <span className="flex-1 truncate text-sm">{file.name}</span>
                   <Download className="w-4 h-4" style={{ color: isDark ? '#71717a' : '#a1a1aa' }} />
                 </a>
@@ -420,7 +594,7 @@ export default function GovernmentProgramDetailPage() {
             <AIMatchResult
               programId={programId}
               programTitle={program.title}
-              accentColor={accentColor}
+              accentColor={themeColor}
               initialResult={matchResult ? {
                 score: matchResult.score,
                 action: matchResult.action,
@@ -437,7 +611,7 @@ export default function GovernmentProgramDetailPage() {
                 <button
                   onClick={() => router.push(`/dashboard-group/company/government-programs/business-plan?program_id=${programId}`)}
                   className="w-full py-3 px-4 rounded-lg font-medium transition-colors flex items-center justify-center gap-2"
-                  style={{ background: accentColor, color: '#fff' }}
+                  style={{ background: themeColor, color: '#fff' }}
                 >
                   <FileText className="w-5 h-5" />
                   사업계획서 초안 생성
