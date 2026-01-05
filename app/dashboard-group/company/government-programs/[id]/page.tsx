@@ -216,7 +216,7 @@ export default function GovernmentProgramDetailPage() {
   return (
     <div className="min-h-screen pb-20" style={{ background: isDark ? '#0a0a0a' : '#fafafa' }}>
       <div
-        className="sticky top-0 z-10 px-6 py-4 border-b"
+        className="sticky top-0 z-10 px-6 h-16 flex items-center border-b"
         style={{
           background: isDark ? 'rgba(10, 10, 10, 0.9)' : 'rgba(250, 250, 250, 0.9)',
           borderColor: isDark ? '#27272a' : '#e4e4e7',
@@ -225,7 +225,7 @@ export default function GovernmentProgramDetailPage() {
       >
         <div className="max-w-[1400px] mx-auto">
           <button
-            onClick={() => { window.location.href = '/dashboard-group/company/government-programs' }}
+            onClick={() => { window.location.href = '/dashboard-group/company/government-programs?view=list' }}
             className="flex items-center gap-2 text-sm transition-colors hover:opacity-70"
             style={{ color: isDark ? '#a1a1aa' : '#71717a' }}
           >
@@ -239,147 +239,147 @@ export default function GovernmentProgramDetailPage() {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* 왼쪽: 공고 정보 */}
           <div className="lg:col-span-2 space-y-6">
-        <div className="mb-8">
-          <div className="flex flex-wrap items-center gap-2 mb-4">
-            <span
-              className="px-3 py-1 rounded-full text-xs font-medium"
-              style={{ background: status.bg, color: status.color }}
-            >
-              {status.label}
-            </span>
-            <span
-              className="px-3 py-1 rounded-full text-xs font-medium"
-              style={{ background: supportTypeColor + '15', color: supportTypeColor }}
-            >
-              {program.support_type || '기타'}
-            </span>
-            <span
-              className="px-3 py-1 rounded-full text-xs"
-              style={{ background: isDark ? '#27272a' : '#f4f4f5', color: isDark ? '#a1a1aa' : '#71717a' }}
-            >
-              {program.source === 'bizinfo' ? '기업마당' : program.source === 'kstartup' ? 'K-Startup' : program.source}
-            </span>
-          </div>
-          <div className="flex items-start gap-3 mb-4">
-            <h1 className="text-2xl font-bold leading-tight flex-1" style={{ color: isDark ? '#fafafa' : '#18181b' }}>
-              {program.title}
-            </h1>
-            <div className="flex items-center gap-2 flex-shrink-0">
-              <button
-                onClick={() => setIsBookmarked(!isBookmarked)}
-                className="p-2 rounded-lg transition-colors"
-                style={{ background: isDark ? '#27272a' : '#f4f4f5' }}
-                title={isBookmarked ? '즐겨찾기 해제' : '즐겨찾기 추가'}
-              >
-                {isBookmarked ? (
-                  <BookmarkCheck className="w-5 h-5" style={{ color: themeColor }} />
-                ) : (
-                  <Bookmark className="w-5 h-5" style={{ color: isDark ? '#a1a1aa' : '#71717a' }} />
-                )}
-              </button>
-              <button
-                onClick={() => {
-                  if (navigator.share) {
-                    navigator.share({
-                      title: program.title,
-                      url: window.location.href
-                    })
-                  } else {
-                    navigator.clipboard.writeText(window.location.href)
-                    alert('링크가 복사되었습니다')
-                  }
-                }}
-                className="p-2 rounded-lg transition-colors"
-                style={{ background: isDark ? '#27272a' : '#f4f4f5' }}
-                title="공유"
-              >
-                <Share2 className="w-5 h-5" style={{ color: isDark ? '#a1a1aa' : '#71717a' }} />
-              </button>
-            </div>
-          </div>
-          <div className="flex flex-wrap items-center gap-4 text-sm">
-            <div className="flex items-center gap-2" style={{ color: isDark ? '#a1a1aa' : '#71717a' }}>
-              <Building2 className="w-4 h-4" />
-              {program.organization || '-'}
-            </div>
-            <div className="flex items-center gap-2" style={{ color: isDark ? '#a1a1aa' : '#71717a' }}>
-              <Calendar className="w-4 h-4" />
-              {formatDate(program.apply_start_date)} ~ {formatDate(program.apply_end_date)}
-            </div>
-            {daysLeft !== null && daysLeft >= 0 && (
-              <div
-                className="flex items-center gap-2 px-2 py-1 rounded"
-                style={{
-                  background: daysLeft <= 7 ? 'rgba(239, 68, 68, 0.1)' : themeColor + '15',
-                  color: daysLeft <= 7 ? '#ef4444' : themeColor
-                }}
-              >
-                <Clock className="w-4 h-4" />
-                D-{daysLeft}
-              </div>
-            )}
-          </div>
-        </div>
-
-        <div
-          className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8 p-4 rounded-xl"
-          style={{ background: isDark ? '#18181b' : '#fff' }}
-        >
-          <div>
-            <p className="text-xs mb-1" style={{ color: isDark ? '#71717a' : '#a1a1aa' }}>지원유형</p>
-            <p className="font-medium" style={{ color: isDark ? '#fafafa' : '#18181b' }}>{program.support_type || '-'}</p>
-          </div>
-          <div>
-            <p className="text-xs mb-1" style={{ color: isDark ? '#71717a' : '#a1a1aa' }}>카테고리</p>
-            <p className="font-medium" style={{ color: isDark ? '#fafafa' : '#18181b' }}>{program.category || '-'}</p>
-          </div>
-          <div>
-            <p className="text-xs mb-1" style={{ color: isDark ? '#71717a' : '#a1a1aa' }}>지원규모</p>
-            <p className="font-medium" style={{ color: isDark ? '#fafafa' : '#18181b' }}>{program.support_scale || '-'}</p>
-          </div>
-          <div>
-            <p className="text-xs mb-1" style={{ color: isDark ? '#71717a' : '#a1a1aa' }}>대상지역</p>
-            <p className="font-medium" style={{ color: isDark ? '#fafafa' : '#18181b' }}>{program.target_regions?.join(', ') || '전국'}</p>
-          </div>
-        </div>
-
-        <div className="rounded-xl p-6 mb-8" style={{ background: isDark ? '#18181b' : '#fff' }}>
-          <h2 className="text-lg font-semibold mb-6 flex items-center gap-2" style={{ color: isDark ? '#fafafa' : '#18181b' }}>
-            <FileText className="w-5 h-5" style={{ color: themeColor }} />
-            공고 내용
-          </h2>
-          {program.content ? (
-            <div
-              className="government-content"
-              dangerouslySetInnerHTML={{ __html: program.content }}
-            />
-          ) : program.detail_url?.includes('bizinfo.go.kr') ? (
-            <div className="w-full" style={{ height: '800px' }}>
-              <webview
-                src={program.detail_url}
-                style={{ width: '100%', height: '100%', border: 'none' }}
-                allowpopups="true"
-              />
-            </div>
-          ) : (
-            <div className="text-center py-12" style={{ color: isDark ? '#71717a' : '#a1a1aa' }}>
-              <FileText className="w-12 h-12 mx-auto mb-3 opacity-50" />
-              <p>공고 내용이 없습니다</p>
-              {program.detail_url && (
-                <a
-                  href={program.detail_url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-2 mt-4 text-sm"
-                  style={{ color: themeColor }}
+            <div className="mb-8">
+              <div className="flex flex-wrap items-center gap-2 mb-4">
+                <span
+                  className="px-3 py-1 rounded-full text-xs font-medium"
+                  style={{ background: status.bg, color: status.color }}
                 >
-                  <ExternalLink className="w-4 h-4" />
-                  원문에서 확인하기
-                </a>
-              )}
+                  {status.label}
+                </span>
+                <span
+                  className="px-3 py-1 rounded-full text-xs font-medium"
+                  style={{ background: supportTypeColor + '15', color: supportTypeColor }}
+                >
+                  {program.support_type || '기타'}
+                </span>
+                <span
+                  className="px-3 py-1 rounded-full text-xs"
+                  style={{ background: isDark ? '#27272a' : '#f4f4f5', color: isDark ? '#a1a1aa' : '#71717a' }}
+                >
+                  {program.source === 'bizinfo' ? '기업마당' : program.source === 'kstartup' ? 'K-Startup' : program.source}
+                </span>
+              </div>
+              <div className="flex items-start gap-3 mb-4">
+                <h1 className="text-2xl font-bold leading-tight flex-1" style={{ color: isDark ? '#fafafa' : '#18181b' }}>
+                  {program.title}
+                </h1>
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  <button
+                    onClick={() => setIsBookmarked(!isBookmarked)}
+                    className="p-2 rounded-lg transition-colors"
+                    style={{ background: isDark ? '#27272a' : '#f4f4f5' }}
+                    title={isBookmarked ? '즐겨찾기 해제' : '즐겨찾기 추가'}
+                  >
+                    {isBookmarked ? (
+                      <BookmarkCheck className="w-5 h-5" style={{ color: themeColor }} />
+                    ) : (
+                      <Bookmark className="w-5 h-5" style={{ color: isDark ? '#a1a1aa' : '#71717a' }} />
+                    )}
+                  </button>
+                  <button
+                    onClick={() => {
+                      if (navigator.share) {
+                        navigator.share({
+                          title: program.title,
+                          url: window.location.href
+                        })
+                      } else {
+                        navigator.clipboard.writeText(window.location.href)
+                        alert('링크가 복사되었습니다')
+                      }
+                    }}
+                    className="p-2 rounded-lg transition-colors"
+                    style={{ background: isDark ? '#27272a' : '#f4f4f5' }}
+                    title="공유"
+                  >
+                    <Share2 className="w-5 h-5" style={{ color: isDark ? '#a1a1aa' : '#71717a' }} />
+                  </button>
+                </div>
+              </div>
+              <div className="flex flex-wrap items-center gap-4 text-sm">
+                <div className="flex items-center gap-2" style={{ color: isDark ? '#a1a1aa' : '#71717a' }}>
+                  <Building2 className="w-4 h-4" />
+                  {program.organization || '-'}
+                </div>
+                <div className="flex items-center gap-2" style={{ color: isDark ? '#a1a1aa' : '#71717a' }}>
+                  <Calendar className="w-4 h-4" />
+                  {formatDate(program.apply_start_date)} ~ {formatDate(program.apply_end_date)}
+                </div>
+                {daysLeft !== null && daysLeft >= 0 && (
+                  <div
+                    className="flex items-center gap-2 px-2 py-1 rounded"
+                    style={{
+                      background: daysLeft <= 7 ? 'rgba(239, 68, 68, 0.1)' : themeColor + '15',
+                      color: daysLeft <= 7 ? '#ef4444' : themeColor
+                    }}
+                  >
+                    <Clock className="w-4 h-4" />
+                    D-{daysLeft}
+                  </div>
+                )}
+              </div>
             </div>
-          )}
-          <style jsx global>{`
+
+            <div
+              className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8 p-4 rounded-xl"
+              style={{ background: isDark ? '#18181b' : '#fff' }}
+            >
+              <div>
+                <p className="text-xs mb-1" style={{ color: isDark ? '#71717a' : '#a1a1aa' }}>지원유형</p>
+                <p className="font-medium" style={{ color: isDark ? '#fafafa' : '#18181b' }}>{program.support_type || '-'}</p>
+              </div>
+              <div>
+                <p className="text-xs mb-1" style={{ color: isDark ? '#71717a' : '#a1a1aa' }}>카테고리</p>
+                <p className="font-medium" style={{ color: isDark ? '#fafafa' : '#18181b' }}>{program.category || '-'}</p>
+              </div>
+              <div>
+                <p className="text-xs mb-1" style={{ color: isDark ? '#71717a' : '#a1a1aa' }}>지원규모</p>
+                <p className="font-medium" style={{ color: isDark ? '#fafafa' : '#18181b' }}>{program.support_scale || '-'}</p>
+              </div>
+              <div>
+                <p className="text-xs mb-1" style={{ color: isDark ? '#71717a' : '#a1a1aa' }}>대상지역</p>
+                <p className="font-medium" style={{ color: isDark ? '#fafafa' : '#18181b' }}>{program.target_regions?.join(', ') || '전국'}</p>
+              </div>
+            </div>
+
+            <div className="rounded-xl p-6 mb-8" style={{ background: isDark ? '#18181b' : '#fff' }}>
+              <h2 className="text-lg font-semibold mb-6 flex items-center gap-2" style={{ color: isDark ? '#fafafa' : '#18181b' }}>
+                <FileText className="w-5 h-5" style={{ color: themeColor }} />
+                공고 내용
+              </h2>
+              {program.content ? (
+                <div
+                  className="government-content"
+                  dangerouslySetInnerHTML={{ __html: program.content }}
+                />
+              ) : program.detail_url?.includes('bizinfo.go.kr') ? (
+                <div className="w-full" style={{ height: '800px' }}>
+                  <webview
+                    src={program.detail_url}
+                    style={{ width: '100%', height: '100%', border: 'none' }}
+                    allowpopups="true"
+                  />
+                </div>
+              ) : (
+                <div className="text-center py-12" style={{ color: isDark ? '#71717a' : '#a1a1aa' }}>
+                  <FileText className="w-12 h-12 mx-auto mb-3 opacity-50" />
+                  <p>공고 내용이 없습니다</p>
+                  {program.detail_url && (
+                    <a
+                      href={program.detail_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-2 mt-4 text-sm"
+                      style={{ color: themeColor }}
+                    >
+                      <ExternalLink className="w-4 h-4" />
+                      원문에서 확인하기
+                    </a>
+                  )}
+                </div>
+              )}
+              <style jsx global>{`
             .government-content {
               color: ${isDark ? '#d4d4d8' : '#3f3f46'};
               font-size: 15px;
@@ -715,47 +715,47 @@ export default function GovernmentProgramDetailPage() {
               font-weight: 500;
             }
           `}</style>
-        </div>
+            </div>
 
-        {program.attachments_primary && program.attachments_primary.length > 0 && (
-          <div className="rounded-xl p-6" style={{ background: isDark ? '#18181b' : '#fff' }}>
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-semibold flex items-center gap-2" style={{ color: isDark ? '#fafafa' : '#18181b' }}>
-                <Download className="w-5 h-5" style={{ color: themeColor }} />
-                첨부파일
-              </h2>
-              <button
-                onClick={handleDownloadAll}
-                disabled={isDownloading}
-                className="text-sm flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-colors"
-                style={{
-                  background: isDark ? '#27272a' : '#f4f4f5',
-                  color: isDark ? '#d4d4d8' : '#52525b',
-                  opacity: isDownloading ? 0.5 : 1
-                }}
-              >
-                {isDownloading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
-                일괄 다운로드
-              </button>
-            </div>
-            <div className="space-y-2">
-              {program.attachments_primary.map((file, idx) => (
-                <a
-                  key={idx}
-                  href={file.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center gap-3 p-3 rounded-lg transition-colors"
-                  style={{ background: isDark ? '#27272a' : '#f4f4f5', color: isDark ? '#fafafa' : '#18181b' }}
-                >
-                  <FileText className="w-5 h-5" style={{ color: themeColor }} />
-                  <span className="flex-1 truncate text-sm">{file.name}</span>
-                  <Download className="w-4 h-4" style={{ color: isDark ? '#71717a' : '#a1a1aa' }} />
-                </a>
-              ))}
-            </div>
-          </div>
-        )}
+            {program.attachments_primary && program.attachments_primary.length > 0 && (
+              <div className="rounded-xl p-6" style={{ background: isDark ? '#18181b' : '#fff' }}>
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="text-lg font-semibold flex items-center gap-2" style={{ color: isDark ? '#fafafa' : '#18181b' }}>
+                    <Download className="w-5 h-5" style={{ color: themeColor }} />
+                    첨부파일
+                  </h2>
+                  <button
+                    onClick={handleDownloadAll}
+                    disabled={isDownloading}
+                    className="text-sm flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-colors"
+                    style={{
+                      background: isDark ? '#27272a' : '#f4f4f5',
+                      color: isDark ? '#d4d4d8' : '#52525b',
+                      opacity: isDownloading ? 0.5 : 1
+                    }}
+                  >
+                    {isDownloading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+                    일괄 다운로드
+                  </button>
+                </div>
+                <div className="space-y-2">
+                  {program.attachments_primary.map((file, idx) => (
+                    <a
+                      key={idx}
+                      href={file.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-3 p-3 rounded-lg transition-colors"
+                      style={{ background: isDark ? '#27272a' : '#f4f4f5', color: isDark ? '#fafafa' : '#18181b' }}
+                    >
+                      <FileText className="w-5 h-5" style={{ color: themeColor }} />
+                      <span className="flex-1 truncate text-sm">{file.name}</span>
+                      <Download className="w-4 h-4" style={{ color: isDark ? '#71717a' : '#a1a1aa' }} />
+                    </a>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
 
           {/* 오른쪽: AI 분석 */}
