@@ -420,6 +420,7 @@ export default function GovernmentProgramDetailPage() {
             <AIMatchResult
               programId={programId}
               programTitle={program.title}
+              accentColor={accentColor}
               initialResult={matchResult ? {
                 score: matchResult.score,
                 action: matchResult.action,

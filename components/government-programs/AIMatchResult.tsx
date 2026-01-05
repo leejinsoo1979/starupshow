@@ -22,6 +22,7 @@ interface MatchReason {
 interface AIMatchResultProps {
   programId: string
   programTitle?: string
+  accentColor?: string
   initialResult?: {
     score: number
     action: 'apply' | 'watch' | 'skip'
@@ -35,6 +36,7 @@ interface AIMatchResultProps {
 export function AIMatchResult({
   programId,
   programTitle,
+  accentColor = '#6366f1',
   initialResult,
   onAnalyze
 }: AIMatchResultProps) {
@@ -123,13 +125,13 @@ export function AIMatchResult({
       <div className="rounded-lg p-6 border bg-white dark:bg-zinc-900 border-gray-200 dark:border-zinc-700 shadow-sm dark:shadow-none">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-lg font-semibold flex items-center gap-2 text-gray-900 dark:text-white">
-            <TrendingUp className="w-5 h-5 text-accent" />
+            <TrendingUp className="w-5 h-5" style={{ color: accentColor }} />
             AI 적합도 분석
           </h3>
         </div>
 
         {error && (
-          <div className="mb-4 p-3 bg-accent/10 border border-accent/30 rounded-lg text-accent text-sm">
+          <div className="mb-4 p-3 rounded-lg text-sm" style={{ background: accentColor + '15', border: `1px solid ${accentColor}50`, color: accentColor }}>
             {error}
           </div>
         )}
@@ -141,9 +143,10 @@ export function AIMatchResult({
         <button
           onClick={() => analyzeMatch()}
           disabled={loading}
-          className="w-full py-3 px-4 btn-accent disabled:opacity-50
+          className="w-full py-3 px-4 disabled:opacity-50
                      rounded-lg font-medium transition-colors
                      flex items-center justify-center gap-2"
+          style={{ background: accentColor, color: '#fff' }}
         >
           {loading ? (
             <>
@@ -168,7 +171,7 @@ export function AIMatchResult({
       {/* 헤더 */}
       <div className="flex items-center justify-between mb-6">
         <h3 className="text-lg font-semibold flex items-center gap-2 text-gray-900 dark:text-white">
-          <TrendingUp className="w-5 h-5 text-accent" />
+          <TrendingUp className="w-5 h-5" style={{ color: accentColor }} />
           AI 적합도 분석
         </h3>
         <button
@@ -283,7 +286,7 @@ export function AIMatchResult({
       {result.next_actions.length > 0 && (
         <div>
           <h4 className="text-sm font-medium mb-2 flex items-center gap-2 text-gray-700 dark:text-zinc-300">
-            <ArrowRight className="w-4 h-4 text-accent" />
+            <ArrowRight className="w-4 h-4" style={{ color: accentColor }} />
             다음 단계
           </h4>
           <ul className="space-y-1">
@@ -292,7 +295,7 @@ export function AIMatchResult({
                 key={idx}
                 className="flex items-start gap-2 text-sm text-gray-600 dark:text-zinc-400"
               >
-                <span className="text-accent mt-1">•</span>
+                <span className="mt-1" style={{ color: accentColor }}>•</span>
                 {action}
               </li>
             ))}
@@ -301,8 +304,8 @@ export function AIMatchResult({
       )}
 
       {error && (
-        <div className="mt-4 p-3 bg-accent/10 border border-accent/30 rounded-lg">
-          <div className="flex items-center gap-2 text-accent text-sm">
+        <div className="mt-4 p-3 rounded-lg" style={{ background: accentColor + '15', border: `1px solid ${accentColor}50` }}>
+          <div className="flex items-center gap-2 text-sm" style={{ color: accentColor }}>
             <AlertCircle className="w-4 h-4" />
             {error}
           </div>
