@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { isDevMode, DEV_USER } from '@/lib/dev-user'
 import { fetchBizinfoPrograms, transformBizinfoProgram } from '@/lib/government/bizinfo'
-import { fetchKStartupPrograms, transformKStartupProgram } from '@/lib/government/kstartup'
+import { fetchKStartupPrograms, transformKStartupProgram, scrapeKStartupDetail } from '@/lib/government/kstartup'
 
 /**
  * 정부지원사업 목록 조회 API
@@ -25,12 +26,114 @@ export async function GET(request: NextRequest) {
 
     // 쿼리 파라미터 파싱
     const { searchParams } = new URL(request.url)
+    const id = searchParams.get('id') // 단일 프로그램 조회용
     const category = searchParams.get('category')
     const search = searchParams.get('search')
     const status = searchParams.get('status') // 'active' | 'ended' | 'upcoming' | 'all'
     const source = searchParams.get('source')
     const limit = parseInt(searchParams.get('limit') || '50')
     const offset = parseInt(searchParams.get('offset') || '0')
+
+    // 단일 프로그램 조회 (id 파라미터가 있는 경우)
+    if (id) {
+      const { data, error: programError } = await supabase
+        .from('government_programs')
+        .select('*')
+        .eq('id', id)
+        .single()
+
+      if (programError || !data) {
+        return NextResponse.json(
+          { error: '프로그램을 찾을 수 없습니다.' },
+          { status: 404 }
+        )
+      }
+
+      // 타입 명시
+      const program = data as any
+
+      // 상세 내용이 없고 detail_url이 있으면 크롤링 시도 (또는 K-Startup이고 이전 포맷인 경우)
+      const isOldFormat = program.source === 'kstartup' && program.content && !program.content.includes('k-startup-section')
+
+      if ((!program.content || isOldFormat) && program.detail_url) {
+        try {
+          let scrapedData = null
+
+          // K-Startup 페이지 크롤링
+          if (program.detail_url.includes('k-startup.go.kr')) {
+            scrapedData = await scrapeKStartupDetail(program.detail_url) as any
+          }
+          // TODO: 기업마당 크롤러 추가
+
+          if (scrapedData?.content) {
+            // 응답에 반영
+            program.content = scrapedData.content
+            if (scrapedData.attachments) {
+              program.attachments_primary = scrapedData.attachments
+            }
+
+            // DB 캐시 (백그라운드) - content + attachments
+            const adminSupabase = createAdminClient()
+            const updateData: any = { content: scrapedData.content }
+            if (scrapedData.attachments && scrapedData.attachments.length > 0) {
+              updateData.attachments_primary = scrapedData.attachments
+            }
+
+            // 1. 기본 정보 업데이트
+            const updatePromise = (adminSupabase as any)
+              .from('government_programs')
+              .update(updateData)
+              .eq('id', id)
+              .then(() => console.log('[GovernmentPrograms] 스크래핑 캐시 저장 (첨부파일 ' + (scrapedData.attachments?.length || 0) + '개)'))
+
+            // 2. 평가 기준 및 제출 서류 업데이트 (program_requirements)
+            let reqPromise = Promise.resolve()
+            if (scrapedData.evaluation_criteria || scrapedData.required_documents) {
+              const reqData: any = {
+                program_id: id,
+                updated_at: new Date().toISOString()
+              }
+
+              if (scrapedData.evaluation_criteria) {
+                reqData.evaluation_criteria = [{
+                  category: "크롤링 추출 데이터",
+                  weight: 0,
+                  items: [scrapedData.evaluation_criteria]
+                }]
+              }
+
+              if (scrapedData.required_documents) {
+                reqData.required_documents = [{
+                  name: "크롤링 추출 데이터",
+                  description: scrapedData.required_documents,
+                  required: true
+                }]
+              }
+
+              // upsert program_requirements
+              reqPromise = adminSupabase
+                .from('program_requirements')
+                .upsert(reqData, { onConflict: 'program_id' })
+                .then(({ error }) => {
+                  if (error) console.error('[GovernmentPrograms] 평가기준 저장 실패:', error)
+                  else console.log('[GovernmentPrograms] 평가기준 저장 완료')
+                }) as any
+            }
+
+            // 병렬 실행
+            Promise.all([updatePromise, reqPromise]).catch(err => console.error(err))
+          }
+        } catch (scrapeError) {
+          console.error('[GovernmentPrograms] 크롤링 오류:', scrapeError)
+        }
+      }
+
+      return NextResponse.json({
+        success: true,
+        program,
+        programs: [program] // 하위 호환성
+      })
+    }
 
     // DB 테이블 존재 확인
     const { error: tableError } = await supabase
@@ -128,10 +231,15 @@ export async function GET(request: NextRequest) {
     // 상태별 필터
     const today = new Date().toISOString().split('T')[0]
     if (status === 'active') {
-      query = query.gte('apply_end_date', today).lte('apply_start_date', today)
+      // 진행중: (마감일 >= 오늘 OR 마감일 null) AND (시작일 <= 오늘 OR 시작일 null)
+      // null 날짜는 "알 수 없음"으로 간주하여 진행중에 포함
+      query = query.or(`apply_end_date.gte.${today},apply_end_date.is.null`)
+      query = query.or(`apply_start_date.lte.${today},apply_start_date.is.null`)
     } else if (status === 'upcoming') {
+      // 예정: 시작일 > 오늘 (시작일이 있는 경우만)
       query = query.gt('apply_start_date', today)
     } else if (status === 'ended') {
+      // 마감: 마감일 < 오늘 (마감일이 있는 경우만)
       query = query.lt('apply_end_date', today)
     }
 
