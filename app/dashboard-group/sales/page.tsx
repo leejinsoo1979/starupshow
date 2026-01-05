@@ -117,14 +117,14 @@ export default function SalesDashboardPage() {
               <span className={cn("text-sm font-medium", isDark ? "text-zinc-500" : "text-zinc-600")}>{stat.title}</span>
               <div className={cn(
                 "p-2 rounded-xl",
-                stat.type === 'success' ? "bg-green-500/20" :
+                stat.type === 'success' ? "bg-accent/20" :
                 stat.type === 'danger' ? "bg-red-500/20" :
                 stat.type === 'warning' ? "bg-amber-500/20" :
                 "bg-accent/20"
               )}>
                 <stat.icon className={cn(
                   "w-4 h-4",
-                  stat.type === 'success' ? "text-green-500" :
+                  stat.type === 'success' ? "text-accent" :
                   stat.type === 'danger' ? "text-red-500" :
                   stat.type === 'warning' ? "text-amber-500" :
                   "text-accent"
@@ -135,7 +135,7 @@ export default function SalesDashboardPage() {
             {stat.trend && (
               <span className={cn(
                 "text-sm font-medium",
-                stat.type === 'success' ? "text-green-500" :
+                stat.type === 'success' ? "text-accent" :
                 stat.type === 'danger' ? "text-red-500" :
                 "text-accent"
               )}>{stat.trend} 전월 대비</span>
@@ -168,7 +168,7 @@ export default function SalesDashboardPage() {
                 <div key={item.month} className="flex-1 flex flex-col items-center gap-1">
                   <div className="flex-1 flex items-end gap-1 w-full">
                     <div
-                      className="flex-1 bg-gradient-to-t from-green-500 to-green-500/60 rounded-lg"
+                      className="flex-1 bg-gradient-to-t from-accent to-accent/60 rounded-lg"
                       style={{ height: `${salesHeight}%` }}
                     />
                     <div
@@ -183,7 +183,7 @@ export default function SalesDashboardPage() {
           </div>
           <div className="flex items-center justify-center gap-6 mt-4">
             <div className="flex items-center gap-2">
-              <div className="w-3 h-3 rounded-full bg-green-500" />
+              <div className="w-3 h-3 rounded-full bg-accent" />
               <span className={cn("text-xs", isDark ? "text-zinc-500" : "text-zinc-600")}>매출</span>
             </div>
             <div className="flex items-center gap-2">
@@ -211,7 +211,7 @@ export default function SalesDashboardPage() {
                 cx="80" cy="80" r="60" strokeWidth="16" fill="none"
                 strokeDasharray={`${(mockData.monthlySales / (mockData.monthlySales + mockData.monthlyPurchase)) * 377} 377`}
                 strokeLinecap="round"
-                className="stroke-green-500"
+                className="stroke-accent"
               />
             </svg>
             <div className="absolute inset-0 flex flex-col items-center justify-center">
@@ -221,7 +221,7 @@ export default function SalesDashboardPage() {
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div className={cn("p-3 rounded-2xl text-center", isDark ? "bg-zinc-800" : "bg-zinc-100")}>
-              <p className="text-xl font-bold text-green-500">{formatCurrency(mockData.monthlySales)}</p>
+              <p className="text-xl font-bold text-accent">{formatCurrency(mockData.monthlySales)}</p>
               <p className={cn("text-xs", isDark ? "text-zinc-500" : "text-zinc-600")}>매출</p>
             </div>
             <div className={cn("p-3 rounded-2xl text-center", isDark ? "bg-zinc-800" : "bg-zinc-100")}>
@@ -307,10 +307,10 @@ export default function SalesDashboardPage() {
               )}>
                 <div className={cn(
                   "p-3 rounded-xl",
-                  tx.type === 'sales' ? "bg-green-500/20" : "bg-red-500/20"
+                  tx.type === 'sales' ? "bg-accent/20" : "bg-red-500/20"
                 )}>
                   {tx.type === 'sales' ? (
-                    <ArrowUpRight className="w-5 h-5 text-green-500" />
+                    <ArrowUpRight className="w-5 h-5 text-accent" />
                   ) : (
                     <ArrowDownRight className="w-5 h-5 text-red-500" />
                   )}
@@ -320,7 +320,7 @@ export default function SalesDashboardPage() {
                     <span className={cn("font-medium", isDark ? "text-zinc-100" : "text-zinc-900")}>{tx.partner}</span>
                     <span className={cn(
                       "px-2 py-0.5 rounded-full text-xs font-medium",
-                      tx.status === 'completed' ? "bg-green-500/20 text-green-500" :
+                      tx.status === 'completed' ? "bg-accent/20 text-accent" :
                       tx.status === 'pending' ? "bg-amber-500/20 text-amber-500" :
                       "bg-red-500/20 text-red-500"
                     )}>
@@ -331,7 +331,7 @@ export default function SalesDashboardPage() {
                 </div>
                 <span className={cn(
                   "font-semibold",
-                  tx.type === 'sales' ? "text-green-500" : "text-red-500"
+                  tx.type === 'sales' ? "text-accent" : "text-red-500"
                 )}>
                   {tx.type === 'sales' ? '+' : '-'}{formatFullCurrency(tx.amount)}
                 </span>
@@ -366,7 +366,7 @@ export default function SalesDashboardPage() {
                       <div className="flex items-center gap-1">
                         <span className={cn("text-sm font-medium", isDark ? "text-zinc-100" : "text-zinc-900")}>{formatCurrency(partner.amount)}</span>
                         {partner.trend === 'up' ? (
-                          <ArrowUpRight className="w-4 h-4 text-green-500" />
+                          <ArrowUpRight className="w-4 h-4 text-accent" />
                         ) : (
                           <ArrowDownRight className="w-4 h-4 text-red-500" />
                         )}

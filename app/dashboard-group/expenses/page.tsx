@@ -134,14 +134,14 @@ export default function ExpensesDashboardPage() {
               <span className={cn("text-sm font-medium", isDark ? "text-zinc-500" : "text-zinc-600")}>{stat.title}</span>
               <div className={cn(
                 "p-2 rounded-xl",
-                stat.type === 'success' ? "bg-green-500/20" :
+                stat.type === 'success' ? "bg-accent/20" :
                 stat.type === 'warning' ? "bg-amber-500/20" :
                 stat.type === 'danger' ? "bg-red-500/20" :
                 "bg-accent/20"
               )}>
                 <stat.icon className={cn(
                   "w-4 h-4",
-                  stat.type === 'success' ? "text-green-500" :
+                  stat.type === 'success' ? "text-accent" :
                   stat.type === 'warning' ? "text-amber-500" :
                   stat.type === 'danger' ? "text-red-500" :
                   "text-accent"
@@ -150,7 +150,7 @@ export default function ExpensesDashboardPage() {
             </div>
             <p className={cn("text-3xl font-bold tracking-tight mb-1", isDark ? "text-zinc-100" : "text-zinc-900")}>{stat.value}</p>
             {stat.trend && (
-              <span className="text-sm font-medium text-green-500">{stat.trend} 전월 대비</span>
+              <span className="text-sm font-medium text-accent">{stat.trend} 전월 대비</span>
             )}
             {stat.sub && !stat.trend && (
               <span className={cn("text-sm", isDark ? "text-zinc-500" : "text-zinc-600")}>{stat.sub}</span>
@@ -280,7 +280,7 @@ export default function ExpensesDashboardPage() {
               <p className={cn("text-xs", isDark ? "text-zinc-500" : "text-zinc-600")}>사용</p>
             </div>
             <div className={cn("p-3 rounded-2xl text-center", isDark ? "bg-zinc-800" : "bg-zinc-100")}>
-              <p className="text-lg font-bold text-green-500">{formatCurrency(mockData.budget - mockData.totalExpense)}</p>
+              <p className="text-lg font-bold text-accent">{formatCurrency(mockData.budget - mockData.totalExpense)}</p>
               <p className={cn("text-xs", isDark ? "text-zinc-500" : "text-zinc-600")}>잔여</p>
             </div>
           </div>
@@ -316,7 +316,7 @@ export default function ExpensesDashboardPage() {
                     <span className={cn("font-medium", isDark ? "text-zinc-100" : "text-zinc-900")}>{expense.employee}</span>
                     <span className={cn(
                       "px-2 py-0.5 rounded-full text-xs font-medium",
-                      expense.status === 'approved' ? "bg-green-500/20 text-green-500" :
+                      expense.status === 'approved' ? "bg-accent/20 text-accent" :
                       expense.status === 'pending' ? "bg-amber-500/20 text-amber-500" :
                       "bg-red-500/20 text-red-500"
                     )}>

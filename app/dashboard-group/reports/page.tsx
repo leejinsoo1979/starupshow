@@ -76,7 +76,7 @@ export default function ReportsDashboardPage() {
   const getTypeConfig = (type: string) => {
     switch (type) {
       case 'weekly': return { label: '주간', className: 'bg-accent/20 text-accent' }
-      case 'monthly': return { label: '월간', className: 'bg-green-500/20 text-green-500' }
+      case 'monthly': return { label: '월간', className: 'bg-accent/20 text-accent' }
       case 'quarterly': return { label: '분기', className: 'bg-amber-500/20 text-amber-500' }
       default: return { label: type, className: isDark ? 'bg-zinc-700 text-zinc-400' : 'bg-zinc-200 text-zinc-600' }
     }
@@ -166,7 +166,7 @@ export default function ReportsDashboardPage() {
                       style={{ height: `${targetHeight}%` }}
                     />
                     <div
-                      className={cn("flex-1 rounded-lg", isAboveTarget ? "bg-green-500" : "bg-accent")}
+                      className={cn("flex-1 rounded-lg", isAboveTarget ? "bg-accent" : "bg-accent")}
                       style={{ height: `${completionHeight}%` }}
                     />
                   </div>
@@ -181,7 +181,7 @@ export default function ReportsDashboardPage() {
               <span className={cn("text-xs", isDark ? "text-zinc-500" : "text-zinc-600")}>목표</span>
             </div>
             <div className="flex items-center gap-2">
-              <div className="w-3 h-3 rounded-full bg-green-500" />
+              <div className="w-3 h-3 rounded-full bg-accent" />
               <span className={cn("text-xs", isDark ? "text-zinc-500" : "text-zinc-600")}>달성</span>
             </div>
           </div>
@@ -233,7 +233,7 @@ export default function ReportsDashboardPage() {
           </div>
           <div className="space-y-2">
             {mockData.reportTypes.slice(0, 4).map((type, index) => {
-              const dotColors = ['bg-accent', 'bg-green-500', 'bg-purple-500', 'bg-amber-500']
+              const dotColors = ['bg-accent', 'bg-accent', 'bg-purple-500', 'bg-amber-500']
               return (
                 <div key={type.name} className="flex items-center gap-2">
                   <div className={cn("w-3 h-3 rounded-full", dotColors[index])} />
@@ -327,11 +327,11 @@ export default function ReportsDashboardPage() {
                   <div className="flex items-center gap-2">
                     <div className={cn("w-12 h-1.5 rounded-full overflow-hidden", isDark ? "bg-zinc-700" : "bg-zinc-200")}>
                       <div
-                        className={cn("h-full rounded-full", report.completion >= 90 ? "bg-green-500" : report.completion >= 70 ? "bg-accent" : "bg-amber-500")}
+                        className={cn("h-full rounded-full", report.completion >= 90 ? "bg-accent" : report.completion >= 70 ? "bg-accent" : "bg-amber-500")}
                         style={{ width: `${report.completion}%` }}
                       />
                     </div>
-                    <span className={cn("text-xs font-medium w-8 text-right", report.completion >= 90 ? "text-green-500" : isDark ? "text-zinc-100" : "text-zinc-900")}>
+                    <span className={cn("text-xs font-medium w-8 text-right", report.completion >= 90 ? "text-accent" : isDark ? "text-zinc-100" : "text-zinc-900")}>
                       {report.completion}%
                     </span>
                   </div>
@@ -356,11 +356,11 @@ export default function ReportsDashboardPage() {
             </div>
             <div className={cn("p-4 rounded-2xl", isDark ? "bg-zinc-800" : "bg-zinc-100")}>
               <p className={cn("text-sm leading-relaxed", isDark ? "text-zinc-400" : "text-zinc-600")}>
-                12월 성과가 크게 향상되었습니다. 목표 대비 <span className="font-semibold text-green-500">102%</span> 달성으로 Q4 최고 성과를 기록했습니다.
+                12월 성과가 크게 향상되었습니다. 목표 대비 <span className="font-semibold text-accent">102%</span> 달성으로 Q4 최고 성과를 기록했습니다.
               </p>
               <div className="flex items-center gap-4 mt-3">
                 <div className="flex items-center gap-1">
-                  <TrendingUp className="w-3 h-3 text-green-500" />
+                  <TrendingUp className="w-3 h-3 text-accent" />
                   <span className={cn("text-xs", isDark ? "text-zinc-500" : "text-zinc-600")}>생산성 +18%</span>
                 </div>
                 <div className="flex items-center gap-1">
@@ -394,12 +394,12 @@ export default function ReportsDashboardPage() {
                 )}>
                   <div className={cn(
                     "w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0",
-                    alert.type === 'success' ? "bg-green-500/20" :
+                    alert.type === 'success' ? "bg-accent/20" :
                     alert.type === 'warning' ? "bg-amber-400/20" :
                     "bg-accent/20"
                   )}>
                     {alert.type === 'success' ? (
-                      <CheckCircle className="w-4 h-4 text-green-500" />
+                      <CheckCircle className="w-4 h-4 text-accent" />
                     ) : alert.type === 'warning' ? (
                       <AlertTriangle className="w-4 h-4 text-amber-400" />
                     ) : (

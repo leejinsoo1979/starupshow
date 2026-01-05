@@ -68,12 +68,12 @@ export default function HRDashboardPage() {
   const totalDept = mockData.departmentStats.reduce((acc, d) => acc + d.count, 0)
 
   // Department colors using theme palette
-  const deptColors = ['bg-accent', 'bg-purple-500', 'bg-green-500', 'bg-amber-500', 'bg-red-500']
+  const deptColors = ['bg-accent', 'bg-purple-500', 'bg-accent', 'bg-amber-500', 'bg-red-500']
 
   const getActivityConfig = (type: string) => {
     switch (type) {
       case 'join':
-        return { icon: UserCheck, label: '입사', className: 'bg-green-500/15 text-green-500' }
+        return { icon: UserCheck, label: '입사', className: 'bg-accent/15 text-accent' }
       case 'resign':
         return { icon: UserMinus, label: '퇴사', className: 'bg-red-500/15 text-red-500' }
       case 'leave_approved':
@@ -135,9 +135,9 @@ export default function HRDashboardPage() {
               <span className={cn("text-lg", isDark ? "text-zinc-500" : "text-zinc-600")}>명</span>
             </div>
             <div className="flex items-center gap-2 mt-3">
-              <div className="flex items-center gap-1 px-2 py-1 rounded-full bg-green-500/15">
-                <ArrowUpRight className="w-3 h-3 text-green-500" />
-                <span className="text-xs font-medium text-green-500">3.2%</span>
+              <div className="flex items-center gap-1 px-2 py-1 rounded-full bg-accent/15">
+                <ArrowUpRight className="w-3 h-3 text-accent" />
+                <span className="text-xs font-medium text-accent">3.2%</span>
               </div>
               <span className={cn("text-xs", isDark ? "text-zinc-500" : "text-zinc-600")}>전월 대비</span>
             </div>
@@ -151,12 +151,12 @@ export default function HRDashboardPage() {
             ? "bg-zinc-900 border-zinc-800"
             : "bg-white border-zinc-200 shadow-sm"
         )}>
-          <div className="absolute top-0 right-0 w-32 h-32 rounded-full blur-3xl opacity-10 bg-green-500" />
+          <div className="absolute top-0 right-0 w-32 h-32 rounded-full blur-3xl opacity-10 bg-accent" />
           <div className="relative">
             <div className="flex items-center justify-between mb-4">
               <span className={cn("text-sm font-medium", isDark ? "text-zinc-500" : "text-zinc-600")}>오늘 출근</span>
-              <div className="p-2 rounded-xl bg-green-500/20">
-                <Clock className="w-5 h-5 text-green-500" />
+              <div className="p-2 rounded-xl bg-accent/20">
+                <Clock className="w-5 h-5 text-accent" />
               </div>
             </div>
             <div className="flex items-baseline gap-2">
@@ -168,11 +168,11 @@ export default function HRDashboardPage() {
             <div className="mt-3">
               <div className="flex items-center justify-between text-xs mb-1">
                 <span className={isDark ? "text-zinc-500" : "text-zinc-600"}>출근율</span>
-                <span className="text-green-500 font-medium">{mockData.attendanceRate}%</span>
+                <span className="text-accent font-medium">{mockData.attendanceRate}%</span>
               </div>
               <div className={cn("h-1.5 rounded-full overflow-hidden", isDark ? "bg-zinc-700" : "bg-zinc-200")}>
                 <div
-                  className="h-full bg-green-500 rounded-full transition-all duration-500"
+                  className="h-full bg-accent rounded-full transition-all duration-500"
                   style={{ width: `${mockData.attendanceRate}%` }}
                 />
               </div>
@@ -297,7 +297,7 @@ export default function HRDashboardPage() {
                 <div key={item.month} className="flex-1 flex flex-col items-center gap-2">
                   <div className="w-full flex items-end justify-center gap-1 h-32">
                     <div
-                      className="w-5 rounded-t-lg bg-green-500 transition-all duration-500"
+                      className="w-5 rounded-t-lg bg-accent transition-all duration-500"
                       style={{ height: `${joinHeight}%` }}
                     />
                     <div
@@ -316,9 +316,9 @@ export default function HRDashboardPage() {
             isDark ? "border-zinc-800" : "border-zinc-200"
           )}>
             <div className="flex items-center gap-2">
-              <div className="w-3 h-3 rounded-sm bg-green-500" />
+              <div className="w-3 h-3 rounded-sm bg-accent" />
               <span className={cn("text-xs", isDark ? "text-zinc-500" : "text-zinc-600")}>입사</span>
-              <span className="text-sm font-semibold text-green-500">+{mockData.newHires}</span>
+              <span className="text-sm font-semibold text-accent">+{mockData.newHires}</span>
             </div>
             <div className="flex items-center gap-2">
               <div className="w-3 h-3 rounded-sm bg-red-500" />
@@ -355,7 +355,7 @@ export default function HRDashboardPage() {
                 cy="80"
                 r="65"
                 fill="none"
-                className="stroke-green-500"
+                className="stroke-accent"
                 strokeWidth="14"
                 strokeLinecap="round"
                 strokeDasharray={`${mockData.attendanceRate * 4.08} 408`}
@@ -370,8 +370,8 @@ export default function HRDashboardPage() {
           </div>
 
           <div className="grid grid-cols-3 gap-2 mt-4">
-            <div className={cn("text-center p-3 rounded-2xl", "bg-green-500/10")}>
-              <p className="text-xl font-bold text-green-500">{mockData.todayAttendance}</p>
+            <div className={cn("text-center p-3 rounded-2xl", "bg-accent/10")}>
+              <p className="text-xl font-bold text-accent">{mockData.todayAttendance}</p>
               <p className={cn("text-[10px]", isDark ? "text-zinc-500" : "text-zinc-600")}>출근</p>
             </div>
             <div className={cn("text-center p-3 rounded-2xl", "bg-amber-500/10")}>

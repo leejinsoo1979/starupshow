@@ -125,14 +125,14 @@ export default function PayrollDashboardPage() {
               <span className={cn("text-sm font-medium", isDark ? "text-zinc-500" : "text-zinc-600")}>{stat.title}</span>
               <div className={cn(
                 "p-2 rounded-xl",
-                stat.type === 'success' ? "bg-green-500/20" :
+                stat.type === 'success' ? "bg-accent/20" :
                 stat.type === 'warning' ? "bg-amber-500/20" :
                 stat.type === 'neutral' ? (isDark ? "bg-zinc-700" : "bg-zinc-200") :
                 "bg-accent/20"
               )}>
                 <stat.icon className={cn(
                   "w-4 h-4",
-                  stat.type === 'success' ? "text-green-500" :
+                  stat.type === 'success' ? "text-accent" :
                   stat.type === 'warning' ? "text-amber-500" :
                   stat.type === 'neutral' ? (isDark ? "text-zinc-400" : "text-zinc-600") :
                   "text-accent"
@@ -246,7 +246,7 @@ export default function PayrollDashboardPage() {
                 cx="80" cy="80" r="60" strokeWidth="16" fill="none"
                 strokeDasharray={`${progressRate * 3.77} 377`}
                 strokeLinecap="round"
-                className="stroke-green-500"
+                className="stroke-accent"
               />
             </svg>
             <div className="absolute inset-0 flex flex-col items-center justify-center">
@@ -257,7 +257,7 @@ export default function PayrollDashboardPage() {
           <div className="space-y-2">
             <div className="flex items-center justify-between">
               <span className={cn("text-sm", isDark ? "text-zinc-500" : "text-zinc-600")}>완료</span>
-              <span className="text-sm font-semibold text-green-500">{mockData.completedCount}명</span>
+              <span className="text-sm font-semibold text-accent">{mockData.completedCount}명</span>
             </div>
             <div className="flex items-center justify-between">
               <span className={cn("text-sm", isDark ? "text-zinc-500" : "text-zinc-600")}>예정</span>
@@ -296,7 +296,7 @@ export default function PayrollDashboardPage() {
                     <span className={cn("font-medium", isDark ? "text-zinc-100" : "text-zinc-900")}>{payment.name}</span>
                     <span className={cn(
                       "px-2 py-0.5 rounded-full text-xs font-medium",
-                      payment.status === 'completed' ? "bg-green-500/20 text-green-500" : "bg-amber-500/20 text-amber-500"
+                      payment.status === 'completed' ? "bg-accent/20 text-accent" : "bg-amber-500/20 text-amber-500"
                     )}>
                       {payment.status === 'completed' ? '완료' : '예정'}
                     </span>
