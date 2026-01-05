@@ -349,7 +349,7 @@ export default function GovernmentProgramDetailPage() {
               background: ${isDark ? '#27272a' : '#f4f4f5'};
               border-radius: 8px;
             }
-            .government-content li > div {
+            .government-content li > div:not(.txt) {
               display: flex;
               gap: 1rem;
             }
@@ -425,6 +425,7 @@ export default function GovernmentProgramDetailPage() {
               border-radius: 0;
               margin: 0;
               border-bottom: 1px solid ${isDark ? '#3f3f46' : '#e4e4e7'};
+              display: block;
             }
             .government-content .bizinfo-original .view_cont > ul > li:first-child {
               border-radius: 12px 12px 0 0;
@@ -443,10 +444,23 @@ export default function GovernmentProgramDetailPage() {
             .government-content .bizinfo-original .txt {
               color: ${isDark ? '#fafafa' : '#18181b'};
               font-size: 14px;
-              line-height: 1.7;
+              line-height: 1.8;
+              display: block !important;
+              width: 100%;
+              flex-direction: column !important;
             }
             .government-content .bizinfo-original .txt p {
               margin: 0.5rem 0;
+              display: block !important;
+              width: 100% !important;
+            }
+            .government-content .bizinfo-original .txt br {
+              display: block;
+              content: "";
+              margin: 0.25rem 0;
+            }
+            .government-content .bizinfo-original li > div.txt {
+              display: block !important;
             }
             .government-content .bizinfo-original .txt br + br {
               display: none;
