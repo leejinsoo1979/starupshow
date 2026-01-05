@@ -18,6 +18,9 @@ import {
   AlertCircle,
   Loader2
 } from 'lucide-react'
+import { AIMatchResult } from '@/components/government-programs/AIMatchResult'
+import JSZip from 'jszip'
+import { saveAs } from 'file-saver'
 
 interface GovernmentProgram {
   id: string
@@ -62,6 +65,8 @@ export default function GovernmentProgramDetailPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [isBookmarked, setIsBookmarked] = useState(false)
+  const [isDownloading, setIsDownloading] = useState(false)
+  const [matchResult, setMatchResult] = useState<any>(null)
 
   const programId = params?.id as string
 
@@ -88,6 +93,50 @@ export default function GovernmentProgramDetailPage() {
 
     fetchProgram()
   }, [programId])
+
+  // AI 매칭 결과 로드
+  useEffect(() => {
+    async function loadMatchResult() {
+      try {
+        const res = await fetch(`/api/government-programs/match/ai?program_id=${programId}`)
+        if (res.ok) {
+          const data = await res.json()
+          if (data.results && data.results.length > 0) {
+            setMatchResult(data.results[0])
+          }
+        }
+      } catch (err) {
+        // 매칭 결과 없어도 에러 표시 안함
+      }
+    }
+    if (programId) loadMatchResult()
+  }, [programId])
+
+  // 일괄 다운로드
+  const handleDownloadAll = async () => {
+    if (!program?.attachments_primary?.length) return
+    try {
+      setIsDownloading(true)
+      const zip = new JSZip()
+      const folder = zip.folder("attachments")
+      const downloadPromises = program.attachments_primary.map(async (file) => {
+        try {
+          const response = await fetch(file.url)
+          const blob = await response.blob()
+          folder?.file(file.name, blob)
+        } catch (err) {
+          console.error(`Failed to download ${file.name}:`, err)
+        }
+      })
+      await Promise.all(downloadPromises)
+      const content = await zip.generateAsync({ type: "blob" })
+      saveAs(content, `${program.title}_attachments.zip`)
+    } catch (err) {
+      console.error('Download failed:', err)
+    } finally {
+      setIsDownloading(false)
+    }
+  }
 
   const getStatusBadge = (prog: GovernmentProgram) => {
     const today = new Date()
@@ -208,7 +257,10 @@ export default function GovernmentProgramDetailPage() {
         </div>
       </div>
 
-      <div className="max-w-4xl mx-auto px-6 py-8">
+      <div className="max-w-[1400px] mx-auto px-6 py-8">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          {/* 왼쪽: 공고 정보 */}
+          <div className="lg:col-span-2 space-y-6">
         <div className="mb-8">
           <div className="flex flex-wrap items-center gap-2 mb-4">
             <span
@@ -324,10 +376,25 @@ export default function GovernmentProgramDetailPage() {
 
         {program.attachments_primary && program.attachments_primary.length > 0 && (
           <div className="rounded-xl p-6" style={{ background: isDark ? '#18181b' : '#fff' }}>
-            <h2 className="text-lg font-semibold mb-4 flex items-center gap-2" style={{ color: isDark ? '#fafafa' : '#18181b' }}>
-              <Download className="w-5 h-5" />
-              첨부파일
-            </h2>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-semibold flex items-center gap-2" style={{ color: isDark ? '#fafafa' : '#18181b' }}>
+                <Download className="w-5 h-5" />
+                첨부파일
+              </h2>
+              <button
+                onClick={handleDownloadAll}
+                disabled={isDownloading}
+                className="text-sm flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-colors"
+                style={{
+                  background: isDark ? '#27272a' : '#f4f4f5',
+                  color: isDark ? '#d4d4d8' : '#52525b',
+                  opacity: isDownloading ? 0.5 : 1
+                }}
+              >
+                {isDownloading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+                일괄 다운로드
+              </button>
+            </div>
             <div className="space-y-2">
               {program.attachments_primary.map((file, idx) => (
                 <a
@@ -346,6 +413,50 @@ export default function GovernmentProgramDetailPage() {
             </div>
           </div>
         )}
+          </div>
+
+          {/* 오른쪽: AI 분석 */}
+          <div className="space-y-6">
+            <AIMatchResult
+              programId={programId}
+              programTitle={program.title}
+              initialResult={matchResult ? {
+                score: matchResult.score,
+                action: matchResult.action,
+                reasons: matchResult.reasons,
+                risks: matchResult.risks,
+                next_actions: matchResult.next_actions
+              } : undefined}
+            />
+
+            {/* 빠른 액션 */}
+            <div className="rounded-xl p-6" style={{ background: isDark ? '#18181b' : '#fff' }}>
+              <h3 className="text-lg font-semibold mb-4" style={{ color: isDark ? '#fafafa' : '#18181b' }}>빠른 액션</h3>
+              <div className="space-y-3">
+                <button
+                  onClick={() => router.push(`/dashboard-group/company/government-programs/business-plan?program_id=${programId}`)}
+                  className="w-full py-3 px-4 rounded-lg font-medium transition-colors flex items-center justify-center gap-2"
+                  style={{ background: accentColor, color: '#fff' }}
+                >
+                  <FileText className="w-5 h-5" />
+                  사업계획서 초안 생성
+                </button>
+                {program.detail_url && (
+                  <a
+                    href={program.detail_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="w-full py-3 px-4 rounded-lg font-medium transition-colors flex items-center justify-center gap-2"
+                    style={{ background: isDark ? '#27272a' : '#f4f4f5', color: isDark ? '#fafafa' : '#18181b' }}
+                  >
+                    <ExternalLink className="w-5 h-5" />
+                    원문 공고 보기
+                  </a>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   )
