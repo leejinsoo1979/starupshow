@@ -212,16 +212,15 @@ export default function DashboardLayout({
         <MainAssistantButton />
         <main
         className={cn(
-          (isFullWidthPage || isElectron) ? "flex flex-col" : "pt-16",
+          "flex flex-col",
           // Fix for resizing instability: block pointer events on main content (iframe/webview) when resizing sidebar
           (isResizingEmail || isResizingLevel2) && "pointer-events-none"
         )}
         style={{
           paddingLeft: `${sidebarWidth}px`,
-          marginTop: isElectron ? '48px' : 'var(--title-bar-height, 0px)',
-          minHeight: `calc(100vh - ${isElectron ? '48px' : 'var(--title-bar-height, 0px)'})`,
-          height: isFullWidthPage ? `calc(100vh - ${isElectron ? '48px' : 'var(--title-bar-height, 0px)'})` : undefined,
-          paddingTop: isElectron ? 0 : (isFullWidthPage ? 0 : undefined)
+          marginTop: '48px',
+          minHeight: 'calc(100vh - 48px)',
+          height: isFullWidthPage ? 'calc(100vh - 48px)' : undefined,
         }}
       >
         <div className={cn(

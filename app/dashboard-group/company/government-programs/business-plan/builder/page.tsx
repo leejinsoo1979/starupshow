@@ -137,12 +137,16 @@ export default function PipelineBuilderPage() {
   }, [])
 
   useEffect(() => {
+    console.log('[Builder] useEffect triggered - planId:', planId, 'programId:', programId)
     if (planId) {
+      console.log('[Builder] Calling fetchPlan and fetchPipelineStatus')
       fetchPlan()
       fetchPipelineStatus()
     } else if (programId) {
+      console.log('[Builder] Calling createNewPlan')
       createNewPlan()
     } else {
+      console.log('[Builder] No planId or programId - setting loading false')
       setLoading(false)
     }
   }, [planId, programId])
@@ -159,8 +163,9 @@ export default function PipelineBuilderPage() {
       console.log('[Builder] API response:', { status: res.status, ok: res.ok, error: data.error, hasPlan: !!data.plan })
 
       // API 에러 응답 처리 - 404인 경우 프로그램 ID일 수 있으므로 확인
+      console.log('[Builder] Checking condition:', { notOk: !res.ok, dataError: data.error, condition: !res.ok || data.error })
       if (!res.ok || data.error) {
-        console.log('[Builder] Error response:', { status: res.status, error: data.error })
+        console.log('[Builder] ENTERING ERROR BLOCK - status:', res.status, 'error:', data.error)
 
         // Plan not found - 해당 ID가 정부지원사업 ID인지 확인
         if (res.status === 404 || data.error === 'Plan not found') {
@@ -185,19 +190,24 @@ export default function PipelineBuilderPage() {
           return
         }
 
+        console.log('[Builder] Setting error from API error response')
         setError(data.error || '사업계획서를 찾을 수 없습니다')
         return
       }
 
       if (!data.plan) {
+        console.log('[Builder] Setting error - no plan data')
         setError('사업계획서 데이터가 없습니다')
         return
       }
 
+      // 성공 시 에러 상태 초기화
+      console.log('[Builder] SUCCESS - clearing error and setting plan')
+      setError(null)
       setPlan(data.plan)
       setQuestions(data.questions || [])
     } catch (error) {
-      console.error('Failed to fetch plan:', error)
+      console.error('[Builder] CATCH - Failed to fetch plan:', error)
       setError('사업계획서를 불러오는데 실패했습니다')
     } finally {
       setLoading(false)
@@ -233,6 +243,7 @@ export default function PipelineBuilderPage() {
   }
 
   const createNewPlan = async () => {
+    console.log('[Builder] createNewPlan called with programId:', programId)
     if (!programId) return
 
     try {

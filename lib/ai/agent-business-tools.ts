@@ -283,8 +283,9 @@ export const queryProjectsTool = new DynamicStructuredTool({
         .from('projects')
         .select('*')
 
-      if (ctx.companyId) {
-        query = query.eq('company_id', ctx.companyId)
+      // projects 테이블은 owner_id 사용 (company_id 없음)
+      if (ctx.userId) {
+        query = query.eq('owner_id', ctx.userId)
       }
       if (params.status && params.status !== 'all') {
         query = query.eq('status', params.status)
@@ -847,6 +848,253 @@ export const getCurrentDateTimeTool = new DynamicStructuredTool({
 // ============================================
 // 모든 비즈니스 도구 내보내기
 // ============================================
+// 13. 사업계획서 자동 생성 도구
+// ============================================
+export const generateBusinessPlanTool = new DynamicStructuredTool({
+  name: 'generate_business_plan',
+  description: `정부지원사업 사업계획서를 자동으로 생성합니다.
+회사 정보와 공고 정보를 바탕으로 AI가 초안을 작성합니다.
+
+사용 예시:
+- "사업계획서 만들어줘" → programId 필요
+- "창업지원 공고에 지원하려고 하는데 사업계획서 작성해줘"
+- "이 공고 사업계획서 자동생성 해줘"`,
+  schema: z.object({
+    programId: z.string().describe('정부지원사업 공고 ID'),
+    title: z.string().optional().describe('사업계획서 제목 (선택)'),
+  }),
+  func: async (params) => {
+    const ctx = getAgentExecutionContext()
+    const supabase = createAdminClient()
+
+    try {
+      if (!ctx.companyId) {
+        return JSON.stringify({ success: false, error: '회사 정보가 연결되어 있지 않습니다. 먼저 회사 프로필을 설정해주세요.' })
+      }
+
+      // 공고 정보 확인
+      const { data: programData } = await (supabase
+        .from('government_programs') as any)
+        .select('id, title')
+        .eq('id', params.programId)
+        .single()
+
+      if (!programData) {
+        return JSON.stringify({ success: false, error: '해당 공고를 찾을 수 없습니다.' })
+      }
+
+      const programTitle = programData.title
+      const programId = programData.id
+
+      // 기존 사업계획서 확인
+      const { data: existingPlanData } = await (supabase
+        .from('business_plans') as any)
+        .select('id, title, pipeline_status')
+        .eq('company_id', ctx.companyId)
+        .eq('program_id', params.programId)
+        .single()
+
+      if (existingPlanData) {
+        return JSON.stringify({
+          success: true,
+          message: `이미 "${programTitle}" 공고에 대한 사업계획서가 존재합니다.`,
+          planId: existingPlanData.id,
+          status: existingPlanData.pipeline_status,
+          action: 'navigate',
+          path: `/dashboard-group/company/government-programs/business-plan/builder?id=${existingPlanData.id}`,
+        })
+      }
+
+      // 새 사업계획서 생성
+      const { data: newPlanData, error: planError } = await (supabase
+        .from('business_plans') as any)
+        .insert({
+          company_id: ctx.companyId,
+          user_id: ctx.userId || '00000000-0000-0000-0000-000000000001',
+          program_id: params.programId,
+          title: params.title || `${programTitle} 사업계획서`,
+          pipeline_status: 'pending',
+          completion_percentage: 0,
+        })
+        .select()
+        .single()
+
+      if (planError || !newPlanData) {
+        return JSON.stringify({ success: false, error: `사업계획서 생성 실패: ${planError?.message || '알 수 없는 오류'}` })
+      }
+
+      // 파이프라인 시작
+      const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
+      const pipelineRes = await fetch(`${baseUrl}/api/business-plans/${newPlanData.id}/pipeline`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ stages: [1, 2, 3, 4, 5, 6, 7, 8] }),
+      })
+
+      const pipelineResult = await pipelineRes.json()
+
+      return JSON.stringify({
+        success: true,
+        message: `"${programTitle}" 사업계획서 생성을 시작했습니다. AI가 초안을 작성 중입니다.`,
+        planId: newPlanData.id,
+        jobId: pipelineResult.jobId,
+        action: 'navigate',
+        path: `/dashboard-group/company/government-programs/business-plan/builder?id=${newPlanData.id}`,
+      })
+    } catch (error: any) {
+      return JSON.stringify({ success: false, error: error.message })
+    }
+  },
+})
+
+// ============================================
+// 14. 정부지원사업 AI 매칭 도구
+// ============================================
+export const matchGovernmentProgramsTool = new DynamicStructuredTool({
+  name: 'match_government_programs',
+  description: `회사에 적합한 정부지원사업을 AI가 추천합니다.
+회사 프로필을 분석해서 가장 적합한 공고를 찾아줍니다.
+
+사용 예시:
+- "우리 회사에 맞는 정부지원사업 찾아줘"
+- "지원 가능한 공고 추천해줘"
+- "AI 매칭 분석해줘"`,
+  schema: z.object({
+    limit: z.number().optional().describe('최대 추천 개수 (기본: 5)'),
+    minScore: z.number().optional().describe('최소 매칭 점수 (0-100, 기본: 50)'),
+  }),
+  func: async (params) => {
+    const ctx = getAgentExecutionContext()
+    const supabase = createAdminClient()
+
+    try {
+      if (!ctx.companyId) {
+        return JSON.stringify({ success: false, error: '회사 정보가 연결되어 있지 않습니다. 먼저 회사 프로필을 설정해주세요.' })
+      }
+
+      const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
+
+      // AI 매칭 API 호출
+      const matchRes = await fetch(`${baseUrl}/api/government-programs/match`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          companyId: ctx.companyId,
+          limit: params.limit || 5,
+          minScore: params.minScore || 50,
+        }),
+      })
+
+      if (!matchRes.ok) {
+        return JSON.stringify({ success: false, error: 'AI 매칭 분석에 실패했습니다.' })
+      }
+
+      const matchResult = await matchRes.json()
+
+      if (!matchResult.matches || matchResult.matches.length === 0) {
+        return JSON.stringify({
+          success: true,
+          message: '현재 조건에 맞는 정부지원사업이 없습니다. 회사 프로필을 업데이트해보세요.',
+          matches: [],
+        })
+      }
+
+      const recommendations = matchResult.matches.map((m: any) => ({
+        공고명: m.program?.title || m.title,
+        매칭점수: `${m.score}점`,
+        마감일: m.program?.deadline || m.deadline,
+        지원금액: m.program?.budget || m.budget,
+        적합이유: m.reason || m.matchReason,
+        programId: m.program?.id || m.programId,
+      }))
+
+      return JSON.stringify({
+        success: true,
+        message: `${recommendations.length}개의 적합한 정부지원사업을 찾았습니다.`,
+        matches: recommendations,
+        action: 'navigate',
+        path: '/dashboard-group/company/government-programs/recommended',
+      })
+    } catch (error: any) {
+      return JSON.stringify({ success: false, error: error.message })
+    }
+  },
+})
+
+// ============================================
+// 15. 정부지원사업 목록 조회 도구
+// ============================================
+export const queryGovernmentProgramsTool = new DynamicStructuredTool({
+  name: 'query_government_programs',
+  description: `정부지원사업 공고 목록을 조회합니다.
+
+사용 예시:
+- "정부지원사업 목록 보여줘"
+- "마감이 얼마 안남은 공고"
+- "R&D 지원사업 찾아줘"`,
+  schema: z.object({
+    search: z.string().optional().describe('검색어'),
+    supportType: z.string().optional().describe('지원유형 (R&D, 창업, 수출 등)'),
+    status: z.enum(['active', 'closed', 'all']).optional().describe('공고 상태'),
+    limit: z.number().optional().describe('최대 결과 수'),
+  }),
+  func: async (params) => {
+    const supabase = createAdminClient()
+
+    try {
+      let query = supabase
+        .from('government_programs')
+        .select('id, title, agency, deadline, support_type, budget, status')
+        .order('deadline', { ascending: true })
+
+      if (params.search) {
+        query = query.or(`title.ilike.%${params.search}%,agency.ilike.%${params.search}%`)
+      }
+
+      if (params.supportType) {
+        query = query.ilike('support_type', `%${params.supportType}%`)
+      }
+
+      if (params.status && params.status !== 'all') {
+        const now = new Date().toISOString()
+        if (params.status === 'active') {
+          query = query.gte('deadline', now)
+        } else {
+          query = query.lt('deadline', now)
+        }
+      }
+
+      const { data, error } = await query.limit(params.limit || 10)
+
+      if (error) {
+        return JSON.stringify({ success: false, error: error.message })
+      }
+
+      const programs = (data || []).map((p: any) => ({
+        id: p.id,
+        공고명: p.title,
+        주관기관: p.agency,
+        마감일: p.deadline,
+        지원유형: p.support_type,
+        지원금액: p.budget,
+      }))
+
+      return JSON.stringify({
+        success: true,
+        count: programs.length,
+        programs,
+        action: 'navigate',
+        path: '/dashboard-group/company/government-programs',
+      })
+    } catch (error: any) {
+      return JSON.stringify({ success: false, error: error.message })
+    }
+  },
+})
+
+// ============================================
+// 도구 내보내기
+// ============================================
 export const AGENT_BUSINESS_TOOLS = {
   query_employees: queryEmployeesTool,
   get_employee_detail: getEmployeeDetailTool,
@@ -860,6 +1108,10 @@ export const AGENT_BUSINESS_TOOLS = {
   get_company_info: getCompanyInfoTool,
   get_business_stats: getBusinessStatsTool,
   get_current_datetime: getCurrentDateTimeTool,
+  // 🔥 새로 추가된 정부지원사업 도구들
+  generate_business_plan: generateBusinessPlanTool,
+  match_government_programs: matchGovernmentProgramsTool,
+  query_government_programs: queryGovernmentProgramsTool,
 }
 
 export function getAgentBusinessTools(): DynamicStructuredTool[] {

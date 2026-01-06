@@ -4,8 +4,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getDevUserIfEnabled } from '@/lib/dev-user'
 import { createClient } from '@/lib/supabase/server'
-// @ts-ignore - pdf-parse has no proper type exports
-const pdfParse = require('pdf-parse')
+// unpdf for PDF parsing (Node.js compatible)
+import { extractText, getDocumentProxy } from 'unpdf'
 
 /**
  * PDF 전체 텍스트 추출 API
@@ -82,11 +82,14 @@ export async function GET(
 
     const pdfBuffer = Buffer.from(await pdfResponse.arrayBuffer())
 
-    // pdf-parse로 텍스트 추출
-    const pdfData = await pdfParse(pdfBuffer)
+    // unpdf로 텍스트 추출
+    const pdfData = new Uint8Array(pdfBuffer)
+    const pdf = await getDocumentProxy(pdfData)
+    const result = await extractText(pdf, { mergePages: false })
 
-    // 전체 텍스트를 페이지별로 분리
-    const allPages = pdfData.text.split('\f')
+    // 전체 텍스트를 페이지별로 분리 (unpdf는 페이지별 배열 반환)
+    const allPages = Array.isArray(result.text) ? result.text : [result.text]
+    const numPages = pdf.numPages
 
     // 요청한 페이지들만 필터링
     let requestedPages: number[] = []
@@ -97,12 +100,12 @@ export async function GET(
       for (const part of parts) {
         if (part.includes('-')) {
           const [start, end] = part.split('-').map(n => parseInt(n.trim()))
-          for (let i = start; i <= end && i <= pdfData.numpages; i++) {
+          for (let i = start; i <= end && i <= numPages; i++) {
             if (i >= 1) requestedPages.push(i)
           }
         } else {
           const pageNum = parseInt(part.trim())
-          if (pageNum >= 1 && pageNum <= pdfData.numpages) {
+          if (pageNum >= 1 && pageNum <= numPages) {
             requestedPages.push(pageNum)
           }
         }
@@ -111,7 +114,7 @@ export async function GET(
       requestedPages = [...new Set(requestedPages)].sort((a, b) => a - b)
     } else {
       // 전체 페이지
-      requestedPages = Array.from({ length: pdfData.numpages }, (_, i) => i + 1)
+      requestedPages = Array.from({ length: numPages }, (_, i) => i + 1)
     }
 
     // 페이지별 텍스트 구성
@@ -121,16 +124,19 @@ export async function GET(
       evidence_format: `[Evidence: ${viewerState.media_name} p.${pageNum} "인용문"]`,
     }))
 
+    // 전체 텍스트 구성
+    const fullText = allPages.join('\n\n')
+
     return NextResponse.json({
       doc_id: viewerState.id,
       doc_name: viewerState.media_name,
       doc_url: viewerState.media_url,
-      total_pages: pdfData.numpages,
+      total_pages: numPages,
       requested_pages: requestedPages,
       pages: pagesData,
       // 전체 텍스트 (요약용)
-      full_text: requestedPages.length === pdfData.numpages
-        ? pdfData.text
+      full_text: requestedPages.length === numPages
+        ? fullText
         : pagesData.map(p => p.text).join('\n\n---\n\n'),
     })
   } catch (error: any) {

@@ -4,15 +4,12 @@ import { useState, useEffect } from "react"
 import { motion } from "framer-motion"
 import {
   Zap,
-  AlertTriangle,
   TrendingUp,
   Activity,
-  Bot,
   CheckCircle2,
   Clock,
   Target,
   Shield,
-  Sparkles,
 } from "lucide-react"
 import { Button } from "@/components/ui/Button"
 import { cn } from "@/lib/utils"
@@ -48,18 +45,10 @@ export function AICommandCenter({ projectId }: AICommandCenterProps) {
     overdue: 0,
     aiGenerated: 0,
   })
-  const [pulseActive, setPulseActive] = useState(true)
   const [lastSync, setLastSync] = useState<Date>(new Date())
 
   useEffect(() => {
     fetchTaskData()
-
-    // Pulse animation
-    const interval = setInterval(() => {
-      setPulseActive((prev) => !prev)
-    }, 2000)
-
-    return () => clearInterval(interval)
   }, [projectId])
 
   const fetchTaskData = async () => {
@@ -92,26 +81,26 @@ export function AICommandCenter({ projectId }: AICommandCenterProps) {
         {
           id: "1",
           type: "trigger",
-          title: "AI 트리거",
-          value: aiGenerated > 0 ? `${aiGenerated}건 AI 작업` : "대기 중",
+          title: "자동화 작업",
+          value: aiGenerated > 0 ? `${aiGenerated}건 자동화됨` : "대기 중",
           status: aiGenerated > 0 ? "success" : "warning",
           icon: Zap,
         },
         {
           id: "2",
           type: "alert",
-          title: "AI 감시견",
-          value: overdue > 0 ? `${overdue}건 지연!` : "정상 운영",
+          title: "이슈 모니터링",
+          value: overdue > 0 ? `${overdue}건 지연!` : "정상",
           status: overdue > 0 ? "warning" : "success",
           icon: Shield,
         },
         {
           id: "3",
           type: "insight",
-          title: "AI 분석 인사이트",
+          title: "진행 분석",
           value: tasks.length > 0
             ? `완료율 ${Math.round((completed / tasks.length) * 100)}%`
-            : "태스크 없음",
+            : "데이터 없음",
           trend: completed > inProgress ? "up" : "stable",
           status: "success",
           icon: TrendingUp,
@@ -167,36 +156,25 @@ export function AICommandCenter({ projectId }: AICommandCenterProps) {
     <motion.div
       initial={{ opacity: 0, y: -20 }}
       animate={{ opacity: 1, y: 0 }}
-      className="relative overflow-hidden rounded-2xl bg-zinc-900/50 backdrop-blur-sm border border-zinc-800"
+      className="relative overflow-hidden rounded-2xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 shadow-sm"
     >
-      {/* Subtle gradient overlay */}
-      <div className="absolute inset-0 bg-gradient-to-br from-violet-500/5 via-transparent to-cyan-500/5 pointer-events-none" />
-
       <div className="relative z-10 p-5">
         {/* Header */}
         <div className="flex items-center gap-3 mb-5">
           <div className="relative">
-            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-violet-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-violet-500/20">
-              <Bot className="w-4 h-4 text-white" />
+            <div className="w-9 h-9 rounded-xl bg-zinc-100 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 flex items-center justify-center">
+              <Activity className="w-5 h-5 text-zinc-900 dark:text-zinc-100" />
             </div>
-            {pulseActive && (
-              <motion.div
-                initial={{ scale: 0.8, opacity: 1 }}
-                animate={{ scale: 1.8, opacity: 0 }}
-                transition={{ duration: 1.5, repeat: Infinity }}
-                className="absolute inset-0 rounded-xl bg-violet-500/40"
-              />
-            )}
           </div>
           <div>
-            <h2 className="text-base font-semibold text-white flex items-center gap-2">
-              AI 관제탑
-              <span className="relative flex h-2 w-2">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
-              </span>
+            <h2 className="text-base font-bold text-zinc-900 dark:text-white flex items-center gap-2">
+              프로젝트 현황
+              <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20">
+                <div className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                <span className="text-[10px] font-medium text-emerald-600 dark:text-emerald-400">Live</span>
+              </div>
             </h2>
-            <p className="text-xs text-zinc-500">실시간 AI 모니터링</p>
+            <p className="text-xs text-zinc-500">실시간 프로젝트 모니터링</p>
           </div>
         </div>
 
@@ -214,15 +192,15 @@ export function AICommandCenter({ projectId }: AICommandCenterProps) {
                 transition={{ delay: idx * 0.1 }}
                 className={cn(
                   "relative group cursor-pointer overflow-hidden rounded-xl p-4",
-                  "bg-zinc-800/50 border border-zinc-700/50",
-                  "hover:bg-zinc-800/80 hover:border-zinc-600/50 transition-all duration-300"
+                  "bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200 dark:border-zinc-700/50",
+                  "hover:bg-white dark:hover:bg-zinc-800 hover:border-zinc-300 dark:hover:border-zinc-600 transition-all duration-200"
                 )}
               >
                 {/* Status indicator line */}
                 <div className={cn(
                   "absolute left-0 top-0 bottom-0 w-0.5",
                   metric.status === "warning" ? "bg-amber-500" :
-                  metric.status === "danger" ? "bg-red-500" : "bg-emerald-500"
+                    metric.status === "danger" ? "bg-red-500" : "bg-emerald-500"
                 )} />
 
                 <div className="relative z-10 flex items-center justify-between">
@@ -232,27 +210,15 @@ export function AICommandCenter({ projectId }: AICommandCenterProps) {
                     </div>
                     <div>
                       <p className="text-xs text-zinc-500 mb-0.5">{metric.title}</p>
-                      <p className="text-sm font-medium text-zinc-100">{metric.value}</p>
+                      <p className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">{metric.value}</p>
                     </div>
                   </div>
 
-                  {/* Trend/Activity Indicator */}
                   {metric.type === "trigger" && (
                     <div className="flex items-center gap-0.5">
-                      {[...Array(5)].map((_, i) => (
-                        <motion.div
-                          key={i}
-                          animate={{
-                            height: [6, 14, 20, 14, 6][i % 5],
-                          }}
-                          transition={{
-                            duration: 0.6,
-                            repeat: Infinity,
-                            delay: i * 0.1,
-                          }}
-                          className="w-1 bg-gradient-to-t from-violet-500 to-cyan-400 rounded-full"
-                        />
-                      ))}
+                      {/* Simplified activity indicator */}
+                      <div className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                      <span className="text-xs text-zinc-400">Active</span>
                     </div>
                   )}
 

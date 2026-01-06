@@ -1,16 +1,16 @@
+// @ts-nocheck - Table types not yet generated
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { getDevUser } from '@/lib/dev-user'
+import { DEV_USER } from '@/lib/dev-user'
 
 export async function GET(request: NextRequest) {
   try {
     const supabase = await createClient()
-    const devUser = getDevUser()
 
     const { data: alerts, error } = await supabase
       .from('government_program_alerts')
       .select('*')
-      .eq('user_id', devUser.id)
+      .eq('user_id', DEV_USER.id)
       .order('created_at', { ascending: false })
 
     if (error) throw error
@@ -25,7 +25,6 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const supabase = await createClient()
-    const devUser = getDevUser()
     const body = await request.json()
 
     const { alert_type, keywords, categories, notification_channels } = body
@@ -37,7 +36,7 @@ export async function POST(request: NextRequest) {
     const { data, error } = await supabase
       .from('government_program_alerts')
       .insert({
-        user_id: devUser.id,
+        user_id: DEV_USER.id,
         alert_type,
         keywords: keywords || [],
         categories: categories || [],
@@ -59,7 +58,6 @@ export async function POST(request: NextRequest) {
 export async function PATCH(request: NextRequest) {
   try {
     const supabase = await createClient()
-    const devUser = getDevUser()
     const body = await request.json()
 
     const { id, ...updates } = body
@@ -72,7 +70,7 @@ export async function PATCH(request: NextRequest) {
       .from('government_program_alerts')
       .update({ ...updates, updated_at: new Date().toISOString() })
       .eq('id', id)
-      .eq('user_id', devUser.id)
+      .eq('user_id', DEV_USER.id)
       .select()
       .single()
 
@@ -88,7 +86,6 @@ export async function PATCH(request: NextRequest) {
 export async function DELETE(request: NextRequest) {
   try {
     const supabase = await createClient()
-    const devUser = getDevUser()
     const { searchParams } = new URL(request.url)
     const id = searchParams.get('id')
 
@@ -100,7 +97,7 @@ export async function DELETE(request: NextRequest) {
       .from('government_program_alerts')
       .delete()
       .eq('id', id)
-      .eq('user_id', devUser.id)
+      .eq('user_id', DEV_USER.id)
 
     if (error) throw error
 

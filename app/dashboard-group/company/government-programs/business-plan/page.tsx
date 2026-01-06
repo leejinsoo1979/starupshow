@@ -33,10 +33,7 @@ import {
 import { cn } from '@/lib/utils'
 import { useThemeStore, accentColors } from '@/stores/themeStore'
 import ReactMarkdown from 'react-markdown'
-import { Document, Packer, Paragraph, TextRun, HeadingLevel, AlignmentType, BorderStyle } from 'docx'
-import { saveAs } from 'file-saver'
-// @ts-ignore
-import html2pdf from 'html2pdf.js'
+// docx, file-saver, html2pdf는 동적으로 import (SSR 문제 방지)
 
 // 섹션 아이콘 매핑
 const SECTION_ICONS: Record<string, any> = {
@@ -129,6 +126,13 @@ export default function BusinessPlanPage() {
   const [editContent, setEditContent] = useState('')
   const [regenerateInstructions, setRegenerateInstructions] = useState('')
   const [showRegenerateModal, setShowRegenerateModal] = useState(false)
+  const [showInterviewPrompt, setShowInterviewPrompt] = useState(false)
+  const [interviewData, setInterviewData] = useState<{
+    message: string
+    missing_data: string[]
+    suggestions: string[]
+    completeness_score: number
+  } | null>(null)
 
   // 프로그램 정보 로드
   const fetchProgram = useCallback(async () => {
@@ -217,6 +221,15 @@ export default function BusinessPlanPage() {
             setSelectedSection(sections[0])
           }
         }
+      } else if (data.needs_interview) {
+        // 지식베이스 부족 - 인터뷰 모드 안내
+        setInterviewData({
+          message: data.message,
+          missing_data: data.missing_data || [],
+          suggestions: data.suggestions || [],
+          completeness_score: data.completeness_score || 0
+        })
+        setShowInterviewPrompt(true)
       } else {
         alert(data.error || '생성 실패')
       }
@@ -341,7 +354,8 @@ export default function BusinessPlanPage() {
     }
 
     try {
-      // @ts-ignore
+      // html2pdf는 브라우저에서만 동작 (동적 import)
+      const html2pdf = (await import('html2pdf.js')).default
       await html2pdf().set(opt).from(element).save()
     } catch (err) {
       console.error('PDF export failed:', err)
@@ -354,6 +368,10 @@ export default function BusinessPlanPage() {
     if (!businessPlan) return
 
     try {
+      // 동적 import (SSR 문제 방지)
+      const { Document, Packer, Paragraph, TextRun, HeadingLevel, AlignmentType, BorderStyle } = await import('docx')
+      const { saveAs } = await import('file-saver')
+
       const children: any[] = [
         new Paragraph({
           text: businessPlan.title,
@@ -511,8 +529,8 @@ export default function BusinessPlanPage() {
 
       {/* 메인 콘텐츠 */}
       <div className="relative z-10 flex h-[calc(100vh-64px)]">
-        {!businessPlan ? (
-          /* 사업계획서 없음 - 생성 유도 (새 디자인) */
+        {!businessPlan || Object.keys(businessPlan.sections || {}).length === 0 ? (
+          /* 사업계획서 없음 또는 섹션 없음 - 생성 유도 (새 디자인) */
           <div className="flex-1 flex items-center justify-center p-6 relative overflow-hidden">
             {/* 배경 애니메이션 */}
             <div className="absolute inset-0 overflow-hidden">
@@ -943,6 +961,121 @@ export default function BusinessPlanPage() {
                 재생성
               </button>
             </div>
+          </GlassCard>
+        </div>
+      )}
+
+      {/* 인터뷰 모드 안내 모달 */}
+      {showInterviewPrompt && interviewData && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowInterviewPrompt(false)} />
+          <GlassCard className="relative w-full max-w-xl p-6" hover={false}>
+            {/* 헤더 */}
+            <div className="flex items-center gap-4 mb-6">
+              <div
+                className="w-14 h-14 rounded-2xl flex items-center justify-center"
+                style={{ background: `linear-gradient(135deg, ${themeColor}, ${themeColor}80)` }}
+              >
+                <MessageSquare className="w-7 h-7 text-white" />
+              </div>
+              <div>
+                <h3 className="text-xl font-bold text-white">인터뷰 모드 시작</h3>
+                <p className="text-sm text-zinc-400">AI가 질문을 통해 정보를 수집합니다</p>
+              </div>
+            </div>
+
+            {/* 완성도 표시 */}
+            <div className="mb-6">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-sm text-zinc-400">지식베이스 완성도</span>
+                <span className="text-sm font-medium" style={{ color: themeColor }}>
+                  {interviewData.completeness_score}%
+                </span>
+              </div>
+              <div className="h-2 bg-white/10 rounded-full overflow-hidden">
+                <div
+                  className="h-full rounded-full transition-all"
+                  style={{
+                    width: `${interviewData.completeness_score}%`,
+                    background: `linear-gradient(90deg, ${themeColor}, ${themeColor}80)`
+                  }}
+                />
+              </div>
+            </div>
+
+            {/* 부족한 정보 */}
+            {interviewData.missing_data.length > 0 && (
+              <div className="mb-6">
+                <h4 className="text-sm font-medium text-zinc-300 mb-3">부족한 정보</h4>
+                <div className="flex flex-wrap gap-2">
+                  {interviewData.missing_data.slice(0, 6).map((item, i) => (
+                    <span
+                      key={i}
+                      className="px-3 py-1.5 rounded-lg text-xs bg-amber-500/10 text-amber-300 border border-amber-500/20"
+                    >
+                      {item}
+                    </span>
+                  ))}
+                  {interviewData.missing_data.length > 6 && (
+                    <span className="px-3 py-1.5 rounded-lg text-xs bg-white/5 text-zinc-400">
+                      +{interviewData.missing_data.length - 6}개 더
+                    </span>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* 안내 메시지 */}
+            <div className="p-4 rounded-xl bg-white/5 border border-white/10 mb-6">
+              <p className="text-sm text-zinc-300 leading-relaxed">
+                {interviewData.message}
+              </p>
+            </div>
+
+            {/* 선택 옵션 */}
+            <div className="space-y-3 mb-6">
+              {interviewData.suggestions.map((suggestion, i) => (
+                <button
+                  key={i}
+                  onClick={() => {
+                    if (i === 0) {
+                      // 인터뷰 모드 시작 - builder 페이지로 이동
+                      setShowInterviewPrompt(false)
+                      router.push(`/dashboard-group/company/government-programs/business-plan/builder?program_id=${programId}`)
+                    } else if (i === 1) {
+                      // 파일 업로드
+                      setShowInterviewPrompt(false)
+                      router.push(`/dashboard-group/company/knowledge-base?upload=true`)
+                    } else {
+                      // 직접 입력
+                      setShowInterviewPrompt(false)
+                      router.push(`/dashboard-group/company/profile`)
+                    }
+                  }}
+                  className={cn(
+                    "w-full flex items-center gap-3 px-4 py-3 rounded-xl text-left transition-all",
+                    i === 0
+                      ? "text-white hover:opacity-90"
+                      : "bg-white/5 text-zinc-300 hover:bg-white/10"
+                  )}
+                  style={i === 0 ? { background: `linear-gradient(135deg, ${themeColor}, ${themeColor}80)` } : undefined}
+                >
+                  {i === 0 && <MessageSquare className="w-5 h-5" />}
+                  {i === 1 && <Download className="w-5 h-5" />}
+                  {i === 2 && <Edit3 className="w-5 h-5" />}
+                  <span className="text-sm font-medium">{suggestion}</span>
+                  <ChevronRight className="w-4 h-4 ml-auto" />
+                </button>
+              ))}
+            </div>
+
+            {/* 닫기 버튼 */}
+            <button
+              onClick={() => setShowInterviewPrompt(false)}
+              className="w-full px-4 py-2 rounded-xl text-sm font-medium bg-white/5 text-zinc-400 hover:bg-white/10 transition-all"
+            >
+              나중에 하기
+            </button>
           </GlassCard>
         </div>
       )}

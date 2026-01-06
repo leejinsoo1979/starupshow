@@ -1,13 +1,19 @@
 // @ts-nocheck
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
-import { getDevUser } from '@/lib/dev-user'
+import { createClientForApi } from '@/lib/supabase/server'
+import { isDevMode, DEV_USER } from '@/lib/dev-user'
 
 // 사업계획서 목록 조회
 export async function GET(request: NextRequest) {
   try {
-    const supabase = await createClient()
-    const user = await getDevUser(supabase)
+    const supabase = await createClientForApi()
+
+    // 인증 확인
+    let user: any = isDevMode() ? DEV_USER : null
+    if (!user) {
+      const { data } = await supabase.auth.getUser()
+      user = data.user
+    }
 
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -18,16 +24,18 @@ export async function GET(request: NextRequest) {
     const status = searchParams.get('status')
     const limit = parseInt(searchParams.get('limit') || '20')
 
-    // 사용자 회사 조회
-    const { data: employee } = await supabase
-      .from('employees')
+    // 회사 조회 (company_support_profiles에서 company_id 조회)
+    const { data: profile } = await supabase
+      .from('company_support_profiles')
       .select('company_id')
       .eq('user_id', user.id)
       .single()
 
-    if (!employee) {
+    if (!profile?.company_id) {
       return NextResponse.json({ error: 'Company not found' }, { status: 404 })
     }
+
+    const companyId = profile.company_id
 
     let query = supabase
       .from('business_plans')
@@ -36,7 +44,7 @@ export async function GET(request: NextRequest) {
         template:business_plan_templates(id, template_name),
         program:government_programs(id, title, organization)
       `)
-      .eq('company_id', employee.company_id)
+      .eq('company_id', companyId)
       .eq('is_latest', true)
       .order('updated_at', { ascending: false })
       .limit(limit)
@@ -66,8 +74,14 @@ export async function GET(request: NextRequest) {
 // 새 사업계획서 생성
 export async function POST(request: NextRequest) {
   try {
-    const supabase = await createClient()
-    const user = await getDevUser(supabase)
+    const supabase = await createClientForApi()
+
+    // 인증 확인
+    let user: any = isDevMode() ? DEV_USER : null
+    if (!user) {
+      const { data } = await supabase.auth.getUser()
+      user = data.user
+    }
 
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -83,16 +97,18 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // 사용자 회사 조회
-    const { data: employee } = await supabase
-      .from('employees')
+    // 회사 조회 (company_support_profiles에서 company_id 조회)
+    const { data: profile } = await supabase
+      .from('company_support_profiles')
       .select('company_id')
       .eq('user_id', user.id)
       .single()
 
-    if (!employee) {
+    if (!profile?.company_id) {
       return NextResponse.json({ error: 'Company not found' }, { status: 404 })
     }
+
+    const companyId = profile.company_id
 
     // 프로그램 정보 조회
     const { data: program } = await supabase
@@ -122,14 +138,10 @@ export async function POST(request: NextRequest) {
     const { data: plan, error } = await supabase
       .from('business_plans')
       .insert({
-        company_id: employee.company_id,
+        user_id: user.id,
+        company_id: companyId,
         program_id,
-        template_id: templateId,
-        title,
-        project_name,
-        pipeline_stage: 0,
-        pipeline_status: 'draft',
-        assigned_to: user.id
+        title
       })
       .select()
       .single()

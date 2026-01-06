@@ -970,10 +970,10 @@ export function AgentChatPanel({
                   ? `${selectedAgent?.name}에게 ${delegateAgent.name}로 위임할 작업을 입력...`
                   : `${selectedAgent?.name || '에이전트'}에게 메시지 입력...`
               }
-              className={`w-full px-4 py-2 pr-24 rounded-xl border bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 resize-none focus:outline-none focus:ring-2 transition-colors disabled:opacity-50 ${
+              className={`w-full px-4 py-2 pr-24 rounded-xl border bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 resize-none focus:outline-none transition-colors disabled:opacity-50 ${
                 isTaskMode
-                  ? 'border-amber-300 dark:border-amber-700 focus:ring-amber-500'
-                  : 'border-zinc-200 dark:border-zinc-700 focus:ring-blue-500'
+                  ? 'border-amber-300 dark:border-amber-700'
+                  : 'border-zinc-200 dark:border-zinc-700'
               }`}
               rows={1}
               style={{ minHeight: '44px', maxHeight: '120px' }}

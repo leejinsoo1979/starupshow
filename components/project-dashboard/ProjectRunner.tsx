@@ -9,6 +9,9 @@ import {
   ChevronDown,
   ChevronUp,
   Loader2,
+  Eye,
+  X,
+  ExternalLink,
 } from "lucide-react"
 import { Button } from "@/components/ui/Button"
 
@@ -28,7 +31,15 @@ interface ProjectConfig {
   mainScript?: string
 }
 
-type RunStatus = "idle" | "starting" | "running" | "stopping" | "error" | "initializing"
+interface DBFile {
+  id: string
+  file_name: string
+  file_path: string
+  content: string
+  created_at: string
+}
+
+type RunStatus = "idle" | "starting" | "running" | "stopping" | "error" | "initializing" | "preview"
 
 export function ProjectRunner({
   projectId,
@@ -48,6 +59,11 @@ export function ProjectRunner({
   const cleanupRef = useRef<(() => void) | null>(null)
   const workspaceCreatedRef = useRef(false)
 
+  // DB에 저장된 파일 (웹 미리보기용)
+  const [dbFiles, setDbFiles] = useState<DBFile[]>([])
+  const [showPreview, setShowPreview] = useState(false)
+  const [previewContent, setPreviewContent] = useState<string>("")
+
   // Sync with prop changes
   useEffect(() => {
     setFolderPath(initialFolderPath)
@@ -57,6 +73,64 @@ export function ProjectRunner({
   useEffect(() => {
     setIsElectron(typeof window !== "undefined" && !!window.electron?.projectRunner)
   }, [])
+
+  // folder_path가 없으면 DB에서 파일 조회
+  useEffect(() => {
+    if (!initialFolderPath) {
+      fetchDBFiles()
+    }
+  }, [projectId, initialFolderPath])
+
+  const fetchDBFiles = async () => {
+    try {
+      const res = await fetch(`/api/projects/${projectId}/files`)
+      const data = await res.json()
+      if (data.files && data.files.length > 0) {
+        setDbFiles(data.files)
+        // HTML 파일이 있는지 확인
+        const htmlFile = data.files.find((f: DBFile) =>
+          f.file_name.endsWith('.html') || f.file_name.endsWith('.htm')
+        )
+        if (htmlFile) {
+          setConfig({
+            type: "static",
+            hasPackageJson: false,
+            hasPyProject: false,
+            hasIndexHtml: true,
+            scripts: {},
+          })
+        }
+      }
+    } catch (err) {
+      console.error('[ProjectRunner] Failed to fetch DB files:', err)
+    }
+  }
+
+  // 웹 미리보기 (DB 파일용)
+  const openWebPreview = useCallback(() => {
+    const htmlFile = dbFiles.find((f) =>
+      f.file_name.endsWith('.html') || f.file_name.endsWith('.htm')
+    )
+    if (htmlFile && htmlFile.content) {
+      setPreviewContent(htmlFile.content)
+      setShowPreview(true)
+      setStatus("preview")
+    }
+  }, [dbFiles])
+
+  // 새 창에서 미리보기
+  const openInNewWindow = useCallback(() => {
+    const htmlFile = dbFiles.find((f) =>
+      f.file_name.endsWith('.html') || f.file_name.endsWith('.htm')
+    )
+    if (htmlFile && htmlFile.content) {
+      const newWindow = window.open('', '_blank', 'width=800,height=600')
+      if (newWindow) {
+        newWindow.document.write(htmlFile.content)
+        newWindow.document.close()
+      }
+    }
+  }, [dbFiles])
 
   // 워크스페이스 자동 생성 (folder_path 없을 때)
   const autoCreateWorkspace = useCallback(async () => {
@@ -305,8 +379,13 @@ export function ProjectRunner({
     setOutput([])
   }
 
-  // Don't render if not in Electron
-  if (!isElectron) {
+  // DB 파일이 있는지 확인 (HTML)
+  const hasDBHtmlFile = dbFiles.some((f) =>
+    f.file_name.endsWith('.html') || f.file_name.endsWith('.htm')
+  )
+
+  // Electron이 아니고 DB 파일도 없으면 렌더링 안함
+  if (!isElectron && !hasDBHtmlFile) {
     return null
   }
 
@@ -317,12 +396,14 @@ export function ProjectRunner({
     running: "text-emerald-500 dark:text-emerald-400",
     stopping: "text-amber-500 dark:text-amber-400",
     error: "text-red-500 dark:text-red-400",
+    preview: "text-purple-500 dark:text-purple-400",
   }
 
   const statusLabels: Record<RunStatus, string> = {
     idle: "대기",
     initializing: "준비 중...",
     starting: "시작 중...",
+    preview: "미리보기",
     running: "실행 중",
     stopping: "중지 중...",
     error: "오류",
@@ -348,18 +429,33 @@ export function ProjectRunner({
           {status === "initializing" ? (
             <Loader2 className="w-4 h-4 animate-spin text-blue-500 dark:text-blue-400" />
           ) : status === "idle" || status === "error" ? (
-            <Button
-              size="sm"
-              onClick={(e) => {
-                e.stopPropagation()
-                startProject()
-              }}
-              disabled={!folderPath}
-              className="h-7 px-3 bg-emerald-600 hover:bg-emerald-500 text-white disabled:opacity-50"
-            >
-              <Play className="w-3 h-3 mr-1.5" />
-              Run
-            </Button>
+            // Electron이 아니고 DB HTML 파일이 있으면 Preview 버튼
+            !isElectron && hasDBHtmlFile ? (
+              <Button
+                size="sm"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  openWebPreview()
+                }}
+                className="h-7 px-3 bg-purple-600 hover:bg-purple-500 text-white"
+              >
+                <Eye className="w-3 h-3 mr-1.5" />
+                Preview
+              </Button>
+            ) : (
+              <Button
+                size="sm"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  startProject()
+                }}
+                disabled={!folderPath}
+                className="h-7 px-3 bg-emerald-600 hover:bg-emerald-500 text-white disabled:opacity-50"
+              >
+                <Play className="w-3 h-3 mr-1.5" />
+                Run
+              </Button>
+            )
           ) : status === "running" ? (
             <Button
               size="sm"
@@ -372,6 +468,19 @@ export function ProjectRunner({
             >
               <Square className="w-3 h-3 mr-1.5" />
               Stop
+            </Button>
+          ) : status === "preview" ? (
+            <Button
+              size="sm"
+              onClick={(e) => {
+                e.stopPropagation()
+                setShowPreview(false)
+                setStatus("idle")
+              }}
+              className="h-7 px-3 bg-purple-600 hover:bg-purple-500 text-white"
+            >
+              <X className="w-3 h-3 mr-1.5" />
+              Close
             </Button>
           ) : (
             <Loader2 className="w-4 h-4 animate-spin text-zinc-400" />
@@ -412,34 +521,68 @@ export function ProjectRunner({
               </div>
             )}
 
-            {/* Output Terminal */}
-            <div className="border-t border-zinc-200 dark:border-zinc-800/50">
-              <div className="flex items-center justify-between px-3 py-1.5 bg-zinc-100 dark:bg-zinc-900/80 border-b border-zinc-200 dark:border-zinc-800/50">
-                <span className="text-xs text-zinc-500">Output</span>
-                <button
-                  onClick={clearOutput}
-                  className="text-xs text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 px-2 py-0.5 rounded hover:bg-zinc-200 dark:hover:bg-zinc-800"
+            {/* Output Terminal - Electron 환경에서만 표시 */}
+            {isElectron && (
+              <div className="border-t border-zinc-200 dark:border-zinc-800/50">
+                <div className="flex items-center justify-between px-3 py-1.5 bg-zinc-100 dark:bg-zinc-900/80 border-b border-zinc-200 dark:border-zinc-800/50">
+                  <span className="text-xs text-zinc-500">Output</span>
+                  <button
+                    onClick={clearOutput}
+                    className="text-xs text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 px-2 py-0.5 rounded hover:bg-zinc-200 dark:hover:bg-zinc-800"
+                  >
+                    Clear
+                  </button>
+                </div>
+                <div
+                  ref={outputRef}
+                  className="h-48 overflow-y-auto px-3 py-2 font-mono text-xs bg-zinc-50 dark:bg-black/50 text-zinc-700 dark:text-zinc-300 space-y-0.5"
                 >
-                  Clear
-                </button>
-              </div>
-              <div
-                ref={outputRef}
-                className="h-48 overflow-y-auto px-3 py-2 font-mono text-xs bg-zinc-50 dark:bg-black/50 text-zinc-700 dark:text-zinc-300 space-y-0.5"
-              >
-                {output.length === 0 ? (
-                  <div className="text-zinc-400 dark:text-zinc-600 py-4 text-center">
-                    {!folderPath ? "워크스페이스 생성 중..." : "Run 버튼을 눌러 프로젝트를 실행하세요"}
-                  </div>
-                ) : (
-                  output.map((line, idx) => (
-                    <div key={idx} className={line.startsWith(">") ? "text-zinc-500" : ""}>
-                      {line || "\u00A0"}
+                  {output.length === 0 ? (
+                    <div className="text-zinc-400 dark:text-zinc-600 py-4 text-center">
+                      {!folderPath ? "워크스페이스 생성 중..." : "Run 버튼을 눌러 프로젝트를 실행하세요"}
                     </div>
-                  ))
-                )}
+                  ) : (
+                    output.map((line, idx) => (
+                      <div key={idx} className={line.startsWith(">") ? "text-zinc-500" : ""}>
+                        {line || "\u00A0"}
+                      </div>
+                    ))
+                  )}
+                </div>
               </div>
-            </div>
+            )}
+
+            {/* Web Preview - 웹 환경에서 DB HTML 미리보기 */}
+            {!isElectron && hasDBHtmlFile && (
+              <div className="border-t border-zinc-200 dark:border-zinc-800/50">
+                <div className="flex items-center justify-between px-3 py-1.5 bg-zinc-100 dark:bg-zinc-900/80 border-b border-zinc-200 dark:border-zinc-800/50">
+                  <span className="text-xs text-zinc-500">HTML 미리보기</span>
+                  <button
+                    onClick={openInNewWindow}
+                    className="text-xs text-purple-500 hover:text-purple-700 dark:hover:text-purple-300 px-2 py-0.5 rounded hover:bg-purple-50 dark:hover:bg-purple-500/10 flex items-center gap-1"
+                  >
+                    <ExternalLink className="w-3 h-3" />
+                    새 창에서 열기
+                  </button>
+                </div>
+                <div className="p-2 bg-zinc-50 dark:bg-black/50">
+                  {showPreview ? (
+                    <iframe
+                      srcDoc={previewContent}
+                      className="w-full h-64 bg-white rounded border border-zinc-200 dark:border-zinc-700"
+                      title={`${projectName} Preview`}
+                      sandbox="allow-scripts"
+                    />
+                  ) : (
+                    <div className="h-32 flex flex-col items-center justify-center text-zinc-400 dark:text-zinc-600">
+                      <Eye className="w-8 h-8 mb-2 opacity-50" />
+                      <p className="text-sm">Preview 버튼을 눌러 미리보기</p>
+                      <p className="text-xs mt-1">{dbFiles.find(f => f.file_name.endsWith('.html'))?.file_name}</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
           </motion.div>
         )}
       </AnimatePresence>

@@ -41,11 +41,13 @@ async function extractPdfText(url: string): Promise<string> {
 
     const arrayBuffer = await response.arrayBuffer()
 
-    // pdf-parse 동적 import
-    const pdfParse = (await import('pdf-parse')).default
-    const data = await pdfParse(Buffer.from(arrayBuffer))
+    // unpdf 동적 import
+    const { extractText, getDocumentProxy } = await import('unpdf')
+    const data = new Uint8Array(arrayBuffer)
+    const pdf = await getDocumentProxy(data)
+    const result = await extractText(pdf, { mergePages: true })
 
-    return data.text.slice(0, 10000) // 처음 10000자만 사용
+    return result.text.slice(0, 10000) // 처음 10000자만 사용
   } catch (error) {
     console.error('PDF extraction error:', error)
     return ''

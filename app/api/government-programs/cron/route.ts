@@ -282,7 +282,7 @@ export async function GET(request: NextRequest) {
 
     // ========== 7. 기업마당 content 보강 (스크래핑) ==========
     let bizinfoScrapedCount = 0
-    const maxBizinfoScrape = 30
+    const maxBizinfoScrape = 100  // 30에서 100으로 증가
 
     console.log('[GovernmentPrograms Cron] 기업마당 스크래핑 보강 시작...')
 

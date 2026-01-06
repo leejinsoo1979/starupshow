@@ -104,17 +104,18 @@ async function parseCSVFile(buffer: Buffer, fileName: string): Promise<ParsedFil
 }
 
 /**
- * PDF 파일 파싱
+ * PDF 파일 파싱 (unpdf 사용)
  */
 async function parsePDFFile(buffer: Buffer, fileName: string): Promise<ParsedFileContent> {
   try {
-    // pdf-parse는 CommonJS 모듈이므로 require 사용
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const pdfParse = require('pdf-parse')
-    const data = await pdfParse(buffer)
+    // unpdf는 Node.js 호환 PDF 파싱 라이브러리
+    const { extractText, getDocumentProxy } = await import('unpdf')
+    const data = new Uint8Array(buffer)
+    const pdf = await getDocumentProxy(data)
+    const result = await extractText(pdf, { mergePages: true })
 
-    const content = (data.text || '').slice(0, 5000) // 최대 5000자
-    const pages = data.numpages || 0
+    const content = (result.text || '').slice(0, 5000) // 최대 5000자
+    const pages = pdf.numPages || 0
 
     return {
       success: true,

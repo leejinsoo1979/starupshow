@@ -266,6 +266,7 @@ export default function NeuralMapPage() {
   const setProjectPath = useNeuralMapStore((s) => s.setProjectPath)
   const setMapId = useNeuralMapStore((s) => s.setMapId)
   const setLinkedProject = useNeuralMapStore((s) => s.setLinkedProject)
+  const clearLinkedProject = useNeuralMapStore((s) => s.clearLinkedProject)
 
   // URL 파라미터에서 mapId, tab, newProject 처리
   const searchParams = useSearchParams()
@@ -358,9 +359,6 @@ export default function NeuralMapPage() {
 
   // Map Sub-View Mode (2D default)
   const [mapViewMode, setMapViewMode] = useState<'2d' | '3d'>('2d')
-
-  // 진입 시 이전 프로젝트 연결 초기화
-  const clearLinkedProject = useNeuralMapStore((s) => s.clearLinkedProject)
 
   // 🌐 AI Browser 패널 자동 열기 이벤트 리스너
   useEffect(() => {

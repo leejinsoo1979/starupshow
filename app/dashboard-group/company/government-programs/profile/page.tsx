@@ -14,7 +14,10 @@ import {
   Sparkles,
   Save,
   AlertCircle,
-  FileText
+  FileText,
+  Camera,
+  Upload,
+  X
 } from 'lucide-react'
 import { useThemeStore, accentColors, ThemeMode } from '@/stores/themeStore'
 import { cn } from '@/lib/utils'
@@ -75,6 +78,9 @@ const INTEREST_CATEGORIES = [
 ]
 
 interface ProfileFormData {
+  company_name: string
+  ceo_name: string
+  ceo_birth_date: string
   industry_category: string
   industry_subcategory: string
   annual_revenue: string
@@ -90,6 +96,7 @@ interface ProfileFormData {
   is_export_business: boolean
   tech_certifications: string[]
   interested_categories: string[]
+  interested_keywords: string[]
   // 상세 정보
   business_description: string
   main_products: string
@@ -97,6 +104,9 @@ interface ProfileFormData {
 }
 
 const initialFormData: ProfileFormData = {
+  company_name: '',
+  ceo_name: '',
+  ceo_birth_date: '',
   industry_category: '',
   industry_subcategory: '',
   annual_revenue: '',
@@ -112,6 +122,7 @@ const initialFormData: ProfileFormData = {
   is_export_business: false,
   tech_certifications: [],
   interested_categories: [],
+  interested_keywords: [],
   business_description: '',
   main_products: '',
   core_technologies: ''
@@ -158,6 +169,8 @@ export default function CompanyProfilePage() {
   const [existingProfile, setExistingProfile] = useState<any>(null)
   const [error, setError] = useState<string | null>(null)
   const [mounted, setMounted] = useState(false)
+  const [logoUrl, setLogoUrl] = useState<string | null>(null)
+  const [isUploadingLogo, setIsUploadingLogo] = useState(false)
 
   const steps = [
     { title: '업종 정보', icon: Building2 },
@@ -181,7 +194,11 @@ export default function CompanyProfilePage() {
 
       if (data.success && data.profile) {
         setExistingProfile(data.profile)
+        setLogoUrl(data.profile.logo || null)
         setFormData({
+          company_name: data.profile.company_name || '',
+          ceo_name: data.profile.ceo_name || '',
+          ceo_birth_date: data.profile.ceo_birth_date || '',
           industry_category: data.profile.industry_category || '',
           industry_subcategory: data.profile.industry_subcategory || '',
           annual_revenue: data.profile.annual_revenue?.toString() || '',
@@ -197,6 +214,7 @@ export default function CompanyProfilePage() {
           is_export_business: data.profile.is_export_business || false,
           tech_certifications: data.profile.tech_certifications || [],
           interested_categories: data.profile.interested_categories || [],
+          interested_keywords: data.profile.interested_keywords || [],
           business_description: data.profile.business_description || '',
           main_products: data.profile.main_products || '',
           core_technologies: data.profile.core_technologies || ''
@@ -220,6 +238,74 @@ export default function CompanyProfilePage() {
         ? prev[field].filter(i => i !== item)
         : [...prev[field], item]
     }))
+  }
+
+  const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    // 파일 크기 체크 (5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      setError('로고 파일은 5MB 이하여야 합니다.')
+      return
+    }
+
+    // 이미지 타입 체크
+    if (!file.type.startsWith('image/')) {
+      setError('이미지 파일만 업로드 가능합니다.')
+      return
+    }
+
+    setIsUploadingLogo(true)
+    setError(null)
+
+    try {
+      const formData = new FormData()
+      formData.append('file', file)
+      formData.append('type', 'logo')
+
+      const res = await fetch('/api/company-profile/logo', {
+        method: 'POST',
+        body: formData
+      })
+
+      const data = await res.json()
+
+      if (!res.ok) {
+        throw new Error(data.error || '로고 업로드 실패')
+      }
+
+      setLogoUrl(data.logo_url)
+    } catch (err: any) {
+      setError(err.message)
+    } finally {
+      setIsUploadingLogo(false)
+    }
+  }
+
+  const handleLogoRemove = async () => {
+    if (!logoUrl) return
+
+    setIsUploadingLogo(true)
+    setError(null)
+
+    try {
+      const res = await fetch('/api/company-profile/logo', {
+        method: 'DELETE'
+      })
+
+      const data = await res.json()
+
+      if (!res.ok) {
+        throw new Error(data.error || '로고 삭제 실패')
+      }
+
+      setLogoUrl(null)
+    } catch (err: any) {
+      setError(err.message)
+    } finally {
+      setIsUploadingLogo(false)
+    }
   }
 
   const handleSubmit = async () => {
@@ -250,7 +336,7 @@ export default function CompanyProfilePage() {
 
   const canProceed = () => {
     switch (currentStep) {
-      case 0: return !!formData.industry_category
+      case 0: return !!formData.industry_category && !!formData.company_name
       case 1: return true
       case 2: return true
       case 3: return !!formData.entity_type
@@ -263,19 +349,21 @@ export default function CompanyProfilePage() {
 
   const completeness = () => {
     let score = 0
-    if (formData.industry_category) score += 10
-    if (formData.business_description) score += 15
-    if (formData.main_products) score += 10
-    if (formData.core_technologies) score += 10
-    if (formData.annual_revenue) score += 8
-    if (formData.employee_count) score += 7
+    if (formData.company_name) score += 5
+    if (formData.ceo_name) score += 5
+    if (formData.ceo_birth_date) score += 5
+    if (formData.industry_category) score += 8
+    if (formData.business_description) score += 12
+    if (formData.main_products) score += 8
+    if (formData.core_technologies) score += 8
+    if (formData.annual_revenue) score += 7
+    if (formData.employee_count) score += 5
     if (formData.business_years) score += 5
     if (formData.entity_type) score += 10
     if (formData.startup_stage) score += 5
-    if (formData.region) score += 10
+    if (formData.region) score += 8
     if (formData.interested_categories.length > 0) score += 5
-    if (formData.tech_certifications.length > 0) score += 3
-    if (formData.is_youth_startup || formData.is_female_owned) score += 2
+    if (formData.tech_certifications.length > 0) score += 2
     return Math.min(100, score)
   }
 
@@ -408,6 +496,159 @@ export default function CompanyProfilePage() {
               {/* Step 0: 업종 정보 */}
               {currentStep === 0 && (
                 <div className="space-y-8">
+                  {/* 로고 + 회사명 */}
+                  <div className="flex gap-6 items-start">
+                    {/* 로고 업로드 */}
+                    <div className="flex-shrink-0">
+                      <label className={cn("block text-sm font-medium mb-3", theme.textSecondary)}>
+                        회사 로고
+                      </label>
+                      <div className="relative">
+                        <div
+                          className={cn(
+                            "w-28 h-28 rounded-2xl border-2 border-dashed flex items-center justify-center overflow-hidden transition-all",
+                            isDark ? "border-white/20 bg-white/5" : "border-gray-300 bg-gray-50",
+                            !logoUrl && "hover:border-opacity-50 cursor-pointer"
+                          )}
+                          style={{
+                            borderColor: logoUrl ? accentColor : undefined,
+                            backgroundColor: logoUrl ? `${accentColor}10` : undefined
+                          }}
+                        >
+                          {isUploadingLogo ? (
+                            <div className="animate-spin rounded-full h-8 w-8 border-2 border-t-transparent" style={{ borderColor: accentColor }} />
+                          ) : logoUrl ? (
+                            <img
+                              src={logoUrl}
+                              alt="Company Logo"
+                              className="w-full h-full object-cover"
+                            />
+                          ) : (
+                            <label className="cursor-pointer flex flex-col items-center gap-2 p-4">
+                              <Camera className={cn("w-8 h-8", isDark ? "text-zinc-500" : "text-gray-400")} />
+                              <span className={cn("text-xs text-center", theme.textSecondary)}>로고 업로드</span>
+                              <input
+                                type="file"
+                                accept="image/*"
+                                onChange={handleLogoUpload}
+                                className="hidden"
+                              />
+                            </label>
+                          )}
+                        </div>
+                        {logoUrl && (
+                          <div className="absolute -top-2 -right-2 flex gap-1">
+                            <label
+                              className="p-1.5 rounded-full bg-white shadow-lg cursor-pointer hover:bg-gray-100 transition-colors"
+                              title="로고 변경"
+                            >
+                              <Upload className="w-3.5 h-3.5 text-gray-600" />
+                              <input
+                                type="file"
+                                accept="image/*"
+                                onChange={handleLogoUpload}
+                                className="hidden"
+                              />
+                            </label>
+                            <button
+                              onClick={handleLogoRemove}
+                              className="p-1.5 rounded-full bg-red-500 shadow-lg hover:bg-red-600 transition-colors"
+                              title="로고 삭제"
+                            >
+                              <X className="w-3.5 h-3.5 text-white" />
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* 회사명 */}
+                    <div className="flex-1">
+                      <label className={cn("block text-sm font-medium mb-3", theme.textSecondary)}>
+                        회사명 <span className="text-red-400">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        value={formData.company_name}
+                        onChange={e => handleInputChange('company_name', e.target.value)}
+                        placeholder="회사명을 입력해주세요"
+                        className={cn(
+                          "w-full px-4 py-3 rounded-xl border transition-all outline-none focus:ring-2 focus:ring-opacity-50",
+                          theme.inputBg,
+                          theme.inputBorder,
+                          theme.text
+                        )}
+                        style={{
+                          '--tw-ring-color': accentColor
+                        } as React.CSSProperties}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                      <label className={cn("block text-sm font-medium mb-3", theme.textSecondary)}>
+                        대표자명
+                      </label>
+                      <input
+                        type="text"
+                        value={formData.ceo_name}
+                        onChange={e => handleInputChange('ceo_name', e.target.value)}
+                        placeholder="대표자 성명을 입력해주세요"
+                        className={cn(
+                          "w-full px-4 py-3 rounded-xl border transition-all outline-none focus:ring-2 focus:ring-opacity-50",
+                          theme.inputBg,
+                          theme.inputBorder,
+                          theme.text
+                        )}
+                        style={{
+                          '--tw-ring-color': accentColor
+                        } as React.CSSProperties}
+                      />
+                    </div>
+
+                    <div>
+                      <label className={cn("block text-sm font-medium mb-3", theme.textSecondary)}>
+                        대표자 생년월일
+                        <span className={cn("ml-2 text-xs", theme.textSecondary)}>(청년창업 자동 판단)</span>
+                      </label>
+                      <input
+                        type="date"
+                        value={formData.ceo_birth_date}
+                        onChange={e => {
+                          handleInputChange('ceo_birth_date', e.target.value)
+                          // 청년창업 자동 계산 (만 39세 이하)
+                          if (e.target.value) {
+                            const birthDate = new Date(e.target.value)
+                            const today = new Date()
+                            let age = today.getFullYear() - birthDate.getFullYear()
+                            const monthDiff = today.getMonth() - birthDate.getMonth()
+                            if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+                              age--
+                            }
+                            handleInputChange('is_youth_startup', age <= 39)
+                          }
+                        }}
+                        className={cn(
+                          "w-full px-4 py-3 rounded-xl border transition-all outline-none focus:ring-2 focus:ring-opacity-50",
+                          theme.inputBg,
+                          theme.inputBorder,
+                          theme.text
+                        )}
+                        style={{
+                          '--tw-ring-color': accentColor
+                        } as React.CSSProperties}
+                      />
+                      {formData.ceo_birth_date && (
+                        <p className={cn("mt-2 text-xs", formData.is_youth_startup ? "text-emerald-500" : theme.textSecondary)}>
+                          {formData.is_youth_startup
+                            ? "✓ 청년창업 대상 (만 39세 이하)"
+                            : "청년창업 대상 아님 (만 40세 이상)"}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+
                   <div>
                     <label className={cn("block text-sm font-medium mb-3", theme.textSecondary)}>
                       업종 분류 <span className="text-red-400">*</span>
@@ -772,6 +1013,100 @@ export default function CompanyProfilePage() {
                         </button>
                       ))}
                     </div>
+                  </div>
+
+                  {/* 키워드 입력 */}
+                  <div className="mt-8">
+                    <div className="flex items-center justify-between mb-2">
+                      <label className={cn("text-sm font-medium", theme.textSecondary)}>
+                        매칭 키워드
+                      </label>
+                      <button
+                        onClick={async () => {
+                          try {
+                            const res = await fetch('/api/company-profile', {
+                              method: 'PUT',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({ regenerate_keywords: true })
+                            })
+                            const data = await res.json()
+                            if (data.success && data.profile?.interested_keywords) {
+                              setFormData(prev => ({
+                                ...prev,
+                                interested_keywords: data.profile.interested_keywords
+                              }))
+                            }
+                          } catch (err) {
+                            console.error('Failed to regenerate keywords:', err)
+                          }
+                        }}
+                        className={cn(
+                          "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all hover:scale-105",
+                          isDark ? "bg-white/10 hover:bg-white/15 text-zinc-300" : "bg-gray-100 hover:bg-gray-200 text-gray-600"
+                        )}
+                      >
+                        <Sparkles className="w-3.5 h-3.5" />
+                        AI 자동 추출
+                      </button>
+                    </div>
+                    <p className={cn("text-xs mb-3", theme.textSecondary)}>
+                      프로필의 사업설명/주력제품/핵심기술에서 키워드를 자동 추출하거나, 직접 입력할 수 있습니다
+                    </p>
+                    <div className="flex gap-2 mb-3">
+                      <input
+                        type="text"
+                        placeholder="키워드 입력 후 Enter (예: AI, SaaS, 플랫폼)"
+                        className={cn(
+                          "flex-1 px-4 py-3 rounded-xl border transition-all outline-none focus:ring-2 focus:ring-opacity-50",
+                          isDark
+                            ? "bg-white/5 border-white/10 text-white placeholder:text-zinc-500"
+                            : "bg-white border-gray-200 text-gray-900 placeholder:text-gray-400"
+                        )}
+                        style={{ '--tw-ring-color': accentColor } as React.CSSProperties}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault()
+                            const input = e.target as HTMLInputElement
+                            const value = input.value.trim()
+                            if (value && !formData.interested_keywords.includes(value)) {
+                              setFormData(prev => ({
+                                ...prev,
+                                interested_keywords: [...prev.interested_keywords, value]
+                              }))
+                              input.value = ''
+                            }
+                          }
+                        }}
+                      />
+                    </div>
+                    {formData.interested_keywords.length > 0 ? (
+                      <div className="flex flex-wrap gap-2">
+                        {formData.interested_keywords.map((keyword, idx) => (
+                          <span
+                            key={idx}
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium"
+                            style={{ backgroundColor: `${accentColor}20`, color: accentColor }}
+                          >
+                            {keyword}
+                            <button
+                              onClick={() => {
+                                setFormData(prev => ({
+                                  ...prev,
+                                  interested_keywords: prev.interested_keywords.filter((_, i) => i !== idx)
+                                }))
+                              }}
+                              className="hover:opacity-70"
+                            >
+                              <X className="w-3.5 h-3.5" />
+                            </button>
+                          </span>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className={cn("text-sm italic", theme.textSecondary)}>
+                        키워드가 없습니다. "AI 자동 추출" 버튼을 클릭하거나 직접 입력하세요.
+                      </p>
+                    )}
                   </div>
                 </div>
               )}

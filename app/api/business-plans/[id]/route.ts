@@ -21,16 +21,28 @@ export async function GET(
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
         }
 
-        const { data: plan, error } = await supabase
+        const adminSupabase = createAdminClient()
+
+        // 기본 플랜 조회 (template 관계 없이, admin client 사용)
+        const { data: plan, error } = await adminSupabase
             .from('business_plans')
             .select(`
                 *,
-                template:business_plan_templates(*),
-                program:government_programs(id, title, organization, category, apply_end_date),
-                sections:business_plan_sections(*)
+                program:government_programs(id, title, organization, category, apply_end_date)
             `)
             .eq('id', id)
             .single()
+
+        // 별도로 섹션 조회
+        let sections: any[] = []
+        if (plan) {
+            const { data: sectionData } = await adminSupabase
+                .from('business_plan_sections')
+                .select('*')
+                .eq('plan_id', id)
+                .order('section_order')
+            sections = sectionData || []
+        }
 
         if (error) throw error
 
@@ -57,7 +69,7 @@ export async function GET(
         return NextResponse.json({
             plan: {
                 ...plan,
-                sections: plan.sections?.sort((a: any, b: any) => a.section_order - b.section_order)
+                sections
             },
             questions,
             logs

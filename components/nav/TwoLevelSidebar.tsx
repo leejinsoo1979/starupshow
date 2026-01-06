@@ -1464,11 +1464,11 @@ export function TwoLevelSidebar({ hideLevel2 = false }: TwoLevelSidebarProps) {
 
   // Hydration 에러 방지: 클라이언트 마운트 전에는 렌더링하지 않음
   if (!mounted) {
-    return <div className="flex fixed left-0 top-0 h-screen z-50 w-16" />
+    return <div className="flex fixed left-0 top-12 z-50 w-16" style={{ height: 'calc(100vh - 48px)' }} />
   }
 
   return (
-    <div className="flex fixed left-0 top-0 h-screen z-50 transition-all duration-300" style={{ top: 'var(--title-bar-height, 0px)', height: 'calc(100vh - var(--title-bar-height, 0px))' }}>
+    <div className="flex fixed left-0 top-12 z-50 transition-all duration-300" style={{ height: 'calc(100vh - 48px)' }}>
       {/* Level 1: 아이콘 사이드바 */}
       <motion.aside
         className={cn(

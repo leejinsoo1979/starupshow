@@ -27,6 +27,7 @@ export const accentColors: { id: AccentColor; name: string; color: string; hover
 interface ThemeState {
   mode: ThemeMode
   accentColor: AccentColor
+  themeColor: AccentColor // alias for backwards compatibility
   setMode: (mode: ThemeMode) => void
   setAccentColor: (color: AccentColor) => void
   toggleMode: () => void
@@ -37,8 +38,9 @@ export const useThemeStore = create<ThemeState>()(
     (set, get) => ({
       mode: 'dark',
       accentColor: 'blue',
+      themeColor: 'blue', // alias for backwards compatibility
       setMode: (mode) => set({ mode }),
-      setAccentColor: (accentColor) => set({ accentColor }),
+      setAccentColor: (accentColor) => set({ accentColor, themeColor: accentColor }),
       toggleMode: () => {
         const currentMode = get().mode
         const newMode = currentMode === 'dark' ? 'light' : 'dark'

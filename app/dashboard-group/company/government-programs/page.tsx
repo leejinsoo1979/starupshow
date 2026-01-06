@@ -104,7 +104,7 @@ const CATEGORY_ICONS: Record<string, any> = {
 const SOURCE_COLORS: Record<string, string> = {
   bizinfo: '#10b981',
   kstartup: '#6366f1',
-  semas: '#f59e0b',
+  semas: '#8b5cf6',  // purple
   unknown: '#71717a'
 }
 
@@ -114,7 +114,7 @@ const SUPPORT_TYPE_COLORS: Record<string, string> = {
   '기술개발': '#8b5cf6',  // purple
   '시설보육': '#ec4899',  // pink
   '멘토링': '#10b981',    // green
-  '행사': '#f59e0b',      // amber
+  '행사': '#6366f1',      // indigo (테마색 계열)
   '융자보증': '#ef4444',  // red
   '인력': '#06b6d4',      // cyan
   '기타': '#71717a'       // gray
@@ -159,6 +159,17 @@ interface DashboardStats {
   deadlineByYear: Record<string, { month: string; count: number }[]>
 }
 
+// 카테고리별 상세 매칭 정보
+interface CategoryDetail {
+  score: number
+  max: number
+  status: 'full' | 'partial' | 'low' | 'none'
+  reason: string
+  profile_value: string
+  program_requirement: string
+  tips?: string
+}
+
 // 매칭 결과 타입
 interface MatchedProgram {
   program: GovernmentProgram
@@ -170,6 +181,17 @@ interface MatchedProgram {
     type_match: number
     special_match: number
     reasons: string[]
+    summary?: string
+    analysis_quality?: 'high' | 'medium' | 'low'
+    content_length?: number
+    disqualified?: boolean
+    disqualification_reasons?: string[]
+    // 카테고리별 상세 정보
+    industry_detail?: CategoryDetail
+    scale_detail?: CategoryDetail
+    region_detail?: CategoryDetail
+    type_detail?: CategoryDetail
+    special_details?: CategoryDetail[]
   }
 }
 
@@ -182,7 +204,7 @@ const SOURCES = [
   { id: 'all', label: '전체', color: '#a1a1aa' },
   { id: 'bizinfo', label: '기업마당', color: '#10b981' },
   { id: 'kstartup', label: 'K-Startup', color: '#6366f1' },
-  { id: 'semas', label: '소진공', color: '#f59e0b' }
+  { id: 'semas', label: '소진공', color: '#8b5cf6' }  // purple
 ]
 
 // ============================================================
@@ -564,8 +586,8 @@ function StatusPieChart({
   }
 
   return (
-    <div className="h-full flex items-center gap-6">
-      <div className="flex-1 h-full min-h-[160px] relative">
+    <div className="h-full flex flex-col items-center justify-center">
+      <div className="w-[140px] h-[140px] relative">
         <ResponsiveContainer width="100%" height="100%">
           <PieChart>
             <defs>
@@ -580,8 +602,8 @@ function StatusPieChart({
               data={chartData}
               cx="50%"
               cy="50%"
-              innerRadius="65%"
-              outerRadius="90%"
+              innerRadius={40}
+              outerRadius={65}
               paddingAngle={5}
               dataKey="value"
               stroke="none"
@@ -602,21 +624,19 @@ function StatusPieChart({
         </ResponsiveContainer>
         {/* Center Label */}
         <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-          <span className={cn("text-xs font-medium", isDark ? "text-zinc-400" : "text-gray-500")}>Total</span>
+          <span className={cn("text-[10px]", isDark ? "text-zinc-500" : "text-gray-400")}>Total</span>
           <span className={cn("text-xl font-bold", isDark ? "text-white" : "text-gray-900")}>{total}</span>
         </div>
       </div>
-      <div className="w-32 space-y-3">
+      <div className="flex flex-wrap justify-center gap-x-3 gap-y-1 mt-2">
         {chartData.map((item, index) => (
-          <div key={item.name} className="group flex items-center justify-between">
-            <div className="flex items-center gap-2.5">
-              <div
-                className="w-2.5 h-2.5 rounded-full shadow-lg transition-transform group-hover:scale-125"
-                style={{ background: `linear-gradient(135deg, ${item.color}, ${item.color}88)` }}
-              />
-              <span className={cn("text-sm font-medium", isDark ? "text-zinc-300" : "text-gray-600")}>{item.name}</span>
-            </div>
-            <span className={cn("text-sm font-bold tabular-nums", isDark ? "text-white" : "text-gray-900")}>
+          <div key={item.name} className="flex items-center gap-1">
+            <div
+              className="w-2 h-2 rounded-full flex-shrink-0"
+              style={{ backgroundColor: item.color }}
+            />
+            <span className={cn("text-[11px]", isDark ? "text-zinc-400" : "text-gray-500")}>{item.name}</span>
+            <span className={cn("text-[11px] font-medium", isDark ? "text-white" : "text-gray-900")}>
               {((item.value / total) * 100).toFixed(0)}%
             </span>
           </div>
@@ -664,8 +684,8 @@ function SourcePieChart({
   }
 
   return (
-    <div className="h-full flex items-center gap-6">
-      <div className="flex-1 h-full min-h-[160px] relative">
+    <div className="h-full flex flex-col items-center justify-center">
+      <div className="w-[140px] h-[140px] relative">
         <ResponsiveContainer width="100%" height="100%">
           <PieChart>
             <defs>
@@ -680,8 +700,8 @@ function SourcePieChart({
               data={chartData}
               cx="50%"
               cy="50%"
-              innerRadius="65%"
-              outerRadius="90%"
+              innerRadius={40}
+              outerRadius={65}
               paddingAngle={5}
               dataKey="value"
               stroke="none"
@@ -702,21 +722,19 @@ function SourcePieChart({
         </ResponsiveContainer>
         {/* Center Label */}
         <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-          <span className={cn("text-xs font-medium", isDark ? "text-zinc-400" : "text-gray-500")}>Total</span>
+          <span className={cn("text-[10px]", isDark ? "text-zinc-500" : "text-gray-400")}>Total</span>
           <span className={cn("text-xl font-bold", isDark ? "text-white" : "text-gray-900")}>{total}</span>
         </div>
       </div>
-      <div className="w-32 space-y-3">
+      <div className="flex flex-wrap justify-center gap-x-3 gap-y-1 mt-2">
         {chartData.map((item, index) => (
-          <div key={item.name} className="group flex items-center justify-between">
-            <div className="flex items-center gap-2.5">
-              <div
-                className="w-2.5 h-2.5 rounded-full shadow-lg transition-transform group-hover:scale-125"
-                style={{ background: `linear-gradient(135deg, ${item.color}, ${item.color}88)` }}
-              />
-              <span className={cn("text-sm font-medium", isDark ? "text-zinc-300" : "text-gray-600")}>{item.name}</span>
-            </div>
-            <span className={cn("text-sm font-bold tabular-nums", isDark ? "text-white" : "text-gray-900")}>
+          <div key={item.name} className="flex items-center gap-1">
+            <div
+              className="w-2 h-2 rounded-full flex-shrink-0"
+              style={{ backgroundColor: item.color }}
+            />
+            <span className={cn("text-[11px]", isDark ? "text-zinc-400" : "text-gray-500")}>{item.name}</span>
+            <span className={cn("text-[11px] font-medium", isDark ? "text-white" : "text-gray-900")}>
               {((item.value / total) * 100).toFixed(0)}%
             </span>
           </div>
@@ -1128,9 +1146,9 @@ function AIRecommendCard({
 }) {
   const scoreLevel = match.fit_score >= 80 ? 'excellent' : match.fit_score >= 60 ? 'good' : 'fair'
   const scoreColors = {
-    excellent: { ring: 'ring-emerald-500', text: isDark ? 'text-emerald-400' : 'text-emerald-600', bg: 'bg-emerald-500' },
-    good: { ring: 'ring-accent', text: 'text-accent', bg: 'bg-accent' },
-    fair: { ring: 'ring-amber-500', text: isDark ? 'text-amber-400' : 'text-amber-600', bg: 'bg-amber-500' }
+    excellent: { ring: 'ring-emerald-500', text: isDark ? 'text-emerald-400' : 'text-emerald-600', bg: 'bg-emerald-500', color: '#10b981' },
+    good: { ring: 'ring-accent', text: 'text-accent', bg: 'bg-accent', color: themeColor },
+    fair: { ring: '', text: '', bg: '', color: themeColor }  // 테마색 사용
   }
   const colors = scoreColors[scoreLevel]
 
@@ -1146,16 +1164,29 @@ function AIRecommendCard({
     >
       <div className="flex items-start gap-4">
         {/* 점수 링 */}
-        <div className={cn(
-          "relative flex-shrink-0 w-14 h-14 rounded-full ring-2 flex items-center justify-center backdrop-blur-sm",
-          isDark ? "bg-black/30" : "bg-white",
-          colors.ring
-        )}>
-          <span className={cn("text-lg font-bold", colors.text)}>{match.fit_score}</span>
-          <div className={cn(
-            "absolute -top-1 -right-1 w-4 h-4 rounded-full flex items-center justify-center",
-            colors.bg
-          )}>
+        <div
+          className={cn(
+            "relative flex-shrink-0 w-14 h-14 rounded-full ring-2 flex items-center justify-center backdrop-blur-sm",
+            isDark ? "bg-black/30" : "bg-white",
+            colors.ring || ''
+          )}
+          style={{
+            boxShadow: !colors.ring ? `0 0 0 2px ${colors.color}` : undefined
+          }}
+        >
+          <span
+            className={cn("text-lg font-bold", colors.text || '')}
+            style={{ color: !colors.text ? colors.color : undefined }}
+          >
+            {match.fit_score}
+          </span>
+          <div
+            className={cn(
+              "absolute -top-1 -right-1 w-4 h-4 rounded-full flex items-center justify-center",
+              colors.bg || ''
+            )}
+            style={{ backgroundColor: !colors.bg ? colors.color : undefined }}
+          >
             <Sparkles className="w-2.5 h-2.5 text-white" />
           </div>
         </div>
@@ -1231,6 +1262,7 @@ export default function GovernmentProgramsPage() {
   const [matchLoading, setMatchLoading] = useState(false)
   const [userProfile, setUserProfile] = useState<any>(null)
   const [profileLoading, setProfileLoading] = useState(false)
+  const [minMatchScore, setMinMatchScore] = useState(30)  // 기본 30점 이상
 
   // URL 파라미터에서 view 모드 및 type 필터 초기화
   useEffect(() => {
@@ -1268,7 +1300,8 @@ export default function GovernmentProgramsPage() {
 
     setMatchLoading(true)
     try {
-      const response = await fetch('/api/government-programs/match?min_score=40&limit=50')
+      // 최소 점수와 limit을 동적으로 설정
+      const response = await fetch(`/api/government-programs/match?min_score=${minMatchScore}&limit=200`)
       const data = await response.json()
       if (data.success) {
         setMatchedPrograms(data.matches)
@@ -1278,7 +1311,7 @@ export default function GovernmentProgramsPage() {
     } finally {
       setMatchLoading(false)
     }
-  }, [userProfile])
+  }, [userProfile, minMatchScore])
 
   // 대시보드 통계 로드
   const fetchStats = useCallback(async () => {
@@ -1327,10 +1360,11 @@ export default function GovernmentProgramsPage() {
   }, [fetchStats, fetchPrograms, fetchProfile])
 
   useEffect(() => {
-    if (viewMode === 'matches' && userProfile) {
+    // 대시보드에서 AI 매칭 카운트 표시를 위해 프로필이 있으면 항상 로드
+    if (userProfile) {
       fetchMatches()
     }
-  }, [viewMode, userProfile, fetchMatches])
+  }, [userProfile, fetchMatches])
 
   // 동기화
   const syncPrograms = async () => {
@@ -1399,23 +1433,7 @@ export default function GovernmentProgramsPage() {
 
   return (
     <div className={cn("h-full flex flex-col transition-colors duration-300 relative overflow-hidden", theme.bg)}>
-      {/* Ambient Background Orbs (Premium Dark Theme) */}
-      {isDark && (
-        <div className="fixed inset-0 pointer-events-none overflow-hidden">
-          <div
-            className="absolute top-[-20%] right-[-10%] w-[800px] h-[800px] rounded-full blur-[120px] mix-blend-screen opacity-20"
-            style={{ backgroundColor: themeColor }}
-          />
-          <div
-            className="absolute bottom-[-10%] left-[-20%] w-[600px] h-[600px] rounded-full blur-[100px] mix-blend-screen opacity-10"
-            style={{ backgroundColor: themeColor }}
-          />
-          <div
-            className="absolute top-[40%] left-[30%] w-[400px] h-[400px] rounded-full blur-[80px] opacity-10"
-            style={{ backgroundColor: themeColor }}
-          />
-        </div>
-      )}
+      {/* Ambient Background Orbs Removed by User Request */}
 
       {/* 헤더 */}
       <div className={cn(
@@ -1644,8 +1662,8 @@ export default function GovernmentProgramsPage() {
                       />
                       <HeroStatCard
                         title="AI 매칭"
-                        value={userProfile ? matchedPrograms.filter(m => m.fit_score >= 80).length : '-'}
-                        subtitle={userProfile ? "나에게 딱 맞는 공고" : "프로필 설정 필요"}
+                        value={userProfile ? matchedPrograms.length : '-'}
+                        subtitle={userProfile ? `적합도 ${minMatchScore}점 이상` : "프로필 설정 필요"}
                         icon={Sparkles}
                         gradient={`linear-gradient(135deg, ${themeColor}, ${themeColor}90)`}
                         onClick={() => setViewMode('matches')}
@@ -1712,7 +1730,7 @@ export default function GovernmentProgramsPage() {
                     {/* 오른쪽: 차트 묶음 */}
                     <div className="flex flex-col gap-5">
                       {/* 상태별 분포 & 데이터 출처 */}
-                      <div className="grid grid-cols-2 gap-5 h-[280px]">
+                      <div className="grid grid-cols-2 gap-5 h-[260px]">
                         <GlassCard className="p-5 flex flex-col" isDark={isDark}>
                           <h3 className={cn("font-medium mb-3", theme.text)}>상태별 분포</h3>
                           <div className="flex-1 min-h-0">
@@ -1729,7 +1747,7 @@ export default function GovernmentProgramsPage() {
                       </div>
 
                       {/* 분야별 분포 & 월별 트렌드 */}
-                      <div className="grid grid-cols-2 gap-5 h-[280px]">
+                      <div className="grid grid-cols-2 gap-5 h-[260px]">
                         <GlassCard className="p-5 flex flex-col" isDark={isDark}>
                           <h3 className={cn("font-medium mb-3", theme.text)}>지원분야별</h3>
                           <div className="flex-1 min-h-0">
@@ -1969,45 +1987,138 @@ export default function GovernmentProgramsPage() {
             <div className="mb-6">
               {userProfile ? (
                 <GlassCard className="p-6" isDark={isDark}>
-                  <div className="flex items-center justify-between">
+                  {/* 상단: 기본 정보 + 완성도 */}
+                  <div className="flex items-start justify-between mb-5">
                     <div className="flex items-center gap-4">
-                      <div
-                        className="w-14 h-14 rounded-2xl flex items-center justify-center"
-                        style={{ background: `linear-gradient(135deg, ${themeColor}30, ${themeColor}10)` }}
-                      >
-                        <UserCircle2 className="w-7 h-7" style={{ color: themeColor }} />
-                      </div>
+                      {userProfile.logo ? (
+                        // 로고 이미지가 있는 경우 (추후 구현)
+                        <img src={userProfile.logo} alt="Company Logo" className="w-16 h-16 rounded-2xl shadow-lg object-cover" />
+                      ) : (
+                        <div
+                          className="w-16 h-16 rounded-2xl flex items-center justify-center shadow-lg text-2xl font-bold text-white"
+                          style={{ background: `linear-gradient(135deg, ${themeColor}, ${themeColor}cc)` }}
+                        >
+                          {userProfile.company_name ? userProfile.company_name.substring(0, 1) : <Building2 className="w-8 h-8 text-white" />}
+                        </div>
+                      )}
                       <div>
-                        <h2 className={cn("text-xl font-bold", theme.text)}>
-                          {userProfile.industry_category || '업종 미설정'} · {userProfile.region || '지역 미설정'}
+                        <h2 className={cn("text-xl font-bold mb-1", theme.text)}>
+                          {userProfile.company_name || '회사명 미설정'}
                         </h2>
-                        <p className={theme.textSecondary}>
-                          {userProfile.entity_type || '사업자유형 미설정'} · {userProfile.startup_stage || '단계 미설정'}
-                          {userProfile.employee_count && ` · ${userProfile.employee_count}명`}
-                        </p>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className={cn("px-2.5 py-1 rounded-lg text-xs font-medium", isDark ? "bg-white/10 text-zinc-300" : "bg-gray-100 text-gray-600")}>
+                            {userProfile.industry_category || '업종 미설정'}
+                          </span>
+                          <span className={cn("px-2.5 py-1 rounded-lg text-xs font-medium", isDark ? "bg-white/10 text-zinc-300" : "bg-gray-100 text-gray-600")}>
+                            {userProfile.entity_type || '사업자유형 미설정'}
+                          </span>
+                          <span className={cn("px-2.5 py-1 rounded-lg text-xs font-medium", isDark ? "bg-white/10 text-zinc-300" : "bg-gray-100 text-gray-600")}>
+                            {userProfile.startup_stage || '단계 미설정'}
+                          </span>
+                          <span className={cn("px-2.5 py-1 rounded-lg text-xs font-medium", isDark ? "bg-white/10 text-zinc-300" : "bg-gray-100 text-gray-600")}>
+                            {userProfile.region || '지역 미설정'}
+                          </span>
+                          {userProfile.employee_count && (
+                            <span className={cn("px-2.5 py-1 rounded-lg text-xs font-medium", isDark ? "bg-white/10 text-zinc-300" : "bg-gray-100 text-gray-600")}>
+                              {userProfile.employee_count}명
+                            </span>
+                          )}
+                        </div>
                       </div>
                     </div>
                     <div className="flex items-center gap-4">
                       <div className="text-right">
-                        <div className={cn("text-sm", theme.textSecondary)}>프로필 완성도</div>
-                        <div className="text-3xl font-bold" style={{ color: themeColor }}>
-                          {userProfile.profile_completeness || 0}%
+                        <div className={cn("text-xs font-medium mb-1", theme.textMuted)}>프로필 완성도</div>
+                        <div className="flex items-center gap-3">
+                          <div className={cn("w-24 h-2 rounded-full overflow-hidden", isDark ? "bg-white/10" : "bg-gray-200")}>
+                            <div
+                              className="h-full rounded-full transition-all duration-500"
+                              style={{
+                                width: `${userProfile.profile_completeness || 0}%`,
+                                background: `linear-gradient(90deg, ${themeColor}, ${themeColor}dd)`
+                              }}
+                            />
+                          </div>
+                          <span className="text-2xl font-bold" style={{ color: themeColor }}>
+                            {userProfile.profile_completeness || 0}%
+                          </span>
                         </div>
                       </div>
                       <button
                         onClick={() => router.push('/dashboard-group/company/government-programs/profile')}
-                        className={cn(
-                          "px-4 py-2 rounded-xl text-sm font-medium transition-all",
-                          isDark
-                            ? "bg-white/10 text-white hover:bg-white/20"
-                            : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-                        )}
+                        className="px-4 py-2.5 rounded-xl text-sm font-semibold transition-all hover:scale-105"
+                        style={{ background: themeColor, color: '#fff' }}
                       >
                         프로필 수정
                       </button>
                     </div>
                   </div>
+
+                  {/* 중단: 특수조건 + 기술인증 뱃지 */}
+                  {(userProfile.is_youth_startup || userProfile.is_female_owned || userProfile.is_social_enterprise || userProfile.is_export_business || (userProfile.tech_certifications && userProfile.tech_certifications.length > 0)) && (
+                    <div className="flex items-center gap-2 mb-4 flex-wrap">
+                      {/* 특수조건 */}
+                      {userProfile.is_youth_startup && (
+                        <span className="px-3 py-1 rounded-full text-xs font-semibold" style={{ background: `${themeColor}20`, color: themeColor }}>
+                          청년창업
+                        </span>
+                      )}
+                      {userProfile.is_female_owned && (
+                        <span className="px-3 py-1 rounded-full text-xs font-semibold" style={{ background: `${themeColor}20`, color: themeColor }}>
+                          여성기업
+                        </span>
+                      )}
+                      {userProfile.is_social_enterprise && (
+                        <span className="px-3 py-1 rounded-full text-xs font-semibold" style={{ background: `${themeColor}20`, color: themeColor }}>
+                          사회적기업
+                        </span>
+                      )}
+                      {userProfile.is_export_business && (
+                        <span className="px-3 py-1 rounded-full text-xs font-semibold" style={{ background: `${themeColor}20`, color: themeColor }}>
+                          수출기업
+                        </span>
+                      )}
+                      {/* 기술인증 */}
+                      {userProfile.tech_certifications?.map((cert: string) => {
+                        return (
+                          <span
+                            key={cert}
+                            className="px-3 py-1 rounded-full text-xs font-semibold"
+                            style={{ background: '#10b98120', color: '#10b981' }}
+                          >
+                            {cert}
+                          </span>
+                        )
+                      })}
+                    </div>
+                  )}
+
+                  {/* 하단: 관심분야 */}
+                  {userProfile.interested_categories && userProfile.interested_categories.length > 0 && (
+                    <div className={cn("pt-4 border-t", isDark ? "border-white/10" : "border-gray-200")}>
+                      <div className={cn("text-xs font-medium mb-2", theme.textMuted)}>관심 지원 분야</div>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        {userProfile.interested_categories.slice(0, 5).map((cat: string) => (
+                          <span
+                            key={cat}
+                            className={cn("px-3 py-1.5 rounded-lg text-xs font-medium", isDark ? "bg-white/5 text-zinc-300" : "bg-gray-50 text-gray-600")}
+                          >
+                            {cat}
+                          </span>
+                        ))}
+                        {userProfile.interested_categories.length > 5 && (
+                          <span className={cn("text-xs", theme.textMuted)}>
+                            +{userProfile.interested_categories.length - 5}개
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  )}
                 </GlassCard>
+              ) : profileLoading ? (
+                <div className="flex items-center justify-center p-12">
+                  <Loader2 className={cn("w-8 h-8 animate-spin", isDark ? "text-zinc-500" : "text-gray-400")} />
+                </div>
               ) : (
                 <GlassCard className="p-12 text-center" isDark={isDark}>
                   <div
@@ -2033,6 +2144,46 @@ export default function GovernmentProgramsPage() {
 
             {userProfile && (
               <>
+                {/* 점수 필터 컨트롤 */}
+                <div className={cn("mb-6 p-4 rounded-xl border", isDark ? "bg-white/5 border-white/10" : "bg-gray-50 border-gray-200")}>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-4">
+                      <div className={cn("text-sm font-medium", theme.text)}>
+                        <Sparkles className="w-4 h-4 inline-block mr-2" style={{ color: themeColor }} />
+                        최소 적합도
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {[
+                          { value: 0, label: '전체' },
+                          { value: 30, label: '30점+' },
+                          { value: 50, label: '50점+' },
+                          { value: 60, label: '60점+' },
+                          { value: 70, label: '70점+' },
+                        ].map(opt => (
+                          <button
+                            key={opt.value}
+                            onClick={() => setMinMatchScore(opt.value)}
+                            className={cn(
+                              "px-3 py-1.5 rounded-lg text-xs font-semibold transition-all",
+                              minMatchScore === opt.value
+                                ? "text-white shadow-lg"
+                                : isDark
+                                  ? "bg-white/5 text-zinc-400 hover:bg-white/10"
+                                  : "bg-white text-gray-600 hover:bg-gray-100 border border-gray-200"
+                            )}
+                            style={minMatchScore === opt.value ? { backgroundColor: themeColor } : {}}
+                          >
+                            {opt.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    <div className={cn("text-sm", theme.textMuted)}>
+                      총 <span className="font-bold" style={{ color: themeColor }}>{matchedPrograms.length}</span>건 매칭
+                    </div>
+                  </div>
+                </div>
+
                 {/* 매칭 통계 - 모두 테마 색상 */}
                 <div className="grid grid-cols-4 gap-4 mb-6">
                   <MiniStatCard label="전체 매칭" value={matchedPrograms.length} icon={Target} color={themeColor} isDark={isDark} />
@@ -2116,9 +2267,10 @@ export default function GovernmentProgramsPage() {
                                 </span>
                                 {program.support_type && (
                                   <span
-                                    className="px-2 py-0.5 rounded-full text-xs font-medium"
+                                    className="px-2.5 py-1 rounded-lg text-xs font-bold border"
                                     style={{
-                                      backgroundColor: `${SUPPORT_TYPE_COLORS[program.support_type] || SUPPORT_TYPE_COLORS['기타']}20`,
+                                      backgroundColor: `${SUPPORT_TYPE_COLORS[program.support_type] || SUPPORT_TYPE_COLORS['기타']}25`,
+                                      borderColor: `${SUPPORT_TYPE_COLORS[program.support_type] || SUPPORT_TYPE_COLORS['기타']}50`,
                                       color: SUPPORT_TYPE_COLORS[program.support_type] || SUPPORT_TYPE_COLORS['기타']
                                     }}
                                   >
@@ -2165,42 +2317,96 @@ export default function GovernmentProgramsPage() {
                                 )}
                               </div>
 
-                              <div className="flex flex-wrap gap-1.5 mb-4">
-                                {fit_breakdown.reasons.slice(0, 4).map((reason, idx) => (
-                                  <span key={idx} className={cn(
-                                    "px-2 py-1 rounded-lg text-xs",
-                                    isDark ? "bg-white/5 text-zinc-400" : "bg-gray-100 text-gray-600"
-                                  )}>
-                                    ✓ {reason}
-                                  </span>
-                                ))}
-                              </div>
-
-                              {/* 적합도 바 */}
-                              <div className="grid grid-cols-5 gap-3 text-xs">
-                                {[
-                                  { label: '업종', score: fit_breakdown.industry_match, max: 30 },
-                                  { label: '규모', score: fit_breakdown.scale_match, max: 20 },
-                                  { label: '지역', score: fit_breakdown.region_match, max: 15 },
-                                  { label: '유형', score: fit_breakdown.type_match, max: 15 },
-                                  { label: '특수', score: fit_breakdown.special_match, max: 20 }
-                                ].map(item => (
-                                  <div key={item.label}>
-                                    <div className={cn("flex justify-between mb-1", theme.textMuted)}>
-                                      <span>{item.label}</span>
-                                      <span>{item.score}/{item.max}</span>
-                                    </div>
-                                    <div className={cn("h-1.5 rounded-full overflow-hidden", isDark ? "bg-white/5" : "bg-gray-200")}>
-                                      <div
-                                        className="h-full rounded-full"
-                                        style={{
-                                          width: `${(item.score / item.max) * 100}%`,
-                                          background: `linear-gradient(90deg, ${themeColor}, ${themeColor}80)`
-                                        }}
-                                      />
-                                    </div>
+                              {/* AI 분석 리포트 (Redesigned) */}
+                              <div className={cn(
+                                "rounded-xl border p-4 space-y-3",
+                                isDark ? "bg-white/[0.03] border-white/10" : "bg-indigo-50/50 border-indigo-100"
+                              )}>
+                                <div className="flex items-center justify-between mb-1">
+                                  <div className="flex items-center gap-2">
+                                    <Sparkles className={cn("w-4 h-4", theme.text)} style={{ color: themeColor }} />
+                                    <span className={cn("text-sm font-bold", theme.text)}>AI 선정 근거</span>
                                   </div>
-                                ))}
+                                  <span
+                                    className="text-[10px] px-1.5 py-0.5 rounded font-medium"
+                                    style={{
+                                      backgroundColor: fit_breakdown.analysis_quality === 'high' ? `${themeColor}20` : fit_breakdown.analysis_quality === 'medium' ? '#71717a20' : '#ef444420',
+                                      color: fit_breakdown.analysis_quality === 'high' ? themeColor : fit_breakdown.analysis_quality === 'medium' ? '#71717a' : '#ef4444'
+                                    }}
+                                  >
+                                    {fit_breakdown.analysis_quality === 'high' ? '정밀분석' : fit_breakdown.analysis_quality === 'medium' ? '일반분석' : '추정분석'}
+                                  </span>
+                                </div>
+
+                                {/* 종합 코멘트 */}
+                                {fit_breakdown.summary && (
+                                  <p className={cn("text-sm leading-relaxed mb-3 font-medium", theme.textSecondary)}>
+                                    {fit_breakdown.summary}
+                                  </p>
+                                )}
+
+                                {/* 상세 근거 리스트 */}
+                                <div className="space-y-2">
+                                  {/* 자격 미달 사유 (있을 경우 최상단 표시) */}
+                                  {fit_breakdown.disqualification_reasons && fit_breakdown.disqualification_reasons.length > 0 && (
+                                    <div className="space-y-1 p-2 rounded bg-red-500/10 border border-red-500/20">
+                                      {fit_breakdown.disqualification_reasons.map((reason, idx) => (
+                                        <div key={`disq-${idx}`} className="flex items-start gap-2 text-xs text-red-500 font-medium">
+                                          <AlertCircle className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" />
+                                          <span>{reason}</span>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  )}
+
+                                  {/* 긍정/일반 사유 */}
+                                  {fit_breakdown.reasons && fit_breakdown.reasons.length > 0 ? (
+                                    fit_breakdown.reasons.map((reason, idx) => (
+                                      <div key={`reason-${idx}`} className={cn("flex items-start gap-2 text-xs", theme.textSecondary)}>
+                                        <CheckCircle2 className="w-3.5 h-3.5 mt-0.5 flex-shrink-0 text-emerald-500" />
+                                        <span>{reason}</span>
+                                      </div>
+                                    ))
+                                  ) : (
+                                    <div className={cn("text-xs text-center py-2 opacity-60", theme.textMuted)}>
+                                      상세 분석 데이터가 부족합니다.
+                                    </div>
+                                  )}
+                                </div>
+
+                                {/* 하단 스코어 breakdown (바 차트) */}
+                                <div className={cn("pt-3 mt-1 border-t", isDark ? "border-white/10" : "border-gray-200")}>
+                                  <div className="grid grid-cols-2 gap-x-4 gap-y-2">
+                                    {[
+                                      { label: '업종', score: fit_breakdown.industry_match, max: 30 },
+                                      { label: '규모', score: fit_breakdown.scale_match, max: 20 },
+                                      { label: '지역', score: fit_breakdown.region_match, max: 15 },
+                                      { label: '유형', score: fit_breakdown.type_match || 0, max: 15 },
+                                      { label: '우대', score: fit_breakdown.special_match, max: 20 },
+                                    ].map((item, idx) => {
+                                      const percentage = Math.min(100, (item.score / item.max) * 100)
+                                      const isLow = percentage < 40
+                                      return (
+                                        <div key={idx} className="flex items-center gap-2">
+                                          <span className={cn("text-[10px] w-8 flex-shrink-0", theme.textMuted)}>{item.label}</span>
+                                          <div className={cn("flex-1 h-1.5 rounded-full overflow-hidden", isDark ? "bg-white/10" : "bg-gray-200")}>
+                                            <div
+                                              className="h-full rounded-full transition-all duration-300"
+                                              style={{
+                                                width: `${percentage}%`,
+                                                backgroundColor: isLow ? (isDark ? '#71717a' : '#a1a1aa') : themeColor,
+                                                opacity: 0.4 + (percentage / 100) * 0.6
+                                              }}
+                                            />
+                                          </div>
+                                          <span className={cn("text-[10px] w-6 text-right tabular-nums", isLow ? "text-zinc-500" : theme.textSecondary)}>
+                                            {item.score}
+                                          </span>
+                                        </div>
+                                      )
+                                    })}
+                                  </div>
+                                </div>
                               </div>
                             </div>
 
@@ -2469,22 +2675,25 @@ export default function GovernmentProgramsPage() {
                               </span>
                               {program.support_type && (
                                 <span
-                                  className="px-2 py-0.5 rounded-full text-xs font-medium"
+                                  className="px-2.5 py-1 rounded-lg text-xs font-bold border"
                                   style={{
-                                    backgroundColor: `${SUPPORT_TYPE_COLORS[program.support_type] || SUPPORT_TYPE_COLORS['기타']}20`,
+                                    backgroundColor: `${SUPPORT_TYPE_COLORS[program.support_type] || SUPPORT_TYPE_COLORS['기타']}25`,
+                                    borderColor: `${SUPPORT_TYPE_COLORS[program.support_type] || SUPPORT_TYPE_COLORS['기타']}50`,
                                     color: SUPPORT_TYPE_COLORS[program.support_type] || SUPPORT_TYPE_COLORS['기타']
                                   }}
                                 >
                                   {program.support_type}
                                 </span>
                               )}
-                              <span
-                                className="px-2 py-0.5 rounded-full text-xs font-medium flex items-center gap-1"
-                                style={{ backgroundColor: `${themeColor}20`, color: themeColor }}
-                              >
-                                <Icon className="w-3 h-3" />
-                                {program.category}
-                              </span>
+                              {program.category && (
+                                <span
+                                  className="px-2 py-0.5 rounded-full text-xs font-medium flex items-center gap-1"
+                                  style={{ backgroundColor: `${themeColor}20`, color: themeColor }}
+                                >
+                                  <Icon className="w-3 h-3" />
+                                  {program.category}
+                                </span>
+                              )}
                               {status === 'active' && daysRemaining !== null && (
                                 <span
                                   className="px-2 py-0.5 rounded-full text-xs font-medium"

@@ -4,36 +4,33 @@ import { useState, useEffect, useMemo, useRef } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useTheme } from 'next-themes'
-import { Button } from '@/components/ui'
 import { useUIStore } from '@/stores/uiStore'
 import { useAuthStore } from '@/stores/authStore'
+import { useThemeStore, accentColors } from '@/stores/themeStore'
 import { useNeuralMapStore } from '@/lib/neural-map/store'
 import { createClient } from '@/lib/supabase/client'
 import { getInitials, cn } from '@/lib/utils'
-import { ThemeDropdown } from './ThemeDropdown'
 import {
-  Bell,
   Search,
-  Plus,
   LogOut,
-  User,
   Settings,
   ChevronDown,
-  Command,
+  ChevronRight,
   Bot,
-  MessageSquare,
-  PanelRightClose,
-  PanelRightOpen,
+  RefreshCw,
   FileText,
+  AlertCircle,
+  Settings2,
   Folder,
 } from 'lucide-react'
 
 export function Header() {
   const router = useRouter()
   const pathname = usePathname()
-  const { openCommitModal, sidebarOpen, agentSidebarOpen, toggleAgentSidebar } = useUIStore()
+  const { agentSidebarOpen, toggleAgentSidebar } = useUIStore()
   const { user, logout: clearAuth } = useAuthStore()
   const { resolvedTheme } = useTheme()
+  const { accentColor } = useThemeStore()
   const [showUserMenu, setShowUserMenu] = useState(false)
   const [searchFocused, setSearchFocused] = useState(false)
   const [isElectron, setIsElectron] = useState(false)
@@ -52,7 +49,6 @@ export function Header() {
   // 검색 결과
   const suggestions = useMemo(() => {
     const query = searchQuery?.toLowerCase().trim() || ''
-    console.log('[Header Search] query:', query, 'files:', files.length, 'nodes:', graph?.nodes?.length)
     if (!query || query.length < 1) return []
 
     const results: { type: 'file' | 'node'; name: string; path?: string; id: string; item: any }[] = []
@@ -71,7 +67,6 @@ export function Header() {
       }
     })
 
-    console.log('[Header Search] results:', results.length)
     return results.slice(0, 10)
   }, [searchQuery, files, graph?.nodes])
 
@@ -132,13 +127,7 @@ export function Header() {
 
   if (isElectron) return null
 
-  // resolvedTheme이 undefined일 때(SSR) dark로 기본값
   const isDark = resolvedTheme === 'dark' || resolvedTheme === undefined
-
-  // Calculate header left position based on sidebar state and email page
-  const isEmailPage = pathname?.includes('/email')
-  // 이메일 페이지: Level1(64px) + FolderMenu(256px) = 320px - 폴더 메뉴는 자체 헤더 사용
-  const headerLeft = sidebarOpen ? (isEmailPage ? 320 : 304) : 64
 
   const handleLogout = async () => {
     const supabase = createClient()
@@ -149,257 +138,246 @@ export function Header() {
 
   return (
     <header
-      className={`fixed top-0 right-0 z-40 h-16 backdrop-blur-xl transition-all duration-300 ${isDark
-        ? 'bg-zinc-900/80 border-b border-zinc-800'
-        : 'bg-white/80 border-b border-zinc-200'
-        }`}
-      style={{ left: sidebarOpen ? 304 : 64, top: 'var(--title-bar-height, 0px)', WebkitAppRegion: 'drag' } as any}
+      className={cn(
+        "fixed top-0 left-0 right-0 z-[100] h-12 flex items-center px-4 border-b transition-colors select-none",
+        isDark ? "bg-zinc-900/95 border-white/5" : "bg-white/90 border-zinc-200"
+      )}
     >
-      <div className="h-full px-6 flex items-center justify-end gap-3 w-fit ml-auto" style={{ WebkitAppRegion: 'no-drag' } as any}>
-        {/* Search - 에이전트 빌더 옆 */}
-        <div className="w-72" ref={searchRef}>
-          <motion.div
-            className={`relative transition-all duration-300 ${searchFocused ? 'scale-[1.02]' : ''}`}
-          >
-            <Search className={`absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 transition-colors z-10 ${searchFocused ? 'text-accent' : 'text-theme-muted'}`} />
-            <input
-              type="text"
-              placeholder="파일/노드 검색..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              onKeyDown={handleSearchKeyDown}
-              className={`w-full h-9 pl-9 pr-16 rounded-lg text-sm focus:outline-none focus:border-accent focus:ring-2 focus:ring-accent/10 transition-all ${isDark
-                ? 'bg-zinc-800/80 border border-zinc-700/50 text-zinc-100 placeholder:text-zinc-500'
-                : 'bg-zinc-100 border border-zinc-200 text-zinc-900 placeholder:text-zinc-400'
-                }`}
-              onFocus={() => setSearchFocused(true)}
-              onBlur={() => setTimeout(() => setSearchFocused(false), 150)}
-            />
-            <div className={`absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-0.5 px-1.5 py-0.5 rounded ${isDark ? 'bg-zinc-700/50' : 'bg-zinc-200'
-              }`}>
-              <Command className="w-3 h-3 text-theme-muted" />
-              <span className="text-xs text-theme-muted font-medium">K</span>
-            </div>
-
-            {/* 자동완성 드롭다운 */}
-            <AnimatePresence>
-              {showAutocomplete && suggestions.length > 0 && (
-                <motion.div
-                  initial={{ opacity: 0, y: -4 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -4 }}
-                  className={cn(
-                    'absolute top-full left-0 right-0 mt-1 rounded-lg border shadow-lg overflow-hidden z-50 max-h-80 overflow-y-auto',
-                    isDark ? 'bg-zinc-900 border-zinc-700' : 'bg-white border-zinc-200'
-                  )}
-                >
-                  {suggestions.map((suggestion, index) => (
-                    <button
-                      key={suggestion.id}
-                      onClick={() => handleSelectSuggestion(suggestion)}
-                      className={cn(
-                        'w-full flex items-center gap-2 px-3 py-2 text-left text-sm transition-colors',
-                        index === selectedIndex
-                          ? isDark ? 'bg-zinc-700 text-white' : 'bg-blue-50 text-blue-900'
-                          : isDark ? 'hover:bg-zinc-800 text-zinc-300' : 'hover:bg-zinc-50 text-zinc-700'
-                      )}
-                    >
-                      {suggestion.type === 'file' ? (
-                        <FileText className="w-4 h-4 flex-shrink-0 text-blue-500" />
-                      ) : (
-                        <Folder className="w-4 h-4 flex-shrink-0 text-amber-500" />
-                      )}
-                      <div className="flex-1 min-w-0">
-                        <div className="truncate font-medium">{suggestion.name}</div>
-                        {suggestion.path && (
-                          <div className={cn('truncate text-xs', isDark ? 'text-zinc-500' : 'text-zinc-400')}>
-                            {suggestion.path}
-                          </div>
-                        )}
-                      </div>
-                    </button>
-                  ))}
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </motion.div>
-        </div>
-
-        {/* Agent Builder Button */}
-        <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
-          <Button
-            onClick={() => router.push('/agent-builder')}
-            size="sm"
-            variant="outline"
-            leftIcon={<Bot className="w-4 h-4" />}
-          >
-            에이전트 빌더
-          </Button>
-        </motion.div>
-
-        {/* Quick Commit Button */}
-        <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
-          <Button
-            onClick={openCommitModal}
-            size="sm"
-            leftIcon={<Plus className="w-4 h-4" />}
-            className="shadow-lg shadow-accent/20"
-          >
-            커밋
-          </Button>
-        </motion.div>
-
-        {/* Theme Toggle */}
-        <ThemeDropdown />
-
-        {/* Notifications */}
-        <motion.button
-          className={`relative p-2.5 rounded-xl transition-colors ${isDark
-            ? 'hover:bg-zinc-800 text-zinc-400 hover:text-zinc-100'
-            : 'hover:bg-zinc-100 text-zinc-500 hover:text-zinc-900'
-            }`}
-          whileHover={{ scale: 1.05 }}
-          whileTap={{ scale: 0.95 }}
+      {/* Left: Navigation Buttons */}
+      <div className="flex items-center gap-2">
+        <button
+          onClick={() => router.back()}
+          className={cn(
+            "p-1.5 rounded-md transition-colors",
+            isDark ? "hover:bg-white/5 text-zinc-500 hover:text-white" : "hover:bg-zinc-100 text-zinc-500 hover:text-zinc-900"
+          )}
+          title="뒤로"
         >
-          <Bell className="w-5 h-5" />
-          <span className={`absolute top-1.5 right-1.5 w-2.5 h-2.5 bg-danger-500 rounded-full border-2 ${isDark ? 'border-zinc-900' : 'border-white'
-            }`} />
-        </motion.button>
+          <ChevronRight className="w-4 h-4 rotate-180" />
+        </button>
+        <button
+          onClick={() => router.forward()}
+          className={cn(
+            "p-1.5 rounded-md transition-colors",
+            isDark ? "hover:bg-white/5 text-zinc-500 hover:text-white" : "hover:bg-zinc-100 text-zinc-500 hover:text-zinc-900"
+          )}
+          title="앞으로"
+        >
+          <ChevronRight className="w-4 h-4" />
+        </button>
+      </div>
 
-        {/* User Menu */}
+      {/* Center: Search Bar */}
+      <div className="flex-1 flex justify-center px-4" ref={searchRef}>
+        <div
+          className={cn(
+            "flex items-center gap-2 px-4 py-1.5 rounded-lg w-full max-w-md border transition-all relative",
+            isDark
+              ? "bg-white/5 border-white/10 hover:border-white/20 focus-within:border-blue-500/50 focus-within:ring-2 focus-within:ring-blue-500/20"
+              : "bg-zinc-100 border-zinc-200 hover:border-zinc-300 focus-within:border-blue-500 focus-within:ring-2 focus-within:ring-blue-500/20"
+          )}
+        >
+          <Search className="w-3.5 h-3.5 text-zinc-500" />
+          <input
+            type="text"
+            placeholder={pathname || "Search or enter URL..."}
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            onKeyDown={handleSearchKeyDown}
+            onFocus={() => setSearchFocused(true)}
+            onBlur={() => setTimeout(() => setSearchFocused(false), 150)}
+            className={cn(
+              "flex-1 bg-transparent text-sm outline-none placeholder-zinc-500",
+              isDark ? "text-zinc-300" : "text-zinc-700"
+            )}
+          />
+
+          {/* Autocomplete Dropdown */}
+          <AnimatePresence>
+            {showAutocomplete && suggestions.length > 0 && (
+              <motion.div
+                initial={{ opacity: 0, y: -4 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -4 }}
+                className={cn(
+                  'absolute top-full left-0 right-0 mt-1 rounded-lg border shadow-lg overflow-hidden z-50 max-h-80 overflow-y-auto',
+                  isDark ? 'bg-zinc-900 border-zinc-700' : 'bg-white border-zinc-200'
+                )}
+              >
+                {suggestions.map((suggestion, index) => (
+                  <button
+                    key={suggestion.id}
+                    onClick={() => handleSelectSuggestion(suggestion)}
+                    className={cn(
+                      'w-full flex items-center gap-2 px-3 py-2 text-left text-sm transition-colors',
+                      index === selectedIndex
+                        ? isDark ? 'bg-zinc-700 text-white' : 'bg-blue-50 text-blue-900'
+                        : isDark ? 'hover:bg-zinc-800 text-zinc-300' : 'hover:bg-zinc-50 text-zinc-700'
+                    )}
+                  >
+                    {suggestion.type === 'file' ? (
+                      <FileText className="w-4 h-4 flex-shrink-0 text-blue-500" />
+                    ) : (
+                      <Folder className="w-4 h-4 flex-shrink-0 text-amber-500" />
+                    )}
+                    <div className="flex-1 min-w-0">
+                      <div className="truncate font-medium">{suggestion.name}</div>
+                      {suggestion.path && (
+                        <div className={cn('truncate text-xs', isDark ? 'text-zinc-500' : 'text-zinc-400')}>
+                          {suggestion.path}
+                        </div>
+                      )}
+                    </div>
+                  </button>
+                ))}
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+      </div>
+
+      {/* Right: Profile & Agent Toggle */}
+      <div className="flex items-center gap-2">
+        {/* Profile Widget */}
         <div className="relative">
-          <motion.button
+          <button
             onClick={() => setShowUserMenu(!showUserMenu)}
-            className={`flex items-center gap-3 p-1.5 pr-3 rounded-xl transition-colors ${isDark ? 'hover:bg-zinc-800' : 'hover:bg-zinc-100'
-              }`}
-            whileHover={{ scale: 1.02 }}
+            className={cn(
+              "flex items-center gap-2 p-1 pl-1.5 pr-2 rounded-full border transition-all",
+              isDark
+                ? "bg-white/5 border-white/10 hover:border-white/20"
+                : "bg-zinc-100 border-zinc-200 hover:border-zinc-300",
+              showUserMenu && "border-blue-500/50 ring-2 ring-blue-500/20"
+            )}
           >
-            <div className="w-9 h-9 bg-accent rounded-xl flex items-center justify-center shadow-lg shadow-accent/25">
-              <span className="text-sm font-bold text-white">
-                {user?.name ? getInitials(user.name) : 'U'}
-              </span>
+            <div className="w-6 h-6 rounded-full bg-blue-500 flex items-center justify-center text-[10px] font-bold text-white overflow-hidden shadow-lg shadow-blue-500/20">
+              {user?.avatar_url ? (
+                <img src={user.avatar_url} alt={user.name} className="w-full h-full object-cover" />
+              ) : (
+                getInitials(user?.name || 'U')
+              )}
             </div>
-            <motion.div
-              animate={{ rotate: showUserMenu ? 180 : 0 }}
-              transition={{ duration: 0.2 }}
-            >
-              <ChevronDown className="w-4 h-4 text-theme-muted" />
-            </motion.div>
-          </motion.button>
+            <ChevronDown className={cn("w-3.5 h-3.5 text-zinc-500 transition-transform", showUserMenu && "rotate-180")} />
+          </button>
 
+          {/* User Menu Dropdown */}
           <AnimatePresence>
             {showUserMenu && (
-              <>
-                <motion.div
-                  className="fixed inset-0 z-40"
-                  onClick={() => setShowUserMenu(false)}
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                />
-                <motion.div
-                  className={`absolute right-0 mt-2 w-64 backdrop-blur-xl rounded-2xl shadow-2xl py-2 z-50 overflow-hidden ${isDark
-                    ? 'bg-zinc-900/95 border border-zinc-700/50'
-                    : 'bg-white/95 border border-zinc-200'
-                    }`}
-                  initial={{ opacity: 0, y: -10, scale: 0.95 }}
-                  animate={{ opacity: 1, y: 0, scale: 1 }}
-                  exit={{ opacity: 0, y: -10, scale: 0.95 }}
-                  transition={{ duration: 0.15 }}
-                >
-                  {/* User Info */}
-                  <div className={`px-4 py-3 border-b ${isDark ? 'border-zinc-800' : 'border-zinc-200'}`}>
-                    <div className="flex items-center gap-3">
-                      <div className="w-12 h-12 bg-accent rounded-xl flex items-center justify-center shadow-lg shadow-accent/25">
-                        <span className="text-lg font-bold text-white">
-                          {user?.name ? getInitials(user.name) : 'U'}
-                        </span>
-                      </div>
-                      <div>
-                        <p className="text-sm font-semibold text-theme">
-                          {user?.name || '사용자'}
-                        </p>
-                        <p className="text-xs text-theme-muted">{user?.email}</p>
-                      </div>
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95, y: 10 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.95, y: 10 }}
+                className={cn(
+                  "absolute top-10 right-0 w-64 rounded-2xl shadow-2xl z-[200] border backdrop-blur-2xl py-2",
+                  isDark ? "bg-zinc-900/95 border-white/10 text-zinc-300" : "bg-white/95 border-zinc-200 text-zinc-700"
+                )}
+              >
+                {/* Personal Identity Section */}
+                <div className={cn(
+                  "px-4 py-3 border-b flex items-center justify-between group cursor-pointer",
+                  isDark ? "border-white/5 hover:bg-white/[0.02]" : "border-zinc-100 hover:bg-zinc-50"
+                )}>
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center text-xs font-bold text-white">
+                      {getInitials(user?.name || 'U')}
+                    </div>
+                    <div className="flex flex-col">
+                      <span className="text-sm font-bold truncate max-w-[120px]">{user?.name || 'User'}</span>
+                      <span className="text-[10px] text-zinc-500 truncate max-w-[120px]">{user?.email || '(Google Auth)'}</span>
                     </div>
                   </div>
+                  <ChevronRight className="w-4 h-4 text-zinc-600 group-hover:text-zinc-400" />
+                </div>
 
-                  {/* Menu Items */}
-                  <div className="py-2">
-                    <button
-                      onClick={() => {
-                        setShowUserMenu(false)
-                        router.push('/dashboard-group/profile')
-                      }}
-                      className={`w-full flex items-center gap-3 px-4 py-2.5 text-sm transition-colors ${isDark
-                        ? 'text-zinc-300 hover:bg-zinc-800'
-                        : 'text-zinc-700 hover:bg-zinc-100'
-                        }`}
-                    >
-                      <User className="w-4 h-4 text-theme-muted" />
-                      프로필
-                    </button>
-                    <button
-                      onClick={() => {
-                        setShowUserMenu(false)
-                        router.push('/dashboard-group/settings')
-                      }}
-                      className={`w-full flex items-center gap-3 px-4 py-2.5 text-sm transition-colors ${isDark
-                        ? 'text-zinc-300 hover:bg-zinc-800'
-                        : 'text-zinc-700 hover:bg-zinc-100'
-                        }`}
-                    >
-                      <Settings className="w-4 h-4 text-theme-muted" />
-                      설정
-                    </button>
-                    <button
-                      onClick={() => {
-                        setShowUserMenu(false)
-                        router.push('/dashboard-group/conversations')
-                      }}
-                      className={`w-full flex items-center gap-3 px-4 py-2.5 text-sm transition-colors ${isDark
-                        ? 'text-zinc-300 hover:bg-zinc-800'
-                        : 'text-zinc-700 hover:bg-zinc-100'
-                        }`}
-                    >
-                      <MessageSquare className="w-4 h-4 text-theme-muted" />
-                      대화목록
-                    </button>
-                  </div>
+                {/* Main Menu Items */}
+                <div className="py-2 space-y-0.5">
+                  <MenuButton
+                    icon={Settings}
+                    label="프로필 설정"
+                    isDark={isDark}
+                    onClick={() => {
+                      setShowUserMenu(false)
+                      router.push('/dashboard-group/profile')
+                    }}
+                  />
+                  <MenuButton
+                    icon={Settings2}
+                    label="환경설정"
+                    isDark={isDark}
+                    onClick={() => {
+                      setShowUserMenu(false)
+                      router.push('/dashboard-group/settings')
+                    }}
+                  />
 
-                  {/* Logout */}
-                  <div className={`border-t pt-2 ${isDark ? 'border-zinc-800' : 'border-zinc-200'}`}>
-                    <button
-                      onClick={handleLogout}
-                      className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-danger-400 hover:bg-danger-500/10 transition-colors"
-                    >
-                      <LogOut className="w-4 h-4" />
-                      로그아웃
-                    </button>
-                  </div>
-                </motion.div>
-              </>
+                  <div className={cn("my-1 border-t", isDark ? "border-white/5" : "border-zinc-100")} />
+
+                  <MenuButton icon={FileText} label="변경 로그" isDark={isDark} />
+                  <MenuButton
+                    icon={AlertCircle}
+                    label="문제 신고"
+                    isDark={isDark}
+                    onClick={() => window.open('https://github.com/issues', '_blank')}
+                  />
+                </div>
+
+                {/* Logout Section */}
+                <div className={cn("p-2 border-t", isDark ? "border-white/5" : "border-zinc-100")}>
+                  <button
+                    onClick={handleLogout}
+                    className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-rose-400 hover:bg-rose-500/10 hover:text-rose-300 transition-colors text-xs"
+                  >
+                    <LogOut className="w-3.5 h-3.5" />
+                    <span>로그아웃</span>
+                  </button>
+                </div>
+              </motion.div>
             )}
           </AnimatePresence>
         </div>
 
-        <motion.button
+        {/* Agent Sidebar Toggle */}
+        <button
           onClick={toggleAgentSidebar}
-          className={`p-2.5 rounded-xl transition-colors ${isDark
-            ? 'hover:bg-zinc-800 text-zinc-400 hover:text-zinc-100'
-            : 'hover:bg-zinc-100 text-zinc-500 hover:text-zinc-900'
-            }`}
-          whileHover={{ scale: 1.05 }}
-          whileTap={{ scale: 0.95 }}
-          title={agentSidebarOpen ? 'AI 어시스턴트 닫기' : 'AI 어시스턴트 열기'}
-        >
-          {agentSidebarOpen ? (
-            <PanelRightClose className="w-5 h-5" />
-          ) : (
-            <PanelRightOpen className="w-5 h-5" />
+          className={cn(
+            "p-2 rounded-md transition-colors",
+            agentSidebarOpen
+              ? "bg-blue-500 text-white"
+              : isDark
+                ? "text-zinc-500 hover:text-white hover:bg-white/5"
+                : "text-zinc-500 hover:text-zinc-900 hover:bg-zinc-100"
           )}
-        </motion.button>
+        >
+          <Bot className="w-4 h-4" />
+        </button>
       </div>
     </header>
+  )
+}
+
+function MenuButton({
+  icon: Icon,
+  label,
+  onClick,
+  iconClassName,
+  isDark
+}: {
+  icon: any
+  label: string
+  onClick?: () => void
+  iconClassName?: string
+  isDark: boolean
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={cn(
+        "w-full px-4 py-2 flex items-center gap-3 transition-colors group",
+        isDark ? "hover:bg-white/5" : "hover:bg-zinc-50"
+      )}
+    >
+      <Icon className={cn("w-4 h-4 text-zinc-500 group-hover:text-inherit transition-colors", iconClassName)} />
+      <span className="text-sm font-medium">{label}</span>
+    </button>
   )
 }

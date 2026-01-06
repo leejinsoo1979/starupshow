@@ -138,15 +138,8 @@ export function OverviewSection({ projectId, project, onEdit }: OverviewSectionP
     : null
 
   return (
-    <div className="relative min-h-full">
-      {/* Background Effects */}
-      <div className="fixed inset-0 pointer-events-none overflow-hidden">
-        <div className="absolute top-0 left-1/4 w-[600px] h-[600px] bg-blue-500/5 rounded-full blur-3xl opacity-50 dark:opacity-100" />
-        <div className="absolute bottom-0 right-1/4 w-[600px] h-[600px] bg-purple-500/5 rounded-full blur-3xl opacity-50 dark:opacity-100" />
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] bg-cyan-500/3 rounded-full blur-3xl opacity-50 dark:opacity-100" />
-      </div>
-
-      <div className="relative z-10 space-y-6 pb-20">
+    <div className="min-h-full">
+      <div className="space-y-6 pb-20">
         {/* Header Title Section */}
         <motion.div
           initial={{ opacity: 0, y: -20 }}
@@ -155,27 +148,14 @@ export function OverviewSection({ projectId, project, onEdit }: OverviewSectionP
         >
           <div className="flex items-center gap-4">
             <div
-              className="w-14 h-14 rounded-2xl flex items-center justify-center relative"
-              style={{
-                background: `linear-gradient(135deg, ${project.color}40, ${project.color}20)`,
-                boxShadow: `0 0 40px ${project.color}30`,
-              }}
+              className="w-12 h-12 rounded-xl flex items-center justify-center bg-zinc-100 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700"
             >
-              <Rocket className="w-7 h-7 text-zinc-900 dark:text-white" />
-              <motion.div
-                className="absolute inset-0 rounded-2xl"
-                style={{ border: `2px solid ${project.color}50` }}
-                animate={{ opacity: [0.5, 1, 0.5] }}
-                transition={{ duration: 2, repeat: Infinity }}
-              />
+              <Rocket className="w-6 h-6 text-zinc-600 dark:text-zinc-300" />
             </div>
             <div>
               <div className="flex items-center gap-3">
                 <h1 className="text-2xl font-bold text-zinc-900 dark:text-white">{project.name}</h1>
-                <span
-                  className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium"
-                  style={{ backgroundColor: `${stageInfo.color}20`, color: stageInfo.color }}
-                >
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300 border border-zinc-200 dark:border-zinc-700">
                   <StageIcon className="w-3 h-3" />
                   {stageInfo.label}
                 </span>
@@ -392,42 +372,27 @@ export function OverviewSection({ projectId, project, onEdit }: OverviewSectionP
           </div>
         </motion.div>
 
-        {/* AI Insights */}
+        {/* Key Insights */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.5 }}
-          className="relative overflow-hidden bg-gradient-to-r from-purple-500/5 via-blue-500/5 to-cyan-500/5 border border-purple-500/20 rounded-xl p-6 shadow-sm"
+          className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl p-6 shadow-sm"
         >
-          {/* Animated gradient border */}
-          <div className="absolute inset-0 rounded-xl pointer-events-none">
-            <div
-              className="absolute inset-0 rounded-xl animate-pulse opacity-50"
-              style={{
-                background: "linear-gradient(90deg, transparent, rgba(139, 92, 246, 0.1), transparent)",
-                backgroundSize: "200% 100%",
-              }}
-            />
-          </div>
-
-          <div className="relative z-10 flex items-start gap-4">
-            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-purple-500/20 to-blue-500/20 flex items-center justify-center flex-shrink-0">
-              <Sparkles className="w-6 h-6 text-purple-600 dark:text-purple-400" />
+          <div className="flex items-start gap-4">
+            <div className="w-10 h-10 rounded-lg bg-indigo-50 dark:bg-indigo-500/10 flex items-center justify-center flex-shrink-0">
+              <Sparkles className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
             </div>
             <div>
               <h3 className="font-semibold text-zinc-900 dark:text-white mb-1 flex items-center gap-2">
-                AI 인사이트
-                <span className="relative flex h-2 w-2">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-purple-400 opacity-75" />
-                  <span className="relative inline-flex rounded-full h-2 w-2 bg-purple-500" />
-                </span>
+                주요 인사이트
               </h3>
-              <p className="text-sm text-zinc-600 dark:text-zinc-400">
+              <p className="text-sm text-zinc-600 dark:text-zinc-400 leading-relaxed">
                 {kpiData.overdueTasks > 0
-                  ? `⚠️ ${kpiData.overdueTasks}개의 지연된 태스크가 있습니다. 우선순위를 조정하거나 AI 에이전트에게 위임하는 것을 고려해보세요.`
+                  ? `⚠️ ${kpiData.overdueTasks}개의 지연된 태스크가 있습니다. 일정 조정이 필요할 수 있습니다.`
                   : kpiData.inProgressTasks > 0
-                    ? `✨ 현재 ${kpiData.inProgressTasks}개의 태스크가 진행 중입니다. 완료율 ${completionRate}%로 순조롭게 진행되고 있습니다.`
-                    : "🚀 태스크를 추가하여 프로젝트를 시작하세요!"}
+                    ? `✨ 현재 ${kpiData.inProgressTasks}개의 태스크가 활발히 진행 중입니다. 전체 완료율은 ${completionRate}%입니다.`
+                    : "🚀 새로운 프로젝트를 시작할 준비가 되었습니다. 첫 번째 태스크를 생성해보세요."}
               </p>
             </div>
           </div>

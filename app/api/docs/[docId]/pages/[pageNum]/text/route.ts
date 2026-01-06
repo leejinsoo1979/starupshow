@@ -4,8 +4,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getDevUserIfEnabled } from '@/lib/dev-user'
 import { createClient } from '@/lib/supabase/server'
-// @ts-ignore - pdf-parse has no proper type exports
-const pdfParse = require('pdf-parse')
+// unpdf for PDF parsing (Node.js compatible)
+import { extractText, getDocumentProxy } from 'unpdf'
 
 /**
  * PDF 페이지별 텍스트 추출 API
@@ -97,32 +97,31 @@ async function extractPdfPageText(
 
     const pdfBuffer = Buffer.from(await pdfResponse.arrayBuffer())
 
-    // pdf-parse로 텍스트 추출
-    const pdfData = await pdfParse(pdfBuffer, {
-      // 특정 페이지만 추출하는 옵션
-      max: pageNumber, // 해당 페이지까지만 파싱
-    })
+    // unpdf로 텍스트 추출
+    const pdfData = new Uint8Array(pdfBuffer)
+    const pdf = await getDocumentProxy(pdfData)
+    const result = await extractText(pdf, { mergePages: false })
 
-    // 전체 텍스트를 페이지별로 분리
-    // pdf-parse는 페이지 구분자로 폼피드 문자(\f)를 사용
-    const pages = pdfData.text.split('\f')
+    // unpdf는 페이지별 배열로 텍스트를 반환
+    const pages = Array.isArray(result.text) ? result.text : [result.text]
+    const numPages = pdf.numPages
+
+    // 페이지가 범위를 벗어난 경우
+    if (pageNumber > numPages) {
+      return NextResponse.json({
+        error: 'Page number out of range',
+        total_pages: numPages
+      }, { status: 400 })
+    }
 
     // 요청한 페이지 텍스트 추출 (0-indexed)
     const pageIndex = pageNumber - 1
     const pageText = pages[pageIndex] || ''
 
-    // 페이지가 범위를 벗어난 경우
-    if (pageNumber > pdfData.numpages) {
-      return NextResponse.json({
-        error: 'Page number out of range',
-        total_pages: pdfData.numpages
-      }, { status: 400 })
-    }
-
     return NextResponse.json({
       doc_name: fileName,
       page: pageNumber,
-      total_pages: pdfData.numpages,
+      total_pages: numPages,
       text: pageText.trim(),
       // Evidence 형식 힌트
       evidence_format: `[Evidence: ${fileName} p.${pageNumber} "인용문"]`,

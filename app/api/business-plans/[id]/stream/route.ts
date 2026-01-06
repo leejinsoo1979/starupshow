@@ -41,6 +41,39 @@ export async function GET(
 
   const stream = new ReadableStream({
     start(controller) {
+      let isClosed = false
+      let heartbeat: NodeJS.Timeout | null = null
+      let timeoutId: NodeJS.Timeout | null = null
+      let unsubscribe: (() => void) | null = null
+
+      // 안전하게 스트림 닫기
+      const safeClose = () => {
+        if (isClosed) return
+        isClosed = true
+
+        if (heartbeat) clearInterval(heartbeat)
+        if (timeoutId) clearTimeout(timeoutId)
+        if (unsubscribe) unsubscribe()
+
+        try {
+          controller.close()
+        } catch (e) {
+          // already closed
+        }
+      }
+
+      // 안전하게 데이터 전송
+      const safeEnqueue = (data: string) => {
+        if (isClosed) return false
+        try {
+          controller.enqueue(encoder.encode(data))
+          return true
+        } catch (e) {
+          safeClose()
+          return false
+        }
+      }
+
       // 초기 상태 전송
       const initialData = JSON.stringify({
         type: 'init',
@@ -50,7 +83,7 @@ export async function GET(
         current_stage: job.current_stage,
         stage_progress: job.stage_progress
       })
-      controller.enqueue(encoder.encode(`data: ${initialData}\n\n`))
+      safeEnqueue(`data: ${initialData}\n\n`)
 
       // 이미 완료된 경우
       if (['completed', 'failed', 'cancelled'].includes(job.status)) {
@@ -60,50 +93,31 @@ export async function GET(
           progress: job.progress,
           error: job.error
         })
-        controller.enqueue(encoder.encode(`data: ${finalData}\n\n`))
-        controller.close()
+        safeEnqueue(`data: ${finalData}\n\n`)
+        safeClose()
         return
       }
 
       // 진행률 구독
-      const unsubscribe = subscribeToJobProgress(jobId, (data) => {
-        try {
-          const eventData = JSON.stringify(data)
-          controller.enqueue(encoder.encode(`data: ${eventData}\n\n`))
+      unsubscribe = subscribeToJobProgress(jobId, (data) => {
+        const eventData = JSON.stringify(data)
+        if (!safeEnqueue(`data: ${eventData}\n\n`)) return
 
-          // 완료/실패 시 스트림 종료
-          if (['completed', 'failed', 'cancelled'].includes(data.status)) {
-            setTimeout(() => {
-              unsubscribe()
-              controller.close()
-            }, 1000)
-          }
-        } catch (e) {
-          // 연결 끊김
-          unsubscribe()
+        // 완료/실패 시 스트림 종료
+        if (['completed', 'failed', 'cancelled'].includes(data.status)) {
+          setTimeout(() => safeClose(), 1000)
         }
       })
 
       // 연결 유지를 위한 heartbeat
-      const heartbeat = setInterval(() => {
-        try {
-          controller.enqueue(encoder.encode(`: heartbeat\n\n`))
-        } catch (e) {
-          clearInterval(heartbeat)
-          unsubscribe()
+      heartbeat = setInterval(() => {
+        if (!safeEnqueue(`: heartbeat\n\n`)) {
+          safeClose()
         }
       }, 30000)
 
       // 타임아웃 (10분)
-      setTimeout(() => {
-        clearInterval(heartbeat)
-        unsubscribe()
-        try {
-          controller.close()
-        } catch (e) {
-          // already closed
-        }
-      }, 600000)
+      timeoutId = setTimeout(() => safeClose(), 600000)
     }
   })
 

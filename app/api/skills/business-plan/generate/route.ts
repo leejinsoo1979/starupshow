@@ -543,17 +543,68 @@ export async function POST(request: NextRequest) {
     console.log('[BusinessPlan] Knowledge base completeness:', completeness)
 
     if (completeness.score < 30) {
+      console.log('[BusinessPlan] Knowledge base insufficient, creating interview mode plan')
+
+      // 프로그램 정보 로드
+      const { data: program, error: programError } = await adminSupabase
+        .from('government_programs')
+        .select('id, title, organization')
+        .eq('id', program_id)
+        .single()
+
+      if (programError || !program) {
+        return NextResponse.json(
+          { error: '지원사업을 찾을 수 없습니다.' },
+          { status: 404 }
+        )
+      }
+
+      // 인터뷰 모드용 빈 사업계획서 생성
+      const { data: interviewPlan, error: planError } = await adminSupabase
+        .from('business_plans')
+        .insert({
+          user_id: user.id,
+          program_id: program_id,
+          company_id: companyContext.profile?.company_id || null,
+          title: `${program.title} - 사업계획서`,
+          status: 'interview_mode',
+          ai_model: 'gpt-4-turbo-preview',
+          sections: {},
+          web_search_results: {
+            knowledge_base_used: false,
+            interview_mode: true,
+            completeness_score: completeness.score
+          }
+        })
+        .select()
+        .single()
+
+      if (planError) {
+        console.error('[BusinessPlan] Failed to create interview plan:', planError)
+        return NextResponse.json(
+          { error: '인터뷰 모드 사업계획서 생성 실패' },
+          { status: 500 }
+        )
+      }
+
+      console.log('[BusinessPlan] Interview plan created:', interviewPlan.id)
+
+      // 지식베이스 부족 시 인터뷰 모드 안내
       return NextResponse.json({
         success: false,
-        error: '지식베이스가 부족합니다. 사업계획서 생성을 위해 회사 정보를 먼저 입력해주세요.',
+        needs_interview: true,
+        business_plan_id: interviewPlan.id,
+        message: '지식베이스가 부족하여 인터뷰 모드를 시작합니다. AI가 질문을 통해 필요한 정보를 수집합니다.',
         missing_data: completeness.missing,
         completeness_score: completeness.score,
-        required_actions: [
-          '회사 프로필에 사업 설명 추가',
-          '팀 멤버 정보 등록',
-          '제품/서비스 정보 등록'
+        interview_url: `/api/business-plans/${interviewPlan.id}/pipeline`,
+        interview_action: 'load_template_questions',
+        suggestions: [
+          '인터뷰 모드: AI 질문에 답변하여 사업계획서 생성',
+          '파일 업로드: 기존 사업계획서/IR자료 업로드로 지식베이스 자동 채우기',
+          '직접 입력: 회사 프로필에서 정보 직접 입력'
         ]
-      }, { status: 400 })
+      }, { status: 200 })
     }
 
     // =====================================================

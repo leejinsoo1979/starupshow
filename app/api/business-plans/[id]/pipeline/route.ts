@@ -3,9 +3,34 @@
 // 사업계획서 파이프라인 API (Production-Ready)
 // Job Queue + Rate Limiting + 실시간 진행률
 // =====================================================
+//
+// 🆕 양식 기반 완벽한 인터뷰 플로우:
+//
+// 1️⃣ 양식 로드 및 질문 생성
+//    POST action: "load_template_questions"
+//    → 공고문/양식에서 섹션 추출
+//    → 각 섹션별 맞춤형 질문 생성 (AI)
+//    → 응답: { template, questionsBySection, totalQuestions }
+//
+// 2️⃣ 섹션별 답변 및 콘텐츠 생성
+//    POST action: "answer_section"
+//    → 특정 섹션의 질문들에 답변 제출
+//    → 해당 섹션 콘텐츠 즉시 생성 (placeholder 없이)
+//    → 응답: { section, qualityScore }
+//
+// 3️⃣ 전체 섹션 일괄 생성 (선택적)
+//    POST action: "generate_all_sections"
+//    → 모든 질문 답변 완료 후
+//    → 남은 섹션 일괄 생성
+//    → 응답: { sections, completionPercentage }
+//
+// 4️⃣ 기존 파이프라인 계속 진행
+//    POST stages: [6, 7, 8] (검증 → 최종 문서)
+//
+// =====================================================
 
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient, getAuthUser } from '@/lib/supabase/server'
+import { createClient, createClientForApi, getAuthUser, createAdminClient } from '@/lib/supabase/server'
 import {
   parseAnnouncementTemplate,
   collectCompanyData,
@@ -13,7 +38,14 @@ import {
   mapFactsToSections,
   generateSectionDrafts,
   validateSections,
-  generateQuestions
+  generateQuestions,
+  checkDataSufficiency,
+  generateInterviewQuestions,
+  processInterviewAnswers,
+  // 🆕 양식 기반 완벽한 인터뷰 시스템
+  generateTemplateDrivenQuestions,
+  generateSectionFromAnswers,
+  generateAllSectionsFromInterview
 } from '@/lib/business-plan/pipeline-service'
 import { generateDocument } from '@/lib/business-plan/document-generator'
 import {
@@ -57,8 +89,9 @@ export async function GET(
       return NextResponse.json({ job })
     }
 
-    // 사업계획서 조회
-    const { data: plan } = await supabase
+    // Admin client로 사업계획서 조회 (RLS 우회)
+    const adminSupabase = createAdminClient()
+    const { data: plan } = await adminSupabase
       .from('business_plans')
       .select(`
         id,
@@ -78,8 +111,8 @@ export async function GET(
       return NextResponse.json({ error: 'Plan not found' }, { status: 404 })
     }
 
-    // 실행 로그 조회
-    const { data: logs } = await supabase
+    // 실행 로그 조회 (admin client 사용)
+    const { data: logs } = await adminSupabase
       .from('pipeline_execution_logs')
       .select('*')
       .eq('plan_id', id)
@@ -134,7 +167,7 @@ export async function POST(
 ) {
   try {
     const { id } = await params
-    const supabase = await createClient()
+    const supabase = await createClientForApi()
     const { user, error: authError } = await getAuthUser(supabase)
 
     if (authError || !user) {
@@ -149,16 +182,40 @@ export async function POST(
       options = {}
     } = body
 
-    // 사업계획서 조회
-    const { data: plan } = await supabase
+    // Admin client로 사업계획서 조회 (RLS 우회)
+    const adminSupabase = createAdminClient()
+    const { data: plan, error: planError } = await adminSupabase
       .from('business_plans')
-      .select('*, template:business_plan_templates(*)')
+      .select('*')
       .eq('id', id)
       .single()
 
-    if (!plan) {
+    if (planError || !plan) {
+      console.error('[Pipeline] Plan query error:', planError)
       return NextResponse.json({ error: 'Plan not found' }, { status: 404 })
     }
+
+    // 템플릿 조회 (있는 경우 또는 기본 템플릿 사용) - admin client 사용
+    let template = null
+    if (plan.template_id) {
+      const { data: templateData } = await adminSupabase
+        .from('business_plan_templates')
+        .select('*')
+        .eq('id', plan.template_id)
+        .single()
+      template = templateData
+    } else {
+      // 기본 템플릿 사용
+      const { data: defaultTemplate } = await adminSupabase
+        .from('business_plan_templates')
+        .select('*')
+        .eq('is_active', true)
+        .limit(1)
+        .single()
+      template = defaultTemplate
+    }
+    // plan 객체에 template 추가
+    plan.template = template
 
     // =========================================
     // 단일 액션 실행 (동기)
@@ -228,6 +285,166 @@ export async function POST(
           }
           const cancelled = await cancelJob(options.job_id)
           return NextResponse.json({ success: cancelled })
+
+        // =========================================
+        // 인터뷰 모드 관련 액션
+        // =========================================
+        case 'check_sufficiency':
+          // 데이터 충족도 체크
+          const templateSections = plan.template?.sections || []
+          const sufficiency = await checkDataSufficiency(plan.company_id, templateSections)
+          return NextResponse.json({
+            success: true,
+            ...sufficiency
+          })
+
+        case 'start_interview':
+          // 인터뷰 모드 시작 (질문 생성)
+          const interviewSections = plan.template?.sections || []
+          const interviewQuestions = await generateInterviewQuestions(
+            plan.company_id,
+            id,
+            interviewSections
+          )
+          return NextResponse.json({
+            success: true,
+            needsInterview: interviewQuestions.length > 0,
+            questions: interviewQuestions,
+            message: interviewQuestions.length > 0
+              ? `사업계획서 작성을 위해 ${interviewQuestions.length}개의 질문에 답변해주세요.`
+              : '데이터가 충분합니다. 파이프라인을 실행할 수 있습니다.'
+          })
+
+        case 'process_interview':
+          // 인터뷰 답변 처리 → 팩트카드 생성
+          if (!options.answers || !Array.isArray(options.answers)) {
+            return NextResponse.json(
+              { error: 'answers array is required. Format: [{questionId, answer}]' },
+              { status: 400 }
+            )
+          }
+          const createdFacts = await processInterviewAnswers(
+            plan.company_id,
+            id,
+            options.answers
+          )
+
+          // 재충족도 체크
+          const newSufficiency = await checkDataSufficiency(
+            plan.company_id,
+            plan.template?.sections || []
+          )
+
+          return NextResponse.json({
+            success: true,
+            factsCreated: createdFacts.length,
+            newSufficiency,
+            canProceed: newSufficiency.sufficient,
+            message: newSufficiency.sufficient
+              ? '데이터 수집 완료! 이제 사업계획서를 생성할 수 있습니다.'
+              : `추가 정보가 필요합니다. 현재 충족도: ${newSufficiency.overallScore}%`
+          })
+
+        // =========================================
+        // 🆕 양식 기반 완벽한 인터뷰 시스템
+        // =========================================
+        case 'load_template_questions':
+          // 양식을 불러와서 각 섹션별 질문 생성
+          const templateResult = await generateTemplateDrivenQuestions(id, {
+            skipExistingData: options.skip_existing_data,
+            maxQuestionsPerSection: options.max_questions_per_section || 5
+          })
+
+          if (!templateResult.success) {
+            return NextResponse.json({ error: 'Failed to generate template questions' }, { status: 500 })
+          }
+
+          return NextResponse.json({
+            success: true,
+            template: {
+              id: templateResult.template?.id,
+              name: templateResult.template?.template_name,
+              sections: templateResult.template?.sections?.length || 0
+            },
+            questionsBySection: templateResult.questionsBySection.map(s => ({
+              sectionId: s.sectionId,
+              sectionTitle: s.sectionTitle,
+              guidelines: s.guidelines,
+              evaluationWeight: s.evaluationWeight,
+              questionCount: s.questions.length,
+              questions: s.questions.map(q => ({
+                id: q.id,
+                question: q.question_text,
+                type: q.question_type,
+                required: q.is_required,
+                context: q.context
+              }))
+            })),
+            totalQuestions: templateResult.totalQuestions,
+            message: `${templateResult.template?.template_name}에서 ${templateResult.questionsBySection.length}개 섹션, 총 ${templateResult.totalQuestions}개 질문이 생성되었습니다.`
+          })
+
+        case 'answer_section':
+          // 특정 섹션의 질문에 답변하고 해당 섹션 콘텐츠 생성
+          if (!options.section_id || !options.answers || !Array.isArray(options.answers)) {
+            return NextResponse.json(
+              { error: 'section_id and answers array required. Format: {section_id: "1", answers: [{questionId, answer}]}' },
+              { status: 400 }
+            )
+          }
+
+          const sectionResult = await generateSectionFromAnswers(
+            id,
+            options.section_id,
+            options.answers
+          )
+
+          if (!sectionResult.success) {
+            return NextResponse.json({ error: 'Failed to generate section content' }, { status: 500 })
+          }
+
+          return NextResponse.json({
+            success: true,
+            section: {
+              id: sectionResult.section?.id,
+              title: sectionResult.section?.section_title,
+              content: sectionResult.section?.content,
+              charCount: sectionResult.charCount
+            },
+            qualityScore: sectionResult.qualityScore,
+            message: `"${sectionResult.section?.section_title}" 섹션이 생성되었습니다. (${sectionResult.charCount}자, 품질 ${sectionResult.qualityScore}점)`
+          })
+
+        case 'generate_all_sections':
+          // 모든 답변 완료 후 전체 섹션 일괄 생성
+          console.log('[Pipeline] generate_all_sections called for plan:', id)
+          const allSectionsResult = await generateAllSectionsFromInterview(id)
+          console.log('[Pipeline] generate_all_sections result:', JSON.stringify(allSectionsResult, null, 2))
+
+          if (!allSectionsResult.success) {
+            if (allSectionsResult.pendingQuestions > 0) {
+              return NextResponse.json({
+                success: false,
+                error: 'pending_questions',
+                pendingQuestions: allSectionsResult.pendingQuestions,
+                message: `아직 답변하지 않은 질문이 ${allSectionsResult.pendingQuestions}개 있습니다.`
+              }, { status: 400 })
+            }
+            return NextResponse.json({ error: 'Failed to generate sections' }, { status: 500 })
+          }
+
+          return NextResponse.json({
+            success: true,
+            sectionsGenerated: allSectionsResult.sections.length,
+            sections: allSectionsResult.sections.map(s => ({
+              id: s.id,
+              title: s.section_title,
+              charCount: s.char_count,
+              status: s.validation_status
+            })),
+            completionPercentage: allSectionsResult.completionPercentage,
+            message: `${allSectionsResult.sections.length}개 섹션이 생성되었습니다. 완성도: ${allSectionsResult.completionPercentage}%`
+          })
 
         default:
           return NextResponse.json({ error: 'Invalid action' }, { status: 400 })

@@ -6,7 +6,7 @@ import {
   Sparkles, RefreshCw, Bookmark, BookmarkCheck, ExternalLink,
   Calendar, Building2, TrendingUp, AlertCircle, Zap
 } from 'lucide-react'
-import { useThemeStore } from '@/stores/themeStore'
+import { useThemeStore, accentColors } from '@/stores/themeStore'
 import Link from 'next/link'
 
 interface MatchResult {
@@ -37,8 +37,9 @@ export default function RecommendedPage() {
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
   const [bookmarkedIds, setBookmarkedIds] = useState<Set<string>>(new Set())
-  const [minScore, setMinScore] = useState(40)
-  const { themeColor } = useThemeStore()
+  const [minScore, setMinScore] = useState(50)
+  const { accentColor } = useThemeStore()
+  const themeColor = accentColors.find(c => c.id === accentColor)?.color || '#3b82f6'
 
   useEffect(() => {
     fetchMatches()
@@ -123,21 +124,21 @@ export default function RecommendedPage() {
     // 점수에 따라 테마색의 밝기/채도 조절
     if (score >= 80) return themeColor // 높은 점수 = 테마색 100%
     if (score >= 60) return themeColor // 중상 점수 = 테마색
-    if (score >= 40) return `${themeColor}cc` // 중간 점수 = 테마색 80%
+    if (score >= 50) return `${themeColor}cc` // 중간 점수 = 테마색 80%
     return `${themeColor}66` // 낮은 점수 = 테마색 40%
   }
 
   const getScoreLabel = (score: number) => {
     if (score >= 80) return '적극 추천'
     if (score >= 60) return '추천'
-    if (score >= 40) return '검토 권장'
+    if (score >= 50) return '검토 권장'
     return '참고'
   }
 
   const getScoreBgOpacity = (score: number) => {
     if (score >= 80) return '25'
     if (score >= 60) return '20'
-    if (score >= 40) return '15'
+    if (score >= 50) return '15'
     return '10'
   }
 
@@ -170,7 +171,7 @@ export default function RecommendedPage() {
             className="px-3 py-2 rounded-lg bg-zinc-800 border border-zinc-700 text-white"
           >
             <option value={0}>모든 점수</option>
-            <option value={40}>40점 이상</option>
+            <option value={50}>50점 이상</option>
             <option value={60}>60점 이상</option>
             <option value={80}>80점 이상</option>
           </select>
@@ -191,8 +192,8 @@ export default function RecommendedPage() {
         {[
           { min: 80, max: 100, label: '적극 추천', opacity: 1 },
           { min: 60, max: 79, label: '추천', opacity: 0.8 },
-          { min: 40, max: 59, label: '검토 권장', opacity: 0.6 },
-          { min: 0, max: 39, label: '참고', opacity: 0.4 },
+          { min: 50, max: 59, label: '검토 권장', opacity: 0.6 },
+          { min: 0, max: 49, label: '참고', opacity: 0.4 },
         ].map((range, index) => {
           const count = matches.filter(m => m.fit_score >= range.min && m.fit_score <= range.max).length
           return (
@@ -245,9 +246,8 @@ export default function RecommendedPage() {
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: index * 0.03 }}
-                className={`bg-zinc-900/50 border border-zinc-800 rounded-xl p-5 hover:border-zinc-700 transition-all ${
-                  isExpired ? 'opacity-50' : ''
-                }`}
+                className={`bg-zinc-900/50 border border-zinc-800 rounded-xl p-5 hover:border-zinc-700 transition-all ${isExpired ? 'opacity-50' : ''
+                  }`}
               >
                 <div className="flex items-start gap-5">
                   {/* 점수 - 원형 게이지 스타일 (테마색 적용) */}
@@ -384,11 +384,8 @@ export default function RecommendedPage() {
                   <div className="flex items-center gap-2">
                     <button
                       onClick={() => toggleBookmark(match.program.id)}
-                      className={`p-2 rounded-lg transition-colors ${
-                        isBookmarked
-                          ? 'bg-amber-500/20 text-amber-400'
-                          : 'bg-zinc-800 hover:bg-zinc-700 text-zinc-400'
-                      }`}
+                      className="p-2 rounded-lg transition-colors bg-zinc-800 hover:bg-zinc-700"
+                      style={isBookmarked ? { backgroundColor: `${themeColor}20`, color: themeColor } : { color: '#a1a1aa' }}
                     >
                       {isBookmarked ? (
                         <BookmarkCheck className="w-5 h-5" />
@@ -397,7 +394,7 @@ export default function RecommendedPage() {
                       )}
                     </button>
                     <Link
-                      href={`/dashboard-group/company/government-programs?id=${match.program.id}`}
+                      href={`/dashboard-group/company/government-programs/${match.program.id}`}
                       className="p-2 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-400 hover:text-white transition-colors"
                     >
                       <ExternalLink className="w-5 h-5" />

@@ -223,14 +223,39 @@ export default function KnowledgeBasePanel({ isDark = true, themeColor = '#3b82f
                 지식베이스 완성도
               </p>
               <p className="text-sm font-medium" style={{ color: themeColor }}>
-                {(data?.completeness?.percentage || 0) >= 30
-                  ? '사업계획서 생성 가능'
-                  : '추가 정보 필요'}
+                {(data?.completeness?.percentage || 0) >= 50
+                  ? '사업계획서 자동생성 가능'
+                  : (data?.completeness?.percentage || 0) >= 20
+                    ? '인터뷰 모드로 생성 가능'
+                    : '기본 정보 입력 필요'}
               </p>
             </div>
           </div>
         </div>
       </div>
+
+      {/* 인터뷰 모드 안내 (지식베이스 부족시) */}
+      {(data?.completeness?.percentage || 0) < 50 && (
+        <div className={cn(
+          "rounded-xl border p-4 mb-4",
+          isDark ? "bg-emerald-500/10 border-emerald-500/30" : "bg-emerald-50 border-emerald-200"
+        )}>
+          <div className="flex items-start gap-3">
+            <div className="w-10 h-10 rounded-lg flex items-center justify-center bg-emerald-500/20">
+              <FileText className="w-5 h-5 text-emerald-400" />
+            </div>
+            <div>
+              <h4 className={cn("font-semibold text-sm mb-1", isDark ? "text-white" : "text-gray-900")}>
+                💡 인터뷰 모드로 사업계획서 생성 가능
+              </h4>
+              <p className={cn("text-xs", isDark ? "text-zinc-400" : "text-gray-500")}>
+                지식베이스가 부족해도 괜찮습니다! 사업계획서 생성 시 AI가 공고문 양식에 맞춰
+                질문을 드리고, 답변을 바탕으로 완벽한 내용을 작성해 드립니다.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* 파일 업로드 영역 */}
       <div className={cn(

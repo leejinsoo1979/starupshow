@@ -353,12 +353,12 @@ export interface PipelineStageConfig {
 export const PIPELINE_STAGES: PipelineStageConfig[] = [
   {
     stage: 0,
-    name: '성공 패턴 분석',
-    description: '선정된 사업계획서 패턴 학습',
+    name: '인터뷰 모드 (데이터 수집)',
+    description: '양식 기반 질문으로 사용자에게 정보 수집',
     required: false,
     dependencies: [],
-    estimatedDuration: 30,
-    estimatedTokens: 2000
+    estimatedDuration: 0, // 사용자 응답 대기
+    estimatedTokens: 5000
   },
   {
     stage: 1,

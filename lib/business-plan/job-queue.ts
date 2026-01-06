@@ -125,14 +125,18 @@ export async function executePipelineJob(jobId: string): Promise<void> {
   // 상태 업데이트: running
   await updateJobStatus(jobId, 'running', { started_at: new Date().toISOString() })
 
-  // 플랜 정보 조회
-  const { data: plan } = await supabase
+  // 플랜 정보 조회 (template 조인 없이 단순 조회)
+  console.log('[JobQueue] Fetching plan with ID:', job.plan_id)
+  const { data: plan, error: planError } = await supabase
     .from('business_plans')
-    .select('*, template:business_plan_templates(*)')
+    .select('*')
     .eq('id', job.plan_id)
     .single()
 
+  console.log('[JobQueue] Plan query result:', { plan: !!plan, error: planError?.message })
+
   if (!plan) {
+    console.error('[JobQueue] Plan not found! Error:', planError)
     await updateJobStatus(jobId, 'failed', { error: '사업계획서를 찾을 수 없습니다' })
     return
   }

@@ -3,8 +3,8 @@
 // 사업계획서 자동생성 파이프라인 서비스
 // =====================================================
 
-import { createClient } from '@/lib/supabase/server'
-import Anthropic from '@anthropic-ai/sdk'
+import { createClient, createClientForApi } from '@/lib/supabase/server'
+import { getOpenAI } from '@/lib/ai/openai'
 import {
   BusinessPlan,
   BusinessPlanSection,
@@ -20,10 +20,1096 @@ import {
   FactCategory
 } from './types'
 
-// Anthropic 클라이언트
-const anthropic = new Anthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY
-})
+// OpenAI 클라이언트 (lazy initialization)
+
+// =====================================================
+// Stage 0: 데이터 충족도 체크 & 인터뷰 모드
+// =====================================================
+
+/**
+ * 회사 데이터 충족도 체크
+ * 각 섹션별로 필요한 데이터가 얼마나 있는지 분석
+ */
+export async function checkDataSufficiency(
+  companyId: string,
+  templateSections: TemplateSection[]
+): Promise<{
+  sufficient: boolean
+  overallScore: number
+  sectionScores: { sectionId: string; title: string; score: number; missingData: string[] }[]
+  requiredQuestions: { category: string; question: string; priority: number }[]
+}> {
+  const supabase = await createClient()
+
+  // 기존 팩트카드 조회
+  const { data: facts } = await supabase
+    .from('company_fact_cards')
+    .select('*')
+    .eq('company_id', companyId)
+
+  // 회사 프로필 조회
+  const { data: profile } = await supabase
+    .from('company_support_profiles')
+    .select('*')
+    .eq('company_id', companyId)
+    .single()
+
+  const sectionScores: { sectionId: string; title: string; score: number; missingData: string[] }[] = []
+  const requiredQuestions: { category: string; question: string; priority: number }[] = []
+
+  // 섹션별 필요 데이터 매핑
+  const sectionDataRequirements: Record<string, { categories: FactCategory[]; essentialKeys: string[] }> = {
+    '사업 개요': {
+      categories: ['company_info', 'product'],
+      essentialKeys: ['business_description', 'main_products', 'company_name']
+    },
+    '기술 현황': {
+      categories: ['technology', 'intellectual_property'],
+      essentialKeys: ['core_technologies', 'tech_differentiation']
+    },
+    '사업화 전략': {
+      categories: ['market', 'plan'],
+      essentialKeys: ['target_market', 'business_model', 'revenue_model']
+    },
+    '시장 분석': {
+      categories: ['market'],
+      essentialKeys: ['market_size', 'competitors', 'market_trend']
+    },
+    '팀 구성': {
+      categories: ['team'],
+      essentialKeys: ['ceo_experience', 'team_expertise', 'employee_count']
+    },
+    '재무 현황': {
+      categories: ['finance'],
+      essentialKeys: ['annual_revenue', 'investment_history']
+    },
+    '추진 일정': {
+      categories: ['plan'],
+      essentialKeys: ['development_timeline', 'milestones']
+    },
+    '기대 효과': {
+      categories: ['achievement', 'plan'],
+      essentialKeys: ['expected_outcomes', 'social_impact']
+    }
+  }
+
+  // 인터뷰 질문 템플릿
+  const interviewQuestionTemplates: Record<string, { question: string; priority: number }[]> = {
+    company_info: [
+      { question: '회사가 해결하고자 하는 핵심 문제(Pain Point)는 무엇인가요?', priority: 1 },
+      { question: '주요 제품/서비스를 한 문장으로 설명해주세요.', priority: 1 },
+      { question: '타 경쟁사 대비 우리만의 차별점은 무엇인가요?', priority: 1 },
+    ],
+    technology: [
+      { question: '핵심 기술의 원리를 간단히 설명해주세요.', priority: 1 },
+      { question: '보유 특허나 지식재산권이 있나요? (있다면 내용)', priority: 2 },
+      { question: '기술 개발 현황은 어느 단계인가요? (아이디어/프로토타입/MVP/상용화)', priority: 1 },
+    ],
+    market: [
+      { question: '목표 고객(타겟 시장)은 누구인가요?', priority: 1 },
+      { question: '시장 규모는 대략 어느 정도로 추정하나요?', priority: 2 },
+      { question: '주요 경쟁사는 어디인가요?', priority: 2 },
+    ],
+    team: [
+      { question: '대표자의 관련 경력/경험을 알려주세요.', priority: 1 },
+      { question: '핵심 팀원들의 전문성은 무엇인가요?', priority: 2 },
+    ],
+    finance: [
+      { question: '현재 매출이 있나요? (있다면 규모)', priority: 2 },
+      { question: '투자 유치 이력이 있나요?', priority: 3 },
+    ],
+    plan: [
+      { question: '향후 1년간 주요 목표는 무엇인가요?', priority: 1 },
+      { question: '수익 모델은 무엇인가요?', priority: 1 },
+    ],
+    achievement: [
+      { question: '지금까지의 주요 성과가 있나요? (고객 수, 수상, 인증 등)', priority: 2 },
+    ]
+  }
+
+  // 각 섹션별 데이터 충족도 계산
+  for (const section of templateSections) {
+    const requirements = sectionDataRequirements[section.title] || { categories: ['company_info'], essentialKeys: [] }
+    const relevantFacts = facts?.filter(f => requirements.categories.includes(f.category as FactCategory)) || []
+    const missingData: string[] = []
+
+    // 필수 키 체크
+    for (const key of requirements.essentialKeys) {
+      const hasKey = relevantFacts.some(f => f.fact_key === key && f.fact_value)
+      if (!hasKey) {
+        missingData.push(key)
+      }
+    }
+
+    // 점수 계산 (0-100)
+    const totalRequired = requirements.essentialKeys.length || 1
+    const found = totalRequired - missingData.length
+    const score = Math.round((found / totalRequired) * 100)
+
+    sectionScores.push({
+      sectionId: section.section_id,
+      title: section.title,
+      score,
+      missingData
+    })
+
+    // 부족한 카테고리에 대해 질문 추가
+    if (score < 50) {
+      for (const category of requirements.categories) {
+        const questions = interviewQuestionTemplates[category] || []
+        for (const q of questions) {
+          // 중복 방지
+          if (!requiredQuestions.some(rq => rq.question === q.question)) {
+            requiredQuestions.push({ category, ...q })
+          }
+        }
+      }
+    }
+  }
+
+  // 전체 점수 계산
+  const overallScore = sectionScores.length > 0
+    ? Math.round(sectionScores.reduce((sum, s) => sum + s.score, 0) / sectionScores.length)
+    : 0
+
+  // 프로필 데이터로 보정
+  if (profile?.business_description) overallScore + 10
+  if (profile?.main_products) overallScore + 10
+  if (profile?.core_technologies) overallScore + 10
+
+  // 충족 여부 (50% 이상이면 충족)
+  const sufficient = overallScore >= 50
+
+  // 우선순위로 정렬
+  requiredQuestions.sort((a, b) => a.priority - b.priority)
+
+  return {
+    sufficient,
+    overallScore: Math.min(overallScore, 100),
+    sectionScores,
+    requiredQuestions: requiredQuestions.slice(0, 15) // 최대 15개 질문
+  }
+}
+
+/**
+ * 인터뷰 모드: AI가 맞춤형 질문 생성 (기본)
+ */
+export async function generateInterviewQuestions(
+  companyId: string,
+  planId: string,
+  templateSections: TemplateSection[]
+): Promise<PlanQuestion[]> {
+  const supabase = await createClient()
+
+  // 데이터 충족도 체크
+  const sufficiency = await checkDataSufficiency(companyId, templateSections)
+
+  if (sufficiency.sufficient) {
+    return [] // 데이터 충분하면 질문 불필요
+  }
+
+  // AI로 맞춤형 질문 생성 (OpenAI GPT-4)
+  const openai = getOpenAI()
+  const aiResult = await openai.chat.completions.create({
+    model: 'gpt-4-turbo-preview',
+    max_tokens: 3000,
+    messages: [
+      {
+        role: 'user',
+        content: `당신은 정부지원사업 사업계획서 컨설턴트입니다.
+
+다음 상황에서 사업계획서 작성을 위해 사용자에게 물어볼 핵심 질문들을 생성해주세요.
+
+[현재 데이터 충족도]
+전체 점수: ${sufficiency.overallScore}%
+
+[섹션별 부족 현황]
+${sufficiency.sectionScores.map(s => `- ${s.title}: ${s.score}% (부족: ${s.missingData.join(', ') || '없음'})`).join('\n')}
+
+[작성해야 할 섹션]
+${templateSections.map(s => `- ${s.title}: ${s.guidelines || '일반 작성'}`).join('\n')}
+
+질문 생성 원칙:
+1. 사용자가 쉽게 답할 수 있는 구체적인 질문
+2. 답변을 바로 사업계획서에 활용할 수 있어야 함
+3. 정량적 데이터를 얻을 수 있는 질문 포함
+4. 우선순위: 사업 개요 > 기술 > 시장 > 팀 > 재무
+
+JSON 형식으로 응답:
+[
+  {
+    "question": "질문 내용",
+    "category": "company_info|technology|market|team|finance|plan|achievement",
+    "fact_key": "저장할 팩트카드 키",
+    "priority": 1,
+    "hint": "답변 예시나 힌트"
+  }
+]
+
+최대 10개의 핵심 질문만 생성하세요.`
+      }
+    ]
+  })
+
+  const responseText = aiResult.choices[0]?.message?.content || ''
+  const jsonMatch = responseText.match(/\[[\s\S]*\]/)
+
+  if (!jsonMatch) {
+    // AI 생성 실패 시 기본 질문 사용
+    const defaultQuestions = sufficiency.requiredQuestions.slice(0, 10)
+    const questions = defaultQuestions.map((q, i) => ({
+      plan_id: planId,
+      question_text: q.question,
+      question_type: 'text' as const,
+      context: `[${q.category}] 이 정보는 사업계획서 작성에 필수입니다.`,
+      priority: q.priority as 1 | 2 | 3 | 4 | 5,
+      is_required: q.priority === 1,
+      status: 'pending' as const
+    }))
+
+    const { data: insertedQuestions } = await supabase
+      .from('plan_questions')
+      .insert(questions)
+      .select()
+
+    return insertedQuestions as PlanQuestion[]
+  }
+
+  const aiQuestions = JSON.parse(jsonMatch[0])
+
+  // 질문 저장
+  const questionsToInsert = aiQuestions.map((q: any) => ({
+    plan_id: planId,
+    question_text: q.question,
+    question_type: 'text',
+    context: q.hint ? `힌트: ${q.hint}` : `[${q.category}] 사업계획서 작성에 필요한 정보입니다.`,
+    priority: Math.min(q.priority || 2, 5),
+    is_required: (q.priority || 2) <= 2,
+    status: 'pending'
+  }))
+
+  const { data: insertedQuestions } = await supabase
+    .from('plan_questions')
+    .insert(questionsToInsert)
+    .select()
+
+  // 플랜 상태 업데이트 - 인터뷰 모드로 전환
+  await supabase
+    .from('business_plans')
+    .update({
+      pipeline_stage: 0,
+      pipeline_status: 'collecting'
+    })
+    .eq('id', planId)
+
+  return insertedQuestions as PlanQuestion[]
+}
+
+// =====================================================
+// 🆕 양식 기반 완벽한 인터뷰 시스템
+// =====================================================
+
+/**
+ * 양식 기반 섹션별 질문 생성
+ * 각 섹션을 완벽하게 채우기 위한 맞춤형 질문 생성
+ */
+export async function generateTemplateDrivenQuestions(
+  planId: string,
+  options?: {
+    skipExistingData?: boolean  // 기존 데이터가 있는 섹션 스킵
+    maxQuestionsPerSection?: number  // 섹션당 최대 질문 수
+  }
+): Promise<{
+  success: boolean
+  template: BusinessPlanTemplate | null
+  questionsBySection: {
+    sectionId: string
+    sectionTitle: string
+    questions: PlanQuestion[]
+    guidelines?: string
+    evaluationWeight?: number
+  }[]
+  totalQuestions: number
+}> {
+  const supabase = await createClientForApi()
+  const maxPerSection = options?.maxQuestionsPerSection || 5
+
+  console.log('[generateTemplateDrivenQuestions] Starting for planId:', planId)
+
+  // 플랜 조회 (조인 없이)
+  const { data: plan, error: planError } = await supabase
+    .from('business_plans')
+    .select('*')
+    .eq('id', planId)
+    .single()
+
+  if (planError || !plan) {
+    console.error('[generateTemplateDrivenQuestions] Plan query error:', planError)
+    return { success: false, template: null, questionsBySection: [], totalQuestions: 0 }
+  }
+
+  console.log('[generateTemplateDrivenQuestions] Plan found:', plan.id, 'program_id:', plan.program_id)
+
+  // 프로그램 정보 별도 조회
+  let program = null
+  if (plan.program_id) {
+    const { data: programData } = await supabase
+      .from('government_programs')
+      .select('title, organization, content')
+      .eq('id', plan.program_id)
+      .single()
+    program = programData
+  }
+
+  // 템플릿 조회 (있는 경우)
+  let template: BusinessPlanTemplate | null = null
+  if (plan.template_id) {
+    const { data: templateData } = await supabase
+      .from('business_plan_templates')
+      .select('*')
+      .eq('id', plan.template_id)
+      .single()
+    template = templateData as BusinessPlanTemplate | null
+  }
+
+  // 템플릿이 없으면 공고문에서 파싱 시도
+  if (!template && plan.program_id) {
+    console.log('[generateTemplateDrivenQuestions] No template, trying to parse from announcement')
+    try {
+      template = await parseAnnouncementTemplate(plan.program_id)
+      // 플랜에 템플릿 연결
+      if (template?.id) {
+        await supabase
+          .from('business_plans')
+          .update({ template_id: template.id })
+          .eq('id', planId)
+      }
+    } catch (parseError) {
+      console.error('[generateTemplateDrivenQuestions] Template parse error:', parseError)
+    }
+  }
+
+  // plan에 program 정보 추가
+  ;(plan as any).program = program
+
+  if (!template) {
+    // 기본 템플릿 사용
+    const defaultTpl = getDefaultTemplate()
+    template = {
+      id: 'default',
+      template_name: '기본 사업계획서 양식',
+      template_version: '1.0',
+      sections: defaultTpl.sections as TemplateSection[],
+      evaluation_criteria: defaultTpl.evaluation_criteria,
+      required_attachments: defaultTpl.required_attachments,
+      writing_guidelines: defaultTpl.writing_guidelines,
+      formatting_rules: defaultTpl.formatting_rules,
+      parsing_status: 'completed',
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    } as BusinessPlanTemplate
+  }
+
+  const sections = (template.sections || []) as TemplateSection[]
+  const questionsBySection: {
+    sectionId: string
+    sectionTitle: string
+    questions: PlanQuestion[]
+    guidelines?: string
+    evaluationWeight?: number
+  }[] = []
+
+  // 기존 팩트카드 조회 (스킵 옵션용)
+  const { data: existingFacts } = await supabase
+    .from('company_fact_cards')
+    .select('*')
+    .eq('company_id', plan.company_id)
+
+  // 각 섹션별로 AI에게 질문 생성 요청
+  for (const section of sections) {
+    // 해당 섹션에 필요한 정보가 있는지 체크
+    if (options?.skipExistingData) {
+      // TODO: 섹션별 데이터 충족도 체크
+    }
+
+    let sectionQuestions: any[] = []
+
+    // AI로 해당 섹션을 완벽하게 채우기 위한 질문 생성 (try-catch로 에러 핸들링)
+    try {
+      const openai = getOpenAI()
+      const aiResult = await openai.chat.completions.create({
+        model: 'gpt-4-turbo-preview',
+        max_tokens: 2000,
+        messages: [
+          {
+            role: 'user',
+            content: `당신은 정부지원사업 사업계획서 전문 컨설턴트입니다.
+
+다음 사업계획서 섹션을 **완벽하게 채우기 위해** 사용자에게 물어볼 질문을 생성해주세요.
+
+===== 섹션 정보 =====
+제목: ${section.title}
+가이드라인: ${section.guidelines || '(명시된 가이드라인 없음)'}
+최대 글자 수: ${section.max_chars || 3000}자
+평가 배점: ${section.evaluation_weight || 10}점
+${section.subsections ? `하위 섹션: ${section.subsections.map(s => s.title).join(', ')}` : ''}
+
+===== 공고 정보 =====
+사업명: ${(plan as any).program?.title || plan.title}
+주관기관: ${(plan as any).program?.organization || ''}
+
+===== 질문 생성 원칙 =====
+1. 이 섹션을 완벽하게 작성할 수 있는 정보를 수집하는 질문
+2. 평가위원이 좋은 점수를 줄 수 있는 구체적인 내용을 얻을 수 있는 질문
+3. 정량적 데이터(숫자, 통계, 기간 등)를 얻는 질문 필수 포함
+4. 사용자가 쉽게 답할 수 있는 구체적인 질문
+5. 답변을 조합하면 이 섹션 전체 내용이 완성되어야 함
+
+===== 출력 형식 =====
+JSON 배열로 응답:
+[
+  {
+    "question": "구체적인 질문 내용",
+    "purpose": "이 질문이 필요한 이유 (간단히)",
+    "expectedContent": "이 답변이 섹션에서 어떻게 사용되는지",
+    "questionType": "text|number|list|choice",
+    "isRequired": true,
+    "hint": "답변 예시 또는 팁",
+    "dataType": "정량|정성|구조화"
+  }
+]
+
+${maxPerSection}개 이내의 핵심 질문만 생성하세요. 중복 없이 섹션 전체를 커버해야 합니다.`
+          }
+        ]
+      })
+
+      const responseText = aiResult.choices[0]?.message?.content || ''
+      const jsonMatch = responseText.match(/\[[\s\S]*?\]/)
+
+      if (jsonMatch) {
+        try {
+          sectionQuestions = JSON.parse(jsonMatch[0])
+        } catch {
+          sectionQuestions = []
+        }
+      }
+    } catch (aiError) {
+      console.warn(`[generateTemplateDrivenQuestions] AI question generation failed for section "${section.title}":`, aiError)
+      // AI 실패 시 기본 질문 사용
+      sectionQuestions = []
+    }
+
+    // 질문이 없으면 기본 질문 생성 (AI 실패 또는 빈 응답 시)
+    if (sectionQuestions.length === 0) {
+      sectionQuestions = getDefaultQuestionsForSection(section)
+      console.log(`[generateTemplateDrivenQuestions] Using default questions for section "${section.title}":`, sectionQuestions.length)
+    }
+
+    console.log(`[generateTemplateDrivenQuestions] Section "${section.title}" has ${sectionQuestions.length} questions`)
+
+    // 질문 DB 저장
+    const questionsToInsert = sectionQuestions.map((q: any, idx: number) => ({
+      plan_id: planId,
+      section_id: section.section_id,
+      question_text: q.question,
+      question_type: q.questionType || 'text',
+      context: JSON.stringify({
+        purpose: q.purpose,
+        expectedContent: q.expectedContent,
+        hint: q.hint,
+        dataType: q.dataType,
+        sectionTitle: section.title,
+        sectionGuidelines: section.guidelines
+      }),
+      priority: (idx + 1) as 1 | 2 | 3 | 4 | 5,
+      is_required: q.isRequired !== false,
+      status: 'pending' as const
+    }))
+
+    console.log(`[generateTemplateDrivenQuestions] Attempting to insert ${questionsToInsert.length} questions for section "${section.title}"`)
+
+    // DB 저장 시도 (테이블이 없어도 계속 진행)
+    let savedQuestions: PlanQuestion[] = []
+    try {
+      const { data: insertedQuestions, error: insertError } = await supabase
+        .from('plan_questions')
+        .insert(questionsToInsert)
+        .select()
+
+      if (insertError) {
+        console.warn(`[generateTemplateDrivenQuestions] Insert error for section "${section.title}":`, insertError.message)
+        // DB 저장 실패 시 메모리에서 직접 질문 생성
+        savedQuestions = questionsToInsert.map((q: any, idx: number) => ({
+          id: `temp-${section.section_id}-${idx}`,
+          plan_id: planId,
+          section_id: q.section_id,
+          question_text: q.question_text,
+          question_type: q.question_type,
+          context: q.context,
+          priority: q.priority,
+          is_required: q.is_required,
+          status: q.status,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        })) as PlanQuestion[]
+      } else {
+        savedQuestions = (insertedQuestions || []) as PlanQuestion[]
+        console.log(`[generateTemplateDrivenQuestions] Successfully inserted ${savedQuestions.length} questions for section "${section.title}"`)
+      }
+    } catch (dbError) {
+      console.warn(`[generateTemplateDrivenQuestions] DB error for section "${section.title}":`, dbError)
+      // 예외 발생 시에도 메모리에서 질문 생성
+      savedQuestions = questionsToInsert.map((q: any, idx: number) => ({
+        id: `temp-${section.section_id}-${idx}`,
+        plan_id: planId,
+        section_id: q.section_id,
+        question_text: q.question_text,
+        question_type: q.question_type,
+        context: q.context,
+        priority: q.priority,
+        is_required: q.is_required,
+        status: q.status,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      })) as PlanQuestion[]
+    }
+
+    questionsBySection.push({
+      sectionId: section.section_id,
+      sectionTitle: section.title,
+      questions: savedQuestions,
+      guidelines: section.guidelines,
+      evaluationWeight: section.evaluation_weight
+    })
+  }
+
+  // 플랜 상태 업데이트
+  await supabase
+    .from('business_plans')
+    .update({
+      pipeline_stage: 0,
+      pipeline_status: 'collecting'
+    })
+    .eq('id', planId)
+
+  const totalQuestions = questionsBySection.reduce((sum, s) => sum + s.questions.length, 0)
+
+  return {
+    success: true,
+    template,
+    questionsBySection,
+    totalQuestions
+  }
+}
+
+/**
+ * 섹션별 답변을 받아 해당 섹션 콘텐츠 직접 생성
+ * placeholder 없이 완벽한 내용 생성
+ */
+export async function generateSectionFromAnswers(
+  planId: string,
+  sectionId: string,
+  answers: { questionId: string; answer: string }[]
+): Promise<{
+  success: boolean
+  section: BusinessPlanSection | null
+  charCount: number
+  qualityScore: number
+}> {
+  const supabase = await createClientForApi()
+
+  console.log('[generateSectionFromAnswers] Starting for planId:', planId, 'sectionId:', sectionId)
+
+  // 플랜 조회 (조인 없이)
+  const { data: plan, error: planError } = await supabase
+    .from('business_plans')
+    .select('*')
+    .eq('id', planId)
+    .single()
+
+  if (planError || !plan) {
+    console.error('[generateSectionFromAnswers] Plan not found:', planError)
+    return { success: false, section: null, charCount: 0, qualityScore: 0 }
+  }
+
+  // 프로그램 정보 별도 조회
+  let program: { title: string; organization: string } | null = null
+  if (plan.program_id) {
+    const { data: programData } = await supabase
+      .from('government_programs')
+      .select('title, organization')
+      .eq('id', plan.program_id)
+      .single()
+    program = programData
+  }
+
+  // 템플릿 조회 (있는 경우)
+  let template: BusinessPlanTemplate | null = null
+  if (plan.template_id) {
+    const { data: templateData } = await supabase
+      .from('business_plan_templates')
+      .select('*')
+      .eq('id', plan.template_id)
+      .single()
+    template = templateData as BusinessPlanTemplate | null
+  }
+
+  // 템플릿이 없으면 기본 템플릿 사용
+  if (!template) {
+    const defaultTpl = getDefaultTemplate()
+    template = {
+      id: 'default',
+      template_name: '기본 사업계획서 양식',
+      template_version: '1.0',
+      sections: defaultTpl.sections as TemplateSection[],
+      evaluation_criteria: defaultTpl.evaluation_criteria,
+      required_attachments: defaultTpl.required_attachments,
+      writing_guidelines: defaultTpl.writing_guidelines,
+      formatting_rules: defaultTpl.formatting_rules,
+      parsing_status: 'completed',
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    } as BusinessPlanTemplate
+  }
+
+  // 질문 및 답변 정보 조회
+  const questionIds = answers.map(a => a.questionId)
+  const { data: questions } = await supabase
+    .from('plan_questions')
+    .select('*')
+    .in('id', questionIds)
+
+  console.log('[generateSectionFromAnswers] Found questions:', questions?.length || 0)
+
+  // 템플릿에서 해당 섹션 정보 찾기
+  const templateSections = (template.sections || []) as TemplateSection[]
+  const targetSection = templateSections.find(s => s.section_id === sectionId)
+
+  if (!targetSection) {
+    return { success: false, section: null, charCount: 0, qualityScore: 0 }
+  }
+
+  // 질문-답변 쌍 구성
+  const qaList = answers.map(a => {
+    const q = questions?.find(q => q.id === a.questionId)
+    let context = {}
+    try {
+      context = q?.context ? JSON.parse(q.context) : {}
+    } catch {}
+    return {
+      question: q?.question_text || '',
+      answer: a.answer,
+      purpose: (context as any).purpose || '',
+      expectedContent: (context as any).expectedContent || ''
+    }
+  })
+
+  // AI로 섹션 콘텐츠 생성
+  let content = ''
+  try {
+    const openai = getOpenAI()
+    const generateResult = await openai.chat.completions.create({
+      model: 'gpt-4-turbo-preview',
+      max_tokens: 4000,
+      messages: [
+        {
+          role: 'user',
+          content: `당신은 정부지원사업 사업계획서 전문 작성자입니다.
+
+다음 질문-답변을 바탕으로 "${targetSection.title}" 섹션을 **완벽하게** 작성해주세요.
+
+===== 섹션 정보 =====
+제목: ${targetSection.title}
+가이드라인: ${targetSection.guidelines || '구체적이고 명확하게 작성'}
+글자 수 제한: ${targetSection.max_chars || 3000}자
+평가 배점: ${targetSection.evaluation_weight || 10}점
+
+===== 공고 정보 =====
+사업명: ${program?.title || plan.title}
+주관기관: ${program?.organization || ''}
+
+===== 수집된 정보 (질문-답변) =====
+${qaList.map((qa, i) => `
+【질문 ${i + 1}】 ${qa.question}
+【목적】 ${qa.purpose}
+【답변】 ${qa.answer}
+`).join('\n')}
+
+===== 작성 요령 =====
+1. 위 답변들을 조합하여 전문적인 사업계획서 문체로 작성
+2. 구체적인 수치, 일정, 목표를 명확히 포함
+3. 평가위원 관점에서 설득력 있게 작성
+4. 글자 수 제한 준수 (${targetSection.max_chars || 3000}자 이내)
+5. {{미확정}} 같은 placeholder 절대 사용 금지
+6. 답변에 정보가 부족해도 자연스럽게 문장을 완성
+7. 문단 구분과 논리적 흐름 중시
+
+===== 출력 =====
+섹션 제목 없이 본문 내용만 작성하세요:`
+        }
+      ]
+    })
+
+    content = generateResult.choices[0]?.message?.content?.trim() || ''
+    console.log('[generateSectionFromAnswers] AI generated content length:', content.length)
+  } catch (aiError) {
+    console.error('[generateSectionFromAnswers] AI generation failed:', aiError)
+    // AI 실패 시 답변들을 조합하여 기본 콘텐츠 생성
+    content = qaList.map(qa => `${qa.answer}`).join('\n\n')
+    console.log('[generateSectionFromAnswers] Using fallback content from answers')
+  }
+
+  const charCount = content.length
+
+  // 품질 점수 계산 (간단한 휴리스틱)
+  let qualityScore = 50
+  if (charCount >= (targetSection.max_chars || 3000) * 0.3) qualityScore += 15
+  if (charCount >= (targetSection.max_chars || 3000) * 0.6) qualityScore += 15
+  if (!content.includes('{{')) qualityScore += 10  // placeholder 없음
+  if (content.match(/\d+/g)?.length || 0 >= 3) qualityScore += 10  // 수치 포함
+
+  // 섹션 저장/업데이트 (테이블이 없어도 진행)
+  let savedSection: BusinessPlanSection
+
+  // 기본값으로 메모리 섹션 생성
+  const memorySection: BusinessPlanSection = {
+    id: `temp-section-${sectionId}`,
+    plan_id: planId,
+    section_key: sectionId,
+    section_title: targetSection.title,
+    section_order: targetSection.order || 0,
+    content,
+    ai_generated: true,
+    char_count: charCount,
+    max_char_limit: targetSection.max_chars,
+    has_placeholders: false,
+    placeholders: [],
+    validation_status: charCount > 0 ? 'valid' : 'warning',
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString()
+  } as BusinessPlanSection
+
+  savedSection = memorySection
+
+  try {
+    const { data: existingSection, error: selectError } = await supabase
+      .from('business_plan_sections')
+      .select('*')
+      .eq('plan_id', planId)
+      .eq('section_key', sectionId)
+      .single()
+
+    if (selectError && selectError.code !== 'PGRST116') {
+      // PGRST116 = "no rows found" - 이건 정상, 다른 에러는 로그
+      console.warn('[generateSectionFromAnswers] Section select error:', selectError.message)
+    }
+
+    if (existingSection) {
+      // 업데이트
+      const { data, error: updateError } = await supabase
+        .from('business_plan_sections')
+        .update({
+          content,
+          ai_generated: true,
+          char_count: charCount,
+          has_placeholders: false,
+          placeholders: [],
+          validation_status: charCount > 0 ? 'valid' : 'warning',
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', existingSection.id)
+        .select()
+        .single()
+
+      if (data && !updateError) {
+        savedSection = data as BusinessPlanSection
+        console.log('[generateSectionFromAnswers] Section updated in DB')
+      }
+    } else {
+      // 새로 생성
+      const { data, error: insertError } = await supabase
+        .from('business_plan_sections')
+        .insert({
+          plan_id: planId,
+          section_key: sectionId,
+          section_title: targetSection.title,
+          section_order: targetSection.order,
+          content,
+          ai_generated: true,
+          char_count: charCount,
+          max_char_limit: targetSection.max_chars,
+          has_placeholders: false,
+          placeholders: [],
+          validation_status: charCount > 0 ? 'valid' : 'warning'
+        })
+        .select()
+        .single()
+
+      if (data && !insertError) {
+        savedSection = data as BusinessPlanSection
+        console.log('[generateSectionFromAnswers] Section inserted to DB')
+      } else if (insertError) {
+        console.warn('[generateSectionFromAnswers] Section insert error:', insertError.message)
+      }
+    }
+  } catch (sectionError) {
+    console.warn('[generateSectionFromAnswers] Section DB operation failed, using memory section')
+  }
+
+  console.log('[generateSectionFromAnswers] Final section title:', savedSection.section_title)
+
+  // 질문 상태 업데이트
+  try {
+    for (const answer of answers) {
+      await supabase
+        .from('plan_questions')
+        .update({
+          answer: answer.answer,
+          answered_at: new Date().toISOString(),
+          status: 'answered'
+        })
+        .eq('id', answer.questionId)
+    }
+    console.log('[generateSectionFromAnswers] Question statuses updated')
+  } catch (questionError) {
+    console.warn('[generateSectionFromAnswers] Question status update failed:', questionError)
+  }
+
+  // 답변을 팩트카드로도 저장 (재사용 위해) - 실패해도 무시
+  try {
+    await processInterviewAnswers(plan.company_id, planId, answers)
+  } catch (factError) {
+    console.warn('[generateSectionFromAnswers] Fact card save failed:', factError)
+  }
+
+  return {
+    success: true,
+    section: savedSection,
+    charCount,
+    qualityScore: Math.min(qualityScore, 100)
+  }
+}
+
+/**
+ * 전체 양식 기반 인터뷰 완료 후 모든 섹션 일괄 생성
+ */
+export async function generateAllSectionsFromInterview(
+  planId: string
+): Promise<{
+  success: boolean
+  sections: BusinessPlanSection[]
+  completionPercentage: number
+  pendingQuestions: number
+}> {
+  console.log('[generateAllSections] Function called with planId:', planId)
+  const supabase = await createClientForApi()
+
+  // 플랜 정보 조회
+  const { data: plan, error: planError } = await supabase
+    .from('business_plans')
+    .select('*')
+    .eq('id', planId)
+    .single()
+
+  console.log('[generateAllSections] Plan query result:', plan ? 'found' : 'not found', 'error:', planError)
+
+  // 템플릿 별도 조회
+  let template = null
+  if (plan?.template_id) {
+    const { data: templateData } = await supabase
+      .from('business_plan_templates')
+      .select('*')
+      .eq('id', plan.template_id)
+      .single()
+    template = templateData
+  }
+
+  if (!plan) {
+    console.log('[generateAllSections] Plan not found, returning early')
+    return { success: false, sections: [], completionPercentage: 0, pendingQuestions: 0 }
+  }
+
+  // 모든 질문 조회
+  const { data: allQuestions, error: questionsError } = await supabase
+    .from('plan_questions')
+    .select('*')
+    .eq('plan_id', planId)
+
+  console.log('[generateAllSections] Plan:', planId)
+  console.log('[generateAllSections] Questions count:', allQuestions?.length || 0)
+  console.log('[generateAllSections] Questions error:', questionsError)
+
+  // 미답변 질문 체크
+  const pendingQuestions = (allQuestions || []).filter(q => q.status === 'pending')
+  console.log('[generateAllSections] Pending questions:', pendingQuestions.length)
+
+  if (pendingQuestions.length > 0) {
+    console.log('[generateAllSections] Returning early due to pending questions')
+    return {
+      success: false,
+      sections: [],
+      completionPercentage: 0,
+      pendingQuestions: pendingQuestions.length
+    }
+  }
+
+  // 섹션별로 답변 그룹화
+  const templateSections = (template?.sections || []) as TemplateSection[]
+  const generatedSections: BusinessPlanSection[] = []
+
+  for (const section of templateSections) {
+    const sectionQuestions = (allQuestions || []).filter(q => q.section_id === section.section_id)
+
+    if (sectionQuestions.length > 0) {
+      const answers = sectionQuestions.map(q => ({
+        questionId: q.id,
+        answer: q.answer || ''
+      }))
+
+      const result = await generateSectionFromAnswers(planId, section.section_id, answers)
+      if (result.success && result.section) {
+        generatedSections.push(result.section)
+      }
+    }
+  }
+
+  // 완성도 계산
+  const completionPercentage = templateSections.length > 0
+    ? Math.round((generatedSections.length / templateSections.length) * 100)
+    : 0
+
+  // 플랜 상태 업데이트 (status만 업데이트)
+  await supabase
+    .from('business_plans')
+    .update({
+      status: completionPercentage >= 80 ? 'validating' : 'generating'
+    })
+    .eq('id', planId)
+
+  return {
+    success: true,
+    sections: generatedSections,
+    completionPercentage,
+    pendingQuestions: 0
+  }
+}
+
+/**
+ * 인터뷰 답변을 팩트카드로 변환
+ */
+export async function processInterviewAnswers(
+  companyId: string,
+  planId: string,
+  answers: { questionId: string; answer: string }[]
+): Promise<CompanyFactCard[]> {
+  const supabase = await createClient()
+
+  // 질문 조회
+  const questionIds = answers.map(a => a.questionId)
+  const { data: questions } = await supabase
+    .from('plan_questions')
+    .select('*')
+    .in('id', questionIds)
+
+  if (!questions || questions.length === 0) return []
+
+  // AI로 답변에서 팩트 추출
+  const answersWithQuestions = answers.map(a => {
+    const q = questions.find(q => q.id === a.questionId)
+    return { question: q?.question_text || '', answer: a.answer, context: q?.context || '' }
+  })
+
+  const openai = getOpenAI()
+  const extractResult = await openai.chat.completions.create({
+    model: 'gpt-4-turbo-preview',
+    max_tokens: 3000,
+    messages: [
+      {
+        role: 'user',
+        content: `다음 질문-답변 쌍에서 사업계획서에 활용할 팩트카드를 추출해주세요.
+
+질문과 답변:
+${answersWithQuestions.map((qa, i) => `Q${i + 1}: ${qa.question}\nA${i + 1}: ${qa.answer}`).join('\n\n')}
+
+각 답변에서 핵심 팩트를 추출하여 JSON 배열로 반환:
+[
+  {
+    "category": "company_info|technology|market|team|finance|plan|achievement|product",
+    "fact_key": "팩트 키 (영문, snake_case)",
+    "fact_value": "추출된 팩트 값",
+    "fact_type": "text|number|date|list",
+    "confidence_score": 0.9
+  }
+]
+
+원래 답변을 최대한 보존하되, 사업계획서에 바로 쓸 수 있도록 정리해주세요.`
+      }
+    ]
+  })
+
+  const responseText = extractResult.choices[0]?.message?.content || ''
+  const jsonMatch = responseText.match(/\[[\s\S]*\]/)
+
+  if (!jsonMatch) return []
+
+  const extractedFacts = JSON.parse(jsonMatch[0])
+
+  // 팩트카드 저장
+  const factsToInsert = extractedFacts.map((f: any) => ({
+    company_id: companyId,
+    category: f.category,
+    fact_key: f.fact_key,
+    fact_value: f.fact_value,
+    fact_type: f.fact_type || 'text',
+    source: 'interview',
+    confidence_score: f.confidence_score || 0.85,
+    is_verified: true,
+    verified_at: new Date().toISOString()
+  }))
+
+  const { data: insertedFacts } = await supabase
+    .from('company_fact_cards')
+    .upsert(factsToInsert, {
+      onConflict: 'company_id,category,fact_key,version'
+    })
+    .select()
+
+  // 질문 상태 업데이트
+  for (const answer of answers) {
+    await supabase
+      .from('plan_questions')
+      .update({
+        answer: answer.answer,
+        answered_at: new Date().toISOString(),
+        status: 'answered'
+      })
+      .eq('id', answer.questionId)
+  }
+
+  // 데이터 충족도 재확인
+  const { data: plan } = await supabase
+    .from('business_plans')
+    .select('template:business_plan_templates(sections)')
+    .eq('id', planId)
+    .single()
+
+  const templateSections = (plan?.template?.sections || []) as TemplateSection[]
+  const newSufficiency = await checkDataSufficiency(companyId, templateSections)
+
+  // 충분하면 다음 단계로
+  if (newSufficiency.sufficient) {
+    await supabase
+      .from('business_plans')
+      .update({
+        pipeline_stage: 2,
+        pipeline_status: 'extracting'
+      })
+      .eq('id', planId)
+  }
+
+  return insertedFacts as CompanyFactCard[]
+}
 
 // =====================================================
 // Stage 1: 공고문 양식 파싱
@@ -39,6 +1125,37 @@ export async function parseAnnouncementTemplate(
   const logId = await startStageLog(programId, 1, '공고문 양식 파싱')
 
   try {
+    // 1. 먼저 첨부파일에서 양식 파싱 시도 (PDF 다운로드 → 텍스트 추출 → AI 구조화)
+    console.log('[parseAnnouncementTemplate] Trying attachment parsing first...')
+    try {
+      const { getOrParseTemplate } = await import('./attachment-parser')
+      const attachmentResult = await getOrParseTemplate(programId)
+
+      if (attachmentResult.success && attachmentResult.template) {
+        console.log('[parseAnnouncementTemplate] Successfully parsed from attachment!')
+        await completeStageLog(logId, 'completed', {
+          source: 'attachment',
+          sections_count: attachmentResult.template.sections?.length || 0
+        })
+
+        // DB에서 전체 템플릿 조회하여 반환
+        const { data: fullTemplate } = await supabase
+          .from('business_plan_templates')
+          .select('*')
+          .eq('id', attachmentResult.templateId)
+          .single()
+
+        if (fullTemplate) {
+          return fullTemplate as BusinessPlanTemplate
+        }
+      }
+    } catch (attachmentError) {
+      console.log('[parseAnnouncementTemplate] Attachment parsing failed, falling back to text parsing:', attachmentError)
+    }
+
+    // 2. 첨부파일 파싱 실패 시 공고문 텍스트 기반 파싱
+    console.log('[parseAnnouncementTemplate] Falling back to text-based parsing...')
+
     // 공고문 정보 조회
     const { data: program } = await supabase
       .from('government_programs')
@@ -50,10 +1167,11 @@ export async function parseAnnouncementTemplate(
       throw new Error('프로그램을 찾을 수 없습니다')
     }
 
-    // AI로 공고문 구조 파싱
-    const parseResult = await anthropic.messages.create({
-      model: 'claude-sonnet-4-20250514',
-      max_tokens: 8000,
+    // AI로 공고문 구조 파싱 (OpenAI GPT-4)
+    const openai = getOpenAI()
+    const parseResult = await openai.chat.completions.create({
+      model: 'gpt-4-turbo-preview',
+      max_tokens: 4096,
       messages: [
         {
           role: 'user',
@@ -110,9 +1228,7 @@ ${program.content || '(상세 내용 없음)'}
       ]
     })
 
-    const responseText = parseResult.content[0].type === 'text'
-      ? parseResult.content[0].text
-      : ''
+    const responseText = parseResult.choices[0]?.message?.content || ''
 
     // JSON 추출
     const jsonMatch = responseText.match(/\{[\s\S]*\}/)
@@ -185,6 +1301,75 @@ function getDefaultTemplate() {
       page_limit: 30
     }
   }
+}
+
+// 섹션별 기본 질문 생성 (AI 실패 시 사용)
+function getDefaultQuestionsForSection(section: TemplateSection): any[] {
+  // 섹션 제목에 따른 맞춤형 기본 질문
+  const sectionQuestionMap: Record<string, any[]> = {
+    '사업 개요': [
+      { question: '개발하려는 제품/서비스를 한 문장으로 설명해주세요.', purpose: '핵심 아이템 파악', questionType: 'text', isRequired: true, hint: '예: AI 기반 고객 상담 자동화 솔루션' },
+      { question: '해결하려는 문제(Pain Point)는 무엇인가요?', purpose: '시장 니즈 파악', questionType: 'text', isRequired: true, hint: '고객이 겪는 구체적인 불편함이나 문제점' },
+      { question: '경쟁사 대비 차별점은 무엇인가요?', purpose: '경쟁 우위 파악', questionType: 'text', isRequired: true, hint: '기술, 가격, 서비스 등의 차별화 요소' }
+    ],
+    '기술 현황 및 개발 계획': [
+      { question: '핵심 기술의 원리를 간단히 설명해주세요.', purpose: '기술 역량 파악', questionType: 'text', isRequired: true, hint: '기술의 작동 원리와 특징' },
+      { question: '현재 개발 단계는 어디인가요?', purpose: '개발 진척도 파악', questionType: 'text', isRequired: true, hint: '아이디어/연구/프로토타입/MVP/상용화 등' },
+      { question: '보유 특허나 지식재산권이 있나요?', purpose: 'IP 현황 파악', questionType: 'text', isRequired: false, hint: '출원/등록 특허 명칭, 개수 등' }
+    ],
+    '사업화 전략': [
+      { question: '주요 타겟 고객은 누구인가요?', purpose: '고객 세분화', questionType: 'text', isRequired: true, hint: '구체적인 고객군 (B2B/B2C, 산업군, 연령대 등)' },
+      { question: '수익 모델은 무엇인가요?', purpose: '비즈니스 모델 파악', questionType: 'text', isRequired: true, hint: '구독료, 판매수익, 광고, 수수료 등' },
+      { question: '판매/마케팅 전략은 어떻게 되나요?', purpose: '시장 진입 전략', questionType: 'text', isRequired: true, hint: '온라인 마케팅, 영업, 파트너십 등' }
+    ],
+    '시장 분석': [
+      { question: '목표 시장의 규모는 어느 정도인가요?', purpose: '시장 규모 파악', questionType: 'text', isRequired: true, hint: '전체 시장(TAM), 유효 시장(SAM), 목표 시장(SOM)' },
+      { question: '주요 경쟁사는 누구인가요?', purpose: '경쟁 환경 분석', questionType: 'text', isRequired: true, hint: '직접/간접 경쟁사 3~5개' },
+      { question: '시장 성장 트렌드는 어떠한가요?', purpose: '시장 전망 파악', questionType: 'text', isRequired: false, hint: '연평균 성장률, 향후 전망 등' }
+    ],
+    '추진 일정 및 예산': [
+      { question: '향후 1년간 주요 마일스톤은 무엇인가요?', purpose: '실행 계획 파악', questionType: 'text', isRequired: true, hint: '분기별 또는 월별 주요 목표' },
+      { question: '필요한 총 예산은 얼마인가요?', purpose: '예산 규모 파악', questionType: 'number', isRequired: true, hint: '단위: 원' },
+      { question: '예산 항목별 배분은 어떻게 되나요?', purpose: '예산 계획 파악', questionType: 'text', isRequired: true, hint: '인건비, 재료비, 외주비 등' }
+    ],
+    '기대 효과': [
+      { question: '사업 성공 시 예상 매출은 얼마인가요?', purpose: '경제적 효과 파악', questionType: 'text', isRequired: true, hint: '3년 또는 5년 후 예상 매출' },
+      { question: '고용 창출 효과는 어느 정도인가요?', purpose: '일자리 창출 효과', questionType: 'number', isRequired: false, hint: '향후 채용 예정 인원' },
+      { question: '기대하는 사회적 효과는 무엇인가요?', purpose: '사회적 가치 파악', questionType: 'text', isRequired: false, hint: '환경, 복지, 기술 발전 등' }
+    ],
+    '팀 구성': [
+      { question: '대표자의 관련 경력은 어떻게 되나요?', purpose: '대표 역량 파악', questionType: 'text', isRequired: true, hint: '관련 분야 경력, 학력, 수상 등' },
+      { question: '핵심 팀원 구성은 어떻게 되나요?', purpose: '팀 역량 파악', questionType: 'text', isRequired: true, hint: '주요 직책별 인원과 전문성' },
+      { question: '현재 전체 직원 수는 몇 명인가요?', purpose: '조직 규모 파악', questionType: 'number', isRequired: true, hint: '정규직/계약직 포함' }
+    ],
+    '재무 현황': [
+      { question: '최근 연매출은 얼마인가요?', purpose: '재무 현황 파악', questionType: 'number', isRequired: true, hint: '작년 기준 매출액 (원)' },
+      { question: '투자 유치 이력이 있나요?', purpose: '투자 이력 파악', questionType: 'text', isRequired: false, hint: '투자 라운드, 금액, 투자사 등' }
+    ]
+  }
+
+  // 매칭되는 질문 찾기
+  const matchedQuestions = sectionQuestionMap[section.title]
+  if (matchedQuestions) {
+    return matchedQuestions.map(q => ({
+      ...q,
+      expectedContent: `${section.title} 섹션 작성에 활용`,
+      dataType: q.questionType === 'number' ? '정량' : '정성'
+    }))
+  }
+
+  // 매칭되는 질문이 없으면 기본 질문 1개 생성
+  return [
+    {
+      question: `"${section.title}" 섹션에 들어갈 내용을 자유롭게 설명해주세요.`,
+      purpose: '섹션 기본 내용 수집',
+      expectedContent: '전체 섹션 내용',
+      questionType: 'text',
+      isRequired: true,
+      hint: section.guidelines || '구체적이고 상세하게 작성해주세요',
+      dataType: '정성'
+    }
+  ]
 }
 
 // =====================================================
@@ -336,9 +1521,10 @@ export async function extractFactCards(
 
     // 문서가 있으면 AI로 팩트 추출
     if (documents && documents.length > 0) {
+      const openai = getOpenAI()
       for (const doc of documents) {
-        const extractResult = await anthropic.messages.create({
-          model: 'claude-sonnet-4-20250514',
+        const extractResult = await openai.chat.completions.create({
+          model: 'gpt-4-turbo-preview',
           max_tokens: 4000,
           messages: [
             {
@@ -373,9 +1559,7 @@ ${doc.content}
           ]
         })
 
-        const responseText = extractResult.content[0].type === 'text'
-          ? extractResult.content[0].text
-          : ''
+        const responseText = extractResult.choices[0]?.message?.content || ''
 
         const jsonMatch = responseText.match(/\[[\s\S]*\]/)
         if (jsonMatch) {
@@ -451,10 +1635,11 @@ export async function mapFactsToSections(
     const sections = (plan.template?.sections || []) as TemplateSection[]
 
     // 각 섹션에 대해 관련 팩트 매핑
+    const openai = getOpenAI()
     for (const section of sections) {
       // AI로 관련도 분석
-      const mappingResult = await anthropic.messages.create({
-        model: 'claude-sonnet-4-20250514',
+      const mappingResult = await openai.chat.completions.create({
+        model: 'gpt-4-turbo-preview',
         max_tokens: 2000,
         messages: [
           {
@@ -479,9 +1664,7 @@ ${facts?.map((f, i) => `${i + 1}. [${f.category}] ${f.fact_key}: ${f.fact_value}
         ]
       })
 
-      const responseText = mappingResult.content[0].type === 'text'
-        ? mappingResult.content[0].text
-        : ''
+      const responseText = mappingResult.choices[0]?.message?.content || ''
 
       const jsonMatch = responseText.match(/\[[\s\S]*\]/)
       if (jsonMatch && facts) {
@@ -573,9 +1756,10 @@ export async function generateSectionDrafts(
 
       const relevantFacts = mappings?.map(m => m.fact).filter(Boolean) || []
 
-      // AI로 콘텐츠 생성
-      const generateResult = await anthropic.messages.create({
-        model: 'claude-sonnet-4-20250514',
+      // AI로 콘텐츠 생성 (OpenAI GPT-4)
+      const openai = getOpenAI()
+      const generateResult = await openai.chat.completions.create({
+        model: 'gpt-4-turbo-preview',
         max_tokens: 4000,
         messages: [
           {
@@ -608,11 +1792,9 @@ ${relevantFacts.map(f => `- ${f.fact_key}: ${f.fact_value}`).join('\n') || '(정
         ]
       })
 
-      const content = generateResult.content[0].type === 'text'
-        ? generateResult.content[0].text
-        : ''
+      const content = generateResult.choices[0]?.message?.content || ''
 
-      totalTokens += (generateResult.usage?.input_tokens || 0) + (generateResult.usage?.output_tokens || 0)
+      totalTokens += (generateResult.usage?.prompt_tokens || 0) + (generateResult.usage?.completion_tokens || 0)
 
       // 플레이스홀더 추출
       const placeholders: { placeholder_id: string; text: string; question: string }[] = []
@@ -1052,18 +2234,63 @@ export async function runPipeline(
   options?: {
     skip_success_patterns?: boolean
     force_regenerate?: boolean
+    skip_interview?: boolean  // 인터뷰 모드 스킵 옵션
   }
-): Promise<PipelineProgress> {
+): Promise<PipelineProgress & { needsInterview?: boolean; interviewQuestions?: PlanQuestion[] }> {
   const supabase = await createClient()
 
   const { data: plan } = await supabase
     .from('business_plans')
-    .select('*')
+    .select(`
+      *,
+      template:business_plan_templates(sections)
+    `)
     .eq('id', planId)
     .single()
 
   if (!plan) throw new Error('사업계획서를 찾을 수 없습니다')
 
+  // ============================================
+  // Stage 0: 데이터 충족도 체크 (인터뷰 모드)
+  // ============================================
+  if (!options?.skip_interview) {
+    const templateSections = (plan.template?.sections || getDefaultTemplate().sections) as TemplateSection[]
+    const sufficiency = await checkDataSufficiency(plan.company_id, templateSections)
+
+    console.log(`[Pipeline] 데이터 충족도: ${sufficiency.overallScore}% (충족: ${sufficiency.sufficient})`)
+
+    // 데이터 부족 → 인터뷰 모드 진입
+    if (!sufficiency.sufficient) {
+      console.log(`[Pipeline] 인터뷰 모드 진입 - ${sufficiency.requiredQuestions.length}개 질문 필요`)
+
+      // 인터뷰 질문 생성
+      const interviewQuestions = await generateInterviewQuestions(
+        plan.company_id,
+        planId,
+        templateSections
+      )
+
+      return {
+        plan_id: planId,
+        current_stage: 0,
+        stage_name: '인터뷰 모드 (데이터 수집)',
+        status: 'collecting',
+        completion_percentage: sufficiency.overallScore,
+        stages_completed: [],
+        stages_pending: [1, 2, 3, 4, 5, 6, 7, 8] as PipelineStage[],
+        estimated_remaining_seconds: 0,
+        total_tokens_used: plan.total_tokens_used || 0,
+        total_cost: plan.generation_cost || 0,
+        // 인터뷰 모드 추가 정보
+        needsInterview: true,
+        interviewQuestions
+      }
+    }
+  }
+
+  // ============================================
+  // 기존 파이프라인 실행 (데이터 충분한 경우)
+  // ============================================
   const stagesToRun = stages || [1, 2, 3, 4, 5, 6, 7, 8] as PipelineStage[]
   const completedStages: PipelineStage[] = []
   let totalTokens = plan.total_tokens_used || 0
@@ -1123,6 +2350,7 @@ export async function runPipeline(
     stages_pending: stagesToRun.filter(s => !completedStages.includes(s)),
     estimated_remaining_seconds: 0,
     total_tokens_used: updatedPlan?.total_tokens_used || 0,
-    total_cost: updatedPlan?.generation_cost || 0
+    total_cost: updatedPlan?.generation_cost || 0,
+    needsInterview: false
   }
 }

@@ -163,11 +163,12 @@ export function GlobalAgentSidebar({
             {/* 사이드바 패널 */}
             <div
                 className={cn(
-                    "fixed right-0 top-0 h-full w-[400px] bg-zinc-950 border-l border-zinc-800 z-[90]",
+                    "fixed right-0 top-12 w-[400px] bg-zinc-950 border-l border-zinc-800 z-[90]",
                     "transform transition-transform duration-300 ease-in-out shadow-[-10px_0_30px_rgba(0,0,0,0.5)]",
                     "flex flex-col flex-1",
                     isOpen ? "translate-x-0" : "translate-x-full"
                 )}
+                style={{ height: 'calc(100vh - 48px)' }}
             >
                 {/* 헤더 */}
                 <div className="h-16 flex items-center justify-between px-5 border-b border-zinc-900 bg-zinc-950/50 backdrop-blur-xl">

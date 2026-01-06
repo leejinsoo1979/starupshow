@@ -8,13 +8,14 @@ import OpenAI from 'openai'
 export const dynamic = 'force-dynamic'
 export const maxDuration = 120
 
-// PDF 텍스트 추출 (동적 로드)
+// PDF 텍스트 추출 (unpdf 사용)
 async function extractPdfText(buffer: Buffer): Promise<string> {
   try {
-    // pdf-parse는 Next.js App Router와 호환성 문제가 있어 동적 로드
-    const pdfParse = await import('pdf-parse').then(m => m.default || m)
-    const data = await pdfParse(buffer)
-    return data.text
+    const { extractText, getDocumentProxy } = await import('unpdf')
+    const data = new Uint8Array(buffer)
+    const pdf = await getDocumentProxy(data)
+    const result = await extractText(pdf, { mergePages: true })
+    return result.text
   } catch (e) {
     console.error('PDF parse error:', e)
     // 폴백: 바이너리에서 텍스트 추출 시도

@@ -19,6 +19,14 @@ import {
   TrendingUp,
   Star,
   Link2,
+  Activity,
+  FileText,
+  CheckCircle,
+  AlertCircle,
+  Lightbulb,
+  Users2,
+  Zap,
+  Award,
 } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { AgentProfile, type AgentProfileData } from '@/components/agent/AgentProfile'
@@ -30,7 +38,7 @@ import { createClient } from '@/lib/supabase/client'
 // Types
 // ============================================
 
-type ProfileTab = 'overview' | 'stats' | 'brain' | 'relations'
+type ProfileTab = 'overview' | 'stats' | 'brain' | 'relations' | 'activities'
 
 interface TabConfig {
   id: ProfileTab
@@ -63,6 +71,12 @@ const TABS: TabConfig[] = [
     description: '기본 정보 및 통계',
   },
   {
+    id: 'activities',
+    label: '활동',
+    icon: Activity,
+    description: '업무 활동 기록',
+  },
+  {
     id: 'stats',
     label: '능력치',
     icon: BarChart3,
@@ -87,6 +101,308 @@ const RELATIONSHIP_TYPE_CONFIG = {
   supervisor: { label: '상위자', color: '#8b5cf6' },
   subordinate: { label: '하위자', color: '#22c55e' },
   collaborator: { label: '협업자', color: '#f59e0b' },
+}
+
+// 활동 로그 타입 설정
+const ACTIVITY_TYPE_CONFIG: Record<string, { label: string; icon: React.ElementType; color: string }> = {
+  conversation: { label: '대화', icon: MessageSquare, color: '#3b82f6' },
+  task_work: { label: '작업', icon: CheckCircle, color: '#22c55e' },
+  decision: { label: '의사결정', icon: Target, color: '#8b5cf6' },
+  analysis: { label: '분석', icon: BarChart3, color: '#f59e0b' },
+  learning: { label: '학습', icon: Lightbulb, color: '#06b6d4' },
+  collaboration: { label: '협업', icon: Users2, color: '#ec4899' },
+  error: { label: '오류', icon: AlertCircle, color: '#ef4444' },
+  milestone: { label: '마일스톤', icon: Award, color: '#eab308' },
+  tool_use: { label: '도구 사용', icon: Zap, color: '#10b981' },
+}
+
+interface AgentWorkLog {
+  id: string
+  log_type: string
+  title: string
+  content: string
+  summary?: string
+  importance: number
+  tags: string[]
+  metadata: Record<string, any>
+  created_at: string
+}
+
+// ============================================
+// Activity Log Item Component
+// ============================================
+
+function ActivityLogItem({
+  log,
+  isDark,
+}: {
+  log: AgentWorkLog
+  isDark: boolean
+}) {
+  const config = ACTIVITY_TYPE_CONFIG[log.log_type] || ACTIVITY_TYPE_CONFIG.task_work
+  const Icon = config.icon
+
+  return (
+    <div
+      className={cn(
+        'p-4 rounded-xl border transition-all hover:scale-[1.01]',
+        isDark
+          ? 'bg-zinc-800/50 border-zinc-700 hover:border-zinc-600'
+          : 'bg-white border-zinc-200 hover:border-zinc-300'
+      )}
+    >
+      <div className="flex items-start gap-3">
+        {/* 아이콘 */}
+        <div
+          className="w-10 h-10 rounded-lg flex items-center justify-center shrink-0"
+          style={{ backgroundColor: `${config.color}20` }}
+        >
+          <Icon className="w-5 h-5" style={{ color: config.color }} />
+        </div>
+
+        {/* 내용 */}
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 mb-1">
+            <span
+              className="text-xs px-2 py-0.5 rounded-full font-medium"
+              style={{
+                backgroundColor: `${config.color}20`,
+                color: config.color,
+              }}
+            >
+              {config.label}
+            </span>
+            {log.importance >= 8 && (
+              <span className="text-xs px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-500 font-medium">
+                중요
+              </span>
+            )}
+          </div>
+
+          <h4
+            className={cn(
+              'font-medium mb-1',
+              isDark ? 'text-white' : 'text-zinc-900'
+            )}
+          >
+            {log.title}
+          </h4>
+
+          <p
+            className={cn(
+              'text-sm line-clamp-2',
+              isDark ? 'text-zinc-400' : 'text-zinc-600'
+            )}
+          >
+            {log.summary || log.content}
+          </p>
+
+          {/* 태그 */}
+          {log.tags && log.tags.length > 0 && (
+            <div className="flex flex-wrap gap-1 mt-2">
+              {log.tags.slice(0, 3).map((tag, idx) => (
+                <span
+                  key={idx}
+                  className={cn(
+                    'text-xs px-2 py-0.5 rounded-full',
+                    isDark ? 'bg-zinc-700 text-zinc-400' : 'bg-zinc-100 text-zinc-500'
+                  )}
+                >
+                  #{tag}
+                </span>
+              ))}
+            </div>
+          )}
+
+          {/* 시간 */}
+          <div className="flex items-center gap-1 mt-2">
+            <Clock
+              className={cn('w-3 h-3', isDark ? 'text-zinc-500' : 'text-zinc-400')}
+            />
+            <span className={cn('text-xs', isDark ? 'text-zinc-500' : 'text-zinc-400')}>
+              {new Date(log.created_at).toLocaleString('ko-KR', {
+                month: 'short',
+                day: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit',
+              })}
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ============================================
+// Activities Tab Content
+// ============================================
+
+function ActivitiesTab({
+  agentId,
+  isDark,
+}: {
+  agentId: string
+  isDark: boolean
+}) {
+  const [logs, setLogs] = useState<AgentWorkLog[]>([])
+  const [loading, setLoading] = useState(true)
+  const [filter, setFilter] = useState<string>('all')
+
+  useEffect(() => {
+    const fetchLogs = async () => {
+      try {
+        setLoading(true)
+        const supabase = createClient()
+
+        const { data, error } = await supabase
+          .from('agent_work_logs')
+          .select('*')
+          .eq('agent_id', agentId)
+          .order('created_at', { ascending: false })
+          .limit(50)
+
+        if (data && data.length > 0) {
+          setLogs(data as AgentWorkLog[])
+        } else {
+          // 데이터가 없으면 빈 배열
+          setLogs([])
+        }
+      } catch (error) {
+        console.error('Failed to fetch activity logs:', error)
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchLogs()
+  }, [agentId])
+
+  const filteredLogs = logs.filter(
+    (l) => filter === 'all' || l.log_type === filter
+  )
+
+  // 활동 타입별 개수
+  const typeCounts = logs.reduce((acc, log) => {
+    acc[log.log_type] = (acc[log.log_type] || 0) + 1
+    return acc
+  }, {} as Record<string, number>)
+
+  const filterButtons = [
+    { id: 'all', label: '전체', count: logs.length },
+    ...Object.entries(ACTIVITY_TYPE_CONFIG)
+      .filter(([key]) => typeCounts[key])
+      .map(([key, config]) => ({
+        id: key,
+        label: config.label,
+        count: typeCounts[key] || 0,
+      })),
+  ]
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <Loader2 className="w-8 h-8 animate-spin text-accent" />
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* 필터 버튼 */}
+      <div className="flex items-center gap-2 overflow-x-auto pb-2">
+        {filterButtons.map((btn) => (
+          <button
+            key={btn.id}
+            onClick={() => setFilter(btn.id)}
+            className={cn(
+              'px-4 py-2 rounded-lg text-sm font-medium transition-colors whitespace-nowrap',
+              filter === btn.id
+                ? 'bg-accent text-white'
+                : isDark
+                ? 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700'
+                : 'bg-zinc-100 text-zinc-600 hover:bg-zinc-200'
+            )}
+          >
+            {btn.label}
+            <span
+              className={cn(
+                'ml-1.5 text-xs',
+                filter === btn.id
+                  ? 'text-white/70'
+                  : isDark
+                  ? 'text-zinc-500'
+                  : 'text-zinc-400'
+              )}
+            >
+              {btn.count}
+            </span>
+          </button>
+        ))}
+      </div>
+
+      {/* 활동 통계 */}
+      <div
+        className={cn(
+          'grid grid-cols-2 md:grid-cols-4 gap-4 p-4 rounded-xl border',
+          isDark ? 'bg-zinc-800/50 border-zinc-700' : 'bg-white border-zinc-200'
+        )}
+      >
+        <div className="text-center">
+          <p className={cn('text-2xl font-bold', isDark ? 'text-white' : 'text-zinc-900')}>
+            {logs.length}
+          </p>
+          <p className={cn('text-xs', isDark ? 'text-zinc-400' : 'text-zinc-500')}>
+            총 활동
+          </p>
+        </div>
+        <div className="text-center">
+          <p className={cn('text-2xl font-bold text-green-500')}>
+            {typeCounts['task_work'] || 0}
+          </p>
+          <p className={cn('text-xs', isDark ? 'text-zinc-400' : 'text-zinc-500')}>
+            작업 완료
+          </p>
+        </div>
+        <div className="text-center">
+          <p className={cn('text-2xl font-bold text-blue-500')}>
+            {typeCounts['tool_use'] || 0}
+          </p>
+          <p className={cn('text-xs', isDark ? 'text-zinc-400' : 'text-zinc-500')}>
+            도구 사용
+          </p>
+        </div>
+        <div className="text-center">
+          <p className={cn('text-2xl font-bold text-amber-500')}>
+            {logs.filter((l) => l.importance >= 8).length}
+          </p>
+          <p className={cn('text-xs', isDark ? 'text-zinc-400' : 'text-zinc-500')}>
+            중요 활동
+          </p>
+        </div>
+      </div>
+
+      {/* 활동 목록 */}
+      {filteredLogs.length > 0 ? (
+        <div className="space-y-3">
+          {filteredLogs.map((log) => (
+            <ActivityLogItem key={log.id} log={log} isDark={isDark} />
+          ))}
+        </div>
+      ) : (
+        <div
+          className={cn(
+            'text-center py-12',
+            isDark ? 'text-zinc-500' : 'text-zinc-400'
+          )}
+        >
+          <Activity className="w-12 h-12 mx-auto mb-4 opacity-50" />
+          <p>활동 기록이 없습니다</p>
+          <p className="text-sm mt-2">에이전트가 작업을 수행하면 여기에 기록됩니다.</p>
+        </div>
+      )}
+    </div>
+  )
 }
 
 // ============================================
@@ -764,6 +1080,10 @@ export default function AgentProfilePage() {
               isDark={isDark}
             />
           </div>
+        )}
+
+        {activeTab === 'activities' && (
+          <ActivitiesTab agentId={agentId} isDark={isDark} />
         )}
 
         {activeTab === 'relations' && (

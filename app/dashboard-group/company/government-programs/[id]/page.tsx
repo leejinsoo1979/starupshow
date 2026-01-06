@@ -225,7 +225,7 @@ export default function GovernmentProgramDetailPage() {
       >
         <div className="max-w-[1400px] mx-auto">
           <button
-            onClick={() => { window.location.href = '/dashboard-group/company/government-programs?view=list' }}
+            onClick={() => router.back()}
             className="flex items-center gap-2 text-sm transition-colors hover:opacity-70"
             style={{ color: isDark ? '#a1a1aa' : '#71717a' }}
           >

@@ -19,6 +19,7 @@ import {
   buildDynamicAgentSystemPrompt,
   AGENT_ROLE_PROMPTS,
 } from '@/lib/agent/shared-prompts'
+import { createAdminClient } from '@/lib/supabase/admin'
 
 // ============================================
 // 타입 정의
@@ -66,6 +67,36 @@ interface ChatContext {
   // 🔥 업무 실행을 위한 컨텍스트
   companyId?: string | null
   userId?: string | null
+}
+
+// ============================================
+// 에이전트 활동 로그 저장
+// ============================================
+async function logAgentActivity(
+  agentId: string,
+  logType: string,
+  title: string,
+  content: string,
+  metadata: Record<string, any> = {},
+  tags: string[] = [],
+  importance: number = 5
+): Promise<void> {
+  try {
+    const supabase = createAdminClient()
+    // Note: agent_work_logs table may not exist in types, using any cast
+    await (supabase.from('agent_work_logs') as any).insert({
+      agent_id: agentId,
+      log_type: logType,
+      title,
+      content,
+      summary: content.slice(0, 200),
+      importance,
+      tags,
+      metadata,
+    })
+  } catch (error) {
+    console.error('[AgentLog] Failed to save activity log:', error)
+  }
 }
 
 // ============================================
@@ -213,6 +244,10 @@ export async function generateSuperAgentResponse(
       'get_agent_status',
       // 브라우저 자동화
       'browser_automation',
+      // 🔥 정부지원사업 도구
+      'generate_business_plan',
+      'match_government_programs',
+      'query_government_programs',
     ]
     tools = tools.filter(t => essentialTools.includes(t.name))
     console.log(`[SuperAgent] Gemini detected - using ${tools.length} essential tools (optimized for speed)`)
@@ -248,7 +283,7 @@ export async function generateSuperAgentResponse(
   // 프로젝트 컨텍스트
   const projectContext = context?.projectPath
     ? `\n## 📁 현재 프로젝트\n- 경로: ${context.projectPath}\n`
-    : ''
+    : `\n## 📁 현재 프로젝트\n⚠️ 선택된 프로젝트 없음 - 파일 생성 시 create_project를 먼저 호출하세요!\n`
 
   // 사용자 정보
   const userInfo = context?.userName
@@ -305,11 +340,28 @@ ${filesContext}
 - **get_business_stats** - 업무 통계/대시보드
 - **get_current_datetime** - 현재 날짜/시간 조회
 
+### 🏛️ 정부지원사업 도구 (⭐ 핵심 기능!)
+- **generate_business_plan** - ⭐ 사업계획서 자동 생성! (programId 필요)
+- **match_government_programs** - ⭐ 회사에 적합한 정부지원사업 AI 추천
+- **query_government_programs** - 정부지원사업 공고 목록 조회
+
+### 🤖 다른 에이전트 호출 (오케스트레이션!)
+- **call_agent** - ⭐ 다른 AI 에이전트에게 업무 위임 (agentId 또는 agentName으로 호출)
+- **get_agent_status** - 배포된 에이전트 목록 및 상태 조회
+
+### 프로젝트 관리
+- **create_project** - ⭐ 새 프로젝트 생성 (파일 작업 전 필수!)
+- **list_projects** - 프로젝트 목록 조회
+
 ### 코드/파일 작업
 - **create_file_with_node** - ⭐ 코드 파일 생성 + 뉴런맵 노드 (가장 많이 씀!)
 - **edit_file** - 기존 파일 수정
 - **read_file** - 파일 내용 확인
 - **get_file_structure** - 프로젝트 구조 파악
+
+### ⚠️ 파일 생성 규칙
+현재 프로젝트가 없으면 **create_project를 먼저 호출**한 후 create_file_with_node를 사용하세요!
+프로젝트 이름은 작업 내용에 맞게 자동으로 정해주세요. (예: "퀴즈게임", "투두앱" 등)
 
 ### 뉴런맵 노드
 - **create_node** - 노트, 다이어그램, 문서 등 노드 생성
@@ -404,7 +456,20 @@ Brain State와 충돌하는 제안을 하지 마세요!
 사용자: "네이버에서 맛집 찾아줘"
 → 행동: browser_automation(task="네이버에서 맛집 검색해줘")
 
+사용자: "우리 회사에 맞는 정부지원사업 찾아줘"
+→ 행동: match_government_programs() → 적합한 공고 리스트 반환
+
+사용자: "이 공고 사업계획서 만들어줘" (programId가 있는 경우)
+→ 행동: generate_business_plan(programId="xxx") → AI가 자동으로 사업계획서 생성
+
+사용자: "제레미한테 코드 리뷰 맡겨줘"
+→ 행동: call_agent(agentName="제레미", message="코드 리뷰해줘")
+
+사용자: "배포된 에이전트 뭐 있어?"
+→ 행동: get_agent_status() → 활성 에이전트 목록 반환
+
 **너는 실행하는 AI다. 말만 하는 AI 아니다. 도구 써서 만들어!**
+**모든 업무를 직접 수행하거나, 다른 에이전트에게 위임할 수 있다!**
 `
 
   // 메시지 배열 구성
@@ -510,6 +575,20 @@ Brain State와 충돌하는 제안을 하지 마세요!
             console.log(`[SuperAgent] Browser URL captured: ${browserUrl}`)
           }
 
+          // 🔥 에이전트 활동 로그 저장
+          const toolImportance = ['generate_business_plan', 'match_government_programs', 'call_agent', 'create_task_db'].includes(toolName) ? 8 : 5
+          logAgentActivity(
+            agent.id,
+            'tool_use',
+            `${toolName} 도구 사용`,
+            parsedResult.success
+              ? `${parsedResult.message || '성공적으로 실행됨'}`
+              : `실패: ${parsedResult.error || '알 수 없는 오류'}`,
+            { toolName, args: toolArgs, success: parsedResult.success },
+            [toolName, parsedResult.success ? 'success' : 'failed'],
+            toolImportance
+          ).catch(() => {}) // 로그 저장 실패해도 무시
+
           // 액션 수집 (프론트엔드에서 실행할 것들)
           if (parsedResult.action) {
             actions.push(parsedResult.action)
@@ -532,6 +611,19 @@ Brain State와 충돌하는 제안을 하지 마세요!
     let cleanResponse = finalResponse
     cleanResponse = cleanResponse.replace(/<think>[\s\S]*?<\/think>\s*/g, '')
     cleanResponse = cleanResponse.replace(/<thinking>[\s\S]*?<\/thinking>\s*/g, '')
+
+    // 🔥 대화 로그 저장 (도구를 사용한 경우)
+    if (toolsUsed.length > 0) {
+      logAgentActivity(
+        agent.id,
+        'conversation',
+        `사용자 요청 처리 완료`,
+        `요청: "${userMessage.slice(0, 100)}${userMessage.length > 100 ? '...' : ''}" → 응답: "${cleanResponse.slice(0, 100)}${cleanResponse.length > 100 ? '...' : ''}"`,
+        { toolsUsed, userMessage: userMessage.slice(0, 500), response: cleanResponse.slice(0, 500) },
+        toolsUsed,
+        toolsUsed.some(t => ['generate_business_plan', 'match_government_programs', 'call_agent'].includes(t)) ? 7 : 5
+      ).catch(() => {})
+    }
 
     return {
       message: cleanResponse.trim() || '작업을 완료했습니다.',
