@@ -5,6 +5,8 @@
 
 import { DynamicStructuredTool } from '@langchain/core/tools'
 import { z } from 'zod'
+import { createAdminClient } from '@/lib/supabase/admin'
+import { getAgentExecutionContext } from './agent-business-tools'
 
 // 워크플로우 도구 임포트
 import {
@@ -126,16 +128,84 @@ export const createProjectTool = new DynamicStructuredTool({
     folderPath: z.string().optional().describe('프로젝트 폴더 경로 (Electron에서만)'),
   }),
   func: async (params) => {
-    // 실제 생성은 프론트엔드/API에서 처리
-    return JSON.stringify({
-      success: true,
-      message: `프로젝트 "${params.name}" 생성을 준비했습니다.`,
-      action: {
-        type: 'create_project',
-        data: params,
-        requiresElectron: !!params.folderPath
+    const ctx = getAgentExecutionContext()
+    const supabase = createAdminClient()
+
+    try {
+      // 실제로 DB에 프로젝트 생성
+      const { data, error } = await supabase
+        .from('projects')
+        .insert({
+          name: params.name,
+          description: params.description || null,
+          priority: params.priority || 'medium',
+          deadline: params.deadline || null,
+          folder_path: params.folderPath || null,
+          owner_id: ctx.userId || '00000000-0000-0000-0000-000000000001',
+          status: 'active',
+          progress: 0,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        })
+        .select()
+        .single()
+
+      if (error) {
+        console.error('[create_project] DB Error:', error)
+        return JSON.stringify({
+          success: false,
+          error: `프로젝트 생성 실패: ${error.message}`,
+        })
       }
-    })
+
+      console.log('[create_project] ✅ Created project:', data.id, data.name)
+
+      // 🔥 프로젝트용 neural_map 생성 (파일 저장용)
+      const userId = ctx.userId || '00000000-0000-0000-0000-000000000001'
+      const { data: neuralMap } = await supabase
+        .from('neural_maps')
+        .insert({
+          user_id: userId,
+          title: `${params.name} 파일`,
+          project_id: data.id,
+        })
+        .select()
+        .single()
+
+      if (neuralMap) {
+        console.log('[create_project] ✅ Created neural_map for project:', neuralMap.id)
+      }
+
+      // Context에 현재 프로젝트 ID 저장 (후속 파일 생성에서 사용)
+      if (ctx) {
+        (ctx as any).currentProjectId = data.id
+        ;(ctx as any).currentNeuralMapId = neuralMap?.id
+      }
+
+      return JSON.stringify({
+        success: true,
+        message: `프로젝트 "${params.name}"을(를) 생성했습니다!`,
+        project: {
+          id: data.id,
+          name: data.name,
+          description: data.description,
+          status: data.status,
+          priority: data.priority,
+          deadline: data.deadline,
+        },
+        action: {
+          type: 'create_project',
+          data: { ...params, projectId: data.id },
+          requiresElectron: !!params.folderPath
+        }
+      })
+    } catch (error: any) {
+      console.error('[create_project] Error:', error)
+      return JSON.stringify({
+        success: false,
+        error: `프로젝트 생성 중 오류: ${error.message}`,
+      })
+    }
   },
 })
 
@@ -427,16 +497,64 @@ export const createTaskTool = new DynamicStructuredTool({
     projectId: z.string().optional().describe('프로젝트 ID'),
     priority: z.enum(['low', 'medium', 'high', 'urgent']).optional().describe('우선순위'),
     assigneeId: z.string().optional().describe('담당자 에이전트 ID'),
+    dueDate: z.string().optional().describe('마감일 (YYYY-MM-DD 형식)'),
   }),
   func: async (params) => {
-    return JSON.stringify({
-      success: true,
-      message: `태스크 "${params.title}" 생성을 준비했습니다.`,
-      action: {
-        type: 'create_task',
-        data: params,
+    const ctx = getAgentExecutionContext()
+    const supabase = createAdminClient()
+
+    try {
+      // 실제로 DB에 태스크 생성 (project_tasks 테이블 사용)
+      const { data, error } = await supabase
+        .from('project_tasks')
+        .insert({
+          title: params.title,
+          description: params.description || null,
+          project_id: params.projectId || null,
+          priority: params.priority || 'medium',
+          status: 'pending',
+          due_date: params.dueDate || null,
+          assignee_id: params.assigneeId || null,
+          created_by: ctx.userId || '00000000-0000-0000-0000-000000000001',
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        })
+        .select()
+        .single()
+
+      if (error) {
+        console.error('[create_task] DB Error:', error)
+        return JSON.stringify({
+          success: false,
+          error: `태스크 생성 실패: ${error.message}`,
+        })
       }
-    })
+
+      console.log('[create_task] ✅ Created task:', data.id, data.title)
+
+      return JSON.stringify({
+        success: true,
+        message: `태스크 "${params.title}"을(를) 생성했습니다!`,
+        task: {
+          id: data.id,
+          title: data.title,
+          description: data.description,
+          status: data.status,
+          priority: data.priority,
+          projectId: data.project_id,
+        },
+        action: {
+          type: 'create_task',
+          data: { ...params, taskId: data.id },
+        }
+      })
+    } catch (error: any) {
+      console.error('[create_task] Error:', error)
+      return JSON.stringify({
+        success: false,
+        error: `태스크 생성 중 오류: ${error.message}`,
+      })
+    }
   },
 })
 
@@ -450,15 +568,54 @@ export const listProjectsTool = new DynamicStructuredTool({
     status: z.enum(['all', 'active', 'completed', 'archived']).optional().describe('프로젝트 상태 필터'),
   }),
   func: async ({ status }) => {
-    // 실제 조회는 API에서 처리
-    return JSON.stringify({
-      success: true,
-      message: '프로젝트 목록을 조회합니다.',
-      action: {
-        type: 'read_file',
-        data: { listProjects: true, status: status || 'all' },
+    const ctx = getAgentExecutionContext()
+    const supabase = createAdminClient()
+
+    try {
+      let query = supabase
+        .from('projects')
+        .select('*')
+
+      // projects 테이블은 owner_id 사용
+      if (ctx.userId) {
+        query = query.eq('owner_id', ctx.userId)
       }
-    })
+      if (status && status !== 'all') {
+        query = query.eq('status', status)
+      }
+
+      query = query.order('created_at', { ascending: false })
+
+      const { data, error } = await query
+
+      if (error) {
+        return JSON.stringify({ success: false, error: error.message })
+      }
+
+      const statusMap: Record<string, string> = {
+        active: '진행중',
+        completed: '완료',
+        paused: '일시중지',
+        archived: '보관됨',
+      }
+
+      const projects = (data || []) as any[]
+      return JSON.stringify({
+        success: true,
+        count: projects.length,
+        projects: projects.map(p => ({
+          id: p.id,
+          프로젝트명: p.name,
+          설명: p.description,
+          상태: statusMap[p.status] || p.status,
+          마감일: p.deadline,
+          진행률: p.progress ? `${p.progress}%` : '0%',
+          폴더: p.folder_path,
+        })),
+      })
+    } catch (error: any) {
+      return JSON.stringify({ success: false, error: error.message })
+    }
   },
 })
 
@@ -508,13 +665,15 @@ export const navigateToTool = new DynamicStructuredTool({
     const navParams: Record<string, string> = {}
     if (params.projectId) navParams.projectId = params.projectId
     if (params.agentId) navParams.agentId = params.agentId
+
+    // 페이지 이동은 프론트엔드에서 처리해야 함 - 정직하게 안내
+    // 중요: success: false로 설정하여 에이전트가 "완료했다"고 거짓말하지 않도록 함
     return JSON.stringify({
-      success: true,
-      message: `${params.page} 페이지로 이동합니다.`,
-      action: {
-        type: 'navigate_to',
-        data: { route, params: Object.keys(navParams).length > 0 ? navParams : undefined },
-      }
+      success: false,
+      cannotNavigate: true,
+      message: `죄송합니다. 채팅으로는 직접 페이지 이동이 불가능합니다. ${params.page} 페이지로 이동하시려면 왼쪽 사이드바에서 해당 메뉴를 클릭해주세요.`,
+      suggestedRoute: route,
+      instruction: `사이드바에서 "${params.page}" 메뉴를 클릭하면 ${route} 페이지로 이동합니다.`,
     })
   },
 })
@@ -772,7 +931,7 @@ export const createCalendarEventTool = new DynamicStructuredTool({
 // 🔥 Neural Editor 제어 도구들
 // ============================================
 
-// 17. 노드 생성 도구
+// 17. 노드 생성 도구 (실제 DB 연동)
 export const createNodeTool = new DynamicStructuredTool({
   name: 'create_node',
   description: `뉴런 에디터에 새 노드를 생성합니다. 노트, 아이디어, 프로젝트, 태스크 등 다양한 타입의 노드를 만들 수 있습니다.
@@ -784,9 +943,11 @@ export const createNodeTool = new DynamicStructuredTool({
 - 태스크: type="task", title="버그 수정"
 - 파일 노드: type="file", title="App.tsx"`,
   schema: z.object({
-    type: z.enum(['concept', 'project', 'doc', 'idea', 'decision', 'memory', 'task', 'person', 'insight', 'folder', 'file']).describe('노드 타입'),
+    mapId: z.string().optional().describe('뉴럴맵 ID (없으면 기본 맵 사용)'),
+    type: z.enum(['concept', 'project', 'doc', 'idea', 'decision', 'memory', 'task', 'person', 'insight', 'folder', 'file', 'self']).describe('노드 타입'),
     title: z.string().describe('노드 제목'),
     content: z.string().optional().describe('노드 내용 (마크다운 지원)'),
+    summary: z.string().optional().describe('노드 요약'),
     position: z.object({
       x: z.number().optional(),
       y: z.number().optional(),
@@ -794,25 +955,98 @@ export const createNodeTool = new DynamicStructuredTool({
     }).optional().describe('노드 위치 (없으면 자동 배치)'),
   }),
   func: async (params) => {
-    const pos = params.position || { x: Math.random() * 500, y: Math.random() * 500, z: 0 }
-    return JSON.stringify({
-      success: true,
-      message: `노드 "${params.title}" 생성을 준비했습니다.`,
-      action: {
-        type: 'create_node',
-        data: {
-          nodeType: params.type,
-          title: params.title,
-          content: params.content || '',
-          position: { x: pos.x || 0, y: pos.y || 0, z: pos.z || 0 },
-          metadata: {},
-        },
+    const ctx = getAgentExecutionContext()
+    const supabase = createAdminClient()
+
+    try {
+      // 맵 ID가 없으면 사용자의 기본 맵을 찾거나 생성
+      let mapId = params.mapId
+      if (!mapId) {
+        const userId = ctx.userId || '00000000-0000-0000-0000-000000000001'
+        const { data: existingMap } = await supabase
+          .from('neural_maps')
+          .select('id')
+          .eq('user_id', userId)
+          .limit(1)
+          .single()
+
+        if (existingMap) {
+          mapId = existingMap.id
+        } else {
+          // 기본 맵 생성
+          const { data: newMap, error: mapError } = await supabase
+            .from('neural_maps')
+            .insert({
+              user_id: userId,
+              title: '기본 뉴럴맵',
+              description: '자동 생성된 기본 뉴럴맵',
+            })
+            .select()
+            .single()
+
+          if (mapError || !newMap) {
+            return JSON.stringify({
+              success: false,
+              error: `뉴럴맵 생성 실패: ${mapError?.message}`,
+            })
+          }
+          mapId = newMap.id
+        }
       }
-    })
+
+      const pos = params.position || { x: Math.random() * 500, y: Math.random() * 500, z: 0 }
+
+      const { data, error } = await supabase
+        .from('neural_nodes')
+        .insert({
+          map_id: mapId,
+          type: params.type,
+          title: params.title,
+          content: params.content || null,
+          summary: params.summary || null,
+          position: { x: pos.x || 0, y: pos.y || 0, z: pos.z || 0 },
+          importance: 5,
+          expanded: true,
+          pinned: false,
+          tags: [],
+          stats: { views: 0 },
+        })
+        .select()
+        .single()
+
+      if (error) {
+        console.error('[create_node] DB Error:', error)
+        return JSON.stringify({
+          success: false,
+          error: `노드 생성 실패: ${error.message}`,
+        })
+      }
+
+      console.log('[create_node] ✅ Created node:', data.id, data.title)
+
+      return JSON.stringify({
+        success: true,
+        message: `노드 "${params.title}"을(를) 생성했습니다!`,
+        node: {
+          id: data.id,
+          mapId: data.map_id,
+          type: data.type,
+          title: data.title,
+          content: data.content,
+          position: data.position,
+        },
+      })
+    } catch (error: any) {
+      console.error('[create_node] Error:', error)
+      return JSON.stringify({
+        success: false,
+        error: `노드 생성 중 오류: ${error.message}`,
+      })
+    }
   },
 })
 
-// 12. 노드 수정 도구
+// 12. 노드 수정 도구 (실제 DB 연동)
 export const updateNodeTool = new DynamicStructuredTool({
   name: 'update_node',
   description: '기존 노드의 내용, 제목을 수정합니다.',
@@ -820,40 +1054,101 @@ export const updateNodeTool = new DynamicStructuredTool({
     nodeId: z.string().describe('수정할 노드 ID'),
     title: z.string().optional().describe('새 제목'),
     content: z.string().optional().describe('새 내용'),
+    summary: z.string().optional().describe('새 요약'),
   }),
   func: async (params) => {
-    return JSON.stringify({
-      success: true,
-      message: `노드 "${params.nodeId}" 수정을 준비했습니다.`,
-      action: {
-        type: 'update_node',
-        data: params,
+    const supabase = createAdminClient()
+
+    try {
+      const updates: Record<string, any> = { updated_at: new Date().toISOString() }
+      if (params.title !== undefined) updates.title = params.title
+      if (params.content !== undefined) updates.content = params.content
+      if (params.summary !== undefined) updates.summary = params.summary
+
+      const { data, error } = await supabase
+        .from('neural_nodes')
+        .update(updates)
+        .eq('id', params.nodeId)
+        .select()
+        .single()
+
+      if (error) {
+        console.error('[update_node] DB Error:', error)
+        return JSON.stringify({
+          success: false,
+          error: `노드 수정 실패: ${error.message}`,
+        })
       }
-    })
+
+      console.log('[update_node] ✅ Updated node:', data.id, data.title)
+
+      return JSON.stringify({
+        success: true,
+        message: `노드 "${data.title}"을(를) 수정했습니다!`,
+        node: {
+          id: data.id,
+          title: data.title,
+          content: data.content,
+        },
+      })
+    } catch (error: any) {
+      console.error('[update_node] Error:', error)
+      return JSON.stringify({
+        success: false,
+        error: `노드 수정 중 오류: ${error.message}`,
+      })
+    }
   },
 })
 
-// 13. 노드 삭제 도구
+// 13. 노드 삭제 도구 (실제 DB 연동)
 export const deleteNodeTool = new DynamicStructuredTool({
   name: 'delete_node',
   description: '노드를 삭제합니다. 연결된 엣지도 함께 삭제됩니다.',
   schema: z.object({
     nodeId: z.string().describe('삭제할 노드 ID'),
-    deleteConnectedEdges: z.boolean().optional().describe('연결된 엣지도 삭제 (기본: true)'),
   }),
   func: async (params) => {
-    return JSON.stringify({
-      success: true,
-      message: `노드 "${params.nodeId}" 삭제를 준비했습니다.`,
-      action: {
-        type: 'delete_node',
-        data: params,
+    const supabase = createAdminClient()
+
+    try {
+      // 먼저 연결된 엣지 삭제
+      await supabase
+        .from('neural_edges')
+        .delete()
+        .or(`source_id.eq.${params.nodeId},target_id.eq.${params.nodeId}`)
+
+      // 노드 삭제
+      const { error } = await supabase
+        .from('neural_nodes')
+        .delete()
+        .eq('id', params.nodeId)
+
+      if (error) {
+        console.error('[delete_node] DB Error:', error)
+        return JSON.stringify({
+          success: false,
+          error: `노드 삭제 실패: ${error.message}`,
+        })
       }
-    })
+
+      console.log('[delete_node] ✅ Deleted node:', params.nodeId)
+
+      return JSON.stringify({
+        success: true,
+        message: `노드를 삭제했습니다.`,
+      })
+    } catch (error: any) {
+      console.error('[delete_node] Error:', error)
+      return JSON.stringify({
+        success: false,
+        error: `노드 삭제 중 오류: ${error.message}`,
+      })
+    }
   },
 })
 
-// 14. 엣지(연결) 생성 도구
+// 14. 엣지(연결) 생성 도구 (실제 DB 연동)
 export const createEdgeTool = new DynamicStructuredTool({
   name: 'create_edge',
   description: `두 노드 사이에 연결(엣지)을 생성합니다. 의존관계, 참조, 흐름 등을 표현합니다.
@@ -870,23 +1165,69 @@ export const createEdgeTool = new DynamicStructuredTool({
     type: z.enum(['parent_child', 'references', 'imports', 'supports', 'contradicts', 'causes', 'same_topic', 'sequence', 'semantic']).optional().describe('엣지 타입'),
   }),
   func: async (params) => {
-    return JSON.stringify({
-      success: true,
-      message: `엣지 생성: ${params.sourceNodeId} → ${params.targetNodeId}`,
-      action: {
-        type: 'create_edge',
-        data: {
-          sourceNodeId: params.sourceNodeId,
-          targetNodeId: params.targetNodeId,
-          label: params.label,
-          edgeType: params.type || 'references',
-        },
+    const supabase = createAdminClient()
+
+    try {
+      // 소스 노드에서 map_id 가져오기
+      const { data: sourceNode, error: nodeError } = await supabase
+        .from('neural_nodes')
+        .select('map_id')
+        .eq('id', params.sourceNodeId)
+        .single()
+
+      if (nodeError || !sourceNode) {
+        return JSON.stringify({
+          success: false,
+          error: `소스 노드를 찾을 수 없습니다: ${nodeError?.message}`,
+        })
       }
-    })
+
+      const { data, error } = await supabase
+        .from('neural_edges')
+        .insert({
+          map_id: sourceNode.map_id,
+          source_id: params.sourceNodeId,
+          target_id: params.targetNodeId,
+          type: params.type || 'references',
+          label: params.label || null,
+          weight: 1,
+          bidirectional: false,
+        })
+        .select()
+        .single()
+
+      if (error) {
+        console.error('[create_edge] DB Error:', error)
+        return JSON.stringify({
+          success: false,
+          error: `엣지 생성 실패: ${error.message}`,
+        })
+      }
+
+      console.log('[create_edge] ✅ Created edge:', data.id)
+
+      return JSON.stringify({
+        success: true,
+        message: `연결을 생성했습니다: ${params.sourceNodeId} → ${params.targetNodeId}`,
+        edge: {
+          id: data.id,
+          sourceId: data.source_id,
+          targetId: data.target_id,
+          type: data.type,
+          label: data.label,
+        },
+      })
+    } catch (error: any) {
+      console.error('[create_edge] Error:', error)
+      return JSON.stringify({
+        success: false,
+        error: `엣지 생성 중 오류: ${error.message}`,
+      })
+    }
   },
 })
 
-// 15. 엣지 삭제 도구
+// 15. 엣지 삭제 도구 (실제 DB 연동)
 export const deleteEdgeTool = new DynamicStructuredTool({
   name: 'delete_edge',
   description: '노드 간의 연결(엣지)을 삭제합니다.',
@@ -896,78 +1237,246 @@ export const deleteEdgeTool = new DynamicStructuredTool({
     targetNodeId: z.string().optional().describe('대상 노드 ID'),
   }),
   func: async (params) => {
-    return JSON.stringify({
-      success: true,
-      message: '엣지 삭제를 준비했습니다.',
-      action: {
-        type: 'delete_edge',
-        data: params,
+    const supabase = createAdminClient()
+
+    try {
+      let query = supabase.from('neural_edges').delete()
+
+      if (params.edgeId) {
+        query = query.eq('id', params.edgeId)
+      } else if (params.sourceNodeId && params.targetNodeId) {
+        query = query.eq('source_id', params.sourceNodeId).eq('target_id', params.targetNodeId)
+      } else {
+        return JSON.stringify({
+          success: false,
+          error: '엣지 ID 또는 (소스 노드 ID + 타겟 노드 ID)를 지정해주세요.',
+        })
       }
-    })
+
+      const { error } = await query
+
+      if (error) {
+        console.error('[delete_edge] DB Error:', error)
+        return JSON.stringify({
+          success: false,
+          error: `엣지 삭제 실패: ${error.message}`,
+        })
+      }
+
+      console.log('[delete_edge] ✅ Deleted edge')
+
+      return JSON.stringify({
+        success: true,
+        message: '연결을 삭제했습니다.',
+      })
+    } catch (error: any) {
+      console.error('[delete_edge] Error:', error)
+      return JSON.stringify({
+        success: false,
+        error: `엣지 삭제 중 오류: ${error.message}`,
+      })
+    }
   },
 })
 
-// 16. 그래프 조회 도구
+// 16. 그래프 조회 도구 (실제 DB 연동)
 export const getGraphTool = new DynamicStructuredTool({
   name: 'get_graph',
   description: '현재 뉴런 에디터의 그래프 상태를 조회합니다. 모든 노드와 엣지 정보를 가져옵니다.',
   schema: z.object({
+    mapId: z.string().optional().describe('뉴럴맵 ID (없으면 기본 맵 사용)'),
     includeContent: z.boolean().optional().describe('노드 내용 포함 여부 (기본: false, 대용량 주의)'),
     nodeTypes: z.array(z.string()).optional().describe('특정 타입의 노드만 조회'),
   }),
   func: async (params) => {
-    return JSON.stringify({
-      success: true,
-      message: '그래프 조회를 요청합니다.',
-      action: {
-        type: 'get_graph',
-        data: params,
+    const ctx = getAgentExecutionContext()
+    const supabase = createAdminClient()
+
+    try {
+      // 맵 ID 확인
+      let mapId = params.mapId
+      if (!mapId) {
+        const userId = ctx.userId || '00000000-0000-0000-0000-000000000001'
+        const { data: existingMap } = await supabase
+          .from('neural_maps')
+          .select('id')
+          .eq('user_id', userId)
+          .limit(1)
+          .single()
+
+        if (!existingMap) {
+          return JSON.stringify({
+            success: true,
+            message: '뉴럴맵이 없습니다.',
+            nodes: [],
+            edges: [],
+          })
+        }
+        mapId = existingMap.id
       }
-    })
+
+      // 노드 조회
+      const nodeSelect = params.includeContent
+        ? 'id, type, title, content, summary, position, importance, tags'
+        : 'id, type, title, summary, position, importance, tags'
+
+      let nodeQuery = supabase.from('neural_nodes').select(nodeSelect).eq('map_id', mapId)
+
+      if (params.nodeTypes && params.nodeTypes.length > 0) {
+        nodeQuery = nodeQuery.in('type', params.nodeTypes)
+      }
+
+      const { data: nodes, error: nodeError } = await nodeQuery.limit(100)
+
+      if (nodeError) {
+        return JSON.stringify({
+          success: false,
+          error: `노드 조회 실패: ${nodeError.message}`,
+        })
+      }
+
+      // 엣지 조회
+      const { data: edges, error: edgeError } = await supabase
+        .from('neural_edges')
+        .select('id, source_id, target_id, type, label, weight')
+        .eq('map_id', mapId)
+        .limit(200)
+
+      if (edgeError) {
+        return JSON.stringify({
+          success: false,
+          error: `엣지 조회 실패: ${edgeError.message}`,
+        })
+      }
+
+      console.log('[get_graph] ✅ Retrieved', nodes?.length || 0, 'nodes and', edges?.length || 0, 'edges')
+
+      return JSON.stringify({
+        success: true,
+        message: `그래프를 조회했습니다. (노드 ${nodes?.length || 0}개, 연결 ${edges?.length || 0}개)`,
+        mapId,
+        nodes: nodes || [],
+        edges: edges || [],
+      })
+    } catch (error: any) {
+      console.error('[get_graph] Error:', error)
+      return JSON.stringify({
+        success: false,
+        error: `그래프 조회 중 오류: ${error.message}`,
+      })
+    }
   },
 })
 
-// 17. 파일 + 노드 동시 생성 도구 (가장 중요!)
+// 17. 파일 + 노드 동시 생성 도구 (Electron 필요)
 export const createFileWithNodeTool = new DynamicStructuredTool({
   name: 'create_file_with_node',
   description: `파일을 생성하고 동시에 뉴런 에디터에 해당 노드를 추가합니다.
-코드 작성, 문서 작성 등 실제 파일이 필요한 작업에 사용합니다.
+⚠️ 이 도구는 Electron 데스크톱 앱에서만 파일 생성이 가능합니다.
+웹에서는 노드만 생성됩니다.
 
-⭐ 코드를 작성할 때는 반드시 이 도구를 사용하세요!
+🔥 중요: 프로젝트를 생성한 직후 파일을 만들 때는 반드시 projectId를 함께 전달하세요!
 
 사용 예시:
-- React 컴포넌트: path="src/components/Button.tsx", content="..."
-- 마크다운 문서: path="docs/README.md", content="..."
-- 설정 파일: path="config.json", content="..."
-- Python 코드: path="main.py", content="..."`,
+- React 컴포넌트: path="src/components/Button.tsx", content="...", projectId="프로젝트ID"
+- 마크다운 문서: path="docs/README.md", content="..."`,
   schema: z.object({
     path: z.string().describe('파일 경로 (예: src/components/Button.tsx)'),
     content: z.string().describe('파일 내용'),
-    position: z.object({
-      x: z.number().optional(),
-      y: z.number().optional(),
-    }).optional().describe('노드 위치'),
+    projectId: z.string().optional().describe('연결할 프로젝트 ID (create_project 결과에서 받은 ID)'),
   }),
   func: async (params) => {
-    // 파일 확장자로 노드 타입 추론 (file 또는 doc)
-    const ext = params.path.split('.').pop()?.toLowerCase()
-    // 마크다운 파일이면 doc, 나머지는 file
-    const nodeType: 'file' | 'doc' = ['md', 'mdx'].includes(ext || '') ? 'doc' : 'file'
+    const ctx = getAgentExecutionContext()
+    const supabase = createAdminClient()
 
-    return JSON.stringify({
-      success: true,
-      message: `파일 "${params.path}" 생성 및 노드 추가를 준비했습니다.`,
-      action: {
-        type: 'create_file_with_node',
-        data: {
-          path: params.path,
-          content: params.content,
-          nodeType,
-          position: params.position || { x: Math.random() * 500, y: Math.random() * 500 },
-          title: params.path.split('/').pop() || params.path,
-        },
+    try {
+      // 파일 확장자로 노드 타입 추론 (neural_nodes 허용: doc, idea 등)
+      const ext = params.path.split('.').pop()?.toLowerCase()
+      const nodeType: 'doc' | 'idea' = ['md', 'mdx', 'txt'].includes(ext || '') ? 'doc' : 'idea'
+      const fileName = params.path.split('/').pop() || params.path
+
+      // 🔥 Context에서 현재 프로젝트의 neural_map ID 가져오기
+      let mapId = (ctx as any)?.currentNeuralMapId
+
+      // 없으면 사용자의 기본 맵 찾기
+      if (!mapId) {
+        const userId = ctx.userId || '00000000-0000-0000-0000-000000000001'
+        const { data: existingMap } = await supabase
+          .from('neural_maps')
+          .select('id')
+          .eq('user_id', userId)
+          .limit(1)
+          .single()
+
+        mapId = existingMap?.id
+        if (!mapId) {
+          const { data: newMap } = await supabase
+            .from('neural_maps')
+            .insert({ user_id: userId, title: '기본 뉴럴맵' })
+            .select()
+            .single()
+          mapId = newMap?.id
+        }
       }
-    })
+
+      if (!mapId) {
+        return JSON.stringify({
+          success: false,
+          error: '뉴럴맵을 생성할 수 없습니다.',
+        })
+      }
+
+      console.log('[create_file_with_node] Using mapId:', mapId)
+
+      // 🔥 프로젝트 ID: 파라미터 우선, 없으면 context에서
+      const projectId = params.projectId || (ctx as any)?.currentProjectId
+      console.log('[create_file_with_node] projectId:', projectId)
+
+      // 노드 생성 (DB에 저장) - project_id를 summary에 포함
+      const { data: node, error } = await supabase
+        .from('neural_nodes')
+        .insert({
+          map_id: mapId,
+          type: nodeType,
+          title: fileName,
+          content: params.content,
+          summary: projectId ? `project:${projectId}|파일: ${params.path}` : `파일: ${params.path}`,
+          position: { x: Math.random() * 500, y: Math.random() * 500, z: 0 },
+          importance: 5,
+          tags: [ext || 'file'],
+        })
+        .select()
+        .single()
+
+      if (error) {
+        return JSON.stringify({
+          success: false,
+          error: `노드 생성 실패: ${error.message}`,
+        })
+      }
+
+      console.log('[create_file_with_node] ✅ Created node:', node.id)
+
+      return JSON.stringify({
+        success: true,
+        message: `노드 "${fileName}"을 생성했습니다. (파일 생성은 Electron 앱에서만 가능합니다)`,
+        node: {
+          id: node.id,
+          title: node.title,
+          type: node.type,
+        },
+        action: {
+          type: 'create_file_with_node',
+          data: { path: params.path, content: params.content },
+          requiresElectron: true,
+        }
+      })
+    } catch (error: any) {
+      return JSON.stringify({
+        success: false,
+        error: `오류: ${error.message}`,
+      })
+    }
   },
 })
 
@@ -975,561 +1484,371 @@ export const createFileWithNodeTool = new DynamicStructuredTool({
 // 🔥 Orchestrator 에이전트 호출 도구
 // ============================================
 
-// 18. 다른 에이전트 호출 도구
+// 18. 다른 에이전트 호출 도구 (실제 구현)
 export const callAgentTool = new DynamicStructuredTool({
   name: 'call_agent',
   description: `다른 AI 에이전트를 호출하여 특정 작업을 수행하게 합니다.
-Orchestrator가 다른 에이전트(Planner, Implementer, Tester, Reviewer)에게 작업을 위임할 때 사용합니다.
+배포된 에이전트의 ID 또는 이름으로 호출할 수 있습니다.
 
 사용 예시:
-- 설계 요청: agent="planner", task="API 엔드포인트 설계"
-- 구현 요청: agent="implementer", task="로그인 기능 구현"
-- 테스트 요청: agent="tester", task="단위 테스트 작성"
-- 리뷰 요청: agent="reviewer", task="코드 품질 검토"`,
+- agentId="에이전트UUID", message="API 설계해줘"
+- agentName="제레미", message="코드 리뷰해줘"`,
   schema: z.object({
-    agent: z.enum(['planner', 'implementer', 'tester', 'reviewer']).describe('호출할 에이전트'),
-    task: z.string().describe('에이전트에게 전달할 작업 내용'),
-    context: z.string().optional().describe('추가 컨텍스트 정보'),
-    priority: z.enum(['low', 'normal', 'high', 'urgent']).optional().describe('작업 우선순위'),
-    waitForResult: z.boolean().optional().describe('결과를 기다릴지 여부 (기본: true)'),
+    agentId: z.string().optional().describe('호출할 에이전트 ID (UUID)'),
+    agentName: z.string().optional().describe('호출할 에이전트 이름'),
+    message: z.string().describe('에이전트에게 전달할 메시지'),
   }),
   func: async (params) => {
-    return JSON.stringify({
-      success: true,
-      message: `${params.agent} 에이전트에게 작업을 전달합니다: "${params.task}"`,
-      action: {
-        type: 'call_agent',
-        data: {
-          targetAgent: params.agent,
-          task: params.task,
-          context: params.context,
-          priority: params.priority || 'normal',
-          waitForResult: params.waitForResult !== false,
-        },
+    const supabase = createAdminClient()
+
+    try {
+      if (!params.agentId && !params.agentName) {
+        return JSON.stringify({
+          success: false,
+          error: 'agentId 또는 agentName 중 하나를 지정해주세요.',
+        })
       }
-    })
+
+      // 에이전트 찾기
+      let query = supabase.from('deployed_agents').select('id, name, status')
+      if (params.agentId) {
+        query = query.eq('id', params.agentId)
+      } else if (params.agentName) {
+        query = query.ilike('name', `%${params.agentName}%`)
+      }
+
+      const { data: agent, error: agentError } = await query.single()
+
+      if (agentError || !agent) {
+        return JSON.stringify({
+          success: false,
+          error: `에이전트를 찾을 수 없습니다: ${agentError?.message || '존재하지 않음'}`,
+        })
+      }
+
+      if (agent.status !== 'ACTIVE') {
+        return JSON.stringify({
+          success: false,
+          error: `에이전트 "${agent.name}"이(가) 비활성 상태입니다.`,
+        })
+      }
+
+      // 에이전트 채팅 API 호출
+      const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
+      const response = await fetch(`${baseUrl}/api/agents/${agent.id}/chat`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: params.message }),
+      })
+
+      const result = await response.json()
+
+      if (!response.ok) {
+        return JSON.stringify({
+          success: false,
+          error: `에이전트 호출 실패: ${result.error || response.statusText}`,
+        })
+      }
+
+      console.log('[call_agent] ✅ Called agent:', agent.name)
+
+      return JSON.stringify({
+        success: true,
+        message: `"${agent.name}" 에이전트의 응답:`,
+        agentName: agent.name,
+        response: result.response || result.message,
+      })
+    } catch (error: any) {
+      return JSON.stringify({
+        success: false,
+        error: `에이전트 호출 중 오류: ${error.message}`,
+      })
+    }
   },
 })
 
-// 19. 에이전트 상태 조회 도구
+// 19. 에이전트 상태 조회 도구 (실제 구현)
 export const getAgentStatusTool = new DynamicStructuredTool({
   name: 'get_agent_status',
-  description: '특정 에이전트 또는 모든 에이전트의 현재 상태를 조회합니다.',
+  description: '배포된 에이전트 목록과 상태를 조회합니다.',
   schema: z.object({
-    agent: z.enum(['planner', 'implementer', 'tester', 'reviewer', 'all']).optional().describe('조회할 에이전트 (기본: all)'),
+    agentId: z.string().optional().describe('특정 에이전트 ID'),
+    agentName: z.string().optional().describe('에이전트 이름 검색'),
   }),
   func: async (params) => {
-    return JSON.stringify({
-      success: true,
-      message: '에이전트 상태를 조회합니다.',
-      action: {
-        type: 'get_agent_status',
-        data: {
-          targetAgent: params.agent || 'all',
-        },
+    const ctx = getAgentExecutionContext()
+    const supabase = createAdminClient()
+
+    try {
+      let query = supabase
+        .from('deployed_agents')
+        .select('id, name, description, status, last_active_at, model, capabilities')
+
+      if (params.agentId) {
+        query = query.eq('id', params.agentId)
+      } else if (params.agentName) {
+        query = query.ilike('name', `%${params.agentName}%`)
+      } else {
+        // 사용자의 에이전트만 조회
+        const companyId = ctx.companyId || '00000000-0000-0000-0000-000000000001'
+        query = query.eq('company_id', companyId)
       }
-    })
+
+      const { data: agents, error } = await query.limit(10)
+
+      if (error) {
+        return JSON.stringify({
+          success: false,
+          error: `에이전트 조회 실패: ${error.message}`,
+        })
+      }
+
+      if (!agents || agents.length === 0) {
+        return JSON.stringify({
+          success: true,
+          message: '배포된 에이전트가 없습니다.',
+          agents: [],
+        })
+      }
+
+      const agentList = agents.map(a => ({
+        id: a.id,
+        name: a.name,
+        description: a.description,
+        status: a.status,
+        model: a.model,
+        capabilities: a.capabilities,
+      }))
+
+      console.log('[get_agent_status] ✅ Found', agents.length, 'agents')
+
+      return JSON.stringify({
+        success: true,
+        message: `에이전트 ${agents.length}개를 찾았습니다.`,
+        agents: agentList,
+      })
+    } catch (error: any) {
+      return JSON.stringify({
+        success: false,
+        error: `에이전트 상태 조회 중 오류: ${error.message}`,
+      })
+    }
   },
 })
 
 // ============================================
-// 🔥 Flowchart 제어 도구
+// 🔥 Flowchart 제어 도구 (미구현 - 정직하게 알림)
 // ============================================
 
-// 20. Flowchart 노드 생성
+// 미구현 도구 헬퍼 함수
+const notImplementedResponse = (toolName: string, feature: string) => {
+  return JSON.stringify({
+    success: false,
+    error: `죄송합니다. "${toolName}" 기능은 아직 구현되지 않았습니다.`,
+    message: `${feature} 기능은 현재 개발 중입니다. 대신 다른 도구를 사용해주세요.`,
+    notImplemented: true,
+  })
+}
+
+// 20. Flowchart 노드 생성 (미구현)
 export const flowchartCreateNodeTool = new DynamicStructuredTool({
   name: 'flowchart_create_node',
-  description: `Flowchart(Mermaid 다이어그램)에 새 노드를 생성합니다.
-워크플로우, 프로세스, 시퀀스 다이어그램의 노드를 추가합니다.
-
-노드 모양:
-- rectangle: 기본 사각형 []
-- round: 둥근 모서리 ()
-- diamond: 다이아몬드/조건 {}
-- circle: 원형 (())
-- stadium: 스타디움 ([])`,
+  description: `⚠️ [미구현] Flowchart 노드 생성 기능은 아직 개발 중입니다.
+대신 create_node 도구를 사용하여 뉴럴맵에 노드를 생성할 수 있습니다.`,
   schema: z.object({
-    id: z.string().describe('노드 ID (고유값)'),
-    label: z.string().describe('노드에 표시될 텍스트'),
-    shape: z.enum(['rectangle', 'round', 'diamond', 'circle', 'stadium']).optional().describe('노드 모양'),
-    style: z.string().optional().describe('CSS 스타일 (예: "fill:#f9f,stroke:#333")'),
-    position: z.object({
-      x: z.number(),
-      y: z.number(),
-    }).optional().describe('노드 위치'),
+    id: z.string().describe('노드 ID'),
+    label: z.string().describe('노드 라벨'),
   }),
-  func: async (params) => {
-    return JSON.stringify({
-      success: true,
-      message: `Flowchart 노드 "${params.label}" 생성을 준비했습니다.`,
-      action: {
-        type: 'flowchart_create_node',
-        data: {
-          nodeId: params.id,
-          label: params.label,
-          shape: params.shape || 'rectangle',
-          style: params.style,
-          position: params.position,
-        },
-      }
-    })
-  },
+  func: async () => notImplementedResponse('flowchart_create_node', 'Flowchart 노드 생성'),
 })
 
-// 21. Flowchart 노드 수정
+// 21. Flowchart 노드 수정 (미구현)
 export const flowchartUpdateNodeTool = new DynamicStructuredTool({
   name: 'flowchart_update_node',
-  description: 'Flowchart의 기존 노드를 수정합니다.',
+  description: '⚠️ [미구현] Flowchart 노드 수정 기능은 아직 개발 중입니다.',
   schema: z.object({
-    id: z.string().describe('수정할 노드 ID'),
-    label: z.string().optional().describe('새 라벨'),
-    shape: z.enum(['rectangle', 'round', 'diamond', 'circle', 'stadium']).optional().describe('새 모양'),
-    style: z.string().optional().describe('새 스타일'),
-    position: z.object({
-      x: z.number(),
-      y: z.number(),
-    }).optional().describe('새 위치'),
+    id: z.string().describe('노드 ID'),
   }),
-  func: async (params) => {
-    return JSON.stringify({
-      success: true,
-      message: `Flowchart 노드 "${params.id}" 수정을 준비했습니다.`,
-      action: {
-        type: 'flowchart_update_node',
-        data: params,
-      }
-    })
-  },
+  func: async () => notImplementedResponse('flowchart_update_node', 'Flowchart 노드 수정'),
 })
 
-// 22. Flowchart 노드 삭제
+// 22. Flowchart 노드 삭제 (미구현)
 export const flowchartDeleteNodeTool = new DynamicStructuredTool({
   name: 'flowchart_delete_node',
-  description: 'Flowchart에서 노드를 삭제합니다. 연결된 엣지도 함께 삭제됩니다.',
+  description: '⚠️ [미구현] Flowchart 노드 삭제 기능은 아직 개발 중입니다.',
   schema: z.object({
-    id: z.string().describe('삭제할 노드 ID'),
+    id: z.string().describe('노드 ID'),
   }),
-  func: async (params) => {
-    return JSON.stringify({
-      success: true,
-      message: `Flowchart 노드 "${params.id}" 삭제를 준비했습니다.`,
-      action: {
-        type: 'flowchart_delete_node',
-        data: {
-          nodeId: params.id,
-        },
-      }
-    })
-  },
+  func: async () => notImplementedResponse('flowchart_delete_node', 'Flowchart 노드 삭제'),
 })
 
-// 23. Flowchart 엣지 생성
+// 23. Flowchart 엣지 생성 (미구현)
 export const flowchartCreateEdgeTool = new DynamicStructuredTool({
   name: 'flowchart_create_edge',
-  description: `Flowchart에서 두 노드를 연결하는 엣지를 생성합니다.
-
-엣지 타입:
-- arrow: 화살표 -->
-- line: 직선 ---
-- dotted: 점선 -.->
-- thick: 두꺼운 선 ==>`,
+  description: `⚠️ [미구현] Flowchart 엣지 생성 기능은 아직 개발 중입니다.
+대신 create_edge 도구를 사용하여 뉴럴맵에서 연결을 생성할 수 있습니다.`,
   schema: z.object({
     source: z.string().describe('시작 노드 ID'),
     target: z.string().describe('대상 노드 ID'),
-    label: z.string().optional().describe('엣지 라벨'),
-    type: z.enum(['arrow', 'line', 'dotted', 'thick']).optional().describe('엣지 타입'),
   }),
-  func: async (params) => {
-    return JSON.stringify({
-      success: true,
-      message: `Flowchart 엣지 생성: ${params.source} → ${params.target}`,
-      action: {
-        type: 'flowchart_create_edge',
-        data: {
-          sourceId: params.source,
-          targetId: params.target,
-          label: params.label,
-          edgeType: params.type || 'arrow',
-        },
-      }
-    })
-  },
+  func: async () => notImplementedResponse('flowchart_create_edge', 'Flowchart 엣지 생성'),
 })
 
-// 24. Flowchart 엣지 삭제
+// 24. Flowchart 엣지 삭제 (미구현)
 export const flowchartDeleteEdgeTool = new DynamicStructuredTool({
   name: 'flowchart_delete_edge',
-  description: 'Flowchart에서 엣지를 삭제합니다.',
+  description: '⚠️ [미구현] Flowchart 엣지 삭제 기능은 아직 개발 중입니다.',
   schema: z.object({
     source: z.string().describe('시작 노드 ID'),
     target: z.string().describe('대상 노드 ID'),
   }),
-  func: async (params) => {
-    return JSON.stringify({
-      success: true,
-      message: `Flowchart 엣지 삭제: ${params.source} → ${params.target}`,
-      action: {
-        type: 'flowchart_delete_edge',
-        data: {
-          sourceId: params.source,
-          targetId: params.target,
-        },
-      }
-    })
-  },
+  func: async () => notImplementedResponse('flowchart_delete_edge', 'Flowchart 엣지 삭제'),
 })
 
-// 25. Flowchart 그래프 조회
+// 25. Flowchart 그래프 조회 (미구현)
 export const flowchartGetGraphTool = new DynamicStructuredTool({
   name: 'flowchart_get_graph',
-  description: '현재 Flowchart의 전체 구조(노드와 엣지)를 조회합니다.',
+  description: `⚠️ [미구현] Flowchart 조회 기능은 아직 개발 중입니다.
+대신 get_graph 도구를 사용하여 뉴럴맵 그래프를 조회할 수 있습니다.`,
   schema: z.object({
-    includeStyles: z.boolean().optional().describe('스타일 정보 포함 여부'),
+    includeStyles: z.boolean().optional().describe('스타일 포함'),
   }),
-  func: async (params) => {
-    return JSON.stringify({
-      success: true,
-      message: 'Flowchart 그래프를 조회합니다.',
-      action: {
-        type: 'flowchart_get_graph',
-        data: {
-          includeStyles: params.includeStyles || false,
-        },
-      }
-    })
-  },
+  func: async () => notImplementedResponse('flowchart_get_graph', 'Flowchart 조회'),
 })
 
 // ============================================
-// 🔥 Blueprint 제어 도구
+// 🔥 Blueprint 제어 도구 (미구현 - 정직하게 알림)
 // ============================================
 
-// 26. Blueprint 태스크 생성
+// 26. Blueprint 태스크 생성 (미구현)
 export const blueprintCreateTaskTool = new DynamicStructuredTool({
   name: 'blueprint_create_task',
-  description: `Blueprint(프로젝트 계획)에 새 태스크를 생성합니다.
-프로젝트 마일스톤, 스프린트 태스크, 할 일 등을 관리합니다.`,
+  description: `⚠️ [미구현] Blueprint 태스크 생성 기능은 아직 개발 중입니다.
+대신 create_task 도구를 사용하여 프로젝트 태스크를 생성할 수 있습니다.`,
   schema: z.object({
     title: z.string().describe('태스크 제목'),
-    description: z.string().optional().describe('태스크 설명'),
-    status: z.enum(['todo', 'in_progress', 'review', 'done']).optional().describe('상태'),
-    priority: z.enum(['low', 'medium', 'high', 'urgent']).optional().describe('우선순위'),
-    assignee: z.string().optional().describe('담당 에이전트'),
-    dueDate: z.string().optional().describe('마감일 (YYYY-MM-DD)'),
-    parentId: z.string().optional().describe('상위 태스크 ID'),
-    dependencies: z.array(z.string()).optional().describe('의존 태스크 ID들'),
   }),
-  func: async (params) => {
-    return JSON.stringify({
-      success: true,
-      message: `Blueprint 태스크 "${params.title}" 생성을 준비했습니다.`,
-      action: {
-        type: 'blueprint_create_task',
-        data: {
-          title: params.title,
-          description: params.description,
-          status: params.status || 'todo',
-          priority: params.priority || 'medium',
-          assignee: params.assignee,
-          dueDate: params.dueDate,
-          parentId: params.parentId,
-          dependencies: params.dependencies || [],
-        },
-      }
-    })
-  },
+  func: async () => notImplementedResponse('blueprint_create_task', 'Blueprint 태스크 생성'),
 })
 
-// 27. Blueprint 태스크 수정
+// 27. Blueprint 태스크 수정 (미구현)
 export const blueprintUpdateTaskTool = new DynamicStructuredTool({
   name: 'blueprint_update_task',
-  description: 'Blueprint의 기존 태스크를 수정합니다.',
+  description: '⚠️ [미구현] Blueprint 태스크 수정 기능은 아직 개발 중입니다.',
   schema: z.object({
-    taskId: z.string().describe('수정할 태스크 ID'),
-    title: z.string().optional().describe('새 제목'),
-    description: z.string().optional().describe('새 설명'),
-    status: z.enum(['todo', 'in_progress', 'review', 'done']).optional().describe('새 상태'),
-    priority: z.enum(['low', 'medium', 'high', 'urgent']).optional().describe('새 우선순위'),
-    assignee: z.string().optional().describe('새 담당자'),
-    progress: z.number().min(0).max(100).optional().describe('진행률 (0-100)'),
+    taskId: z.string().describe('태스크 ID'),
   }),
-  func: async (params) => {
-    return JSON.stringify({
-      success: true,
-      message: `Blueprint 태스크 "${params.taskId}" 수정을 준비했습니다.`,
-      action: {
-        type: 'blueprint_update_task',
-        data: params,
-      }
-    })
-  },
+  func: async () => notImplementedResponse('blueprint_update_task', 'Blueprint 태스크 수정'),
 })
 
-// 28. Blueprint 태스크 삭제
+// 28. Blueprint 태스크 삭제 (미구현)
 export const blueprintDeleteTaskTool = new DynamicStructuredTool({
   name: 'blueprint_delete_task',
-  description: 'Blueprint에서 태스크를 삭제합니다.',
+  description: '⚠️ [미구현] Blueprint 태스크 삭제 기능은 아직 개발 중입니다.',
   schema: z.object({
-    taskId: z.string().describe('삭제할 태스크 ID'),
-    deleteChildren: z.boolean().optional().describe('하위 태스크도 함께 삭제'),
+    taskId: z.string().describe('태스크 ID'),
   }),
-  func: async (params) => {
-    return JSON.stringify({
-      success: true,
-      message: `Blueprint 태스크 "${params.taskId}" 삭제를 준비했습니다.`,
-      action: {
-        type: 'blueprint_delete_task',
-        data: params,
-      }
-    })
-  },
+  func: async () => notImplementedResponse('blueprint_delete_task', 'Blueprint 태스크 삭제'),
 })
 
-// 29. Blueprint 태스크 조회
+// 29. Blueprint 태스크 조회 (미구현)
 export const blueprintGetTasksTool = new DynamicStructuredTool({
   name: 'blueprint_get_tasks',
-  description: 'Blueprint의 태스크 목록을 조회합니다.',
+  description: `⚠️ [미구현] Blueprint 태스크 조회 기능은 아직 개발 중입니다.
+대신 list_projects 도구를 사용하여 프로젝트 목록을 조회할 수 있습니다.`,
   schema: z.object({
     status: z.enum(['todo', 'in_progress', 'review', 'done', 'all']).optional().describe('상태 필터'),
-    assignee: z.string().optional().describe('담당자 필터'),
-    priority: z.enum(['low', 'medium', 'high', 'urgent']).optional().describe('우선순위 필터'),
   }),
-  func: async (params) => {
-    return JSON.stringify({
-      success: true,
-      message: 'Blueprint 태스크 목록을 조회합니다.',
-      action: {
-        type: 'blueprint_get_tasks',
-        data: {
-          status: params.status || 'all',
-          assignee: params.assignee,
-          priority: params.priority,
-        },
-      }
-    })
-  },
+  func: async () => notImplementedResponse('blueprint_get_tasks', 'Blueprint 태스크 조회'),
 })
 
 // ============================================
-// 🔥 Agent Builder 워크플로우 제어 도구
+// 🔥 Agent Builder 워크플로우 제어 도구 (미구현 - 정직하게 알림)
 // ============================================
 
-// 30. Agent Builder 노드 생성
+// 30. Agent Builder 노드 생성 (미구현)
 export const agentBuilderCreateNodeTool = new DynamicStructuredTool({
   name: 'agent_create_node',
-  description: `Agent Builder 캔버스에 새 워크플로우 노드를 생성합니다.
-AI 에이전트 워크플로우의 각 단계를 노드로 표현합니다.
-
-노드 타입:
-- start: 워크플로우 시작점
-- end: 워크플로우 종료점
-- llm: LLM 텍스트 생성 (GPT, Claude 등)
-- prompt: 프롬프트 템플릿
-- router: 조건 분기 (if/else)
-- memory: 대화 메모리 저장/조회
-- tool: 외부 도구 호출
-- rag: RAG 검색
-- javascript: 커스텀 JS 코드 실행
-- function: 함수 호출
-- input: 사용자 입력
-- output: 결과 출력
-- image_generation: 이미지 생성`,
+  description: `⚠️ [미구현] Agent Builder 노드 생성 기능은 아직 개발 중입니다.
+이 기능은 Agent Builder UI에서만 사용 가능합니다.`,
   schema: z.object({
-    type: z.enum(['start', 'end', 'llm', 'prompt', 'router', 'memory', 'tool', 'rag', 'javascript', 'function', 'input', 'output', 'image_generation', 'embedding', 'evaluator', 'chain']).describe('노드 타입'),
-    label: z.string().describe('노드 라벨 (표시 이름)'),
-    config: z.any().describe('노드 설정 (model, temperature, prompt 등)').optional(),
-    position: z.object({
-      x: z.number(),
-      y: z.number(),
-    }).describe('노드 위치').optional(),
+    type: z.string().describe('노드 타입'),
+    label: z.string().describe('노드 라벨'),
   }),
-  func: async (params) => {
-    const pos = params.position || { x: Math.random() * 400 + 100, y: Math.random() * 300 + 100 }
-    return JSON.stringify({
-      success: true,
-      message: `Agent Builder 노드 "${params.label}" (${params.type}) 생성을 준비했습니다.`,
-      action: {
-        type: 'agent_create_node',
-        data: {
-          nodeType: params.type,
-          label: params.label,
-          config: params.config || {},
-          position: pos,
-        },
-      }
-    })
-  },
+  func: async () => notImplementedResponse('agent_create_node', 'Agent Builder 노드 생성'),
 })
 
-// 31. Agent Builder 노드 연결
+// 31. Agent Builder 노드 연결 (미구현)
 export const agentBuilderConnectNodesTool = new DynamicStructuredTool({
   name: 'agent_connect_nodes',
-  description: `Agent Builder에서 두 노드를 연결합니다.
-워크플로우의 실행 흐름을 정의합니다.`,
+  description: '⚠️ [미구현] Agent Builder 노드 연결 기능은 아직 개발 중입니다.',
   schema: z.object({
     sourceNodeId: z.string().describe('시작 노드 ID'),
     targetNodeId: z.string().describe('대상 노드 ID'),
-    sourceHandle: z.string().optional().describe('소스 핸들 (조건 분기 시)'),
-    label: z.string().optional().describe('연결 라벨'),
   }),
-  func: async (params) => {
-    return JSON.stringify({
-      success: true,
-      message: `노드 연결: ${params.sourceNodeId} → ${params.targetNodeId}`,
-      action: {
-        type: 'agent_connect_nodes',
-        data: params,
-      }
-    })
-  },
+  func: async () => notImplementedResponse('agent_connect_nodes', 'Agent Builder 노드 연결'),
 })
 
-// 32. Agent Builder 노드 삭제
+// 32. Agent Builder 노드 삭제 (미구현)
 export const agentBuilderDeleteNodeTool = new DynamicStructuredTool({
   name: 'agent_delete_node',
-  description: 'Agent Builder에서 노드를 삭제합니다.',
+  description: '⚠️ [미구현] Agent Builder 노드 삭제 기능은 아직 개발 중입니다.',
   schema: z.object({
     nodeId: z.string().describe('삭제할 노드 ID'),
   }),
-  func: async (params) => {
-    return JSON.stringify({
-      success: true,
-      message: `Agent Builder 노드 "${params.nodeId}" 삭제를 준비했습니다.`,
-      action: {
-        type: 'agent_delete_node',
-        data: params,
-      }
-    })
-  },
+  func: async () => notImplementedResponse('agent_delete_node', 'Agent Builder 노드 삭제'),
 })
 
-// 33. Agent Builder 노드 수정
+// 33. Agent Builder 노드 수정 (미구현)
 export const agentBuilderUpdateNodeTool = new DynamicStructuredTool({
   name: 'agent_update_node',
-  description: 'Agent Builder 노드의 설정을 수정합니다.',
+  description: '⚠️ [미구현] Agent Builder 노드 수정 기능은 아직 개발 중입니다.',
   schema: z.object({
     nodeId: z.string().describe('수정할 노드 ID'),
-    label: z.string().describe('새 라벨').optional(),
-    config: z.any().describe('새 설정').optional(),
   }),
-  func: async (params) => {
-    return JSON.stringify({
-      success: true,
-      message: `Agent Builder 노드 "${params.nodeId}" 수정을 준비했습니다.`,
-      action: {
-        type: 'agent_update_node',
-        data: params,
-      }
-    })
-  },
+  func: async () => notImplementedResponse('agent_update_node', 'Agent Builder 노드 수정'),
 })
 
-// 34. Agent 워크플로우 생성 (AI가 자동으로 전체 워크플로우 생성)
+// 34. Agent 워크플로우 생성 (미구현)
 export const agentBuilderGenerateWorkflowTool = new DynamicStructuredTool({
   name: 'agent_generate_workflow',
-  description: `사용자의 요구사항을 바탕으로 전체 Agent 워크플로우를 자동 생성합니다.
-"고객 문의 분석 에이전트 만들어줘" 같은 요청에 사용합니다.
-
-이 도구는 노드들과 연결을 한번에 생성합니다.`,
+  description: '⚠️ [미구현] Agent 워크플로우 자동 생성 기능은 아직 개발 중입니다.',
   schema: z.object({
     name: z.string().describe('에이전트 이름'),
-    description: z.string().describe('에이전트 기능 설명'),
-    nodes: z.array(z.object({
-      id: z.string(),
-      type: z.string(),
-      label: z.string(),
-      config: z.any().optional(),
-      position: z.object({ x: z.number(), y: z.number() }),
-    })).describe('생성할 노드 목록'),
-    edges: z.array(z.object({
-      source: z.string(),
-      target: z.string(),
-      sourceHandle: z.string().optional(),
-      label: z.string().optional(),
-    })).describe('노드 연결 목록'),
+    description: z.string().describe('에이전트 설명'),
   }),
-  func: async (params) => {
-    return JSON.stringify({
-      success: true,
-      message: `Agent 워크플로우 "${params.name}" 생성을 준비했습니다. (노드 ${params.nodes.length}개, 연결 ${params.edges.length}개)`,
-      action: {
-        type: 'agent_generate_workflow',
-        data: {
-          name: params.name,
-          description: params.description,
-          nodes: params.nodes,
-          edges: params.edges,
-        },
-      }
-    })
-  },
+  func: async () => notImplementedResponse('agent_generate_workflow', 'Agent 워크플로우 생성'),
 })
 
-// 35. Agent 워크플로우 조회
+// 35. Agent 워크플로우 조회 (미구현)
 export const agentBuilderGetWorkflowTool = new DynamicStructuredTool({
   name: 'agent_get_workflow',
-  description: '현재 Agent Builder 캔버스의 워크플로우 상태를 조회합니다.',
+  description: `⚠️ [미구현] Agent 워크플로우 조회 기능은 아직 개발 중입니다.
+대신 get_agent_status 도구를 사용하여 배포된 에이전트 목록을 조회할 수 있습니다.`,
   schema: z.object({
-    includeConfig: z.boolean().optional().describe('노드 설정 포함 여부'),
+    includeConfig: z.boolean().optional().describe('설정 포함'),
   }),
-  func: async (params) => {
-    return JSON.stringify({
-      success: true,
-      message: 'Agent 워크플로우를 조회합니다.',
-      action: {
-        type: 'agent_get_workflow',
-        data: params,
-      }
-    })
-  },
+  func: async () => notImplementedResponse('agent_get_workflow', 'Agent 워크플로우 조회'),
 })
 
-// 36. Agent 배포
+// 36. Agent 배포 (미구현)
 export const agentBuilderDeployTool = new DynamicStructuredTool({
   name: 'agent_deploy',
-  description: `현재 Agent Builder의 워크플로우를 배포합니다.
-배포하면 에이전트가 실제로 사용 가능해집니다.`,
+  description: '⚠️ [미구현] Agent 배포 기능은 아직 개발 중입니다. Agent Builder UI에서 배포해주세요.',
   schema: z.object({
     name: z.string().describe('에이전트 이름'),
-    description: z.string().optional().describe('에이전트 설명'),
-    llmProvider: z.enum(['openai', 'anthropic', 'google', 'xai']).optional().describe('LLM 제공자'),
-    llmModel: z.string().optional().describe('LLM 모델'),
   }),
-  func: async (params) => {
-    return JSON.stringify({
-      success: true,
-      message: `Agent "${params.name}" 배포를 준비했습니다.`,
-      action: {
-        type: 'agent_deploy',
-        data: params,
-      }
-    })
-  },
+  func: async () => notImplementedResponse('agent_deploy', 'Agent 배포'),
 })
 
-// 37. Agent Builder 초기화 (새 캔버스)
+// 37. Agent Builder 초기화 (미구현)
 export const agentBuilderClearTool = new DynamicStructuredTool({
   name: 'agent_clear',
-  description: 'Agent Builder 캔버스를 초기화합니다. 모든 노드와 연결이 삭제됩니다.',
+  description: '⚠️ [미구현] Agent Builder 초기화 기능은 아직 개발 중입니다.',
   schema: z.object({
-    confirm: z.boolean().describe('초기화 확인 (true로 설정해야 실행됨)'),
+    confirm: z.boolean().describe('초기화 확인'),
   }),
-  func: async (params) => {
-    if (!params.confirm) {
-      return JSON.stringify({
-        success: false,
-        error: '초기화하려면 confirm: true를 설정해주세요.',
-      })
-    }
-    return JSON.stringify({
-      success: true,
-      message: 'Agent Builder 캔버스를 초기화합니다.',
-      action: {
-        type: 'agent_clear',
-        data: {},
-      }
-    })
-  },
+  func: async () => notImplementedResponse('agent_clear', 'Agent Builder 초기화'),
 })
 
 // ============================================
