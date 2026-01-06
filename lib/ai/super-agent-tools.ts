@@ -176,6 +176,24 @@ export const createProjectTool = new DynamicStructuredTool({
         console.log('[create_project] ✅ Created neural_map for project:', neuralMap.id)
       }
 
+      // 🔥 프로젝트를 에이전트에 연결 (워크스페이스에서 보이도록)
+      const agentId = ctx.agentId
+      if (agentId) {
+        const { error: linkError } = await supabase
+          .from('project_agents')
+          .insert({
+            project_id: data.id,
+            agent_id: agentId,
+            role: 'creator',
+          })
+
+        if (linkError) {
+          console.log('[create_project] ⚠️ Failed to link agent:', linkError.message)
+        } else {
+          console.log('[create_project] ✅ Linked project to agent:', agentId)
+        }
+      }
+
       // Context에 현재 프로젝트 ID 저장 (후속 파일 생성에서 사용)
       if (ctx) {
         (ctx as any).currentProjectId = data.id
