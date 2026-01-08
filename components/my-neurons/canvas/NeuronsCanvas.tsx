@@ -15,7 +15,8 @@ import {
 } from 'd3-force-3d'
 import { useMyNeuronsStore } from '@/lib/my-neurons/store'
 import { NODE_COLORS, STATUS_COLORS, CAMERA_SETTINGS } from '@/lib/my-neurons/constants'
-import type { MyNeuronNode, MyNeuronEdge } from '@/lib/my-neurons/types'
+import type { MyNeuronNode, MyNeuronEdge, ViewMode, MyNeuronType } from '@/lib/my-neurons/types'
+import { VIEW_MODE_CONFIG } from '@/lib/my-neurons/types'
 
 // ============================================
 // Types
@@ -249,6 +250,7 @@ function Scene({
   const selectedNodeIds = useMyNeuronsStore((s) => s.selectedNodeIds)
   const selectNode = useMyNeuronsStore((s) => s.selectNode)
   const showLabels = useMyNeuronsStore((s) => s.showLabels)
+  const viewMode = useMyNeuronsStore((s) => s.viewMode)
 
   // Local state
   const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null)
@@ -256,19 +258,77 @@ function Scene({
   const [simLinks, setSimLinks] = useState<SimLink[]>([])
   const simulationRef = useRef<any>(null)
 
+  // Get force config based on view mode
+  const forceConfig = VIEW_MODE_CONFIG[viewMode]?.forceConfig || VIEW_MODE_CONFIG.radial.forceConfig
+
+  // Type cluster positions for 'clusters' view mode
+  const TYPE_CLUSTER_POSITIONS: Record<MyNeuronType, { x: number; z: number }> = {
+    self: { x: 0, z: 0 },
+    project: { x: 150, z: 0 },
+    task: { x: 75, z: 130 },
+    doc: { x: -75, z: 130 },
+    person: { x: -150, z: 0 },
+    agent: { x: -75, z: -130 },
+    objective: { x: 75, z: -130 },
+    key_result: { x: 120, z: -80 },
+    decision: { x: 180, z: 60 },
+    memory: { x: -180, z: 60 },
+    workflow: { x: -120, z: -80 },
+    insight: { x: 0, z: 180 },
+    program: { x: 0, z: -180 },
+    application: { x: 100, z: 160 },
+    milestone: { x: -100, z: 160 },
+    budget: { x: -180, z: -60 },
+  }
+
   // Initialize simulation
   useEffect(() => {
     if (!graph?.nodes || graph.nodes.length === 0) return
 
-    // Create simulation nodes with initial positions
+    // Create simulation nodes with initial positions based on view mode
     const nodes: SimNode[] = graph.nodes.map((node, i) => {
       const angle = (i / graph.nodes.length) * Math.PI * 2
-      const radius = node.type === 'self' ? 0 : 100 + Math.random() * 50
+      let x: number, y: number, z: number
+
+      if (viewMode === 'clusters') {
+        // Cluster by type
+        const clusterPos = TYPE_CLUSTER_POSITIONS[node.type] || { x: 0, z: 0 }
+        x = node.position?.x ?? clusterPos.x + (Math.random() - 0.5) * 40
+        y = node.position?.y ?? (Math.random() - 0.5) * 30
+        z = node.position?.z ?? clusterPos.z + (Math.random() - 0.5) * 40
+      } else if (viewMode === 'roadmap') {
+        // Arrange by priority/importance horizontally
+        const priorityOrder = { critical: 0, high: 1, medium: 2, low: 3 }
+        const xPos = (priorityOrder[node.priority] || 2) * 80 - 120
+        x = node.position?.x ?? xPos + (Math.random() - 0.5) * 30
+        y = node.position?.y ?? (node.importance - 5) * 15
+        z = node.position?.z ?? (Math.random() - 0.5) * 100
+      } else if (viewMode === 'insights') {
+        // Place bottlenecks/urgent items closer to center
+        const isUrgent = node.status === 'blocked' || node.status === 'urgent'
+        const radius = isUrgent ? 50 + Math.random() * 30 : 120 + Math.random() * 80
+        x = node.position?.x ?? Math.cos(angle) * radius
+        y = node.position?.y ?? (isUrgent ? 20 : 0) + (Math.random() - 0.5) * 30
+        z = node.position?.z ?? Math.sin(angle) * radius
+      } else if (viewMode === 'pathfinder') {
+        // Spread out more to show connections
+        const radius = node.type === 'self' ? 0 : 150 + Math.random() * 50
+        x = node.position?.x ?? Math.cos(angle) * radius
+        y = node.position?.y ?? (Math.random() - 0.5) * 80
+        z = node.position?.z ?? Math.sin(angle) * radius
+      } else {
+        // Default radial
+        const radius = node.type === 'self' ? 0 : 100 + Math.random() * 50
+        x = node.position?.x ?? Math.cos(angle) * radius
+        y = node.position?.y ?? (Math.random() - 0.5) * 50
+        z = node.position?.z ?? Math.sin(angle) * radius
+      }
+
       return {
         ...node,
-        x: node.position?.x ?? Math.cos(angle) * radius,
-        y: node.position?.y ?? (Math.random() - 0.5) * 50,
-        z: node.position?.z ?? Math.sin(angle) * radius,
+        x,
+        y,
+        z,
       }
     })
 
@@ -287,19 +347,19 @@ function Scene({
       edge,
     }))
 
-    // Create simulation (3D)
+    // Create simulation (3D) with view-mode-specific configuration
     const simulation = forceSimulation(nodes)
       .numDimensions(3)
       .force(
         'link',
         forceLink(links)
           .id((d: any) => d.id)
-          .distance(60)
+          .distance(forceConfig.linkDistance)
           .strength(0.3)
       )
-      .force('charge', forceManyBody().strength(-100).distanceMax(300))
-      .force('center', forceCenter(0, 0, 0).strength(0.05))
-      .force('collision', forceCollide().radius(15).strength(0.8))
+      .force('charge', forceManyBody().strength(forceConfig.chargeStrength).distanceMax(300))
+      .force('center', forceCenter(0, 0, 0).strength(forceConfig.centerStrength))
+      .force('collision', forceCollide().radius(forceConfig.collideRadius).strength(0.8))
       .alphaDecay(0.02)
       .velocityDecay(0.4)
 
@@ -321,7 +381,7 @@ function Scene({
     return () => {
       simulation.stop()
     }
-  }, [graph?.nodes, graph?.edges])
+  }, [graph?.nodes, graph?.edges, viewMode, forceConfig])
 
   // Get node map for edge lookup
   const nodeMap = useMemo(() => {

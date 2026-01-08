@@ -671,11 +671,11 @@ export async function syncMyNeuronsGraph(
   const selfNode = createSelfNode(userId, userName)
   nodes.push(selfNode)
 
-  // 1. Projects
+  // 1. Projects (owner_id로 필터링)
   const { data: projects } = await supabase
     .from('projects')
-    .select('id, name, description, status, category, created_at, updated_at, user_id')
-    .eq('user_id', userId)
+    .select('id, name, description, status, category, created_at, updated_at, owner_id')
+    .eq('owner_id', userId)
     .limit(50) as { data: RawProject[] | null }
 
   if (projects) {

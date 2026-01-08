@@ -47,11 +47,11 @@ export async function POST(request: NextRequest) {
     const isImage = allowedImageTypes.includes(file.type)
     const isVideo = allowedVideoTypes.includes(file.type)
 
-    // 파일 크기 제한 (비디오: 100MB, 기타: 10MB)
-    const maxSize = isVideo ? 100 * 1024 * 1024 : 10 * 1024 * 1024
+    // 파일 크기 제한 (Supabase free tier: 50MB)
+    const maxSize = 50 * 1024 * 1024 // 50MB
     if (file.size > maxSize) {
       return NextResponse.json({
-        error: isVideo ? '비디오 파일 크기는 100MB 이하여야 합니다' : '파일 크기는 10MB 이하여야 합니다'
+        error: '파일 크기는 50MB 이하여야 합니다'
       }, { status: 400 })
     }
     const fileExt = file.name.split('.').pop()

@@ -22,6 +22,7 @@ import type {
   RightPanelTab,
   NodePosition,
   MyNeuronsTheme,
+  ViewMode,
 } from './types'
 import { createEmptyGraph } from './types'
 import {
@@ -49,6 +50,7 @@ interface MyNeuronsState {
 
   // === 뷰 상태 ===
   layoutMode: 'force' | 'radial' | 'tree'
+  viewMode: ViewMode
   filterByType: MyNeuronType[]
   filterByStatus: NeuronStatus[]
   showBottlenecksOnly: boolean
@@ -116,6 +118,7 @@ interface MyNeuronsActions {
 
   // === 뷰 ===
   setLayoutMode: (mode: 'force' | 'radial' | 'tree') => void
+  setViewMode: (mode: ViewMode) => void
   setFilterByType: (types: MyNeuronType[]) => void
   setFilterByStatus: (statuses: NeuronStatus[]) => void
   toggleBottlenecksOnly: () => void
@@ -168,6 +171,7 @@ const initialState: MyNeuronsState = {
   hoveredNodeId: null,
 
   layoutMode: 'radial',
+  viewMode: 'radial',
   filterByType: [],
   filterByStatus: [],
   showBottlenecksOnly: false,
@@ -368,6 +372,11 @@ export const useMyNeuronsStore = create<MyNeuronsState & MyNeuronsActions>()(
             state.layoutMode = mode
           }),
 
+        setViewMode: (mode) =>
+          set((state) => {
+            state.viewMode = mode
+          }),
+
         setFilterByType: (types) =>
           set((state) => {
             state.filterByType = types
@@ -560,6 +569,7 @@ export const useMyNeuronsStore = create<MyNeuronsState & MyNeuronsActions>()(
           leftPanelCollapsed: state.leftPanelCollapsed,
           rightPanelCollapsed: state.rightPanelCollapsed,
           layoutMode: state.layoutMode,
+          viewMode: state.viewMode,
           showLabels: state.showLabels,
         }),
       }

@@ -535,6 +535,79 @@ export interface SimulationLink {
 
 export type RightPanelTab = 'inspector' | 'insights' | 'actions' | 'settings'
 
+// ============================================
+// 뷰 모드 타입 (5가지 시각화 방식)
+// ============================================
+
+export type ViewMode =
+  | 'radial'      // 방사형: 중심에서 퍼지는 기본 레이아웃
+  | 'clusters'    // 클러스터: 타입별로 그룹화
+  | 'pathfinder'  // 경로찾기: 의존성/연결 강조
+  | 'roadmap'     // 로드맵: 시간/우선순위 기반 배치
+  | 'insights'    // 인사이트: 병목/중요도 강조
+
+export const VIEW_MODE_CONFIG: Record<ViewMode, {
+  label: string
+  description: string
+  forceConfig: {
+    linkDistance: number
+    chargeStrength: number
+    centerStrength: number
+    collideRadius: number
+  }
+}> = {
+  radial: {
+    label: 'Radial',
+    description: '중심에서 방사형으로 펼쳐지는 기본 뷰',
+    forceConfig: {
+      linkDistance: 60,
+      chargeStrength: -100,
+      centerStrength: 0.05,
+      collideRadius: 15,
+    },
+  },
+  clusters: {
+    label: 'Clusters',
+    description: '타입별로 클러스터링된 뷰',
+    forceConfig: {
+      linkDistance: 40,
+      chargeStrength: -150,
+      centerStrength: 0.02,
+      collideRadius: 20,
+    },
+  },
+  pathfinder: {
+    label: 'Pathfinder',
+    description: '의존성과 연결 경로 강조 뷰',
+    forceConfig: {
+      linkDistance: 80,
+      chargeStrength: -50,
+      centerStrength: 0.03,
+      collideRadius: 12,
+    },
+  },
+  roadmap: {
+    label: 'Roadmap',
+    description: '시간/우선순위 기반 로드맵 뷰',
+    forceConfig: {
+      linkDistance: 100,
+      chargeStrength: -80,
+      centerStrength: 0.01,
+      collideRadius: 18,
+    },
+  },
+  insights: {
+    label: 'Insights',
+    description: '병목과 중요도 중심 분석 뷰',
+    forceConfig: {
+      linkDistance: 50,
+      chargeStrength: -200,
+      centerStrength: 0.08,
+      collideRadius: 25,
+    },
+  },
+}
+
 export interface PanelState {
   leftPanelWidth: number
   rightPanelWidth: number

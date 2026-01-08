@@ -5,7 +5,8 @@ import { motion, AnimatePresence } from 'framer-motion'
 import {
   X, ZoomIn, ZoomOut, ChevronLeft, ChevronRight,
   Play, Pause, Volume2, VolumeX, Maximize2, Minimize2,
-  Hand, Share2, Download, FileText, Image as ImageIcon, Film
+  Hand, Share2, Download, FileText, Image as ImageIcon, Film,
+  Globe, RefreshCw
 } from 'lucide-react'
 import { SharedViewerState, SharedMediaType } from '@/types/chat'
 import { createClient } from '@/lib/supabase/client'
@@ -153,6 +154,7 @@ export function SharedViewer({ roomId, onClose, accentColor = '#3B82F6' }: Share
   // 미디어 타입 아이콘
   const MediaIcon = viewerState?.media_type === 'pdf' ? FileText
     : viewerState?.media_type === 'video' ? Film
+    : viewerState?.media_type === 'weblink' ? Globe
     : ImageIcon
 
   if (loading) {
@@ -291,6 +293,27 @@ export function SharedViewer({ roomId, onClose, accentColor = '#3B82F6' }: Share
                   }
                 }}
               />
+            </motion.div>
+          )}
+
+          {/* 웹링크 뷰어 */}
+          {viewerState.media_type === 'weblink' && (
+            <motion.div
+              key="weblink"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="absolute inset-0 flex items-center justify-center p-2"
+            >
+              <div className="w-full h-full bg-white rounded-lg shadow-2xl overflow-hidden">
+                <iframe
+                  src={viewerState.media_url}
+                  className="w-full h-full border-0"
+                  title={viewerState.media_name}
+                  sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
+                  style={{ transform: `scale(${viewerState.zoom_level || 1})`, transformOrigin: 'top left' }}
+                />
+              </div>
             </motion.div>
           )}
         </AnimatePresence>

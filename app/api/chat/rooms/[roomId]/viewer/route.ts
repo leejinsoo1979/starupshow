@@ -74,7 +74,7 @@ export async function POST(
 
     const body = await request.json()
     const { media_type, media_url, media_name, total_pages, duration } = body as {
-      media_type: SharedMediaType
+      media_type: 'pdf' | 'image' | 'video' | 'weblink'
       media_url: string
       media_name: string
       total_pages?: number

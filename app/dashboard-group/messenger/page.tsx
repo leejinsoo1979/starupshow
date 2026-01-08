@@ -613,6 +613,45 @@ export default function MessengerPage() {
     }
   }
 
+  // 🌐 웹 링크 공유 핸들러
+  const handleShareWebLink = async (url: string) => {
+    if (!activeRoomId || !url) return
+
+    try {
+      setUploading(true)
+
+      // URL에서 도메인 추출하여 이름으로 사용
+      let linkName = url
+      try {
+        const urlObj = new URL(url)
+        linkName = urlObj.hostname + urlObj.pathname.slice(0, 30)
+      } catch {
+        linkName = url.slice(0, 50)
+      }
+
+      // 공유 뷰어 시작
+      await startSharing({
+        url,
+        name: linkName,
+        type: 'weblink' as any,
+      })
+
+      setShowSharedViewer(true)
+
+      // 시스템 메시지로 공유 알림
+      await sendMessage(`[웹 링크 공유] ${linkName}`, {
+        message_type: 'system' as any,
+        metadata: { shared_weblink: true, url, linkName },
+      })
+
+    } catch (err) {
+      console.error('Share weblink failed:', err)
+      alert(err instanceof Error ? err.message : '웹 링크 공유에 실패했습니다')
+    } finally {
+      setUploading(false)
+    }
+  }
+
   // 🔭 MeetingVoiceChat에서 파일/뷰파인더 캡처 공유 핸들러
   const handleMeetingShareFile = async (
     input: File | { dataUrl: string; name: string; type: string }
@@ -1251,8 +1290,10 @@ export default function MessengerPage() {
                     자료 공유 대기중
                   </h3>
                   <p className={`text-sm text-center mb-6 max-w-xs ${isDark ? 'text-zinc-500' : 'text-zinc-500'}`}>
-                    PDF, 이미지, 비디오 파일을 공유하여 회의 참가자들과 함께 볼 수 있습니다
+                    PDF, 이미지, 비디오 파일 또는 웹 링크를 공유하여 회의 참가자들과 함께 볼 수 있습니다
                   </p>
+
+                  {/* 파일 공유 버튼 */}
                   <Button
                     onClick={() => shareInputRef.current?.click()}
                     disabled={uploading}
@@ -1266,6 +1307,48 @@ export default function MessengerPage() {
                     )}
                     {uploading ? '업로드 중...' : '파일 공유하기'}
                   </Button>
+
+                  {/* 웹 링크 공유 */}
+                  <div className="mt-4 w-full max-w-xs">
+                    <div className="flex gap-2">
+                      <input
+                        type="url"
+                        placeholder="https://..."
+                        className={`flex-1 px-3 py-2 text-sm rounded-lg border ${
+                          isDark
+                            ? 'bg-zinc-800 border-zinc-700 text-white placeholder:text-zinc-500'
+                            : 'bg-white border-zinc-300 text-zinc-900 placeholder:text-zinc-400'
+                        }`}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            const input = e.currentTarget
+                            const url = input.value.trim()
+                            if (url && url.startsWith('http')) {
+                              handleShareWebLink(url)
+                              input.value = ''
+                            }
+                          }
+                        }}
+                      />
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={(e) => {
+                          const input = (e.currentTarget.previousElementSibling as HTMLInputElement)
+                          const url = input?.value?.trim()
+                          if (url && url.startsWith('http')) {
+                            handleShareWebLink(url)
+                            input.value = ''
+                          }
+                        }}
+                        className="gap-1"
+                      >
+                        <Globe className="w-4 h-4" />
+                        공유
+                      </Button>
+                    </div>
+                  </div>
+
                   <div className={`mt-6 flex items-center gap-4 text-xs ${isDark ? 'text-zinc-600' : 'text-zinc-400'}`}>
                     <span className="flex items-center gap-1">
                       <FileText className="w-3 h-3" /> PDF
@@ -1275,6 +1358,9 @@ export default function MessengerPage() {
                     </span>
                     <span className="flex items-center gap-1">
                       <Film className="w-3 h-3" /> 비디오
+                    </span>
+                    <span className="flex items-center gap-1">
+                      <Globe className="w-3 h-3" /> 웹링크
                     </span>
                   </div>
                 </div>

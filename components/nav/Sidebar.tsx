@@ -36,6 +36,7 @@ import {
 } from 'lucide-react'
 import { TbBrandWechat } from 'react-icons/tb'
 import { GrConnect } from 'react-icons/gr'
+import { FaLaptopCode } from 'react-icons/fa6'
 
 const navigation = [
   { name: '대시보드', href: '/dashboard-group', icon: LayoutDashboard },
@@ -49,7 +50,7 @@ const navigation = [
   { name: '이메일', href: '/dashboard-group/email', icon: Mail },
   { name: '워크플로우', href: '/dashboard-group/workflows', icon: Workflow },
   { name: 'AI 에이전트', href: '/dashboard-group/agents', icon: BrainCircuit },
-  { name: '뉴럴맵', href: '/dashboard-group/neural-map', icon: Orbit },
+  { name: 'AI 코딩', href: '/dashboard-group/neural-map', icon: FaLaptopCode },
   { name: '마이뉴런', href: '/dashboard-group/neurons', icon: Brain },
   { name: '리포트', href: '/dashboard-group/reports', icon: FileText },
   { name: '커넥트', href: '/dashboard-group/connect', icon: GrConnect },

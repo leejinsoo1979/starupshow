@@ -191,7 +191,7 @@ export interface RealtimeTypingEvent {
 }
 
 // 공유 뷰어 타입
-export type SharedMediaType = 'pdf' | 'image' | 'video'
+export type SharedMediaType = 'pdf' | 'image' | 'video' | 'weblink'
 
 // Selection 타입 (텍스트/영역 선택)
 export interface ViewerSelection {
