@@ -560,10 +560,10 @@ export const VIEW_MODE_CONFIG: Record<ViewMode, {
     label: 'Radial',
     description: '중심에서 방사형으로 펼쳐지는 기본 뷰',
     forceConfig: {
-      linkDistance: 60,
-      chargeStrength: -100,
-      centerStrength: 0.05,
-      collideRadius: 15,
+      linkDistance: 150,       // Push links further apart
+      chargeStrength: -500,    // Much stronger repulsion
+      centerStrength: 0.01,    // Weaker center pull
+      collideRadius: 30,       // Bigger collision radius
     },
   },
   clusters: {

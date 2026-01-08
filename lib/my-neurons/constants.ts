@@ -16,21 +16,21 @@ import type {
 
 export const NODE_COLORS: Record<MyNeuronType, string> = {
   self: '#FFD700',        // 골드 (중앙)
-  project: '#10B981',     // 에메랄드
+  project: '#22C55E',     // 밝은 그린
   task: '#3B82F6',        // 블루
-  doc: '#6366F1',         // 인디고
-  person: '#0EA5E9',      // 스카이블루
-  agent: '#8B5CF6',       // 퍼플
-  objective: '#F59E0B',   // 앰버
-  key_result: '#F97316',  // 오렌지
-  decision: '#EF4444',    // 레드
-  memory: '#14B8A6',      // 틸
-  workflow: '#84CC16',    // 라임
+  doc: '#F472B6',         // 핑크 (사업계획서)
+  person: '#38BDF8',      // 스카이블루
+  agent: '#A78BFA',       // 연한 퍼플
+  objective: '#FBBF24',   // 옐로
+  key_result: '#FB923C',  // 오렌지
+  decision: '#F87171',    // 밝은 레드
+  memory: '#2DD4BF',      // 틸
+  workflow: '#A3E635',    // 라임
   insight: '#22D3EE',     // 시안
-  program: '#EC4899',     // 핑크
-  application: '#A855F7', // 바이올렛
-  milestone: '#06B6D4',   // 시안
-  budget: '#78716C',      // 스톤
+  program: '#F472B6',     // 핑크
+  application: '#C084FC', // 바이올렛
+  milestone: '#67E8F9',   // 밝은 시안
+  budget: '#A8A29E',      // 스톤
 }
 
 // ============================================
@@ -142,13 +142,13 @@ export const CAMERA_SETTINGS = {
   fov: 60,
   near: 0.1,
   far: 10000,
-  initialPosition: { x: 0, y: 50, z: 200 },
+  initialPosition: { x: 0, y: 200, z: 400 },  // Further away to see all nodes
   initialTarget: { x: 0, y: 0, z: 0 },
   dampingFactor: 0.05,
-  minDistance: 50,
+  minDistance: 40,
   maxDistance: 2000,
   focusDuration: 0.8,
-  focusOffset: 80,
+  focusOffset: 50,
 }
 
 // ============================================
@@ -192,9 +192,9 @@ export interface RadialLayoutConfig {
 
 export const DEFAULT_RADIAL_CONFIG: RadialLayoutConfig = {
   centerNode: '',       // Self ID (런타임 설정)
-  ringGap: 100,         // 링 간격
+  ringGap: 80,          // 링 간격
   angleSpread: 360,     // 노드 분산 각도
-  jitter: 0.05,         // 위치 랜덤성
+  jitter: 0.1,          // 위치 랜덤성
 }
 
 // ============================================

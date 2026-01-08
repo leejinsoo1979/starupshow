@@ -25,6 +25,7 @@ export function SharedViewer({ roomId, onClose, accentColor = '#3B82F6' }: Share
   const [isFullscreen, setIsFullscreen] = useState(false)
   const [pdfPages, setPdfPages] = useState<string[]>([])
   const [urlInput, setUrlInput] = useState('')
+  const [iframeError, setIframeError] = useState(false)
   const iframeRef = useRef<HTMLIFrameElement>(null)
 
   const videoRef = useRef<HTMLVideoElement>(null)
@@ -58,6 +59,11 @@ export function SharedViewer({ roomId, onClose, accentColor = '#3B82F6' }: Share
     const interval = setInterval(fetchViewerState, 500)
     return () => clearInterval(interval)
   }, [fetchViewerState])
+
+  // URL 변경 시 iframe 에러 상태 초기화
+  useEffect(() => {
+    setIframeError(false)
+  }, [viewerState?.media_url])
 
   // 비디오 싱크
   useEffect(() => {
@@ -179,7 +185,7 @@ export function SharedViewer({ roomId, onClose, accentColor = '#3B82F6' }: Share
   return (
     <div
       ref={containerRef}
-      className="flex flex-col h-full bg-zinc-900/95 text-white"
+      className="flex flex-col h-full bg-zinc-900/95 text-white relative"
     >
       {/* 헤더 */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-zinc-700/50 bg-zinc-800/50">
@@ -237,15 +243,15 @@ export function SharedViewer({ roomId, onClose, accentColor = '#3B82F6' }: Share
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="absolute inset-0 flex items-center justify-center p-4"
+              className="absolute inset-0 flex items-center justify-center p-2"
             >
               <div
-                className="relative bg-white rounded-lg shadow-2xl overflow-hidden"
-                style={{ transform: `scale(${viewerState.zoom_level || 1})` }}
+                className="w-full h-full bg-white rounded-lg shadow-2xl overflow-hidden"
+                style={{ transform: `scale(${viewerState.zoom_level || 1})`, transformOrigin: 'center center' }}
               >
                 <iframe
                   src={`${viewerState.media_url}#page=${viewerState.current_page || 1}`}
-                  className="w-[800px] h-[600px]"
+                  className="w-full h-full border-0"
                   title={viewerState.media_name}
                 />
               </div>
@@ -305,50 +311,58 @@ export function SharedViewer({ roomId, onClose, accentColor = '#3B82F6' }: Share
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="absolute inset-0 flex flex-col"
+              className="absolute inset-0 flex flex-col overflow-hidden"
             >
-              {/* 🌐 브라우저 스타일 상단 툴바 */}
-              <div className="flex items-center gap-2 px-3 py-2 bg-zinc-800 border-b border-zinc-700">
-                {/* 새로고침 */}
+              {/* 상단 URL 바 */}
+              <div className="shrink-0 h-12 px-3 flex items-center gap-3 bg-zinc-800 border-b border-zinc-700">
+                {/* 새로고침 버튼 */}
                 <button
-                  onClick={() => {
-                    if (iframeRef.current) {
-                      iframeRef.current.src = iframeRef.current.src
-                    }
-                  }}
-                  className="p-1.5 rounded hover:bg-zinc-700 text-zinc-400 hover:text-white transition-colors"
+                  onClick={() => iframeRef.current && (iframeRef.current.src = iframeRef.current.src)}
+                  className="shrink-0 w-8 h-8 flex items-center justify-center rounded-md hover:bg-zinc-700 text-zinc-400 hover:text-white"
                   title="새로고침"
                 >
                   <RefreshCw className="w-4 h-4" />
                 </button>
 
                 {/* URL 입력창 */}
-                <div className="flex-1 flex items-center bg-zinc-900 rounded-lg border border-zinc-700 focus-within:border-blue-500">
-                  <Globe className="w-4 h-4 text-zinc-500 ml-3" />
+                <div className="flex-1 h-8 flex items-center gap-2 px-3 bg-zinc-900 rounded-md border border-zinc-600 focus-within:border-blue-500">
+                  <Globe className="shrink-0 w-4 h-4 text-zinc-500" />
                   <input
-                    type="url"
+                    type="text"
                     value={urlInput || viewerState.media_url}
                     onChange={(e) => setUrlInput(e.target.value)}
                     onFocus={() => setUrlInput(viewerState.media_url)}
+                    onBlur={() => setUrlInput('')}
                     onKeyDown={async (e) => {
-                      if (e.key === 'Enter' && urlInput && urlInput !== viewerState.media_url) {
-                        // URL 변경 요청
-                        try {
-                          await fetch(`/api/chat/rooms/${roomId}/viewer`, {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({
-                              media_type: 'weblink',
-                              media_url: urlInput,
-                              media_name: new URL(urlInput).hostname,
-                            }),
-                          })
-                        } catch (err) {
-                          console.error('Failed to navigate:', err)
+                      if (e.key === 'Enter') {
+                        const url = e.currentTarget.value.trim()
+                        if (url && url.startsWith('http')) {
+                          try {
+                            // API로 URL 업데이트
+                            await fetch(`/api/chat/rooms/${roomId}/viewer`, {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({
+                                media_type: 'weblink',
+                                media_url: url,
+                                media_name: new URL(url).hostname,
+                              }),
+                            })
+                            // 즉시 상태 갱신
+                            await fetchViewerState()
+                            // 입력창 포커스 해제
+                            e.currentTarget.blur()
+                            setUrlInput('')
+                          } catch (err) {
+                            console.error('Navigation failed:', err)
+                          }
                         }
+                      } else if (e.key === 'Escape') {
+                        setUrlInput('')
+                        e.currentTarget.blur()
                       }
                     }}
-                    className="flex-1 bg-transparent text-sm text-zinc-200 px-2 py-1.5 outline-none"
+                    className="flex-1 w-full bg-transparent text-sm text-zinc-200 outline-none"
                     placeholder="URL 입력 후 Enter"
                   />
                 </div>
@@ -358,23 +372,59 @@ export function SharedViewer({ roomId, onClose, accentColor = '#3B82F6' }: Share
                   href={viewerState.media_url}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="p-1.5 rounded hover:bg-zinc-700 text-zinc-400 hover:text-white transition-colors"
+                  className="shrink-0 w-8 h-8 flex items-center justify-center rounded-md hover:bg-zinc-700 text-zinc-400 hover:text-white"
                   title="새 탭에서 열기"
                 >
                   <Maximize2 className="w-4 h-4" />
                 </a>
               </div>
 
-              {/* iframe 콘텐츠 */}
-              <div className="flex-1 bg-white overflow-hidden">
-                <iframe
-                  ref={iframeRef}
-                  src={convertToEmbedUrl(viewerState.media_url)}
-                  className="w-full h-full border-0"
-                  title={viewerState.media_name}
-                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                  allowFullScreen
-                />
+              {/* iframe 또는 차단 시 대체 UI */}
+              <div className="flex-1 overflow-hidden bg-zinc-900 relative">
+                {iframeError ? (
+                  /* 차단된 사이트 대체 UI */
+                  <div className="absolute inset-0 flex flex-col items-center justify-center gap-6 p-8">
+                    <div className="w-20 h-20 rounded-full bg-zinc-800 flex items-center justify-center">
+                      <Globe className="w-10 h-10 text-zinc-500" />
+                    </div>
+                    <div className="text-center">
+                      <h3 className="text-lg font-medium text-zinc-200 mb-2">
+                        이 사이트는 미리보기를 지원하지 않습니다
+                      </h3>
+                      <p className="text-sm text-zinc-400 max-w-md">
+                        {new URL(viewerState.media_url).hostname}은(는) 보안 정책으로 인해<br />
+                        외부 임베딩을 차단하고 있습니다.
+                      </p>
+                    </div>
+                    <a
+                      href={viewerState.media_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="px-6 py-3 bg-blue-600 hover:bg-blue-500 text-white font-medium rounded-lg transition-colors flex items-center gap-2"
+                    >
+                      <Maximize2 className="w-5 h-5" />
+                      새 탭에서 열기
+                    </a>
+                  </div>
+                ) : (
+                  /* 정상 iframe */
+                  <iframe
+                    key={viewerState.media_url}
+                    ref={iframeRef}
+                    src={convertToEmbedUrl(viewerState.media_url)}
+                    className="w-full h-full border-0 bg-white"
+                    title={viewerState.media_name}
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                    allowFullScreen
+                    onLoad={(e) => {
+                      // iframe 로드 성공 시 에러 상태 초기화
+                      setIframeError(false)
+                    }}
+                    onError={() => {
+                      setIframeError(true)
+                    }}
+                  />
+                )}
               </div>
             </motion.div>
           )}
@@ -529,8 +579,25 @@ function convertToEmbedUrl(url: string): string {
       }
     }
 
-    // 그 외는 원본 URL 반환
-    return url
+    // 네이티브 임베드 지원 사이트 목록
+    const nativeEmbedDomains = [
+      'youtube.com', 'youtu.be', 'vimeo.com',
+      'docs.google.com', 'figma.com', 'canva.com',
+      'codepen.io', 'codesandbox.io', 'stackblitz.com',
+      'notion.so', 'miro.com', 'loom.com',
+      'spotify.com', 'soundcloud.com'
+    ]
+
+    // 네이티브 임베드 지원 사이트는 원본 URL 반환
+    const isNativeEmbed = nativeEmbedDomains.some(domain =>
+      urlObj.hostname.includes(domain)
+    )
+    if (isNativeEmbed) {
+      return url
+    }
+
+    // 그 외 사이트는 프록시 사용
+    return `/api/proxy?url=${encodeURIComponent(url)}`
   } catch {
     return url
   }

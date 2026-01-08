@@ -651,166 +651,179 @@ export default function BusinessPlanPage() {
             </div>
 
             <div className="relative z-10 text-center max-w-xl">
-              {generating ? (
-                /* 생성 중 화면 */
-                <div className="space-y-8">
-                  {/* 로딩 애니메이션 */}
-                  <div className="relative mx-auto w-32 h-32">
-                    {/* 외부 링 */}
-                    <div
-                      className="absolute inset-0 rounded-full border-4 border-transparent animate-spin"
-                      style={{
-                        borderTopColor: themeColor,
-                        borderRightColor: `${themeColor}50`,
-                        animationDuration: '2s'
-                      }}
-                    />
-                    {/* 중간 링 */}
-                    <div
-                      className="absolute inset-3 rounded-full border-4 border-transparent animate-spin"
-                      style={{
-                        borderBottomColor: themeColor,
-                        borderLeftColor: `${themeColor}30`,
-                        animationDuration: '1.5s',
-                        animationDirection: 'reverse'
-                      }}
-                    />
-                    {/* 중앙 아이콘 */}
-                    <div
-                      className="absolute inset-6 rounded-full flex items-center justify-center"
-                      style={{ background: `linear-gradient(135deg, ${themeColor}30, ${themeColor}10)` }}
-                    >
-                      <Sparkles className="w-10 h-10 animate-pulse" style={{ color: themeColor }} />
-                    </div>
-                  </div>
-
-                  {/* 텍스트 */}
-                  <div className="space-y-3">
-                    <h2 className="text-3xl font-bold text-white">
-                      AI가 작성 중입니다
-                    </h2>
-                    <p className="text-zinc-400 text-lg">
-                      {program?.title}
-                    </p>
-                  </div>
-
-                  {/* 진행 상태 */}
-                  <div className="space-y-4 max-w-sm mx-auto">
-                    <div className="h-1.5 bg-zinc-800 rounded-full overflow-hidden relative">
-                      <div
-                        className="absolute inset-0 rounded-full"
-                        style={{
-                          background: `linear-gradient(90deg, transparent, ${themeColor}, transparent)`,
-                          animation: 'loading-slide 1.5s ease-in-out infinite'
-                        }}
-                      />
-                    </div>
-                    <div className="flex items-center justify-center gap-2 text-sm text-zinc-500">
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                      <span>사업계획서 생성 중... 약 1-2분 소요</span>
-                    </div>
-                  </div>
-
-                  {/* 생성 단계 표시 */}
-                  <div className="grid grid-cols-3 gap-3 max-w-md mx-auto">
-                    {['회사 분석', '공고 분석', '계획서 작성'].map((step, i) => (
-                      <div
-                        key={step}
-                        className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs"
-                        style={{
-                          background: i === 2 ? `${themeColor}20` : 'rgba(255,255,255,0.05)',
-                          color: i === 2 ? themeColor : '#a1a1aa'
-                        }}
-                      >
-                        {i < 2 ? (
-                          <Check className="w-3.5 h-3.5" />
-                        ) : (
-                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                        )}
-                        {step}
+                /* 생성 중 화면: Split View (좌: 상태 / 우: 공고 내용 참조) */
+              <div className="w-full h-full flex flex-row items-stretch text-left">
+                {/* Left: Status Panel */}
+                <div className="w-[400px] flex-shrink-0 flex flex-col justify-center p-8 border-r border-white/10 relative">
+                  <div className="space-y-8 relative z-10">
+                    {/* 로딩 애니메이션 (축소판) */}
+                    <div className="relative w-24 h-24">
+                      <div className="absolute inset-0 rounded-full border-4 border-transparent animate-spin"
+                        style={{ borderTopColor: themeColor, borderRightColor: `${themeColor}50` }} />
+                      <div className="absolute inset-3 rounded-full border-4 border-transparent animate-spin"
+                        style={{ borderBottomColor: themeColor, borderLeftColor: `${themeColor}30`, animationDirection: 'reverse' }} />
+                      <div className="absolute inset-6 rounded-full flex items-center justify-center bg-white/5">
+                        <Sparkles className="w-8 h-8 animate-pulse" style={{ color: themeColor }} />
                       </div>
-                    ))}
+                    </div>
+
+                    <div className="space-y-2">
+                      <h2 className="text-2xl font-bold text-white leading-tight">
+                        AI가 사업계획서를<br />생성하고 있습니다
+                      </h2>
+                      <p className="text-zinc-400 text-sm">
+                        공고문 내용을 분석하여<br />최적의 전략을 수립하는 중입니다.
+                      </p>
+                    </div>
+
+                    {/* 진행 로그 시뮬레이션 */}
+                    <div className="bg-black/40 rounded-xl p-4 border border-white/5 space-y-3 font-mono text-xs">
+                      <div className="flex items-center gap-2 text-green-400">
+                        <CheckCircle2 className="w-3 h-3" />
+                        <span>공고문 PDF 텍스트 추출 완료</span>
+                      </div>
+                      <div className="flex items-center gap-2 text-green-400">
+                        <CheckCircle2 className="w-3 h-3" />
+                        <span>기업 데이터(마이뉴런) 로드 완료</span>
+                      </div>
+                      <div className="flex items-center gap-2 text-zinc-300 animate-pulse">
+                        <Loader2 className="w-3 h-3 animate-spin" />
+                        <span>섹션별 초안 작성 중... ({Math.floor(generationProgress)}%)</span>
+                      </div>
+                      <div className="h-1 bg-zinc-800 rounded-full overflow-hidden mt-2">
+                        <div className="h-full bg-blue-500 transition-all duration-300" style={{ width: `${generationProgress}%` }} />
+                      </div>
+                    </div>
+
+                    <div className="p-4 bg-blue-500/10 border border-blue-500/20 rounded-lg">
+                      <p className="text-blue-200 text-xs flex gap-2">
+                        <Lightbulb className="w-4 h-4 flex-shrink-0" />
+                        잠시만 기다려주세요. 약 1-2분 정도 소요됩니다.
+                      </p>
+                    </div>
                   </div>
                 </div>
+
+                {/* Right: Content Preview Panel */}
+                <div className="flex-1 bg-white/[0.02] p-8 overflow-y-auto">
+                  <div className="max-w-3xl mx-auto">
+                    <h3 className="text-lg font-semibold text-zinc-400 mb-6 flex items-center gap-2">
+                      <FileText className="w-5 h-5" />
+                      참조 중인 공고 내용
+                    </h3>
+
+                    <div className="bg-white rounded-xl shadow-xl overflow-hidden min-h-[600px] text-zinc-900">
+                      {/* 공고 헤더 */}
+                      <div className="border-b border-zinc-100 p-6 bg-zinc-50">
+                        <span className="inline-block px-2 py-1 bg-blue-100 text-blue-700 text-xs font-bold rounded mb-2">
+                          {program?.organization || '기관명'}
+                        </span>
+                        <h1 className="text-xl font-bold text-zinc-900 leading-snug">
+                          {program?.title}
+                        </h1>
+                      </div>
+
+                      {/* 공고 본문/WebView */}
+                      <div className="p-6">
+                        {program?.content ? (
+                          <div className="prose prose-sm max-w-none" dangerouslySetInnerHTML={{ __html: program.content }} />
+                        ) : program?.detail_url ? (
+                          <div className="w-full h-[600px] bg-zinc-100 rounded-lg flex items-center justify-center">
+                            <iframe
+                              src={program.detail_url}
+                              className="w-full h-full border-none rounded-lg"
+                              title="Government Program Detail"
+                            />
+                          </div>
+                        ) : (
+                          <div className="text-center py-20 text-zinc-400">
+                            공고 상세 내용이 없습니다.
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
               ) : (
-                /* 초기 화면 */
-                <div className="space-y-8">
-                  {/* 아이콘 */}
+              /* 초기 화면 */
+              <div className="space-y-8">
+                {/* 아이콘 */}
+                <div
+                  className="w-24 h-24 rounded-3xl flex items-center justify-center mx-auto shadow-2xl"
+                  style={{
+                    background: `linear-gradient(135deg, ${themeColor}, ${themeColor}80)`,
+                    boxShadow: `0 20px 50px ${themeColor}40`
+                  }}
+                >
+                  <Wand2 className="w-12 h-12 text-white" />
+                </div>
+
+                {/* 제목 */}
+                <div className="space-y-3">
+                  <h2 className="text-4xl font-bold text-white">
+                    AI 사업계획서
+                  </h2>
+                  <p className="text-zinc-400 text-lg max-w-md mx-auto">
+                    {program ? (
+                      <>지원사업에 최적화된 사업계획서를<br />AI가 자동으로 작성해드립니다</>
+                    ) : (
+                      '지원사업을 선택한 후 사업계획서를 생성할 수 있습니다'
+                    )}
+                  </p>
+                </div>
+
+                {/* 프로그램 정보 */}
+                {program && (
                   <div
-                    className="w-24 h-24 rounded-3xl flex items-center justify-center mx-auto shadow-2xl"
+                    className="inline-flex items-center gap-3 px-5 py-3 rounded-2xl max-w-md"
+                    style={{ background: `${themeColor}15`, border: `1px solid ${themeColor}30` }}
+                  >
+                    <FileText className="w-5 h-5 flex-shrink-0" style={{ color: themeColor }} />
+                    <span className="text-white text-sm font-medium text-left line-clamp-2">{program.title}</span>
+                  </div>
+                )}
+
+                {/* 버튼 */}
+                {program ? (
+                  <button
+                    onClick={generatePlan}
+                    className="group inline-flex items-center gap-3 px-10 py-4 rounded-2xl text-white font-semibold text-lg transition-all hover:scale-105 hover:shadow-2xl"
                     style={{
-                      background: `linear-gradient(135deg, ${themeColor}, ${themeColor}80)`,
-                      boxShadow: `0 20px 50px ${themeColor}40`
+                      background: `linear-gradient(135deg, ${themeColor}, ${themeColor}90)`,
+                      boxShadow: `0 10px 40px ${themeColor}50`
                     }}
                   >
-                    <Wand2 className="w-12 h-12 text-white" />
-                  </div>
+                    <Sparkles className="w-6 h-6 group-hover:animate-spin" />
+                    사업계획서 생성하기
+                    <ChevronRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => router.push('/dashboard-group/company/government-programs')}
+                    className="group inline-flex items-center gap-3 px-10 py-4 rounded-2xl text-white font-semibold text-lg transition-all hover:scale-105"
+                    style={{
+                      background: `linear-gradient(135deg, ${themeColor}, ${themeColor}90)`,
+                      boxShadow: `0 10px 40px ${themeColor}50`
+                    }}
+                  >
+                    지원사업 선택하기
+                    <ChevronRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+                  </button>
+                )}
 
-                  {/* 제목 */}
-                  <div className="space-y-3">
-                    <h2 className="text-4xl font-bold text-white">
-                      AI 사업계획서
-                    </h2>
-                    <p className="text-zinc-400 text-lg max-w-md mx-auto">
-                      {program ? (
-                        <>지원사업에 최적화된 사업계획서를<br />AI가 자동으로 작성해드립니다</>
-                      ) : (
-                        '지원사업을 선택한 후 사업계획서를 생성할 수 있습니다'
-                      )}
-                    </p>
-                  </div>
-
-                  {/* 프로그램 정보 */}
-                  {program && (
-                    <div
-                      className="inline-flex items-center gap-3 px-5 py-3 rounded-2xl max-w-md"
-                      style={{ background: `${themeColor}15`, border: `1px solid ${themeColor}30` }}
-                    >
-                      <FileText className="w-5 h-5 flex-shrink-0" style={{ color: themeColor }} />
-                      <span className="text-white text-sm font-medium text-left line-clamp-2">{program.title}</span>
-                    </div>
-                  )}
-
-                  {/* 버튼 */}
-                  {program ? (
-                    <button
-                      onClick={generatePlan}
-                      className="group inline-flex items-center gap-3 px-10 py-4 rounded-2xl text-white font-semibold text-lg transition-all hover:scale-105 hover:shadow-2xl"
-                      style={{
-                        background: `linear-gradient(135deg, ${themeColor}, ${themeColor}90)`,
-                        boxShadow: `0 10px 40px ${themeColor}50`
-                      }}
-                    >
-                      <Sparkles className="w-6 h-6 group-hover:animate-spin" />
-                      사업계획서 생성하기
-                      <ChevronRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
-                    </button>
-                  ) : (
-                    <button
-                      onClick={() => router.push('/dashboard-group/company/government-programs')}
-                      className="group inline-flex items-center gap-3 px-10 py-4 rounded-2xl text-white font-semibold text-lg transition-all hover:scale-105"
-                      style={{
-                        background: `linear-gradient(135deg, ${themeColor}, ${themeColor}90)`,
-                        boxShadow: `0 10px 40px ${themeColor}50`
-                      }}
-                    >
-                      지원사업 선택하기
-                      <ChevronRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
-                    </button>
-                  )}
-
-                  {/* 하단 정보 */}
-                  <div className="flex items-center justify-center gap-6 text-sm text-zinc-500">
-                    <span className="flex items-center gap-1.5">
-                      <Zap className="w-4 h-4" style={{ color: themeColor }} />
-                      Gemini 2.5 Flash 기반
-                    </span>
-                    <span className="flex items-center gap-1.5">
-                      <Clock className="w-4 h-4" />
-                      1-2분 소요
-                    </span>
-                  </div>
+                {/* 하단 정보 */}
+                <div className="flex items-center justify-center gap-6 text-sm text-zinc-500">
+                  <span className="flex items-center gap-1.5">
+                    <Zap className="w-4 h-4" style={{ color: themeColor }} />
+                    Gemini 2.5 Flash 기반
+                  </span>
+                  <span className="flex items-center gap-1.5">
+                    <Clock className="w-4 h-4" />
+                    1-2분 소요
+                  </span>
                 </div>
+              </div>
               )}
             </div>
 

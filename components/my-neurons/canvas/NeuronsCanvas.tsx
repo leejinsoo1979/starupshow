@@ -73,11 +73,13 @@ function NodeMesh({
     return NODE_COLORS[node.type] || '#3B82F6'
   }, [node.status, node.type])
 
-  // Size based on type and importance
+  // Size based on type and importance - 크게 설정
   const size = useMemo(() => {
-    let base = 2
-    if (node.type === 'self') base = 4
-    return base + (node.importance / 20)
+    let base = 12
+    if (node.type === 'self') base = 20
+    else if (node.type === 'project') base = 15
+    else if (node.type === 'doc') base = 13
+    return base + ((node.importance || 5) / 5)
   }, [node.type, node.importance])
 
   // Animation
@@ -120,9 +122,9 @@ function NodeMesh({
         <meshStandardMaterial
           color={color}
           emissive={color}
-          emissiveIntensity={isSelected ? 0.8 : isHovered ? 0.5 : 0.3}
-          roughness={0.4}
-          metalness={0.6}
+          emissiveIntensity={isSelected ? 0.8 : isHovered ? 0.5 : 0.4}
+          roughness={0.2}
+          metalness={0.3}
           transparent={node.status === 'completed'}
           opacity={node.status === 'completed' ? 0.4 : 1}
         />
@@ -165,17 +167,23 @@ function NodeMesh({
         </>
       )}
 
-      {/* Label */}
+      {/* Label - 선택/호버/Self 노드만 표시 */}
       {(isSelected || isHovered || node.type === 'self') && (
         <Html
-          position={[0, size + 2, 0]}
+          position={[0, size + 3, 0]}
           center
           style={{
             pointerEvents: 'none',
             userSelect: 'none',
           }}
         >
-          <div className="px-2 py-1 bg-zinc-900/90 backdrop-blur rounded text-xs text-white whitespace-nowrap border border-zinc-700">
+          <div className={`px-2 py-1 rounded text-xs whitespace-nowrap border ${
+            isSelected || isHovered
+              ? 'bg-zinc-900/95 text-white border-blue-500'
+              : node.type === 'self'
+                ? 'bg-yellow-900/90 text-yellow-100 border-yellow-600'
+                : 'bg-zinc-900/80 text-zinc-300 border-zinc-700'
+          }`}>
             {node.title}
           </div>
         </Html>
@@ -286,6 +294,7 @@ function Scene({
     if (!graph?.nodes || graph.nodes.length === 0) return
 
     // Create simulation nodes with initial positions based on view mode
+    // IMPORTANT: Always calculate fresh positions - don't use node.position which may be all zeros
     const nodes: SimNode[] = graph.nodes.map((node, i) => {
       const angle = (i / graph.nodes.length) * Math.PI * 2
       let x: number, y: number, z: number
@@ -293,35 +302,41 @@ function Scene({
       if (viewMode === 'clusters') {
         // Cluster by type
         const clusterPos = TYPE_CLUSTER_POSITIONS[node.type] || { x: 0, z: 0 }
-        x = node.position?.x ?? clusterPos.x + (Math.random() - 0.5) * 40
-        y = node.position?.y ?? (Math.random() - 0.5) * 30
-        z = node.position?.z ?? clusterPos.z + (Math.random() - 0.5) * 40
+        x = clusterPos.x + (Math.random() - 0.5) * 40
+        y = (Math.random() - 0.5) * 30
+        z = clusterPos.z + (Math.random() - 0.5) * 40
       } else if (viewMode === 'roadmap') {
         // Arrange by priority/importance horizontally
         const priorityOrder = { critical: 0, high: 1, medium: 2, low: 3 }
         const xPos = (priorityOrder[node.priority] || 2) * 80 - 120
-        x = node.position?.x ?? xPos + (Math.random() - 0.5) * 30
-        y = node.position?.y ?? (node.importance - 5) * 15
-        z = node.position?.z ?? (Math.random() - 0.5) * 100
+        x = xPos + (Math.random() - 0.5) * 30
+        y = ((node.importance || 5) - 5) * 15
+        z = (Math.random() - 0.5) * 100
       } else if (viewMode === 'insights') {
         // Place bottlenecks/urgent items closer to center
         const isUrgent = node.status === 'blocked' || node.status === 'urgent'
         const radius = isUrgent ? 50 + Math.random() * 30 : 120 + Math.random() * 80
-        x = node.position?.x ?? Math.cos(angle) * radius
-        y = node.position?.y ?? (isUrgent ? 20 : 0) + (Math.random() - 0.5) * 30
-        z = node.position?.z ?? Math.sin(angle) * radius
+        x = Math.cos(angle) * radius
+        y = (isUrgent ? 20 : 0) + (Math.random() - 0.5) * 30
+        z = Math.sin(angle) * radius
       } else if (viewMode === 'pathfinder') {
         // Spread out more to show connections
         const radius = node.type === 'self' ? 0 : 150 + Math.random() * 50
-        x = node.position?.x ?? Math.cos(angle) * radius
-        y = node.position?.y ?? (Math.random() - 0.5) * 80
-        z = node.position?.z ?? Math.sin(angle) * radius
+        x = Math.cos(angle) * radius
+        y = (Math.random() - 0.5) * 80
+        z = Math.sin(angle) * radius
       } else {
-        // Default radial
-        const radius = node.type === 'self' ? 0 : 100 + Math.random() * 50
-        x = node.position?.x ?? Math.cos(angle) * radius
-        y = node.position?.y ?? (Math.random() - 0.5) * 50
-        z = node.position?.z ?? Math.sin(angle) * radius
+        // Default radial - spread by type into different rings - WIDE spacing
+        let baseRadius = 80
+        if (node.type === 'self') baseRadius = 0
+        else if (node.type === 'project') baseRadius = 80 + (i % 5) * 40  // 80 to 240
+        else if (node.type === 'doc') baseRadius = 200 + (i % 4) * 30    // 200 to 290
+        else baseRadius = 250 + Math.random() * 60
+
+        const radius = baseRadius + Math.random() * 30
+        x = Math.cos(angle) * radius
+        y = (Math.random() - 0.5) * 60
+        z = Math.sin(angle) * radius
       }
 
       return {
@@ -347,40 +362,9 @@ function Scene({
       edge,
     }))
 
-    // Create simulation (3D) with view-mode-specific configuration
-    const simulation = forceSimulation(nodes)
-      .numDimensions(3)
-      .force(
-        'link',
-        forceLink(links)
-          .id((d: any) => d.id)
-          .distance(forceConfig.linkDistance)
-          .strength(0.3)
-      )
-      .force('charge', forceManyBody().strength(forceConfig.chargeStrength).distanceMax(300))
-      .force('center', forceCenter(0, 0, 0).strength(forceConfig.centerStrength))
-      .force('collision', forceCollide().radius(forceConfig.collideRadius).strength(0.8))
-      .alphaDecay(0.02)
-      .velocityDecay(0.4)
-
-    simulationRef.current = simulation
-
-    // Update state on tick
-    simulation.on('tick', () => {
-      setSimNodes([...nodes])
-      setSimLinks([...links])
-    })
-
-    // Run initial ticks
-    for (let i = 0; i < 100; i++) {
-      simulation.tick()
-    }
+    // Use direct static positions - d3 force simulation was collapsing nodes to center
     setSimNodes([...nodes])
     setSimLinks([...links])
-
-    return () => {
-      simulation.stop()
-    }
   }, [graph?.nodes, graph?.edges, viewMode, forceConfig])
 
   // Get node map for edge lookup
@@ -419,15 +403,17 @@ function Scene({
 
   return (
     <>
-      {/* Ambient light */}
-      <ambientLight intensity={0.4} />
+      {/* Ambient light - increased for visibility */}
+      <ambientLight intensity={0.8} />
 
       {/* Point light at center */}
-      <pointLight position={[0, 0, 0]} intensity={1} color="#FFD700" />
+      <pointLight position={[0, 0, 0]} intensity={1.5} color="#FFD700" />
+      <pointLight position={[0, 50, 0]} intensity={1} color="#FFFFFF" />
 
-      {/* Directional lights */}
-      <directionalLight position={[100, 100, 100]} intensity={0.5} />
-      <directionalLight position={[-100, -100, -100]} intensity={0.3} />
+      {/* Directional lights - increased */}
+      <directionalLight position={[100, 100, 100]} intensity={0.8} />
+      <directionalLight position={[-100, -100, -100]} intensity={0.5} />
+      <directionalLight position={[0, 200, 0]} intensity={0.6} />
 
       {/* Stars background */}
       <Stars
@@ -440,8 +426,8 @@ function Scene({
         speed={0.5}
       />
 
-      {/* Fog */}
-      <fog attach="fog" args={['#050510', 200, 1500]} />
+      {/* Fog - pushed far away to not obscure nodes */}
+      <fog attach="fog" args={['#050510', 500, 2500]} />
 
       {/* Edges */}
       {simLinks.map((link, i) => {

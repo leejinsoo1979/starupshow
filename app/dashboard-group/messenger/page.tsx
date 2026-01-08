@@ -125,6 +125,7 @@ export default function MessengerPage() {
 
   // 📐 뷰어 패널 리사이즈
   const [viewerWidthPx, setViewerWidthPx] = useState(400) // 픽셀 (px)
+  const [isResizing, setIsResizing] = useState(false) // 리사이즈 중 여부 (오버레이 표시용)
   const isResizingRef = useRef(false)
   const containerRef = useRef<HTMLDivElement>(null)
 
@@ -271,21 +272,23 @@ export default function MessengerPage() {
       if (!isResizingRef.current || !containerRef.current) return
 
       const containerRect = containerRef.current.getBoundingClientRect()
-      const mouseX = e.clientX - containerRect.left
+      const newWidth = e.clientX - containerRect.left
 
-      // 최소 200px, 최대 70% (항상 채팅 영역 30% 확보)
+      // 최소 200px, 최대 컨테이너의 70%
       const minWidth = 200
-      const maxWidth = Math.floor(containerRect.width * 0.7)
+      const maxWidth = containerRect.width * 0.7
+      const finalWidth = Math.round(Math.max(minWidth, Math.min(newWidth, maxWidth)))
 
-      // 범위 내로 클램핑 (조건문 대신 Math.min/max 사용)
-      const clampedWidth = Math.max(minWidth, Math.min(mouseX, maxWidth))
-      setViewerWidthPx(clampedWidth)
+      setViewerWidthPx(finalWidth)
     }
 
     const handleMouseUp = () => {
-      isResizingRef.current = false
-      document.body.style.cursor = ''
-      document.body.style.userSelect = ''
+      if (isResizingRef.current) {
+        isResizingRef.current = false
+        setIsResizing(false)
+        document.body.style.cursor = ''
+        document.body.style.userSelect = ''
+      }
     }
 
     document.addEventListener('mousemove', handleMouseMove)
@@ -299,6 +302,7 @@ export default function MessengerPage() {
 
   const startResize = () => {
     isResizingRef.current = true
+    setIsResizing(true)
     document.body.style.cursor = 'col-resize'
     document.body.style.userSelect = 'none'
   }
@@ -1256,13 +1260,22 @@ export default function MessengerPage() {
           </div>
         </div>
 
-        <div ref={containerRef} className="flex flex-1 overflow-hidden">
+        <div ref={containerRef} className="flex flex-1 overflow-hidden items-stretch relative">
+          {/* 리사이즈 중 전체 화면 오버레이 - iframe 등이 마우스 이벤트 가로채는 것 방지 */}
+          {isResizing && (
+            <div
+              className="fixed inset-0 z-[99999] cursor-col-resize"
+              style={{ background: 'transparent' }}
+            />
+          )}
           {/* Shared Viewer Panel - 회의/토론/발표 모드이거나 공유 화면이 활성화되면 왼쪽에 표시 */}
           {(roomMode !== 'chat' || meetingStatus?.is_meeting_active || (showSharedViewer && isViewerActive)) && (
-            <div
-              className={`border-r flex-shrink-0 flex flex-col ${isDark ? 'border-zinc-800/50 bg-zinc-950' : 'border-zinc-200 bg-zinc-50'}`}
-              style={{ width: `${viewerWidthPx}px` }}
-            >
+            <>
+              {/* 뷰어 콘텐츠 */}
+              <div
+                className={`flex-shrink-0 flex flex-col border-r ${isDark ? 'border-zinc-700 bg-zinc-950' : 'border-zinc-300 bg-zinc-50'}`}
+                style={{ width: `${viewerWidthPx}px` }}
+              >
               {isViewerActive ? (
                 <SharedViewer
                   roomId={activeRoomId!}
@@ -1358,25 +1371,18 @@ export default function MessengerPage() {
                   </div>
                 </div>
               )}
-            </div>
-          )}
-
-          {/* 📐 리사이즈 핸들 - 뷰어 패널이 열려있을 때만 표시 */}
-          {(roomMode !== 'chat' || meetingStatus?.is_meeting_active || (showSharedViewer && isViewerActive)) && (
-            <div
-              className={`w-2 cursor-col-resize transition-colors flex-shrink-0 group relative ${isDark ? 'bg-zinc-700' : 'bg-zinc-300'}`}
-              onMouseDown={startResize}
-              title="드래그하여 크기 조절"
-            >
-              {/* 호버 시 더 넓은 히트 영역 */}
-              <div className={`absolute inset-y-0 -left-1 -right-1 group-hover:bg-blue-500/30 group-active:bg-blue-500/50`} />
-              {/* 가운데 점 3개 (그립 표시) */}
-              <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 opacity-50 group-hover:opacity-100">
-                <div className={`w-1 h-1 rounded-full ${isDark ? 'bg-zinc-500' : 'bg-zinc-400'}`} />
-                <div className={`w-1 h-1 rounded-full ${isDark ? 'bg-zinc-500' : 'bg-zinc-400'}`} />
-                <div className={`w-1 h-1 rounded-full ${isDark ? 'bg-zinc-500' : 'bg-zinc-400'}`} />
               </div>
-            </div>
+
+              {/* 📐 리사이즈 핸들 */}
+              <div
+                className={`w-1.5 cursor-col-resize flex-shrink-0 hover:bg-blue-500 transition-colors ${isDark ? 'bg-zinc-600' : 'bg-zinc-400'}`}
+                onMouseDown={(e) => {
+                  e.preventDefault()
+                  e.stopPropagation()
+                  startResize()
+                }}
+              />
+            </>
           )}
 
           {/* Main Content Column */}
