@@ -2247,6 +2247,7 @@ function NewChatModal({
 
   // [B] AI 에이전트 구성 (WHO)
   const [agentConfigs, setAgentConfigs] = useState<AgentConfig[]>([])
+  const [autoAssignRoles, setAutoAssignRoles] = useState(true) // 🔥 역할 자동 배정 vs 사용자 지정
 
   // [C] 회의 방식 (HOW)
   const [discussionMode, setDiscussionMode] = useState('balanced')
@@ -2404,20 +2405,30 @@ function NewChatModal({
     { role: 'mediator', tendency: 'creative' },       // 5번째: 중재자
   ]
 
-  // 에이전트 추가 (🔥 역할 자동 분배!)
+  // 에이전트 추가
   const addAgent = (agentId: string) => {
     if (agentConfigs.some(c => c.id === agentId)) return
 
-    // 현재 에이전트 수에 따라 다음 역할 자동 선택
-    const nextIndex = agentConfigs.length % ROLE_ROTATION.length
-    const nextConfig = ROLE_ROTATION[nextIndex]
+    if (autoAssignRoles) {
+      // 🔥 자동 배정: 현재 에이전트 수에 따라 다음 역할 자동 선택
+      const nextIndex = agentConfigs.length % ROLE_ROTATION.length
+      const nextConfig = ROLE_ROTATION[nextIndex]
 
-    setAgentConfigs(prev => [...prev, {
-      id: agentId,
-      role: nextConfig.role,
-      tendency: nextConfig.tendency,
-      canDecide: false,
-    }])
+      setAgentConfigs(prev => [...prev, {
+        id: agentId,
+        role: nextConfig.role,
+        tendency: nextConfig.tendency,
+        canDecide: false,
+      }])
+    } else {
+      // 🔥 사용자 지정: 기본값 없이 추가 (사용자가 직접 선택)
+      setAgentConfigs(prev => [...prev, {
+        id: agentId,
+        role: undefined,
+        tendency: undefined,
+        canDecide: false,
+      }])
+    }
   }
 
   // 에이전트 제거
@@ -2635,6 +2646,42 @@ function NewChatModal({
                 </p>
               </div>
 
+              {/* 🔥 역할 배정 모드 토글 */}
+              <div className={`flex items-center justify-between p-3 rounded-lg ${isDark ? 'bg-zinc-800/50' : 'bg-zinc-100'}`}>
+                <div className="flex items-center gap-2">
+                  <span className={`text-sm ${isDark ? 'text-zinc-300' : 'text-zinc-700'}`}>역할 배정</span>
+                </div>
+                <div className="flex gap-1">
+                  <button
+                    onClick={() => setAutoAssignRoles(true)}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                      autoAssignRoles
+                        ? 'text-white'
+                        : isDark ? 'bg-zinc-700 text-zinc-400' : 'bg-zinc-200 text-zinc-500'
+                    }`}
+                    style={autoAssignRoles ? { backgroundColor: currentAccent.color } : undefined}
+                  >
+                    🎲 자동
+                  </button>
+                  <button
+                    onClick={() => setAutoAssignRoles(false)}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                      !autoAssignRoles
+                        ? 'text-white'
+                        : isDark ? 'bg-zinc-700 text-zinc-400' : 'bg-zinc-200 text-zinc-500'
+                    }`}
+                    style={!autoAssignRoles ? { backgroundColor: currentAccent.color } : undefined}
+                  >
+                    ✏️ 사용자 지정
+                  </button>
+                </div>
+              </div>
+              {autoAssignRoles && (
+                <p className={`text-xs ${isDark ? 'text-zinc-500' : 'text-zinc-400'} -mt-2`}>
+                  전략가 → 비평가 → 실행가 → 분석가 → 중재자 순으로 자동 배정
+                </p>
+              )}
+
               {/* 선택된 에이전트 카드들 */}
               {selectedAgentsInfo.length > 0 && (
                 <div className="space-y-3 mb-4">
@@ -2661,16 +2708,22 @@ function NewChatModal({
 
                       {/* 역할 선택 */}
                       <div className="mb-3">
-                        <label className={`text-xs ${isDark ? 'text-zinc-500' : 'text-zinc-400'} mb-1 block`}>역할</label>
+                        <div className="flex items-center gap-2 mb-1">
+                          <label className={`text-xs ${isDark ? 'text-zinc-500' : 'text-zinc-400'}`}>역할</label>
+                          {autoAssignRoles && (
+                            <span className="text-xs px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-400">자동</span>
+                          )}
+                        </div>
                         <div className="flex flex-wrap gap-1">
                           {roleOptions.map(r => (
                             <button
                               key={r.value}
-                              onClick={() => updateAgentConfig(id, { role: r.value })}
+                              onClick={() => !autoAssignRoles && updateAgentConfig(id, { role: r.value })}
+                              disabled={autoAssignRoles}
                               className={`px-2 py-1 rounded text-xs transition-all ${role === r.value
                                 ? 'text-white'
                                 : isDark ? 'bg-zinc-700 text-zinc-300' : 'bg-zinc-200 text-zinc-600'
-                                }`}
+                                } ${autoAssignRoles ? 'opacity-60 cursor-not-allowed' : ''}`}
                               style={role === r.value ? { backgroundColor: currentAccent.color } : undefined}
                             >
                               {r.label}
@@ -2681,16 +2734,22 @@ function NewChatModal({
 
                       {/* 성향 선택 */}
                       <div className="mb-3">
-                        <label className={`text-xs ${isDark ? 'text-zinc-500' : 'text-zinc-400'} mb-1 block`}>성향</label>
+                        <div className="flex items-center gap-2 mb-1">
+                          <label className={`text-xs ${isDark ? 'text-zinc-500' : 'text-zinc-400'}`}>성향</label>
+                          {autoAssignRoles && (
+                            <span className="text-xs px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-400">자동</span>
+                          )}
+                        </div>
                         <div className="flex flex-wrap gap-1">
                           {tendencyOptions.map(t => (
                             <button
                               key={t.value}
-                              onClick={() => updateAgentConfig(id, { tendency: t.value })}
+                              onClick={() => !autoAssignRoles && updateAgentConfig(id, { tendency: t.value })}
+                              disabled={autoAssignRoles}
                               className={`px-2 py-1 rounded text-xs transition-all ${tendency === t.value
                                 ? 'text-white'
                                 : isDark ? 'bg-zinc-700 text-zinc-300' : 'bg-zinc-200 text-zinc-600'
-                                }`}
+                                } ${autoAssignRoles ? 'opacity-60 cursor-not-allowed' : ''}`}
                               style={tendency === t.value ? { backgroundColor: currentAccent.hoverColor } : undefined}
                             >
                               {t.label}
