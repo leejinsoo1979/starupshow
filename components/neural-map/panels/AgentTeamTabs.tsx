@@ -275,6 +275,10 @@ export function AgentTeamTabs({ isDark }: AgentTeamTabsProps) {
   const scrollRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const mapId = useNeuralMapStore((s) => s.mapId)
+  const currentTheme = useNeuralMapStore((s) => s.currentTheme)
+
+  // 🎨 사용자 테마 액센트 색상 사용
+  const accentColor = currentTheme?.ui?.accentColor || '#3b82f6'
 
   // 각 에이전트별 모델 설정 저장
   const [agentModels, setAgentModels] = useState<Record<AgentRole, ChatModelId>>({
@@ -324,6 +328,106 @@ export function AgentTeamTabs({ isDark }: AgentTeamTabsProps) {
     setAgentModes((prev) => ({ ...prev, [activeAgent]: !prev[activeAgent] }))
   }
 
+  // 🔥 에이전트 체인 워크플로우: Orchestrator → Planner → Implementer → Tester → Reviewer
+  const AGENT_WORKFLOW: AgentRole[] = ['orchestrator', 'planner', 'implementer', 'tester', 'reviewer']
+
+  // 단일 에이전트 호출
+  const callSingleAgent = async (
+    agentRole: AgentRole,
+    message: string,
+    context?: string
+  ): Promise<{ response: string; actions?: ToolAction[] }> => {
+    const agent = AGENT_TEAM.find((a) => a.id === agentRole)!
+
+    const response = await fetch('/api/neural-map/agent-team/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        message: context ? `## 이전 에이전트 결과\n${context}\n\n## 현재 요청\n${message}` : message,
+        agentRole,
+        systemPrompt: agent.systemPrompt,
+        mapId,
+        model: agentModels[agentRole],
+        agentMode: agentModes[agentRole],
+        history: messages.filter((m) => m.agentRole === agentRole).slice(-5),
+      }),
+    })
+
+    if (!response.ok) throw new Error(`${agentRole} API 호출 실패`)
+    return response.json()
+  }
+
+  // 🔥 전체 워크플로우 실행 (Orchestrator에서 시작할 때)
+  const runFullWorkflow = async (userInput: string) => {
+    let previousResult = ''
+
+    for (let i = 0; i < AGENT_WORKFLOW.length; i++) {
+      const agentRole = AGENT_WORKFLOW[i]
+      const agent = AGENT_TEAM.find((a) => a.id === agentRole)!
+
+      // 현재 에이전트로 탭 전환
+      setActiveAgent(agentRole)
+
+      // 시작 메시지 표시
+      const startMsg: AgentMessage = {
+        id: `${Date.now()}-${agentRole}-start`,
+        role: 'assistant',
+        content: `🔄 ${agent.nameKr} 작업 시작...`,
+        agentRole,
+        timestamp: Date.now(),
+        status: 'pending',
+      }
+      setMessages((prev) => [...prev, startMsg])
+
+      try {
+        // 에이전트 호출
+        const data = await callSingleAgent(agentRole, userInput, previousResult || undefined)
+
+        // 액션 실행
+        let actionResultsText = ''
+        if (data.actions && data.actions.length > 0) {
+          console.log(`[${agentRole}] Executing actions:`, data.actions)
+          const results = await executeSuperAgentActions(data.actions as ToolAction[])
+          actionResultsText = formatActionResultsForChat(results)
+        }
+
+        // 결과 메시지
+        const resultMsg: AgentMessage = {
+          id: `${Date.now()}-${agentRole}-result`,
+          role: 'assistant',
+          content: actionResultsText
+            ? `${data.response}\n\n---\n**실행 결과:**\n${actionResultsText}`
+            : data.response,
+          agentRole,
+          timestamp: Date.now(),
+          status: 'complete',
+        }
+        setMessages((prev) =>
+          prev.map((m) => (m.id === startMsg.id ? resultMsg : m))
+        )
+
+        // 다음 에이전트에게 전달할 컨텍스트
+        previousResult = data.response
+
+        // 잠시 대기 (UI 업데이트용)
+        await new Promise((r) => setTimeout(r, 500))
+      } catch (error) {
+        const errorMsg: AgentMessage = {
+          id: `${Date.now()}-${agentRole}-error`,
+          role: 'assistant',
+          content: `❌ ${agent.nameKr} 오류: ${error instanceof Error ? error.message : '알 수 없는 오류'}`,
+          agentRole,
+          timestamp: Date.now(),
+          status: 'error',
+        }
+        setMessages((prev) =>
+          prev.map((m) => (m.id === startMsg.id ? errorMsg : m))
+        )
+        break // 오류 시 워크플로우 중단
+      }
+    }
+  }
+
   // 메시지 전송
   const handleSend = async () => {
     if (!input.trim() || isLoading) return
@@ -337,51 +441,39 @@ export function AgentTeamTabs({ isDark }: AgentTeamTabsProps) {
     }
 
     setMessages((prev) => [...prev, userMessage])
+    const userInput = input
     setInput('')
     setIsLoading(true)
 
     try {
-      // API 호출 - 선택된 에이전트 역할 및 모델 전달
-      const response = await fetch('/api/neural-map/agent-team/chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          message: input,
+      // 🔥 Orchestrator에서 시작하면 전체 워크플로우 실행
+      if (activeAgent === 'orchestrator') {
+        await runFullWorkflow(userInput)
+      } else {
+        // 개별 에이전트 호출 (기존 방식)
+        const data = await callSingleAgent(activeAgent, userInput)
+
+        // 액션 실행
+        let actionResultsText = ''
+        if (data.actions && data.actions.length > 0) {
+          console.log('[AgentTeam] Executing actions:', data.actions)
+          const results = await executeSuperAgentActions(data.actions as ToolAction[])
+          actionResultsText = formatActionResultsForChat(results)
+        }
+
+        const assistantMessage: AgentMessage = {
+          id: (Date.now() + 1).toString(),
+          role: 'assistant',
+          content: actionResultsText
+            ? `${data.response}\n\n---\n**실행 결과:**\n${actionResultsText}`
+            : data.response,
           agentRole: activeAgent,
-          systemPrompt: currentAgent.systemPrompt,
-          mapId,
-          model: currentModel,
-          agentMode: isAgentMode,
-          history: messages.filter((m) => m.agentRole === activeAgent).slice(-10),
-        }),
-      })
+          timestamp: Date.now(),
+          status: 'complete',
+        }
 
-      if (!response.ok) throw new Error('API 호출 실패')
-
-      const data = await response.json()
-
-      // 🔥 액션 실행 (Neural Editor 제어 등)
-      let actionResultsText = ''
-      if (data.actions && data.actions.length > 0) {
-        console.log('[AgentTeam] Executing actions:', data.actions)
-        const results = await executeSuperAgentActions(data.actions as ToolAction[])
-        actionResultsText = formatActionResultsForChat(results)
-        console.log('[AgentTeam] Action results:', results)
+        setMessages((prev) => [...prev, assistantMessage])
       }
-
-      const assistantMessage: AgentMessage = {
-        id: (Date.now() + 1).toString(),
-        role: 'assistant',
-        content: actionResultsText
-          ? `${data.response || data.message}\n\n---\n\n**실행 결과:**\n${actionResultsText}`
-          : data.response || data.message,
-        agentRole: activeAgent,
-        timestamp: Date.now(),
-        status: 'complete',
-        toolCalls: data.toolsUsed?.map((t: string) => ({ name: t })),
-      }
-
-      setMessages((prev) => [...prev, assistantMessage])
     } catch (error) {
       console.error('Agent chat error:', error)
       const errorMessage: AgentMessage = {
@@ -426,7 +518,7 @@ export function AgentTeamTabs({ isDark }: AgentTeamTabsProps) {
                   : 'text-zinc-500 hover:text-zinc-700 hover:bg-zinc-100/50'
             )}
             style={{
-              backgroundColor: activeAgent === agent.id ? agent.color : undefined,
+              backgroundColor: activeAgent === agent.id ? accentColor : undefined,
             }}
           >
             <agent.icon className="w-4 h-4 mb-0.5" />
@@ -440,7 +532,7 @@ export function AgentTeamTabs({ isDark }: AgentTeamTabsProps) {
         className={cn('px-3 py-2 border-b text-xs', isDark ? 'border-zinc-800 bg-zinc-900/50' : 'border-zinc-200 bg-zinc-50')}
       >
         <div className="flex items-center gap-2">
-          <currentAgent.icon className="w-4 h-4" style={{ color: currentAgent.color }} />
+          <currentAgent.icon className="w-4 h-4" style={{ color: accentColor }} />
           <span className={cn('font-semibold', isDark ? 'text-zinc-200' : 'text-zinc-800')}>
             {currentAgent.nameKr}
           </span>
@@ -455,7 +547,7 @@ export function AgentTeamTabs({ isDark }: AgentTeamTabsProps) {
             <div className="text-center space-y-2">
               <currentAgent.icon
                 className="w-10 h-10 mx-auto"
-                style={{ color: currentAgent.color, opacity: 0.5 }}
+                style={{ color: accentColor, opacity: 0.5 }}
               />
               <p className={cn('text-sm', isDark ? 'text-zinc-500' : 'text-zinc-500')}>
                 {currentAgent.nameKr}에게 질문하세요
@@ -485,8 +577,8 @@ export function AgentTeamTabs({ isDark }: AgentTeamTabsProps) {
               >
                 {msg.role === 'assistant' && (
                   <div className="flex items-center gap-1.5 mb-2 text-xs">
-                    <Bot className="w-3 h-3" style={{ color: currentAgent.color }} />
-                    <span style={{ color: currentAgent.color }} className="font-medium">
+                    <Bot className="w-3 h-3" style={{ color: accentColor }} />
+                    <span style={{ color: accentColor }} className="font-medium">
                       {currentAgent.name}
                     </span>
                     {msg.status === 'complete' && <CheckCircle className="w-3 h-3 text-green-500 ml-auto" />}
@@ -519,7 +611,7 @@ export function AgentTeamTabs({ isDark }: AgentTeamTabsProps) {
 
         {/* Loading */}
         {isLoading && (
-          <div className="flex items-center gap-2 text-xs" style={{ color: currentAgent.color }}>
+          <div className="flex items-center gap-2 text-xs" style={{ color: accentColor }}>
             <Loader2 className="w-3 h-3 animate-spin" />
             {currentAgent.nameKr}가 작업 중...
           </div>
@@ -568,7 +660,7 @@ export function AgentTeamTabs({ isDark }: AgentTeamTabsProps) {
                       : 'text-zinc-500 hover:text-zinc-700'
                 )}
                 style={{
-                  backgroundColor: isAgentMode ? currentAgent.color : undefined,
+                  backgroundColor: isAgentMode ? accentColor : undefined,
                 }}
               >
                 <Bot className="w-3.5 h-3.5" />
@@ -660,7 +752,7 @@ export function AgentTeamTabs({ isDark }: AgentTeamTabsProps) {
                   : 'bg-zinc-200 text-zinc-400 cursor-not-allowed'
             )}
             style={{
-              backgroundColor: input.trim() && !isLoading ? currentAgent.color : undefined,
+              backgroundColor: input.trim() && !isLoading ? accentColor : undefined,
             }}
           >
             {isLoading ? (
