@@ -271,17 +271,15 @@ export default function MessengerPage() {
       if (!isResizingRef.current || !containerRef.current) return
 
       const containerRect = containerRef.current.getBoundingClientRect()
-      // 사이드바 너비(260px)를 제외한 가용 영역에서 계산
-      const sidebarWidth = showRightSidebar ? 260 : 0
-      const availableWidth = containerRect.width - sidebarWidth
       const mouseX = e.clientX - containerRect.left
 
-      // 최소 250px, 최대 (가용 영역 - 300px)
-      const minWidth = 250
-      const maxWidth = availableWidth - 300
-      if (mouseX >= minWidth && mouseX <= maxWidth) {
-        setViewerWidthPx(mouseX)
-      }
+      // 최소 200px, 최대 70% (항상 채팅 영역 30% 확보)
+      const minWidth = 200
+      const maxWidth = Math.floor(containerRect.width * 0.7)
+
+      // 범위 내로 클램핑 (조건문 대신 Math.min/max 사용)
+      const clampedWidth = Math.max(minWidth, Math.min(mouseX, maxWidth))
+      setViewerWidthPx(clampedWidth)
     }
 
     const handleMouseUp = () => {
@@ -297,7 +295,7 @@ export default function MessengerPage() {
       document.removeEventListener('mousemove', handleMouseMove)
       document.removeEventListener('mouseup', handleMouseUp)
     }
-  }, [showRightSidebar])
+  }, [])
 
   const startResize = () => {
     isResizingRef.current = true
@@ -1123,23 +1121,18 @@ export default function MessengerPage() {
               </>
             )}
 
-            {/* 🌐 브라우저 버튼 - 시스템 브라우저에서 열기 */}
+            {/* 🌐 웹 링크 공유 버튼 */}
             <Button
               size="icon"
               variant="ghost"
               className="text-zinc-500 hover:text-accent"
               onClick={() => {
-                const url = prompt('열고 싶은 URL을 입력하세요:', 'https://www.google.com')
-                if (url) {
-                  // Electron이면 shell.openExternal, 아니면 window.open
-                  if ((window as any).electron?.shell) {
-                    (window as any).electron.shell.openExternal(url)
-                  } else {
-                    window.open(url, '_blank')
-                  }
+                const url = prompt('공유할 웹 링크를 입력하세요:', 'https://')
+                if (url && url.startsWith('http')) {
+                  handleShareWebLink(url)
                 }
               }}
-              title="웹 브라우저 열기"
+              title="웹 링크 공유"
             >
               <Globe className="w-5 h-5" />
             </Button>
@@ -1371,10 +1364,19 @@ export default function MessengerPage() {
           {/* 📐 리사이즈 핸들 - 뷰어 패널이 열려있을 때만 표시 */}
           {(roomMode !== 'chat' || meetingStatus?.is_meeting_active || (showSharedViewer && isViewerActive)) && (
             <div
-              className={`w-1 cursor-col-resize hover:bg-blue-500/50 active:bg-blue-500 transition-colors flex-shrink-0 ${isDark ? 'bg-zinc-800 hover:bg-blue-500/30' : 'bg-zinc-300 hover:bg-blue-500/30'}`}
+              className={`w-2 cursor-col-resize transition-colors flex-shrink-0 group relative ${isDark ? 'bg-zinc-700' : 'bg-zinc-300'}`}
               onMouseDown={startResize}
               title="드래그하여 크기 조절"
-            />
+            >
+              {/* 호버 시 더 넓은 히트 영역 */}
+              <div className={`absolute inset-y-0 -left-1 -right-1 group-hover:bg-blue-500/30 group-active:bg-blue-500/50`} />
+              {/* 가운데 점 3개 (그립 표시) */}
+              <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 opacity-50 group-hover:opacity-100">
+                <div className={`w-1 h-1 rounded-full ${isDark ? 'bg-zinc-500' : 'bg-zinc-400'}`} />
+                <div className={`w-1 h-1 rounded-full ${isDark ? 'bg-zinc-500' : 'bg-zinc-400'}`} />
+                <div className={`w-1 h-1 rounded-full ${isDark ? 'bg-zinc-500' : 'bg-zinc-400'}`} />
+              </div>
+            </div>
           )}
 
           {/* Main Content Column */}

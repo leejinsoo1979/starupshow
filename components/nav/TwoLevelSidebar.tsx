@@ -839,12 +839,12 @@ const categories: Category[] = [
   },
   // AI 코딩
   {
-    id: 'neural-map',
+    id: 'ai-coding',
     name: 'AI 코딩',
     icon: FaLaptopCode,
     items: [
-      { name: 'AI 코딩', href: '/dashboard-group/neural-map', icon: FaLaptopCode },
-      { name: '새 프로젝트', href: '/dashboard-group/neural-map/new', icon: Plus },
+      { name: 'AI 코딩', href: '/dashboard-group/ai-coding', icon: FaLaptopCode },
+      { name: '새 프로젝트', href: '/dashboard-group/ai-coding/new', icon: Plus },
     ]
   },
   // 마이페이지 - 클릭 시 사이드바 열림
@@ -1382,7 +1382,7 @@ export function TwoLevelSidebar({ hideLevel2 = false }: TwoLevelSidebarProps) {
     if (pathname.startsWith('/dashboard-group/agents') ||
       pathname.startsWith('/dashboard-group/workflows') ||
       pathname.startsWith('/agent-builder')) return 'agents'
-    if (pathname.startsWith('/dashboard-group/neural-map')) return 'neural-map'
+    if (pathname.startsWith('/dashboard-group/ai-coding')) return 'ai-coding'
     if (pathname.startsWith('/dashboard-group/neurons')) return 'neurons'
     if (pathname.startsWith('/dashboard-group/works')) {
       const tab = searchParams.get('tab')
@@ -1519,8 +1519,8 @@ export function TwoLevelSidebar({ hideLevel2 = false }: TwoLevelSidebarProps) {
                     targetPath = '/dashboard-group/team'
                   } else if (category.id === 'calendar') {
                     targetPath = '/dashboard-group/calendar'
-                  } else if (category.id === 'neural-map') {
-                    targetPath = '/dashboard-group/neural-map'
+                  } else if (category.id === 'ai-coding') {
+                    targetPath = '/dashboard-group/ai-coding'
                   } else if (category.id === 'messenger') {
                     targetPath = '/dashboard-group/messenger'
                   } else {
@@ -1637,8 +1637,8 @@ export function TwoLevelSidebar({ hideLevel2 = false }: TwoLevelSidebarProps) {
 
       {!pathname?.includes('/works/new') && (
         <AnimatePresence>
-          {/* Neural Map Collapsed Toggle Button */}
-          {sidebarOpen && currentCategory === 'neural-map' && pathname?.includes('/neural-map') && level2Collapsed && (
+          {/* AI Coding Collapsed Toggle Button */}
+          {sidebarOpen && currentCategory === 'ai-coding' && pathname?.includes('/ai-coding') && level2Collapsed && (
             <motion.div
               initial={{ width: 0, opacity: 0 }}
               animate={{ width: 32, opacity: 1 }}
@@ -1662,8 +1662,8 @@ export function TwoLevelSidebar({ hideLevel2 = false }: TwoLevelSidebarProps) {
             </motion.div>
           )}
 
-          {/* Neural Map File Tree Panel */}
-          {sidebarOpen && currentCategory === 'neural-map' && pathname?.includes('/neural-map') && !level2Collapsed && (
+          {/* AI Coding File Tree Panel */}
+          {sidebarOpen && currentCategory === 'ai-coding' && pathname?.includes('/ai-coding') && !level2Collapsed && (
             <motion.aside
               initial={{ width: 0, opacity: 0 }}
               animate={{ width: level2Width, opacity: 1 }}
@@ -1852,8 +1852,8 @@ export function TwoLevelSidebar({ hideLevel2 = false }: TwoLevelSidebarProps) {
 
 
 
-          {/* Regular menus (not email, not neural-map page, not neurons page) */}
-          {sidebarOpen && activeItems.length > 0 && currentCategory !== 'email' && currentCategory !== 'neurons' && !(currentCategory === 'neural-map' && pathname?.includes('/neural-map')) && (
+          {/* Regular menus (not email, not ai-coding page, not neurons page) */}
+          {sidebarOpen && activeItems.length > 0 && currentCategory !== 'email' && currentCategory !== 'neurons' && !(currentCategory === 'ai-coding' && pathname?.includes('/ai-coding')) && (
             <motion.aside
               initial={{ width: 0, opacity: 0 }}
               animate={{ width: 240, opacity: 1 }}

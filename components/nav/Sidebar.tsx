@@ -50,7 +50,7 @@ const navigation = [
   { name: '이메일', href: '/dashboard-group/email', icon: Mail },
   { name: '워크플로우', href: '/dashboard-group/workflows', icon: Workflow },
   { name: 'AI 에이전트', href: '/dashboard-group/agents', icon: BrainCircuit },
-  { name: 'AI 코딩', href: '/dashboard-group/neural-map', icon: FaLaptopCode },
+  { name: 'AI 코딩', href: '/dashboard-group/ai-coding', icon: FaLaptopCode },
   { name: '마이뉴런', href: '/dashboard-group/neurons', icon: Brain },
   { name: '리포트', href: '/dashboard-group/reports', icon: FileText },
   { name: '커넥트', href: '/dashboard-group/connect', icon: GrConnect },

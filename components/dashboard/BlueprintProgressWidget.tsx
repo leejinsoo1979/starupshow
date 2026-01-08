@@ -309,7 +309,7 @@ export function BlueprintProgressWidget({ mapId, className }: BlueprintProgressW
       {/* View All Link */}
       {nodes.length > 5 && (
         <button
-          onClick={() => window.open(`/dashboard-group/neural-map?mapId=${mapId}&tab=life-stream`, '_blank')}
+          onClick={() => window.open(`/dashboard-group/ai-coding?mapId=${mapId}&tab=life-stream`, '_blank')}
           className="flex items-center justify-center gap-1 w-full mt-3 py-2 text-xs text-zinc-400 hover:text-cyan-400 transition-colors"
         >
           View all {nodes.length} tasks

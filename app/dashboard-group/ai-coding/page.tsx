@@ -483,7 +483,7 @@ export default function NeuralMapPage() {
       if (linkedProjectId && mapId) {
         try {
           // 맵 상태 저장
-          await fetch(`/api/neural-map/${mapId}`, {
+          await fetch(`/api/ai-coding/${mapId}`, {
             method: 'PATCH',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ graph }),
@@ -1010,8 +1010,8 @@ export default function NeuralMapPage() {
 
         // 🔥 1. 기존 맵이 있는지 조회 (프로젝트가 없어도 조회!)
         const apiUrl = linkedProjectId
-          ? `/api/neural-map?project_id=${linkedProjectId}`
-          : '/api/neural-map'
+          ? `/api/ai-coding?project_id=${linkedProjectId}`
+          : '/api/ai-coding'
 
         const listRes = await fetch(apiUrl)
         if (listRes.ok) {
@@ -1025,7 +1025,7 @@ export default function NeuralMapPage() {
         // 🔥 2. 기존 맵이 없을 때만 새 맵 생성
         if (!targetMapId) {
           console.log('[NeuralMap] No existing map found, creating new one...')
-          const createRes = await fetch('/api/neural-map', {
+          const createRes = await fetch('/api/ai-coding', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -1043,7 +1043,7 @@ export default function NeuralMapPage() {
 
         // 🔥 3. 맵 데이터 로드
         if (targetMapId) {
-          const graphRes = await fetch(`/api/neural-map/${targetMapId}`)
+          const graphRes = await fetch(`/api/ai-coding/${targetMapId}`)
           if (graphRes.ok) {
             const { graph: loadedGraph, files: loadedFiles } = await graphRes.json()
             setMapId(targetMapId)

@@ -169,7 +169,7 @@ export function ElectronHeader() {
             {/* Right Section: Layout Controls & Search - No Drag */}
             <div className="flex items-center gap-2" data-no-drag style={{ WebkitAppRegion: 'no-drag' } as any}>
                 {/* Neural Map 전용 뷰 모드 아이콘들 - 마이뉴럴맵 페이지에서만 표시 */}
-                {pathname?.includes('/neural-map') && (
+                {pathname?.includes('/ai-coding') && (
                     <>
                         {/* Node count */}
                         <span className="text-xs text-zinc-500 font-medium">08</span>

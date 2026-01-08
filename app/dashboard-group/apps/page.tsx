@@ -355,7 +355,7 @@ export default function AppsPage() {
     const handleCreateProject = (projectName: string) => {
         setShowNewProjectModal(false)
         // Neural Map으로 이동 (빈 프로젝트, 프로젝트명 전달)
-        router.push(`/dashboard-group/neural-map?newProject=true&name=${encodeURIComponent(projectName)}`)
+        router.push(`/dashboard-group/ai-coding?newProject=true&name=${encodeURIComponent(projectName)}`)
     }
 
     return (

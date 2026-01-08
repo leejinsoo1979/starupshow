@@ -720,8 +720,10 @@ export async function generateHwp(
       templatePath = tempTemplatePath
       console.log('[generateHwp] Using downloaded template:', templatePath)
     } catch (downloadError) {
-      console.warn('[generateHwp] Failed to download template, using default:', downloadError)
-      // Fallback to default
+      console.error('[generateHwp] Critical Error: Failed to download specific template:', downloadError)
+      // 사용자 요청에 따라 "양식이 다르면 탈락"이므로, 다운로드 실패 시 기본 템플릿으로 절대 넘어가지 않고 에러 처리함
+      // 단, 사용자가 수동으로 해결할 수 있는 가이드를 에러 메시지에 포함
+      throw new Error(`공고에 지정된 필수 양식 파일을 다운로드할 수 없습니다. \n(URL: ${plan.template.template_file_url})\n\n[해결 방법]\n1. 공고문에서 양식 파일을 직접 다운로드하세요.\n2. 프로젝트의 '문서' 탭에 해당 파일을 업로드해주세요.\n3. 다시 시도하면 업로드된 파일을 사용합니다.`)
     }
   }
 
@@ -729,8 +731,7 @@ export async function generateHwp(
   try {
     await fs.access(templatePath)
   } catch {
-    console.warn('HWP Template not found locally, using Fallback DOCX')
-    // 템플릿이 없으면 DOCX로 폴백하거나 에러 처리
+    // 템플릿이 없으면 에러 (기본 템플릿도 없는 경우)
     throw new Error(`HWP 템플릿 파일을 찾을 수 없습니다: ${templatePath}`)
   }
 
@@ -745,19 +746,33 @@ export async function generateHwp(
   }
 
   // 섹션 데이터 매핑
-  sections.forEach(section => {
-    // 섹션 타이틀이나 ID 기반으로 필드명 매핑 (임시 로직)
-    // 실제로는 BusinessPlanSection에 `field_name` 프로퍼티가 있거나 매핑 테이블이 있어야 함
-    if (section.content) {
-      // 간단한 규칙: 섹션 순서대로 field_1, field_2... 또는 특정 키워드 매칭
-      data[`section_${section.section_order}`] = section.content
+  // 2. 데이터 매핑 (Section-based Filling Logic)
+  // 단순 Key-Value 매핑이 아닌, 섹션 헤더를 찾아서 내용을 삽입하는 스마트 방식 사용
+  const sectionData: Array<{ header: string; content: string }> = []
 
-      // 또는 제목 기반 매핑
-      if (section.section_title.includes("개요")) data["item_summay"] = section.content
-      if (section.section_title.includes("배경")) data["Biz_Background"] = section.content
-      if (section.section_title.includes("목표")) data["Biz_Objective"] = section.content
+  sections.forEach(section => {
+    if (section.content && section.section_title) {
+      // 1. 개요 -> 1., 1-1. 등 헤더 넘버링이 포함된 제목으로 매핑 유도
+      // 2. 섹션 제목이 곧 헤더 키워드가 됨
+      sectionData.push({
+        header: section.section_title, // 예: "1. 창업아이템 개요"
+        content: section.content
+      })
+
+      // 혹시 모를 매핑 실패 대비하여 보조 키워드 추가 (선택사항)
+      // 예: "개요"만 있어도 찾을 수 있도록
+      const simpleTitle = section.section_title.replace(/^\d+[\.\-]\d*\s*/, '')
+      if (simpleTitle !== section.section_title) {
+        sectionData.push({
+          header: simpleTitle,
+          content: section.content
+        })
+      }
     }
   })
+
+  // 만약 섹션 데이터가 비었다면 기본 필드 매핑 시도 (Legacy Fallback)
+  // ... 생략 (섹션 기반이 훨씬 강력하므로 우선 적용)
 
   const tempId = Date.now().toString()
   const inputJsonPath = path.resolve(process.cwd(), 'temp', `data_${tempId}.json`)
@@ -766,9 +781,10 @@ export async function generateHwp(
   // temp 디렉토리 확인
   await fs.mkdir(path.dirname(inputJsonPath), { recursive: true })
 
-  await fs.writeFile(inputJsonPath, JSON.stringify(data), 'utf8')
+  // List 형태로 저장
+  await fs.writeFile(inputJsonPath, JSON.stringify(sectionData), 'utf8')
 
-  // 3. Java Process 실행
+  // 3. Java Process 실행 (fill-sections 모드)
   const jarPath = path.resolve(process.cwd(), 'lib/bin/hwp-filler.jar')
 
   // Java 경로 (환경변수 또는 절대경로)
@@ -784,7 +800,8 @@ export async function generateHwp(
   }
 
   return new Promise((resolve, reject) => {
-    const child = spawn(javaCommand, ['-jar', jarPath, templatePath, outputHwpPath, inputJsonPath])
+    // Command 변경: fill -> fill-sections
+    const child = spawn(javaCommand, ['-jar', jarPath, 'fill-sections', templatePath, outputHwpPath, inputJsonPath])
 
     let stdout = ''
     let stderr = ''

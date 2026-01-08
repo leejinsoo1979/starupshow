@@ -410,6 +410,40 @@ export async function parseAttachmentTemplate(
 
     console.log('[AttachmentParser] Parsed sections:', parsedTemplate.sections.length)
 
+    // 4.5. HWP 파일인 경우 Storage에 업로드하여 고정 URL 확보
+    let templateFileUrl = targetAttachment.url
+
+    if (targetAttachment.name.match(/\.(hwp|hwpx|doc|docx)$/i)) {
+      try {
+        const fileName = `${programId}_${targetAttachment.name}`
+        const filePath = `templates/${fileName}`
+
+        console.log('[AttachmentParser] Uploading template file to storage:', filePath)
+
+        const { error: uploadError } = await supabase.storage
+          .from('documents')
+          .upload(filePath, fileBuffer, {
+            contentType: targetAttachment.name.match(/\.doc(x)?$/i)
+              ? 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+              : 'application/x-hwp',
+            upsert: true
+          })
+
+        if (!uploadError) {
+          const { data: urlData } = supabase.storage
+            .from('documents')
+            .getPublicUrl(filePath)
+
+          templateFileUrl = urlData.publicUrl
+          console.log('[AttachmentParser] Template file URL secured:', templateFileUrl)
+        } else {
+          console.warn('[AttachmentParser] Failed to upload template file:', uploadError)
+        }
+      } catch (uploadErr) {
+        console.warn('[AttachmentParser] Template upload logic failed:', uploadErr)
+      }
+    }
+
     // 7. 템플릿 저장 (기존 확인 후 update 또는 insert)
     const templateData = {
       program_id: programId,
@@ -424,6 +458,7 @@ export async function parseAttachmentTemplate(
       is_active: true,
       source_file: targetAttachment.name,
       source_url: targetAttachment.url,
+      template_file_url: templateFileUrl, // HWP 자동 생성을 위한 파일 URL
       updated_at: new Date().toISOString()
     }
 

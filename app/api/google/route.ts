@@ -102,7 +102,7 @@ export async function POST(request: NextRequest) {
 
       const state = Buffer.from(JSON.stringify({
         userId: user.id,
-        returnUrl: '/dashboard-group/neural-map'
+        returnUrl: '/dashboard-group/ai-coding'
       })).toString('base64')
 
       const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?` +

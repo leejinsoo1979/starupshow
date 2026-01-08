@@ -10,7 +10,10 @@ async function testHwpGeneration() {
     const plan = {
         title: 'GlowUS HWP Test Plan',
         project_name: 'GlowUS Project',
-        template_id: 'test-template-id'
+        template_id: 'test-template-id',
+        template: {
+            template_file_url: 'http://fake-url.com/should-fail-and-trigger-manual-upload-guide.hwp'
+        }
     }
 
     const sections: any[] = [

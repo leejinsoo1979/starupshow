@@ -591,7 +591,7 @@ export default function SuperAgentCreatorPage() {
           <p className="mb-4">아직 생성된 스킬이 없습니다</p>
           <Button
             variant="outline"
-            onClick={() => router.push('/dashboard-group/neural-map')}
+            onClick={() => router.push('/dashboard-group/ai-coding')}
           >
             스킬 빌더로 이동
           </Button>

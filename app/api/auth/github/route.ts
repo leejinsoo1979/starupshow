@@ -10,7 +10,7 @@ const SCOPES = ['read:user', 'user:email', 'repo'].join(' ')
 // GET: Start GitHub OAuth flow
 export async function GET(request: Request) {
   const { searchParams, origin } = new URL(request.url)
-  const returnUrl = searchParams.get('returnUrl') || '/dashboard-group/neural-map'
+  const returnUrl = searchParams.get('returnUrl') || '/dashboard-group/ai-coding'
 
   // Check if user is logged in
   const supabase = await createClient()

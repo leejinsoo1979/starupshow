@@ -271,7 +271,7 @@ export default function GitPanel() {
 
     // GitHub 계정이 연결되지 않았으면 OAuth로 이동
     if (!isGitHubConnected) {
-      window.location.href = `/api/auth/github?returnUrl=/dashboard-group/neural-map`
+      window.location.href = `/api/auth/github?returnUrl=/dashboard-group/ai-coding`
       return
     }
 

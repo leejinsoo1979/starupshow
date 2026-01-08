@@ -74,9 +74,9 @@ export default function DashboardLayout({
       console.log('[Dashboard Layout] 🌐 AI Browser requested panel open!')
 
       // Neural Map 페이지가 아니면 이동
-      if (!pathname?.includes('/neural-map')) {
+      if (!pathname?.includes('/ai-coding')) {
         console.log('[Dashboard Layout] Navigating to Neural Map with browser tab...')
-        router.push('/dashboard-group/neural-map?tab=browser')
+        router.push('/dashboard-group/ai-coding?tab=browser')
       }
     })
 
@@ -95,7 +95,7 @@ export default function DashboardLayout({
 
     return () => unsubscribe?.()
   }, [router])
-  const isFullWidthPage = pathname?.includes('/messenger') || pathname?.includes('/agent-builder') || pathname?.includes('/email') || pathname?.includes('/project') || pathname?.includes('/task-hub') || pathname?.includes('/works/new') || pathname?.includes('/apps/ai-slides') || pathname?.includes('/apps/ai-sheet') || pathname?.includes('/apps/ai-docs') || pathname?.includes('/apps/ai-summary') || pathname?.includes('/apps/ai-blog') || pathname?.includes('/company/government-programs') || pathname?.includes('/neural-map') || pathname?.includes('/neurons') || pathname?.includes('/gantt')
+  const isFullWidthPage = pathname?.includes('/messenger') || pathname?.includes('/agent-builder') || pathname?.includes('/email') || pathname?.includes('/project') || pathname?.includes('/task-hub') || pathname?.includes('/works/new') || pathname?.includes('/apps/ai-slides') || pathname?.includes('/apps/ai-sheet') || pathname?.includes('/apps/ai-docs') || pathname?.includes('/apps/ai-summary') || pathname?.includes('/apps/ai-blog') || pathname?.includes('/company/government-programs') || pathname?.includes('/ai-coding') || pathname?.includes('/neurons') || pathname?.includes('/gantt')
 
   // Prevent hydration mismatch
   useEffect(() => {
@@ -198,7 +198,7 @@ export default function DashboardLayout({
 
   // 2단계 사이드바: Level1(64px) + Level2(동적)
   const isEmailPage = pathname?.includes('/email')
-  const isNeuralMapPage = pathname?.includes('/neural-map')
+  const isNeuralMapPage = pathname?.includes('/ai-coding')
   const isNeuronsPage = pathname?.includes('/neurons')
   // Neural Map: 동적 level2Width 사용
   // Neurons: 64px만 (자체 파일트리 렌더링)

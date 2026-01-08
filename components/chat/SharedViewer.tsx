@@ -24,6 +24,8 @@ export function SharedViewer({ roomId, onClose, accentColor = '#3B82F6' }: Share
   const [isMuted, setIsMuted] = useState(false)
   const [isFullscreen, setIsFullscreen] = useState(false)
   const [pdfPages, setPdfPages] = useState<string[]>([])
+  const [urlInput, setUrlInput] = useState('')
+  const iframeRef = useRef<HTMLIFrameElement>(null)
 
   const videoRef = useRef<HTMLVideoElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
@@ -303,15 +305,75 @@ export function SharedViewer({ roomId, onClose, accentColor = '#3B82F6' }: Share
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="absolute inset-0 flex items-center justify-center p-2"
+              className="absolute inset-0 flex flex-col"
             >
-              <div className="w-full h-full bg-white rounded-lg shadow-2xl overflow-hidden">
+              {/* 🌐 브라우저 스타일 상단 툴바 */}
+              <div className="flex items-center gap-2 px-3 py-2 bg-zinc-800 border-b border-zinc-700">
+                {/* 새로고침 */}
+                <button
+                  onClick={() => {
+                    if (iframeRef.current) {
+                      iframeRef.current.src = iframeRef.current.src
+                    }
+                  }}
+                  className="p-1.5 rounded hover:bg-zinc-700 text-zinc-400 hover:text-white transition-colors"
+                  title="새로고침"
+                >
+                  <RefreshCw className="w-4 h-4" />
+                </button>
+
+                {/* URL 입력창 */}
+                <div className="flex-1 flex items-center bg-zinc-900 rounded-lg border border-zinc-700 focus-within:border-blue-500">
+                  <Globe className="w-4 h-4 text-zinc-500 ml-3" />
+                  <input
+                    type="url"
+                    value={urlInput || viewerState.media_url}
+                    onChange={(e) => setUrlInput(e.target.value)}
+                    onFocus={() => setUrlInput(viewerState.media_url)}
+                    onKeyDown={async (e) => {
+                      if (e.key === 'Enter' && urlInput && urlInput !== viewerState.media_url) {
+                        // URL 변경 요청
+                        try {
+                          await fetch(`/api/chat/rooms/${roomId}/viewer`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                              media_type: 'weblink',
+                              media_url: urlInput,
+                              media_name: new URL(urlInput).hostname,
+                            }),
+                          })
+                        } catch (err) {
+                          console.error('Failed to navigate:', err)
+                        }
+                      }
+                    }}
+                    className="flex-1 bg-transparent text-sm text-zinc-200 px-2 py-1.5 outline-none"
+                    placeholder="URL 입력 후 Enter"
+                  />
+                </div>
+
+                {/* 새 탭에서 열기 */}
+                <a
+                  href={viewerState.media_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="p-1.5 rounded hover:bg-zinc-700 text-zinc-400 hover:text-white transition-colors"
+                  title="새 탭에서 열기"
+                >
+                  <Maximize2 className="w-4 h-4" />
+                </a>
+              </div>
+
+              {/* iframe 콘텐츠 */}
+              <div className="flex-1 bg-white overflow-hidden">
                 <iframe
-                  src={viewerState.media_url}
+                  ref={iframeRef}
+                  src={convertToEmbedUrl(viewerState.media_url)}
                   className="w-full h-full border-0"
                   title={viewerState.media_name}
-                  sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
-                  style={{ transform: `scale(${viewerState.zoom_level || 1})`, transformOrigin: 'top left' }}
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                  allowFullScreen
                 />
               </div>
             </motion.div>
@@ -319,7 +381,8 @@ export function SharedViewer({ roomId, onClose, accentColor = '#3B82F6' }: Share
         </AnimatePresence>
       </div>
 
-      {/* 컨트롤 바 */}
+      {/* 컨트롤 바 (웹링크는 상단에 자체 툴바가 있으므로 숨김) */}
+      {viewerState.media_type !== 'weblink' && (
       <div className="px-4 py-3 border-t border-zinc-700/50 bg-zinc-800/50">
         <div className="flex items-center justify-between">
           {/* 왼쪽: 줌 컨트롤 */}
@@ -404,20 +467,24 @@ export function SharedViewer({ roomId, onClose, accentColor = '#3B82F6' }: Share
                 </button>
               </>
             )}
+
           </div>
 
-          {/* 오른쪽: 다운로드 */}
+          {/* 오른쪽: 다운로드 (웹링크 제외) */}
           <div className="flex items-center gap-2">
-            <a
-              href={viewerState.media_url}
-              download={viewerState.media_name}
-              className="p-2 rounded-lg hover:bg-zinc-700 text-zinc-400 transition-colors"
-            >
-              <Download className="w-4 h-4" />
-            </a>
+            {viewerState.media_type !== 'weblink' && (
+              <a
+                href={viewerState.media_url}
+                download={viewerState.media_name}
+                className="p-2 rounded-lg hover:bg-zinc-700 text-zinc-400 transition-colors"
+              >
+                <Download className="w-4 h-4" />
+              </a>
+            )}
           </div>
         </div>
       </div>
+      )}
     </div>
   )
 }
@@ -427,6 +494,46 @@ function formatTime(seconds: number): string {
   const mins = Math.floor(seconds / 60)
   const secs = Math.floor(seconds % 60)
   return `${mins}:${secs.toString().padStart(2, '0')}`
+}
+
+// URL을 임베드 가능한 형식으로 변환
+function convertToEmbedUrl(url: string): string {
+  try {
+    const urlObj = new URL(url)
+
+    // YouTube 변환
+    if (urlObj.hostname.includes('youtube.com') || urlObj.hostname.includes('youtu.be')) {
+      let videoId = ''
+      if (urlObj.hostname.includes('youtu.be')) {
+        videoId = urlObj.pathname.slice(1)
+      } else {
+        videoId = urlObj.searchParams.get('v') || ''
+      }
+      if (videoId) {
+        return `https://www.youtube.com/embed/${videoId}`
+      }
+    }
+
+    // Vimeo 변환
+    if (urlObj.hostname.includes('vimeo.com')) {
+      const videoId = urlObj.pathname.split('/').pop()
+      if (videoId) {
+        return `https://player.vimeo.com/video/${videoId}`
+      }
+    }
+
+    // Google Docs/Slides/Sheets 변환
+    if (urlObj.hostname.includes('docs.google.com')) {
+      if (!url.includes('/embed') && !url.includes('/preview')) {
+        return url.replace('/edit', '/embed').replace('/view', '/embed')
+      }
+    }
+
+    // 그 외는 원본 URL 반환
+    return url
+  } catch {
+    return url
+  }
 }
 
 export default SharedViewer

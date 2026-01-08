@@ -712,7 +712,7 @@ export const navigateToTool = new DynamicStructuredTool({
       projects: '/dashboard-group/project',
       workflows: '/dashboard-group/workflows',
       agents: '/dashboard-group/agents',
-      'neural-map': '/dashboard-group/neural-map',
+      'neural-map': '/dashboard-group/ai-coding',
       kpis: '/dashboard-group/kpis',
       commits: '/dashboard-group/commits',
       'ai-slides': '/dashboard-group/apps/ai-slides',

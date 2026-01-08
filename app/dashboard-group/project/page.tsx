@@ -387,7 +387,7 @@ export default function ProjectsPage() {
       await fetchProjects()
 
       // Neural Map으로 이동
-      router.push("/dashboard-group/neural-map")
+      router.push("/dashboard-group/ai-coding")
     } catch (error) {
       console.error("[Import] Error:", error)
       alert("폴더를 불러오는 중 오류가 발생했습니다.")
@@ -456,7 +456,7 @@ export default function ProjectsPage() {
         // projectPath도 함께 설정 (터미널, 챗봇에서 사용)
         useNeuralMapStore.getState().setProjectPath(folderPath)
       }
-      router.push("/dashboard-group/neural-map")
+      router.push("/dashboard-group/ai-coding")
     } catch (error) {
       console.error("Create project error:", error)
       alert("프로젝트 생성에 실패했습니다")
@@ -1219,7 +1219,7 @@ export default function ProjectsPage() {
                         if ((project as any).folder_path) {
                           useNeuralMapStore.getState().setProjectPath((project as any).folder_path)
                         }
-                        router.push("/dashboard-group/neural-map")
+                        router.push("/dashboard-group/ai-coding")
                       }}
                       className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg transition-colors"
                       style={{
@@ -1359,7 +1359,7 @@ export default function ProjectsPage() {
                           if ((project as any).folder_path) {
                             useNeuralMapStore.getState().setProjectPath((project as any).folder_path)
                           }
-                          router.push("/dashboard-group/neural-map")
+                          router.push("/dashboard-group/ai-coding")
                         }}
                         className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white rounded-lg transition-colors shadow-lg"
                         style={{ background: themeColor }}
