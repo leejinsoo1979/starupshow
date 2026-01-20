@@ -175,9 +175,9 @@ export function MainAssistantButton() {
 
   if (loading) {
     return (
-      <div className="fixed bottom-5 right-5 z-50">
-        <div className="w-11 h-11 rounded-full bg-zinc-800/80 backdrop-blur-sm flex items-center justify-center animate-pulse">
-          <Loader2 className="w-4 h-4 animate-spin text-zinc-500" />
+      <div className="relative">
+        <div className="w-8 h-8 rounded-full bg-zinc-800/80 backdrop-blur-sm flex items-center justify-center animate-pulse">
+          <Loader2 className="w-3.5 h-3.5 animate-spin text-zinc-500" />
         </div>
       </div>
     )
@@ -193,11 +193,11 @@ export function MainAssistantButton() {
       <AnimatePresence>
         {isOpen && (
           <motion.div
-            initial={{ opacity: 0, y: 20, scale: 0.95 }}
+            initial={{ opacity: 0, y: -10, scale: 0.95 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 20, scale: 0.95 }}
+            exit={{ opacity: 0, y: -10, scale: 0.95 }}
             transition={{ duration: 0.2 }}
-            className="fixed bottom-20 right-5 z-50 w-[360px] h-[480px] bg-zinc-900/95 backdrop-blur-xl rounded-2xl shadow-2xl border border-zinc-800 flex flex-col overflow-hidden"
+            className="fixed top-14 right-4 z-[200] w-[360px] h-[480px] bg-zinc-900/95 backdrop-blur-xl rounded-2xl shadow-2xl border border-zinc-800 flex flex-col overflow-hidden"
             style={{
               boxShadow: `0 25px 50px -12px rgba(0, 0, 0, 0.5), 0 0 0 1px ${themeColor}20`,
             }}
@@ -317,23 +317,23 @@ export function MainAssistantButton() {
         )}
       </AnimatePresence>
 
-      {/* 미니멀 플로팅 버튼 - hover 시 확장 */}
+      {/* 미니멀 버튼 - hover 시 확장 */}
       <motion.button
-        initial={{ scale: 0, opacity: 0 }}
+        initial={{ scale: 0.9, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
         whileTap={{ scale: 0.95 }}
         onClick={handleToggle}
         className={cn(
-          "fixed bottom-5 right-5 z-50 group",
+          "relative group",
           "flex items-center justify-center rounded-full text-white",
           "transition-all duration-300 ease-out",
           isOpen
-            ? "w-11 h-11"
-            : "w-11 h-11 hover:w-auto hover:px-4 hover:gap-2.5"
+            ? "w-8 h-8"
+            : "w-8 h-8 hover:w-auto hover:px-2.5 hover:gap-1.5"
         )}
         style={{
           background: `linear-gradient(135deg, ${themeColor}, ${themeColor}dd)`,
-          boxShadow: `0 4px 20px ${themeColor}40`,
+          boxShadow: `0 2px 10px ${themeColor}30`,
         }}
       >
         <AnimatePresence mode="wait">

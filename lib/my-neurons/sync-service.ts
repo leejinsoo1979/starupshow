@@ -807,7 +807,7 @@ export async function syncMyNeuronsGraph(
   }
 
   // 10. Milestones
-  const projectIds = projects?.map((p) => p.id) || []
+  const projectIds = (projects as { id: string }[] | null)?.map((p) => p.id) || []
   if (projectIds.length > 0) {
     const { data: milestones } = await supabase
       .from('project_milestones')

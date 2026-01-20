@@ -79,6 +79,33 @@ interface ChatContext {
   // 🔥 업무 실행을 위한 컨텍스트
   companyId?: string | null
   userId?: string | null
+  // 🔥 메모리 저장 제어 (API 라우트에서 이미 저장하는 경우 true)
+  skipMemorySave?: boolean
+}
+
+// ============================================
+// 안전한 JSON 파싱
+// ============================================
+
+/**
+ * 도구 실행 결과 타입
+ */
+interface ToolResult {
+  success?: boolean
+  message?: string
+  error?: string
+  action?: ToolAction
+  currentUrl?: string
+  [key: string]: any
+}
+
+function safeJsonParse<T = ToolResult>(str: string, fallback?: T): T {
+  try {
+    return JSON.parse(str)
+  } catch (error) {
+    console.warn('[SuperAgent] JSON parse error:', error)
+    return (fallback ?? { success: true, message: str }) as T
+  }
 }
 
 // ============================================
@@ -276,7 +303,32 @@ const DEFAULT_RETRY_CONFIG: RetryConfig = {
 }
 
 /**
+ * 재시도 불가능한 에러인지 확인
+ * - 인증 오류, 권한 오류, 잘못된 인자 등은 재시도해도 의미 없음
+ */
+function isNonRetryableError(error: Error): boolean {
+  const msg = error.message.toLowerCase()
+  const nonRetryablePatterns = [
+    'unauthorized',
+    'forbidden',
+    '401',
+    '403',
+    'invalid api key',
+    'authentication',
+    'permission denied',
+    'invalid argument',
+    'bad request',
+    '400',
+    'not found',
+    '404',
+  ]
+  return nonRetryablePatterns.some(pattern => msg.includes(pattern))
+}
+
+/**
  * 지수 백오프로 도구 실행 재시도
+ * - 재시도 불가능한 에러는 즉시 실패 반환
+ * - 타임아웃 지원
  */
 async function executeToolWithRetry(
   tool: any,
@@ -287,11 +339,28 @@ async function executeToolWithRetry(
 
   for (let attempt = 0; attempt <= config.maxRetries; attempt++) {
     try {
-      const result = await tool.invoke(toolArgs)
+      // 타임아웃 처리 (30초)
+      const timeoutMs = 30000
+      const result = await Promise.race([
+        tool.invoke(toolArgs),
+        new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error(`Tool timeout after ${timeoutMs}ms`)), timeoutMs)
+        ),
+      ])
       return { success: true, result, retries: attempt }
     } catch (error: any) {
       lastError = error
       console.warn(`[SuperAgent] Tool retry ${attempt + 1}/${config.maxRetries + 1}:`, error.message)
+
+      // 재시도 불가능한 에러면 즉시 반환
+      if (isNonRetryableError(error)) {
+        console.warn(`[SuperAgent] Non-retryable error detected, stopping retries`)
+        return {
+          success: false,
+          error: error.message,
+          retries: attempt,
+        }
+      }
 
       if (attempt < config.maxRetries) {
         // 지수 백오프 대기
@@ -911,7 +980,10 @@ Brain State와 충돌하는 제안을 하지 마세요!
         const { success, result, error, retries } = await executeToolWithRetry(tool, toolArgs)
 
         if (success && result) {
-          const parsedResult = typeof result === 'string' ? JSON.parse(result) : result
+          // 안전한 JSON 파싱 (파싱 실패 시 기본값 사용)
+          const parsedResult: ToolResult = typeof result === 'string'
+            ? safeJsonParse<ToolResult>(result, { success: true, message: result })
+            : (result as ToolResult)
 
           // 재시도 정보 로깅
           if (retries > 0) {
@@ -930,11 +1002,11 @@ Brain State와 충돌하는 제안을 하지 마세요!
             agent.id,
             'tool_use',
             `${toolName} 도구 사용`,
-            parsedResult.success
+            parsedResult.success !== false
               ? `${parsedResult.message || '성공적으로 실행됨'}`
               : `실패: ${parsedResult.error || '알 수 없는 오류'}`,
-            { toolName, args: toolArgs, success: parsedResult.success, retries },
-            [toolName, parsedResult.success ? 'success' : 'failed'],
+            { toolName, args: toolArgs, success: parsedResult.success !== false, retries },
+            [toolName, parsedResult.success !== false ? 'success' : 'failed'],
             toolImportance
           ).catch(() => {}) // 로그 저장 실패해도 무시
 
@@ -1004,7 +1076,8 @@ Brain State와 충돌하는 제안을 하지 마세요!
     }
 
     // 🧠 JARVIS 롱텀 메모리에 대화 저장 (Phase 1.4 - 영구 보존)
-    if (context?.userId) {
+    // NOTE: API 라우트에서 이미 저장하는 경우 skipMemorySave=true로 중복 방지
+    if (context?.userId && !context?.skipMemorySave) {
       try {
         // 사용자 메시지 저장
         await saveConversationMessage({
@@ -1045,6 +1118,8 @@ Brain State와 충돌하는 제안을 하지 마세요!
         // 메모리 저장 실패해도 응답은 정상 반환 (non-critical)
         console.warn('[SuperAgent] Memory save failed (non-critical):', saveError)
       }
+    } else if (context?.skipMemorySave) {
+      console.log(`[SuperAgent] 📌 Memory save skipped (handled by API route)`)
     }
 
     return {
@@ -1128,6 +1203,7 @@ export interface StreamEvent {
 /**
  * 스트리밍 응답 생성 (SSE 지원)
  * - 젠스파크처럼 진행 상황 실시간 표시
+ * - generateSuperAgentResponse와 동일한 로직 (동기화됨)
  */
 export async function* generateSuperAgentResponseStream(
   agent: AgentConfig,
@@ -1140,11 +1216,12 @@ export async function* generateSuperAgentResponseStream(
   const model = agent.model || getDefaultModel(provider)
   const temperature = agent.temperature ?? 0.7
 
+  console.log(`[SuperAgentStream] ${agent.name} using ${provider}/${model} with tool calling`)
   yield { type: 'thinking', content: `🤖 ${agent.name} 분석 중... (${provider}/${model})` }
 
   const llm = createLLM(provider, model, agent.apiKey || undefined, temperature)
 
-  // 컨텍스트 설정
+  // 🔥 실행 컨텍스트 설정 (비즈니스 도구가 회사 정보에 접근할 수 있도록)
   setAgentExecutionContext({
     agentId: agent.id,
     companyId: context?.companyId || undefined,
@@ -1152,41 +1229,84 @@ export async function* generateSuperAgentResponseStream(
     projectPath: context?.projectPath || undefined,
   })
 
-  // JARVIS 메모리 로드
+  // 🧠 JARVIS 메모리 컨텍스트 로드 (롱텀 메모리)
   let jarvisContext: JarvisContext | null = null
+  let relationshipGreeting = ''
+
   if (context?.userId) {
     yield { type: 'thinking', content: '🧠 장기 기억 로딩 중...' }
     try {
+      console.log(`[SuperAgentStream] Loading JARVIS context for user: ${context.userId}`)
+
       jarvisContext = await buildJarvisContext(
         agent.id,
         context.userId,
         userMessage,
         { recentLimit: 10, ragLimit: 5, includeEpisodes: true }
       )
-    } catch (e) {
-      // 메모리 로드 실패해도 계속 진행
+
+      console.log(`[SuperAgentStream] JARVIS context loaded:`, {
+        hasUserProfile: !!jarvisContext.userProfile,
+        recentConversations: jarvisContext.recentConversations.length,
+        relevantMemories: jarvisContext.relevantMemories.length,
+        relevantEpisodes: jarvisContext.relevantEpisodes.length,
+      })
+
+      // 관계 기반 인사말 (선택적으로 사용)
+      if (jarvisContext.userProfile) {
+        const relationship = await getOrCreateRelationship(agent.id, 'user', context.userId)
+        if (relationship) {
+          relationshipGreeting = generateGreeting(relationship)
+        }
+      }
+    } catch (memoryError) {
+      console.warn('[SuperAgentStream] Memory context load failed (continuing without):', memoryError)
+      // 메모리 로드 실패해도 대화는 계속 진행
     }
   }
 
-  // 도구 가져오기
-  const superAgentTools = getSuperAgentTools()
+  // 🔧 도구 바인딩 (기본 도구 + 비즈니스 도구)
+  const superTools = getSuperAgentTools()
   const businessTools = getAgentBusinessTools()
-  const tools = [...superAgentTools, ...businessTools]
+
+  // 중복 도구 제거 (businessTools 우선)
+  const businessToolNames = new Set(businessTools.map(t => t.name))
+  const filteredSuperTools = superTools.filter(t => !businessToolNames.has(t.name))
+  let tools = [...filteredSuperTools, ...businessTools]
+
+  // Gemini 모델은 도구가 많으면 느려지므로 핵심 도구만 사용
+  const isGemini = (agent as any).provider === 'gemini' || agent.model?.includes('gemini')
+  if (isGemini) {
+    const essentialTools = [
+      'search_web', 'get_current_time', 'get_weather', 'calculate',
+      'read_file', 'write_file', 'edit_file', 'search_files', 'get_file_structure',
+      'get_emails', 'send_email', 'get_calendar_events', 'create_calendar_event',
+      'navigate_to', 'use_skill', 'create_project', 'list_projects', 'create_task',
+      'run_terminal', 'generate_image', 'call_agent', 'get_agent_status',
+      'browser_automation', 'generate_business_plan', 'match_government_programs', 'query_government_programs',
+    ]
+    tools = tools.filter(t => essentialTools.includes(t.name))
+    console.log(`[SuperAgentStream] Gemini detected - using ${tools.length} essential tools`)
+  }
+
+  console.log(`[SuperAgentStream] Tools loaded: ${tools.length} total`)
   const llmWithTools = llm.bindTools(tools)
 
-  // 복잡도 분석
+  // 🧠 작업 복잡도 기반 동적 반복 횟수 설정
   const complexity = analyzeTaskComplexity(userMessage)
   let maxIterations = complexity.maxIterations
+  console.log(`[SuperAgentStream] Task complexity: ${complexity.score}/10, maxIterations: ${maxIterations} (${complexity.reason})`)
 
   yield {
     type: 'thinking',
     content: `📊 복잡도: ${complexity.score}/10 (${complexity.reason})`,
   }
 
-  // 계획 생성 (복잡한 작업)
+  // 🧠 복잡한 작업은 먼저 실행 계획 수립
   let executionPlan: ExecutionPlan | null = null
   if (complexity.score >= 7) {
     yield { type: 'planning', content: '📋 실행 계획 수립 중...' }
+    console.log('[SuperAgentStream] 🎯 Complex task detected, generating execution plan...')
 
     executionPlan = await generateExecutionPlan(
       llm,
@@ -1195,19 +1315,21 @@ export async function* generateSuperAgentResponseStream(
     )
 
     if (executionPlan) {
+      console.log(`[SuperAgentStream] 📋 Execution plan: ${executionPlan.totalSteps} steps, ${executionPlan.complexity}`)
       yield { type: 'planning', content: `계획 완료: ${executionPlan.totalSteps}단계`, plan: executionPlan }
 
       if (executionPlan.estimatedIterations > maxIterations) {
         maxIterations = Math.min(25, executionPlan.estimatedIterations)
+        console.log(`[SuperAgentStream] 📈 maxIterations updated to ${maxIterations} based on plan`)
       }
     }
   }
 
-  // 시스템 프롬프트 구성 (기존 함수와 동일한 방식)
+  // 🔧 시스템 프롬프트 생성 (generateSuperAgentResponse와 동일)
   const role = getAgentRole(agent.capabilities || [])
-  const basePersonality = AGENT_ROLE_PROMPTS[role] || AGENT_ROLE_PROMPTS['default']
+  const basePersonality = agent.system_prompt || AGENT_ROLE_PROMPTS[role] || AGENT_ROLE_PROMPTS['default']
 
-  // 에이전트 identity 문자열 생성
+  // 정체성 정보
   let identityStr = ''
   if (agent.identity) {
     const id = agent.identity
@@ -1227,10 +1349,211 @@ export async function* generateSuperAgentResponseStream(
     false
   )
 
-  let systemPrompt = coreSystemPrompt
-  if (jarvisContext?.formattedContext) {
-    systemPrompt += `\n## 🧠 롱텀 메모리\n${jarvisContext.formattedContext}\n`
-  }
+  // 프로젝트 컨텍스트
+  const projectContext = context?.projectPath
+    ? `\n## 📁 현재 프로젝트\n- 경로: ${context.projectPath}\n`
+    : `\n## 📁 현재 프로젝트\n⚠️ 선택된 프로젝트 없음 - 파일 생성 시 create_project를 먼저 호출하세요!\n`
+
+  // 사용자 정보
+  const userInfo = context?.userName
+    ? `\n## 👤 대화 상대\n- 이름: ${context.userName}${context.userRole ? `\n- 직위: ${context.userRole}` : ''}\n`
+    : ''
+
+  // 업무 컨텍스트 (Brain State 포함)
+  const workContextStr = context?.workContext
+    ? `\n## 📋 업무 맥락 & 뇌 상태\n${context.workContext}\n`
+    : ''
+
+  // 파일 컨텍스트 (있는 경우)
+  const filesContext = context?.files?.length
+    ? `\n## 📄 로드된 파일들\n${context.files.map(f => `- ${f.path}`).join('\n')}\n`
+    : ''
+
+  // 🧠 JARVIS 메모리 컨텍스트 문자열 생성
+  const memoryContextStr = jarvisContext?.formattedContext
+    ? `\n## 🧠 롱텀 메모리 (이 사용자와의 과거 대화 기록)\n${jarvisContext.formattedContext}\n`
+    : ''
+
+  // 관계 기반 인사말 힌트
+  const relationshipHint = relationshipGreeting
+    ? `\n## 💬 소통 스타일 힌트\n이 사용자와는 "${relationshipGreeting}" 같은 톤으로 대화하세요.\n`
+    : ''
+
+  let systemPrompt = `${coreSystemPrompt}
+
+${projectContext}
+${userInfo}
+${workContextStr}
+${filesContext}
+${memoryContextStr}
+${relationshipHint}
+
+## 🧠 핵심 원칙: 초보자도 쓸 수 있는 AI
+
+사용자는 코딩을 모르는 초보자입니다. 대충 말해도 **의도를 파악해서 알아서 작업**하세요.
+
+### 사용자가 이렇게 말하면:
+- "게임 만들어줘" → 어떤 게임인지 추론해서 바로 코드 작성
+- "뭔가 멋진 거" → 적절한 프로젝트 선택해서 구현
+- "저번에 하던 거" → 컨텍스트에서 파악해서 이어서 작업
+- "이거 고쳐" → 무엇이 문제인지 분석하고 수정
+- "더 좋게" → 개선점 찾아서 리팩토링
+
+### 당신이 해야 할 것:
+1. **의도 파악**: 모호한 요청에서 구체적 작업 추출
+2. **계획 수립**: 필요한 파일, 구조, 기술 스택 결정
+3. **즉시 실행**: 도구를 사용해서 바로 만들기
+4. **결과 보고**: 뭘 만들었는지 간단히 설명
+
+## 🛠️ 도구 (반드시 사용!)
+
+### 📊 업무 도구 (백엔드 실행 - 실제 데이터 조회/수정!)
+- **query_employees** - 직원 목록 조회 (부서, 직급 필터)
+- **get_employee_detail** - 직원 상세 정보 조회
+- **query_transactions** - 거래내역 조회 (날짜, 금액 필터)
+- **query_projects** - 프로젝트 목록 조회
+- **query_tasks** - 태스크 목록 조회
+- **create_task_db** - 태스크 생성 (DB 저장)
+- **update_task_status** - 태스크 상태 변경
+- **query_calendar** - 일정 조회
+- **create_calendar_event** - 일정 생성
+- **get_company_info** - 회사 정보 조회
+- **get_business_stats** - 업무 통계/대시보드
+- **get_current_datetime** - 현재 날짜/시간 조회
+
+### 🏛️ 정부지원사업 도구 (⭐ 핵심 기능!)
+- **generate_business_plan** - ⭐ 사업계획서 자동 생성! (programId 필요)
+- **match_government_programs** - ⭐ 회사에 적합한 정부지원사업 AI 추천
+- **query_government_programs** - 정부지원사업 공고 목록 조회
+
+### 🤖 다른 에이전트 호출 (오케스트레이션!)
+- **call_agent** - ⭐ 다른 AI 에이전트에게 업무 위임 (agentId 또는 agentName으로 호출)
+- **get_agent_status** - 배포된 에이전트 목록 및 상태 조회
+
+### 프로젝트 관리
+- **create_project** - ⭐ 새 프로젝트 생성 (파일 작업 전 필수!)
+- **list_projects** - 프로젝트 목록 조회
+
+### 코드/파일 작업
+- **create_file_with_node** - ⭐ 코드 파일 생성 + 뉴런맵 노드 (가장 많이 씀!)
+- **edit_file** - 기존 파일 수정
+- **read_file** - 파일 내용 확인
+- **get_file_structure** - 프로젝트 구조 파악
+
+### ⚠️ 파일 생성 규칙
+현재 프로젝트가 없으면 **create_project를 먼저 호출**한 후 create_file_with_node를 사용하세요!
+프로젝트 이름은 작업 내용에 맞게 자동으로 정해주세요. (예: "퀴즈게임", "투두앱" 등)
+
+### 뉴런맵 노드
+- **create_node** - 노트, 다이어그램, 문서 등 노드 생성
+- **update_node** / **delete_node** - 노드 수정/삭제
+- **create_edge** - 노드 연결
+
+### 📧 이메일/캘린더 (앱 내 기능!)
+- **get_emails** - ⭐ 이메일 조회 (메일 확인할 때 반드시 사용!)
+- **send_email** - 이메일 발송
+- **get_calendar_events** - ⭐ 일정 조회 (캘린더 확인할 때 반드시 사용!)
+- **create_calendar_event** - 일정 생성
+
+### 🚀 앱 내비게이션 (페이지 이동!)
+- **navigate_to** - 앱 내 페이지 이동 (email, calendar, projects 등)
+- **use_skill** - 스킬 API 호출 (youtube-transcript, ppt-pro 등)
+
+### 🌐 브라우저 자동화 (실제 브라우저 제어!) - ⭐ 핵심 도구!
+- **browser_automation** - Vision AI가 화면을 보고 자율적으로 행동!
+  - 단순히 사용자 메시지를 복사하지 마! **대화 맥락을 이해해서 지능적인 task를 만들어!**
+  - 예: 사용자가 "스크롤 좀 내려봐" 라고 하면 → 이전 대화에서 뭘 찾고 있었는지 파악해서 task 생성
+
+  **맥락 기반 task 생성 예시:**
+  - 이전: "네이버에서 날씨 검색" → 현재: "스크롤 내려"
+    → task="현재 날씨 검색 결과 페이지에서 스크롤을 내려서 주간 예보 확인해줘"
+  - 이전: "구글에서 AI 뉴스 찾아" → 현재: "첫번째 거 클릭"
+    → task="검색 결과에서 첫번째 AI 뉴스 기사를 클릭해줘"
+
+  **기본 예시:**
+  - "네이버 열어줘" → browser_automation(task="네이버 홈페이지 열어줘")
+  - "오늘 날씨 알려줘" → browser_automation(task="네이버에서 오늘 날씨 검색해서 결과 알려줘")
+  - 스크린샷, 클릭, 스크롤, 텍스트 입력 모두 가능!
+
+### 기타
+- **run_terminal** - npm install, git 등 명령 실행
+- **web_search** - 모르는 거 검색 (외부 정보가 필요할 때만!)
+
+## 🧠 Brain State 준수
+
+업무 맥락에 "Brain State" 또는 "Context Pack"이 포함되어 있다면:
+- **Policies/Identity**: 사용자의 원칙 → 반드시 준수
+- **Decisions**: 이미 결정된 사항 → 번복 금지
+- **Playbooks**: 작업 절차 → 순서대로 진행
+- **Constraints**: Do-Not 목록 → 절대 위반 금지
+
+Brain State와 충돌하는 제안을 하지 마세요!
+
+## 🚨 절대 규칙
+
+### ❌ 하지 마:
+- "어떤 게임을 만들까요?" 같은 역질문
+- "~할 수 있습니다" 같은 설명만
+- "draw.io 사용하세요" 같은 외부 도구 추천
+- 코드 없이 설명만 하기
+- **이메일/캘린더 요청에 web_search 사용 금지!** → get_emails, get_calendar_events 사용
+- **앱 내 기능을 외부 검색으로 대체하지 마!**
+
+### ✅ 무조건 해:
+- **일단 만들어!** 질문하지 말고 가장 적절한 걸 선택해서 구현
+- 모든 코드는 **create_file_with_node**로 파일+노드 생성
+- 모든 문서/노트는 **create_node**로 뉴런맵에 추가
+
+### 🔴 도구 완료 규칙 (중요!):
+- 도구 결과에 "success: true" 또는 "completed: true"가 있으면 **작업 완료**
+- 이메일/캘린더 조회 후에는 **결과를 요약해서 사용자에게 바로 답변** (같은 도구 재호출 금지!)
+- 한 번 성공한 도구는 다시 호출하지 마!
+- 도구 결과가 왔으면 → 사용자에게 자연어로 요약 응답
+
+## 예시
+
+사용자: "게임 만들어"
+→ 생각: 간단한 게임... 벽돌깨기나 스네이크가 적당
+→ 행동: create_file_with_node로 game.html 생성 (Canvas 기반 벽돌깨기)
+
+사용자: "이거 뭔가 이상해"
+→ 생각: 현재 프로젝트 파일 확인 필요
+→ 행동: get_file_structure로 구조 파악 → read_file로 코드 확인 → edit_file로 수정
+
+사용자: "문서 정리해줘"
+→ 생각: 프로젝트 구조를 노트로 정리
+→ 행동: create_node(type="note")로 문서 노드 생성
+
+사용자: "이메일 확인해줘"
+→ 행동: get_emails() 1회 호출
+→ 결과 받으면: "받은편지함에 5개의 이메일이 있어요. 1) 팀 회의 안내... 2) 서비스 업데이트..." 형태로 요약 응답
+
+사용자: "네이버 열어줘" / "구글 가줘" / "유튜브 열어"
+→ 행동: browser_automation(task="네이버 열어줘") - 실제 브라우저 열림!
+
+사용자: "구글에서 날씨 검색해줘"
+→ 행동: browser_automation(task="구글에서 날씨 검색해줘") - 브라우저로 검색 실행!
+
+사용자: "네이버에서 맛집 찾아줘"
+→ 행동: browser_automation(task="네이버에서 맛집 검색해줘")
+
+사용자: "우리 회사에 맞는 정부지원사업 찾아줘"
+→ 행동: match_government_programs() → 적합한 공고 리스트 반환
+
+사용자: "이 공고 사업계획서 만들어줘" (programId가 있는 경우)
+→ 행동: generate_business_plan(programId="xxx") → AI가 자동으로 사업계획서 생성
+
+사용자: "제레미한테 코드 리뷰 맡겨줘"
+→ 행동: call_agent(agentName="제레미", message="코드 리뷰해줘")
+
+사용자: "배포된 에이전트 뭐 있어?"
+→ 행동: get_agent_status() → 활성 에이전트 목록 반환
+
+**너는 실행하는 AI다. 말만 하는 AI 아니다. 도구 써서 만들어!**
+**모든 업무를 직접 수행하거나, 다른 에이전트에게 위임할 수 있다!**
+`
+
+  // 실행 계획이 있으면 추가
   if (executionPlan) {
     systemPrompt += formatPlanContext(executionPlan)
   }
@@ -1293,19 +1616,41 @@ export async function* generateSuperAgentResponseStream(
         const toolArgs = toolCall.args || {}
         const toolId = toolCall.id || `tool_${Date.now()}`
 
+        console.log(`[SuperAgentStream] Tool call: ${toolName}`, toolArgs)
+
+        // 🔴 중복 호출 방지: 같은 도구가 이미 성공적으로 호출되었는지 확인
+        const previousCallCount = toolsUsed.filter(t => t === toolName).length
+        if (previousCallCount > 0 && ['get_emails', 'get_calendar_events'].includes(toolName)) {
+          console.log(`[SuperAgentStream] ⚠️ Duplicate tool call blocked: ${toolName}`)
+          yield { type: 'tool_end', tool: { name: toolName }, result: '이미 호출됨 - 이전 결과 사용' }
+          messages.push(new ToolMessage({
+            content: JSON.stringify({
+              success: true,
+              completed: true,
+              message: `${toolName}은 이미 호출되었습니다. 이전 결과를 사용해서 사용자에게 응답해주세요.`,
+              instruction: '이전 도구 결과를 참고해서 사용자에게 자연어로 요약 응답해주세요.'
+            }),
+            tool_call_id: toolId,
+          }))
+          toolsUsed.push(toolName)
+          continue
+        }
+
         yield { type: 'tool_start', tool: { name: toolName, args: toolArgs } }
 
         const tool = tools.find(t => t.name === toolName)
         if (!tool) {
           yield { type: 'tool_end', tool: { name: toolName }, error: '도구를 찾을 수 없음' }
           messages.push(new ToolMessage({
-            content: JSON.stringify({ success: false, error: '도구를 찾을 수 없습니다.' }),
+            content: JSON.stringify({ success: false, error: `도구 "${toolName}"을 찾을 수 없습니다.` }),
             tool_call_id: toolId,
           }))
           continue
         }
 
-        // 재시도 로직으로 실행
+        toolsUsed.push(toolName)
+
+        // 🔄 도구 실행 (재시도 포함)
         const { success, result, error, retries } = await executeToolWithRetry(tool, toolArgs)
 
         if (retries > 0) {
@@ -1313,14 +1658,37 @@ export async function* generateSuperAgentResponseStream(
         }
 
         if (success && result) {
-          toolsUsed.push(toolName)
-          const parsedResult = typeof result === 'string' ? JSON.parse(result) : result
+          // 안전한 JSON 파싱 (파싱 실패 시 기본값 사용)
+          const parsedResult: ToolResult = typeof result === 'string'
+            ? safeJsonParse<ToolResult>(result, { success: true, message: result })
+            : (result as ToolResult)
 
-          // 브라우저 URL 추출
-          if (toolName === 'browser_automation' && parsedResult.currentUrl) {
-            browserUrl = parsedResult.currentUrl
+          // 재시도 정보 로깅
+          if (retries > 0) {
+            console.log(`[SuperAgentStream] Tool ${toolName} succeeded after ${retries} retries`)
           }
 
+          // 🔥 browser_automation 도구에서 currentUrl 추출
+          if (toolName === 'browser_automation' && parsedResult.currentUrl) {
+            browserUrl = parsedResult.currentUrl
+            console.log(`[SuperAgentStream] Browser URL captured: ${browserUrl}`)
+          }
+
+          // 🔥 에이전트 활동 로그 저장
+          const toolImportance = ['generate_business_plan', 'match_government_programs', 'call_agent', 'create_task_db'].includes(toolName) ? 8 : 5
+          logAgentActivity(
+            agent.id,
+            'tool_use',
+            `${toolName} 도구 사용`,
+            parsedResult.success !== false
+              ? `${parsedResult.message || '성공적으로 실행됨'}`
+              : `실패: ${parsedResult.error || '알 수 없는 오류'}`,
+            { toolName, args: toolArgs, success: parsedResult.success !== false, retries },
+            [toolName, parsedResult.success !== false ? 'success' : 'failed'],
+            toolImportance
+          ).catch(() => {}) // 로그 저장 실패해도 무시
+
+          // 액션 수집 (프론트엔드에서 실행할 것들)
           if (parsedResult.action) {
             actions.push(parsedResult.action)
           }
@@ -1335,11 +1703,43 @@ export async function* generateSuperAgentResponseStream(
 
           messages.push(new ToolMessage({ content: result, tool_call_id: toolId }))
         } else {
-          yield { type: 'tool_end', tool: { name: toolName }, error: error || '실패' }
-          messages.push(new ToolMessage({
-            content: JSON.stringify({ success: false, error }),
-            tool_call_id: toolId,
-          }))
+          // 🚨 재시도 실패 - 대안 도구 시도
+          const alternatives = TOOL_ALTERNATIVES[toolName] || []
+          let alternativeSuccess = false
+
+          for (const altToolName of alternatives) {
+            const altTool = tools.find(t => t.name === altToolName)
+            if (altTool) {
+              console.log(`[SuperAgentStream] Trying alternative tool: ${altToolName}`)
+              yield { type: 'tool_retry', tool: { name: altToolName }, content: `대안 도구 시도: ${altToolName}` }
+
+              const altResult = await executeToolWithRetry(altTool, toolArgs, { maxRetries: 1, baseDelayMs: 500, maxDelayMs: 2000 })
+
+              if (altResult.success && altResult.result) {
+                yield { type: 'tool_end', tool: { name: altToolName }, result: '대안 도구 성공' }
+                messages.push(new ToolMessage({
+                  content: altResult.result,
+                  tool_call_id: toolId,
+                }))
+                toolsUsed.push(altToolName)
+                alternativeSuccess = true
+                break
+              }
+            }
+          }
+
+          if (!alternativeSuccess) {
+            // 최종 실패
+            yield { type: 'tool_end', tool: { name: toolName }, error: `${error} (${retries}회 재시도 후 실패)` }
+            messages.push(new ToolMessage({
+              content: JSON.stringify({
+                success: false,
+                error: `${error} (${retries}회 재시도 후 실패)`,
+                retriesAttempted: retries,
+              }),
+              tool_call_id: toolId,
+            }))
+          }
         }
       }
     }
@@ -1351,9 +1751,24 @@ export async function* generateSuperAgentResponseStream(
 
     yield { type: 'text', content: cleanResponse.trim() || '작업을 완료했습니다.' }
 
-    // 메모리 저장
-    if (context?.userId) {
+    // 🔥 대화 로그 저장 (도구를 사용한 경우)
+    if (toolsUsed.length > 0) {
+      logAgentActivity(
+        agent.id,
+        'conversation',
+        `사용자 요청 처리 완료`,
+        `요청: "${userMessage.slice(0, 100)}${userMessage.length > 100 ? '...' : ''}" → 응답: "${cleanResponse.slice(0, 100)}${cleanResponse.length > 100 ? '...' : ''}"`,
+        { toolsUsed, userMessage: userMessage.slice(0, 500), response: cleanResponse.slice(0, 500) },
+        toolsUsed,
+        toolsUsed.some(t => ['generate_business_plan', 'match_government_programs', 'call_agent'].includes(t)) ? 7 : 5
+      ).catch(() => {})
+    }
+
+    // 🧠 JARVIS 롱텀 메모리에 대화 저장 (Phase 1.4 - 영구 보존)
+    // NOTE: API 라우트에서 이미 저장하는 경우 skipMemorySave=true로 중복 방지
+    if (context?.userId && !context?.skipMemorySave) {
       try {
+        // 사용자 메시지 저장
         await saveConversationMessage({
           agentId: agent.id,
           userId: context.userId,
@@ -1361,9 +1776,14 @@ export async function* generateSuperAgentResponseStream(
           content: userMessage,
           importance: toolsUsed.length > 0 ? 7 : 5,
           topics: toolsUsed.length > 0 ? toolsUsed : undefined,
-          metadata: { toolsUsed, complexity: complexity.score },
+          metadata: {
+            toolsUsed,
+            hasActions: actions.length > 0,
+            complexity: complexity.score,
+          },
         })
 
+        // 어시스턴트 응답 저장
         await saveConversationMessage({
           agentId: agent.id,
           userId: context.userId,
@@ -1371,15 +1791,25 @@ export async function* generateSuperAgentResponseStream(
           content: cleanResponse,
           importance: toolsUsed.length > 0 ? 7 : 5,
           topics: toolsUsed.length > 0 ? toolsUsed : undefined,
-          metadata: { toolsUsed, browserUrl, iterations },
+          metadata: {
+            toolsUsed,
+            browserUrl,
+            actionsCount: actions.length,
+            iterations,
+          },
         })
 
+        // 대화에서 학습 (패턴, 선호도 등 추출)
         await analyzeAndLearn(agent.id, context.userId, userMessage, cleanResponse)
 
+        console.log(`[SuperAgentStream] 💾 Conversation saved to long-term memory (user + assistant + learning)`)
         yield { type: 'memory_saved', content: '💾 장기 기억에 저장됨' }
-      } catch (e) {
-        // 저장 실패해도 무시
+      } catch (saveError) {
+        // 메모리 저장 실패해도 응답은 정상 반환 (non-critical)
+        console.warn('[SuperAgentStream] Memory save failed (non-critical):', saveError)
       }
+    } else if (context?.skipMemorySave) {
+      console.log(`[SuperAgentStream] 📌 Memory save skipped (handled by caller)`)
     }
 
     yield { type: 'done' }

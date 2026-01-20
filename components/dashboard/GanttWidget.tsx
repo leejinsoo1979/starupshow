@@ -69,87 +69,73 @@ export function GanttWidget() {
     setMounted(true)
   }, [])
 
-  // Fetch tasks from all projects
+  // Fetch tasks from all projects (일괄 조회 - N+1 쿼리 제거)
   const fetchTasks = useCallback(async () => {
     try {
       setLoading(true)
       setError(null)
 
-      // First, get all projects
-      const projectsRes = await fetch('/api/projects')
-      if (!projectsRes.ok) throw new Error('프로젝트를 불러올 수 없습니다')
-      const projectsData = await projectsRes.json()
-      const projects: Project[] = Array.isArray(projectsData) ? projectsData : []
+      // 🔥 일괄 조회 API 사용 (70+ API 호출 → 1 API 호출)
+      const url = currentStartup?.id
+        ? `/api/gantt/tasks?startup_id=${currentStartup.id}&limit=200`
+        : '/api/gantt/tasks?limit=200'
 
-      // Then fetch tasks for each project
-      const allTasks: GanttTask[] = []
+      const res = await fetch(url)
+      if (!res.ok) throw new Error('태스크를 불러올 수 없습니다')
 
-      for (const project of projects) {
-        try {
-          const tasksRes = await fetch(`/api/projects/${project.id}/tasks?limit=50`)
-          if (!tasksRes.ok) continue
+      const { data: tasksData } = await res.json()
 
-          const tasksData = await tasksRes.json()
-          const projectTasks: ProjectTask[] = tasksData.data || []
+      // Convert to GanttTask format
+      const allTasks: GanttTask[] = (tasksData || []).map((task: any) => {
+        const startDate = task.start_date
+          ? new Date(task.start_date)
+          : new Date()
 
-          // Convert to GanttTask format
-          for (const task of projectTasks) {
-            // Skip tasks without dates
-            if (!task.start_date && !task.due_date) continue
+        const endDate = task.due_date
+          ? new Date(task.due_date)
+          : new Date(startDate.getTime() + 7 * 24 * 60 * 60 * 1000)
 
-            const startDate = task.start_date
-              ? new Date(task.start_date)
-              : new Date()
-
-            const endDate = task.due_date
-              ? new Date(task.due_date)
-              : new Date(startDate.getTime() + 7 * 24 * 60 * 60 * 1000) // Default 7 days
-
-            // Calculate progress based on status
-            let progress = 0
-            switch (task.status) {
-              case 'DONE': progress = 100; break
-              case 'IN_PROGRESS': progress = 50; break
-              case 'IN_REVIEW': progress = 75; break
-              case 'TODO': progress = 0; break
-              case 'BACKLOG': progress = 0; break
-              default: progress = 0
-            }
-
-            const assignee = task.assignee_user
-              ? {
-                  id: task.assignee_user.id,
-                  name: task.assignee_user.name,
-                  avatar: task.assignee_user.avatar_url,
-                  type: 'human' as const
-                }
-              : task.assignee_agent
-                ? {
-                    id: task.assignee_agent.id,
-                    name: task.assignee_agent.name,
-                    avatar: task.assignee_agent.avatar_url,
-                    type: 'agent' as const
-                  }
-                : undefined
-
-            allTasks.push({
-              id: task.id,
-              title: task.title,
-              startDate,
-              endDate,
-              progress,
-              assignee,
-              dependencies: task.depends_on || [],
-              projectId: project.id,
-              projectName: project.name,
-              status: task.status,
-              priority: task.priority,
-            })
-          }
-        } catch (e) {
-          console.error(`Failed to fetch tasks for project ${project.id}:`, e)
+        // Calculate progress based on status
+        let progress = 0
+        switch (task.status) {
+          case 'DONE': progress = 100; break
+          case 'IN_PROGRESS': progress = 50; break
+          case 'IN_REVIEW': progress = 75; break
+          case 'TODO': progress = 0; break
+          case 'BACKLOG': progress = 0; break
+          default: progress = 0
         }
-      }
+
+        const assignee = task.assignee_user
+          ? {
+              id: task.assignee_user.id,
+              name: task.assignee_user.name,
+              avatar: task.assignee_user.avatar_url,
+              type: 'human' as const
+            }
+          : task.assignee_agent
+            ? {
+                id: task.assignee_agent.id,
+                name: task.assignee_agent.name,
+                avatar: task.assignee_agent.avatar_url,
+                type: 'agent' as const
+              }
+            : undefined
+
+        return {
+          id: task.id,
+          title: task.title,
+          startDate,
+          endDate,
+          progress,
+          assignee,
+          dependencies: task.depends_on || [],
+          projectId: task.project_id,
+          projectName: task.project_name,
+          status: task.status,
+          priority: task.priority,
+        }
+      })
 
       // Sort by start date
       allTasks.sort((a, b) => a.startDate.getTime() - b.startDate.getTime())

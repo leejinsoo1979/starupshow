@@ -2301,8 +2301,8 @@ type AgentTendency = 'aggressive' | 'conservative' | 'creative' | 'data-driven'
 
 interface AgentConfig {
   id: string
-  role: AgentRole
-  tendency: AgentTendency
+  role?: AgentRole
+  tendency?: AgentTendency
   canDecide: boolean // 의사결정 권한
 }
 

@@ -288,9 +288,9 @@ export default function AISheetPage() {
     }
 
     return (
-        <div className="flex flex-col h-screen bg-zinc-50 dark:bg-zinc-900 overscroll-none overflow-hidden">
+        <div className="flex flex-col h-full bg-zinc-50 dark:bg-zinc-900 overscroll-none overflow-hidden">
             {/* Header */}
-            <header className="flex items-center justify-between px-4 py-3 bg-white dark:bg-zinc-900 border-b border-zinc-200 dark:border-zinc-800">
+            <header className="flex-shrink-0 flex items-center justify-between px-4 py-3 bg-white dark:bg-zinc-900 border-b border-zinc-200 dark:border-zinc-800">
                 <div className="flex items-center gap-3">
                     <button
                         onClick={() => router.back()}
@@ -357,11 +357,11 @@ export default function AISheetPage() {
             </header>
 
             {/* Main Content */}
-            <div className="flex flex-row-reverse flex-1 overflow-hidden">
+            <div className="flex flex-row-reverse flex-1 min-h-0 overflow-hidden">
                 {/* Chat Panel - Right */}
-                <div className="w-[400px] flex flex-col bg-white dark:bg-zinc-900 border-r border-zinc-200 dark:border-zinc-800">
+                <div className="w-[400px] flex flex-col min-h-0 bg-white dark:bg-zinc-900 border-l border-zinc-200 dark:border-zinc-800">
                     {/* Chat Messages */}
-                    <div className="flex-1 overflow-y-auto p-4 space-y-4">
+                    <div className="flex-1 min-h-0 overflow-y-auto p-4 space-y-4">
                         {messages.length === 0 && (
                             <div className="text-center py-8">
                                 <Sparkles className="w-12 h-12 mx-auto mb-4 text-green-500 opacity-50" />
@@ -436,7 +436,7 @@ export default function AISheetPage() {
 
                     {/* Quick Prompts */}
                     {messages.length === 0 && (
-                        <div className="px-4 pb-2">
+                        <div className="flex-shrink-0 px-4 pb-2">
                             <div className="grid grid-cols-2 gap-2">
                                 {QUICK_PROMPTS.map((item, idx) => (
                                     <button
@@ -454,7 +454,7 @@ export default function AISheetPage() {
                     )}
 
                     {/* Input Area */}
-                    <div className="p-4 border-t border-zinc-200 dark:border-zinc-800">
+                    <div className="flex-shrink-0 p-4 border-t border-zinc-200 dark:border-zinc-800">
                         <div className="bg-white dark:bg-zinc-800 rounded-xl border border-zinc-200 dark:border-zinc-700">
                             {/* Mode Button */}
                             <div ref={modeModalRef} className="relative">
@@ -501,9 +501,9 @@ export default function AISheetPage() {
                                     value={input}
                                     onChange={(e) => setInput(e.target.value)}
                                     onKeyDown={handleKeyDown}
-                                    placeholder=""
+                                    placeholder="메시지를 입력하세요..."
                                     disabled={!spreadsheetId || isLoading}
-                                    className="w-full bg-transparent text-sm text-zinc-800 dark:text-zinc-200 placeholder:text-zinc-400 focus:outline-none disabled:opacity-50"
+                                    className="w-full bg-transparent text-sm text-zinc-800 dark:text-zinc-200 placeholder:text-zinc-500 outline-none border-none ring-0 focus:outline-none focus:border-none focus:ring-0 disabled:opacity-50"
                                 />
                             </div>
 

@@ -56,6 +56,7 @@ function NodeMesh({
   onClick,
   onPointerOver,
   onPointerOut,
+  onDrag,
 }: {
   node: SimNode
   isSelected: boolean
@@ -63,8 +64,13 @@ function NodeMesh({
   onClick: () => void
   onPointerOver: () => void
   onPointerOut: () => void
+  onDrag?: (id: string, x: number, y: number, z: number) => void
 }) {
   const meshRef = useRef<THREE.Mesh>(null)
+  const groupRef = useRef<THREE.Group>(null)
+  const [isDragging, setIsDragging] = useState(false)
+  const [isNearCamera, setIsNearCamera] = useState(false)
+  const { camera, gl } = useThree()
 
   // Get color based on status or type
   const color = useMemo(() => {
@@ -82,9 +88,40 @@ function NodeMesh({
     return base + ((node.importance || 5) / 5)
   }, [node.type, node.importance])
 
-  // Animation - floating effect
+  // Drag handlers
+  const handlePointerDown = useCallback((e: any) => {
+    e.stopPropagation()
+    setIsDragging(true)
+    gl.domElement.style.cursor = 'grabbing'
+    // Disable orbit controls while dragging
+    ;(e.target as any).setPointerCapture?.(e.pointerId)
+  }, [gl])
+
+  const handlePointerUp = useCallback((e: any) => {
+    setIsDragging(false)
+    gl.domElement.style.cursor = 'pointer'
+  }, [gl])
+
+  const handlePointerMove = useCallback((e: any) => {
+    if (!isDragging || !groupRef.current || !onDrag) return
+
+    // Convert mouse position to 3D world position
+    const rect = gl.domElement.getBoundingClientRect()
+    const x = ((e.clientX - rect.left) / rect.width) * 2 - 1
+    const y = -((e.clientY - rect.top) / rect.height) * 2 + 1
+
+    const vector = new THREE.Vector3(x, y, 0.5)
+    vector.unproject(camera)
+    const dir = vector.sub(camera.position).normalize()
+    const distance = -camera.position.z / dir.z
+    const pos = camera.position.clone().add(dir.multiplyScalar(distance * 0.8))
+
+    onDrag(node.id, pos.x, pos.y, groupRef.current.position.z)
+  }, [isDragging, camera, gl, node.id, onDrag])
+
+  // Animation and distance check
   useFrame((state) => {
-    if (!meshRef.current) return
+    if (!meshRef.current || !groupRef.current) return
 
     // Hover/Select scale animation
     const targetScale = isHovered || isSelected ? 1.15 : 1
@@ -93,34 +130,45 @@ function NodeMesh({
       0.1
     )
 
-    // Gentle floating animation for all nodes
-    const time = state.clock.elapsedTime
-    const floatOffset = Math.sin(time * 0.5 + node.x * 0.1) * 2
-    meshRef.current.position.y = floatOffset
-
     // Self node rotation
     if (node.type === 'self') {
       meshRef.current.rotation.y += 0.005
     }
+
+    // Check distance to camera - 줌인하면 라벨 표시
+    const nodePos = groupRef.current.position
+    const distance = camera.position.distanceTo(nodePos)
+    const nearThreshold = 200 // 200 units 이내면 라벨 표시
+    setIsNearCamera(distance < nearThreshold)
   })
 
   return (
-    <group position={[node.x || 0, node.y || 0, node.z || 0]}>
+    <group
+      ref={groupRef}
+      position={[node.x || 0, node.y || 0, node.z || 0]}
+      onPointerMove={handlePointerMove}
+    >
       {/* Main sphere */}
       <mesh
         ref={meshRef}
         onClick={(e) => {
-          e.stopPropagation()
-          onClick()
+          if (!isDragging) {
+            e.stopPropagation()
+            onClick()
+          }
         }}
+        onPointerDown={handlePointerDown}
+        onPointerUp={handlePointerUp}
         onPointerOver={(e) => {
           e.stopPropagation()
           onPointerOver()
-          document.body.style.cursor = 'pointer'
+          gl.domElement.style.cursor = isDragging ? 'grabbing' : 'grab'
         }}
         onPointerOut={() => {
-          onPointerOut()
-          document.body.style.cursor = 'default'
+          if (!isDragging) {
+            onPointerOut()
+            gl.domElement.style.cursor = 'default'
+          }
         }}
       >
         <sphereGeometry args={[size, 32, 32]} />
@@ -149,8 +197,8 @@ function NodeMesh({
       )}
 
 
-      {/* Label - 선택/호버/Self 노드만 표시 */}
-      {(isSelected || isHovered || node.type === 'self') && (
+      {/* Label - 선택/호버/Self/줌인 가까이 있을 때 표시 */}
+      {(isSelected || isHovered || node.type === 'self' || isNearCamera) && (
         <Html
           position={[0, size + 3, 0]}
           center
@@ -365,6 +413,18 @@ function Scene({
     [selectNode, onNodeClick]
   )
 
+  // Handle node drag - 노드 드래그해서 위치 변경
+  const handleNodeDrag = useCallback(
+    (id: string, x: number, y: number, z: number) => {
+      setSimNodes((prev) =>
+        prev.map((node) =>
+          node.id === id ? { ...node, x, y, z } : node
+        )
+      )
+    },
+    []
+  )
+
   // Focus camera on selected node
   useEffect(() => {
     if (selectedNodeIds.length !== 1) return
@@ -449,6 +509,7 @@ function Scene({
           onClick={() => handleNodeClick(node)}
           onPointerOver={() => setHoveredNodeId(node.id)}
           onPointerOut={() => setHoveredNodeId(null)}
+          onDrag={handleNodeDrag}
         />
       ))}
 

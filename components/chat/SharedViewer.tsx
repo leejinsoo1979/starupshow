@@ -380,7 +380,7 @@ export function SharedViewer({ roomId, onClose, accentColor = '#3B82F6' }: Share
               </div>
 
               {/* iframe 또는 차단 시 대체 UI */}
-              <div className="flex-1 overflow-hidden bg-zinc-900 relative">
+              <div className="flex-1 overflow-auto bg-zinc-900 relative">
                 {iframeError ? (
                   /* 차단된 사이트 대체 UI */
                   <div className="absolute inset-0 flex flex-col items-center justify-center gap-6 p-8">
@@ -407,7 +407,7 @@ export function SharedViewer({ roomId, onClose, accentColor = '#3B82F6' }: Share
                     </a>
                   </div>
                 ) : (
-                  /* 정상 iframe */
+                  /* 정상 iframe - 스크롤 가능 */
                   <iframe
                     key={viewerState.media_url}
                     ref={iframeRef}
@@ -416,6 +416,7 @@ export function SharedViewer({ roomId, onClose, accentColor = '#3B82F6' }: Share
                     title={viewerState.media_name}
                     allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                     allowFullScreen
+                    scrolling="yes"
                     onLoad={(e) => {
                       // iframe 로드 성공 시 에러 상태 초기화
                       setIframeError(false)
@@ -520,17 +521,15 @@ export function SharedViewer({ roomId, onClose, accentColor = '#3B82F6' }: Share
 
           </div>
 
-          {/* 오른쪽: 다운로드 (웹링크 제외) */}
+          {/* 오른쪽: 다운로드 */}
           <div className="flex items-center gap-2">
-            {viewerState.media_type !== 'weblink' && (
-              <a
-                href={viewerState.media_url}
-                download={viewerState.media_name}
-                className="p-2 rounded-lg hover:bg-zinc-700 text-zinc-400 transition-colors"
-              >
-                <Download className="w-4 h-4" />
-              </a>
-            )}
+            <a
+              href={viewerState.media_url}
+              download={viewerState.media_name}
+              className="p-2 rounded-lg hover:bg-zinc-700 text-zinc-400 transition-colors"
+            >
+              <Download className="w-4 h-4" />
+            </a>
           </div>
         </div>
       </div>

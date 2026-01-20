@@ -57,6 +57,7 @@ import {
 } from 'lucide-react'
 import type { MyNeuronType, ViewMode } from '@/lib/my-neurons/types'
 import dynamic from 'next/dynamic'
+import { NodeDetailPanel } from '@/components/my-neurons/panels/NodeDetailPanel'
 
 // Dynamic import for 3D canvas (SSR 비활성화)
 const NeuronsCanvas = dynamic(
@@ -68,6 +69,22 @@ const NeuronsCanvas = dynamic(
         <div className="flex flex-col items-center gap-3">
           <Loader2 className="w-8 h-8 text-blue-500 animate-spin" />
           <span className="text-zinc-400 text-sm">3D 뉴런 맵 로딩 중...</span>
+        </div>
+      </div>
+    ),
+  }
+)
+
+// Dynamic import for 2D canvas (Obsidian style)
+const Neurons2DCanvas = dynamic(
+  () => import('@/components/my-neurons/canvas/Neurons2DCanvas').then(mod => mod.Neurons2DCanvas),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="flex items-center justify-center h-full bg-[#050510]">
+        <div className="flex flex-col items-center gap-3">
+          <Loader2 className="w-8 h-8 text-blue-500 animate-spin" />
+          <span className="text-zinc-400 text-sm">2D 뉴런 맵 로딩 중...</span>
         </div>
       </div>
     ),
@@ -219,7 +236,10 @@ export default function NeuronsPage() {
   // Local state
   const [leftPanelOpen, setLeftPanelOpen] = useState(true)
   const [leftPanelWidth] = useState(280)
+  const [rightPanelOpen, setRightPanelOpen] = useState(false)
+  const [rightPanelWidth] = useState(360)
   const [error, setError] = useState<string | null>(null)
+  const [canvasMode, setCanvasMode] = useState<'2d' | '3d'>('2d') // 기본값 2D (옵시디언 스타일)
   // viewMode from store
   const viewMode = useMyNeuronsStore((s) => s.viewMode)
   const setViewMode = useMyNeuronsStore((s) => s.setViewMode)
@@ -279,6 +299,24 @@ export default function NeuronsPage() {
 
     return graph.nodes.filter((n) => connectedIds.has(n.id))
   }, [selectedNode, graph?.edges, graph?.nodes])
+
+  // 노드 선택 시 우측 패널 열기
+  useEffect(() => {
+    if (selectedNode) {
+      setRightPanelOpen(true)
+    }
+  }, [selectedNode])
+
+  // 우측 패널 닫기 핸들러
+  const handleCloseRightPanel = useCallback(() => {
+    setRightPanelOpen(false)
+    clearSelection()
+  }, [clearSelection])
+
+  // 노드 선택 핸들러 (연결된 노드 클릭 시)
+  const handleSelectConnectedNode = useCallback((nodeId: string) => {
+    selectNode(nodeId)
+  }, [selectNode])
 
   // Navigate to source
   const handleNavigate = useCallback(
@@ -413,6 +451,32 @@ export default function NeuronsPage() {
         </div>
 
         <div className="flex-1" />
+
+        {/* 2D/3D Toggle */}
+        <div className="flex items-center gap-1 bg-zinc-800/50 rounded-lg p-0.5">
+          <button
+            onClick={() => setCanvasMode('2d')}
+            className={cn(
+              'px-3 py-1 rounded text-xs font-medium transition-colors',
+              canvasMode === '2d'
+                ? 'bg-amber-500 text-white'
+                : 'text-zinc-400 hover:text-white hover:bg-zinc-700'
+            )}
+          >
+            2D
+          </button>
+          <button
+            onClick={() => setCanvasMode('3d')}
+            className={cn(
+              'px-3 py-1 rounded text-xs font-medium transition-colors',
+              canvasMode === '3d'
+                ? 'bg-blue-600 text-white'
+                : 'text-zinc-400 hover:text-white hover:bg-zinc-700'
+            )}
+          >
+            3D
+          </button>
+        </div>
 
         {/* Right Actions */}
         <button
@@ -605,6 +669,11 @@ export default function NeuronsPage() {
                   </button>
                 </div>
               </div>
+            ) : canvasMode === '2d' ? (
+              <Neurons2DCanvas
+                onNodeClick={(node) => console.log('Node clicked:', node)}
+                onBackgroundClick={clearSelection}
+              />
             ) : (
               <NeuronsCanvas
                 onNodeClick={(node) => console.log('Node clicked:', node)}
@@ -642,6 +711,18 @@ export default function NeuronsPage() {
             </div>
           )}
         </main>
+
+        {/* Right Panel - Node Detail */}
+        {rightPanelOpen && selectedNode && (
+          <NodeDetailPanel
+            node={selectedNode}
+            connectedNodes={connectedNodes}
+            onClose={handleCloseRightPanel}
+            onNavigate={handleNavigate}
+            onSelectNode={handleSelectConnectedNode}
+            width={rightPanelWidth}
+          />
+        )}
 
       </div>
     </div>

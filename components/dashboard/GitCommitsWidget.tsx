@@ -60,20 +60,9 @@ export function GitCommitsWidget() {
   }
 
   useEffect(() => {
-    // Initial sync and fetch
-    const init = async () => {
-      try {
-        await fetch('/api/git-commits/sync', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ limit: 30 })
-        })
-      } catch (err) {
-        console.error('[GitCommitsWidget] Initial sync failed:', err)
-      }
-      fetchCommits()
-    }
-    init()
+    // 🔥 초기 sync 제거 - 페이지 로드 시 불필요한 git 명령 실행 방지
+    // 사용자가 새로고침 버튼을 클릭할 때만 sync 실행
+    fetchCommits()
   }, [])
 
   const handleRefresh = async () => {

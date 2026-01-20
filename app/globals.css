@@ -194,14 +194,25 @@ a img {
     -webkit-app-region: no-drag;
   }
 
-  /* Smooth focus rings */
-  *:focus-visible {
+  /* Smooth focus rings - but NOT for inputs/textareas */
+  *:focus-visible:not(input):not(textarea):not([contenteditable="true"]) {
     @apply outline-none ring-2 ring-offset-2 ring-offset-zinc-950;
     --tw-ring-color: rgba(var(--accent-color-rgb, 59, 130, 246), 0.5);
   }
 
-  .light *:focus-visible {
+  .light *:focus-visible:not(input):not(textarea):not([contenteditable="true"]) {
     @apply ring-offset-white;
+  }
+
+  /* Clean focus for inputs/textareas - no ring, no outline */
+  input:focus,
+  input:focus-visible,
+  textarea:focus,
+  textarea:focus-visible,
+  [contenteditable="true"]:focus,
+  [contenteditable="true"]:focus-visible {
+    @apply outline-none ring-0 ring-offset-0 !important;
+    box-shadow: none !important;
   }
 
   /* No focus ring for inputs/textareas with this class */

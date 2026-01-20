@@ -1243,23 +1243,30 @@ export function Graph2DView({ className }: Graph2DViewProps) {
 
       {/* 🆕 레이아웃 선택 버튼 (우측 하단) */}
       <div className="absolute bottom-4 right-4 flex gap-1 p-1 rounded-lg bg-zinc-900/80 backdrop-blur-sm border border-zinc-700/50">
-        {layoutButtons.map(({ mode, icon, label }) => (
-          <button
-            key={mode}
-            onClick={() => setLayoutMode(mode)}
-            title={label}
-            className={`
-              flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-all
-              ${layoutMode === mode
-                ? 'bg-violet-600 text-white shadow-lg shadow-violet-500/30'
-                : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800'
-              }
-            `}
-          >
-            {icon}
-            <span className="hidden sm:inline">{label}</span>
-          </button>
-        ))}
+        {layoutButtons.map(({ mode, icon, label }) => {
+          const accentColor = currentTheme?.ui?.accentColor || '#3b82f6'
+          return (
+            <button
+              key={mode}
+              onClick={() => setLayoutMode(mode)}
+              title={label}
+              className={`
+                flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-all
+                ${layoutMode === mode
+                  ? 'text-white shadow-lg'
+                  : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800'
+                }
+              `}
+              style={layoutMode === mode ? {
+                backgroundColor: accentColor,
+                boxShadow: `0 10px 15px -3px ${accentColor}30`
+              } : undefined}
+            >
+              {icon}
+              <span className="hidden sm:inline">{label}</span>
+            </button>
+          )
+        })}
       </div>
 
       {/* 노드 정보 툴팁 - DOM 직접 조작으로 업데이트 */}

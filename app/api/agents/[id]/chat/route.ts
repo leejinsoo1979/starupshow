@@ -647,6 +647,8 @@ export async function POST(
             // 🔥 업무 실행을 위한 컨텍스트
             companyId: agent.company_id || null,
             userId: user.id,
+            // 🔥 API 라우트에서 메모리 저장하므로 중복 방지
+            skipMemorySave: true,
           }
         )
 

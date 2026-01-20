@@ -3182,10 +3182,10 @@ export default function AgentProfilePage() {
     const loadingMessage = {
       id: workflowMsgId,
       role: 'agent' as const,
-      content: '🔄 업무를 실행하는 중...',
+      content: '',  // 젠스파크 스타일: 도구 사용만 표시, 텍스트 없음
       timestamp: new Date(),
       workflow: {
-        title: instruction.substring(0, 30) + (instruction.length > 30 ? '...' : ''),
+        title: instruction.substring(0, 50) + (instruction.length > 50 ? '...' : ''),
         steps: workflowSteps,
       },
     }
@@ -3293,11 +3293,11 @@ export default function AgentProfilePage() {
         } : msg
       ))
 
-      // 워크플로우 메시지 내용 업데이트
+      // 워크플로우 메시지 내용 업데이트 (젠스파크 스타일: 텍스트 없이 도구 사용만 표시)
       setChatMessages(prev => prev.map(msg =>
         msg.id === workflowMsgId ? {
           ...msg,
-          content: '✅ 워크플로우가 완료되었습니다!',
+          content: '',
         } : msg
       ))
 
@@ -4416,6 +4416,9 @@ export default function AgentProfilePage() {
 
     // 업무 지시인 경우 자동 실행 (워크플로우 모드)
     if (isTask) {
+      setChatInput('')  // 🔥 입력창 즉시 클리어
+      setChatImage(null)
+      setChatImageFile(null)
       executeTask(userMessage.id, messageContent)
       // 워크플로우 실행 시 일반 채팅 API 호출하지 않음
       return
@@ -6548,7 +6551,7 @@ export default function AgentProfilePage() {
                             </span>
                           </>
                         ) : (
-                          // "입력중" 상태
+                          // "입력중" 상태 - 동적 타이핑 인디케이터
                           <>
                             {getRandomEmotionGif('thinking') ? (
                               <img
@@ -6560,14 +6563,40 @@ export default function AgentProfilePage() {
                               <img
                                 src={agent.avatar_url}
                                 alt={agent.name}
-                                className="w-8 h-8 rounded-full object-cover animate-pulse"
+                                className="w-8 h-8 rounded-full object-cover"
                               />
                             ) : (
                               <Loader2 className="w-6 h-6 animate-spin text-accent" />
                             )}
-                            <span className={cn('text-sm', isDark ? 'text-zinc-400' : 'text-zinc-500')}>
-                              입력중...
-                            </span>
+                            {/* 🔥 동적 타이핑 도트 애니메이션 */}
+                            <div className="flex items-center gap-1">
+                              <span className={cn('text-sm', isDark ? 'text-zinc-400' : 'text-zinc-500')}>
+                                입력중
+                              </span>
+                              <span className="flex gap-0.5">
+                                <span
+                                  className={cn(
+                                    'w-1.5 h-1.5 rounded-full animate-bounce',
+                                    isDark ? 'bg-zinc-400' : 'bg-zinc-500'
+                                  )}
+                                  style={{ animationDelay: '0ms', animationDuration: '600ms' }}
+                                />
+                                <span
+                                  className={cn(
+                                    'w-1.5 h-1.5 rounded-full animate-bounce',
+                                    isDark ? 'bg-zinc-400' : 'bg-zinc-500'
+                                  )}
+                                  style={{ animationDelay: '150ms', animationDuration: '600ms' }}
+                                />
+                                <span
+                                  className={cn(
+                                    'w-1.5 h-1.5 rounded-full animate-bounce',
+                                    isDark ? 'bg-zinc-400' : 'bg-zinc-500'
+                                  )}
+                                  style={{ animationDelay: '300ms', animationDuration: '600ms' }}
+                                />
+                              </span>
+                            </div>
                           </>
                         )}
                       </div>

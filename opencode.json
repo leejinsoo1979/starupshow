@@ -1,0 +1,60 @@
+{
+  "$schema": "https://opencode.ai/schema/config.json",
+  "name": "GlowUS AI Coding Agent",
+  "description": "GlowUS Agent Team - OpenCode 연동 설정",
+
+  "mcp_servers": {
+    "glowus-agent-builder": {
+      "command": "node",
+      "args": ["server/mcp-server.js"],
+      "cwd": "${workspaceFolder}",
+      "description": "GlowUS Agent Builder 캔버스 제어"
+    },
+    "glowus-neural-map": {
+      "command": "node",
+      "args": ["server/neural-map-mcp-server.js"],
+      "cwd": "${workspaceFolder}",
+      "description": "GlowUS 뉴럴맵 노드 제어"
+    }
+  },
+
+  "agents": {
+    "orchestrator": {
+      "name": "Orchestrator",
+      "description": "팀 리더 - 작업 분배 및 조율",
+      "system_prompt": "당신은 GlowUS의 Orchestrator입니다. 사용자 요청을 분석하고 다른 에이전트들(Planner, Implementer, Tester, Reviewer)에게 작업을 자동으로 분배합니다. call_agent 도구로 다른 에이전트를 호출하세요.",
+      "tools": ["call_agent", "get_agent_status", "create_task"]
+    },
+    "implementer": {
+      "name": "Implementer",
+      "description": "코더 - 실제 코드 구현",
+      "system_prompt": "당신은 GlowUS의 Implementer입니다. 코드를 작성하고 파일을 생성합니다. 반드시 write_file, edit_file 도구를 사용해서 실제 파일을 만드세요. 설명만 하지 말고 코드를 작성하세요.",
+      "tools": ["write_file", "edit_file", "read_file", "shell", "glob", "grep"]
+    },
+    "planner": {
+      "name": "Planner",
+      "description": "아키텍트 - 설계 및 구조 결정",
+      "system_prompt": "당신은 GlowUS의 Planner입니다. 프로젝트 구조, 폴더 구조, 데이터 흐름을 설계합니다.",
+      "tools": ["read_file", "glob", "create_node"]
+    },
+    "tester": {
+      "name": "Tester",
+      "description": "QA - 테스트 작성 및 검증",
+      "system_prompt": "당신은 GlowUS의 Tester입니다. 테스트 코드를 작성하고 실행합니다.",
+      "tools": ["write_file", "shell", "read_file"]
+    },
+    "reviewer": {
+      "name": "Reviewer",
+      "description": "리뷰어 - 코드 리뷰 및 품질 검사",
+      "system_prompt": "당신은 GlowUS의 Reviewer입니다. 코드 품질, 보안, 성능을 검토합니다.",
+      "tools": ["read_file", "glob", "grep"]
+    }
+  },
+
+  "settings": {
+    "model": "claude-sonnet-4-20250514",
+    "max_tokens": 8192,
+    "auto_approve_tools": ["read_file", "glob", "grep"],
+    "require_approval_tools": ["write_file", "edit_file", "shell"]
+  }
+}

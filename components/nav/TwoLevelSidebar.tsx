@@ -18,861 +18,45 @@ import { ThemeDropdown } from './ThemeDropdown'
 import { FileTreePanel } from '@/components/neural-map/panels/FileTreePanel'
 import GitPanel from '@/components/neural-map/panels/GitPanel'
 import { useNeuralMapStore } from '@/lib/neural-map/store'
+import { TaskHistorySidebar } from '@/components/works/TaskHistorySidebar'
 import type { EmailAccount, EmailMessage } from '@/types/email'
 import { useTeamStore } from '@/stores/teamStore'
-import { CgMenuGridO } from 'react-icons/cg'
-import { BsPersonWorkspace } from 'react-icons/bs'
-import { IoCalendarNumberOutline, IoRocketOutline } from 'react-icons/io5'
-import { GoPerson, GoPeople } from 'react-icons/go'
-import { TbBrandWechat } from 'react-icons/tb'
-import { CiHardDrive } from 'react-icons/ci'
-import { RxRocket } from 'react-icons/rx'
-import { ShieldCheck } from 'lucide-react'
+// 사이드바에서 직접 사용하는 아이콘만 import
 import {
-  LayoutDashboard,
-  ListTodo,
-  GitCommit,
-  Users,
-  List,
   Settings,
-  Sparkles,
-  BarChart3,
-  Globe,
-  Building2,
-  TrendingUp,
-  FileText,
-  Workflow,
-  Bot,
   LogOut,
-  Mail,
-  Home,
-  Briefcase,
-  PieChart,
-  Zap,
   ChevronRight,
   ChevronDown,
+  ChevronUp,
   PanelLeftClose,
   PanelLeftOpen,
-  Target,
-  FolderOpen,
+  Plus,
   Search,
   Folder,
-  UserCog,
-  Clock,
-  Palmtree,
-  FileSignature,
-  GraduationCap,
-  Receipt,
-  CreditCard,
-  Landmark,
-  Calculator,
-  Wallet,
-  Car,
-  ClipboardList,
-  User,
-  FolderKanban,
-  Activity,
-  Phone,
-  Play,
-  CheckCircle,
-  Archive,
-  Inbox,
-  Send,
-  ArrowRightFromLine,
-  AlertCircle,
-  Plus,
-  CalendarDays,
-  Star,
-  Wrench,
-  Package,
-  Orbit,
+  Pin,
   Files,
   GitBranch,
   Puzzle,
-  ChevronUp,
   Bug,
   MonitorPlay,
-  Share2,
-  FileCode,
-  Pin,
-  Container,
   Github,
-  LayoutGrid,
-  GanttChart,
-  BookmarkCheck,
-  Bell,
-  FileCheck,
-  Upload,
-  HeartHandshake,
-  DollarSign,
-  Trophy,
-  Filter,
-  Milestone,
-  AlertTriangle,
-  FolderArchive,
-  FileSpreadsheet,
-  BadgeCheck,
-  ClipboardCheck,
-  ScrollText,
-  Banknote,
-  Award,
-  XCircle,
-  BookOpen,
-  Rocket,
-  Cpu,
-  Building,
-  UserPlus,
-  Calendar,
-  Brain,
+  Container,
+  FileCode,
+  FileText,
+  Share2,
+  Bot,
+  Building2,
 } from 'lucide-react'
 import { SiPython } from 'react-icons/si'
-import { FaLaptopCode } from 'react-icons/fa6'
 
+// 사이드바 메뉴 데이터 import
+import {
+  categories,
+  investorCategories,
+  companyMenuItems
+} from './sidebar/menuData'
+import type { Category, NestedMenuItem } from './sidebar/types'
 
-// 중첩 메뉴 아이템 타입
-interface NestedMenuItem {
-  name: string
-  href?: string
-  icon?: any
-  children?: NestedMenuItem[]
-}
-
-interface Category {
-  id: string
-  name: string
-  icon: any
-  items: NestedMenuItem[]
-}
-
-// 회사 메뉴 구조
-const companyMenuItems: NestedMenuItem[] = [
-  {
-    name: '기업 현황',
-    icon: Building2,
-    href: '/dashboard-group/erp',
-    children: [
-      { name: 'ERP 대시보드', href: '/dashboard-group/erp', icon: PieChart },
-      { name: '회사정보 관리', href: '/dashboard-group/erp/company', icon: Building2 },
-      { name: '비전, 목표·OKR', href: '/dashboard-group/company/vision', icon: Target },
-      { name: '조직도', href: '/dashboard-group/company/org-chart', icon: Users },
-      { name: '팀원 현황', href: '/dashboard-group/company/members', icon: Users },
-      { name: '문서함', href: '/dashboard-group/company/documents', icon: FolderOpen },
-    ]
-  },
-  {
-    name: '인사관리',
-    icon: UserCog,
-    href: '/dashboard-group/hr',
-    children: [
-      {
-        name: '인사',
-        children: [
-          {
-            name: '인사관리',
-            children: [
-              { name: '사원정보관리', href: '/dashboard-group/hr/employees' },
-              { name: '계정상태관리', href: '/dashboard-group/hr/accounts' },
-              { name: '인사발령', href: '/dashboard-group/hr/appointments' },
-            ]
-          },
-          {
-            name: '팀관리',
-            children: [
-              { name: '팀설계', href: '/dashboard-group/hr/team-design' },
-              { name: '직위체계', href: '/dashboard-group/hr/positions' },
-              { name: '팀원일괄등록', href: '/dashboard-group/hr/bulk-register' },
-              { name: '팀원삭제관리', href: '/dashboard-group/hr/member-delete' },
-            ]
-          },
-          {
-            name: '증명서발급',
-            children: [
-              { name: '증명발급현황', href: '/dashboard-group/hr/certificates' },
-            ]
-          },
-        ]
-      },
-      {
-        name: '근태',
-        icon: Clock,
-        children: [
-          {
-            name: '근태관리',
-            children: [
-              { name: '출퇴근 현황', href: '/dashboard-group/hr/attendance' },
-              { name: '근무그룹 관리', href: '/dashboard-group/hr/work-groups' },
-              { name: '보상휴가 관리', href: '/dashboard-group/hr/comp-leave' },
-              { name: '휴일대체 관리', href: '/dashboard-group/hr/holiday-sub' },
-            ]
-          },
-          {
-            name: '근태마감',
-            children: [
-              { name: '출퇴근이상자 관리', href: '/dashboard-group/hr/attendance-issues' },
-              { name: '근태마감', href: '/dashboard-group/hr/attendance-close' },
-            ]
-          },
-        ]
-      },
-      {
-        name: '휴가',
-        icon: Palmtree,
-        children: [
-          {
-            name: '연차관리',
-            children: [
-              { name: '연차정책 관리', href: '/dashboard-group/hr/leave-policy' },
-              { name: '보상휴가 관리', href: '/dashboard-group/hr/comp-vacation' },
-              { name: '휴일대체 관리', href: '/dashboard-group/hr/holiday-replace' },
-            ]
-          },
-          {
-            name: '연차촉진',
-            children: [
-              { name: '연차촉진 현황', href: '/dashboard-group/hr/leave-promotion' },
-            ]
-          },
-        ]
-      },
-      {
-        name: '고용전자계약',
-        icon: FileSignature,
-        children: [
-          {
-            name: '고용전자계약',
-            children: [
-              { name: '템플릿 관리', href: '/dashboard-group/hr/contract-templates' },
-              { name: '계약 관리', href: '/dashboard-group/hr/contracts' },
-            ]
-          },
-        ]
-      },
-      {
-        name: '직원교육',
-        icon: GraduationCap,
-        children: [
-          {
-            name: '직원교육',
-            children: [
-              { name: '교육관리', href: '/dashboard-group/hr/training-manage' },
-              { name: '교육현황', href: '/dashboard-group/hr/training-status' },
-            ]
-          },
-        ]
-      },
-      {
-        name: '전자결재',
-        icon: FileText,
-        children: [
-          {
-            name: '전자결재',
-            children: [
-              { name: '결재함', href: '/dashboard-group/hr/approval' },
-            ]
-          },
-        ]
-      },
-    ]
-  },
-  {
-    name: '매출입관리',
-    icon: Receipt,
-    href: '/dashboard-group/sales',
-    children: [
-      {
-        name: '매출입',
-        children: [
-          {
-            name: '기초정보관리',
-            children: [
-              { name: '거래처', href: '/dashboard-group/sales/partners' },
-              { name: '기초잔액등록', href: '/dashboard-group/sales/initial-balance' },
-              { name: '프로젝트', href: '/dashboard-group/sales/projects' },
-              { name: '데이터엑셀변환', href: '/dashboard-group/sales/excel-convert' },
-            ]
-          },
-          {
-            name: '매출관리',
-            children: [
-              { name: '전자세금계산서 발행', href: '/dashboard-group/sales/tax-invoice' },
-              { name: '매출내역', href: '/dashboard-group/sales/sales-list' },
-              { name: '거래명세서 작성', href: '/dashboard-group/sales/transaction-statement' },
-            ]
-          },
-          {
-            name: '매입관리',
-            children: [
-              { name: '매입내역', href: '/dashboard-group/sales/purchase-list' },
-              { name: '간이영수증외', href: '/dashboard-group/sales/simple-receipt' },
-            ]
-          },
-          {
-            name: '매출입리포트',
-            children: [
-              { name: '매출처원장', href: '/dashboard-group/sales/sales-ledger' },
-              { name: '매입처원장', href: '/dashboard-group/sales/purchase-ledger' },
-              { name: '미수금현황', href: '/dashboard-group/sales/receivables' },
-              { name: '미지급현황', href: '/dashboard-group/sales/payables' },
-              { name: '간편손익', href: '/dashboard-group/sales/simple-pl' },
-            ]
-          },
-          {
-            name: '거래유형',
-            children: [
-              { name: '거래유형 설정', href: '/dashboard-group/sales/transaction-types' },
-            ]
-          },
-          {
-            name: '카드관리',
-            children: [
-              { name: '법인카드관리', href: '/dashboard-group/sales/corp-card' },
-              { name: '개인카드관리', href: '/dashboard-group/sales/personal-card' },
-            ]
-          },
-        ]
-      },
-      {
-        name: '금융',
-        icon: Landmark,
-        children: [
-          {
-            name: '입출금관리',
-            children: [
-              { name: '통장입금(수납)', href: '/dashboard-group/finance/deposit' },
-              { name: '통장출금(지급)', href: '/dashboard-group/finance/withdraw' },
-              { name: '통장거래내역', href: '/dashboard-group/finance/transactions' },
-            ]
-          },
-          {
-            name: '이체',
-            children: [
-              { name: '이체대기', href: '/dashboard-group/finance/transfer-pending' },
-              { name: '이체결과조회', href: '/dashboard-group/finance/transfer-result' },
-            ]
-          },
-          {
-            name: '기타금융관리',
-            children: [
-              { name: '현금출납장', href: '/dashboard-group/finance/cash-book' },
-              { name: '어음대장', href: '/dashboard-group/finance/bills' },
-              { name: '정기예적금', href: '/dashboard-group/finance/savings' },
-              { name: '외화예금', href: '/dashboard-group/finance/forex' },
-              { name: '은행대출금', href: '/dashboard-group/finance/loans' },
-              { name: '펀드', href: '/dashboard-group/finance/funds' },
-              { name: '환율조회', href: '/dashboard-group/finance/exchange-rate' },
-            ]
-          },
-          {
-            name: '금융리포트',
-            children: [
-              { name: '일일시재보고서', href: '/dashboard-group/finance/daily-report' },
-              { name: '기간별시재보고', href: '/dashboard-group/finance/period-report' },
-              { name: '입출금내역보고', href: '/dashboard-group/finance/io-report' },
-              { name: '자금캘린더', href: '/dashboard-group/finance/fund-calendar' },
-            ]
-          },
-          {
-            name: '통장관리',
-            children: [
-              { name: '통장관리', href: '/dashboard-group/finance/accounts' },
-            ]
-          },
-        ]
-      },
-      {
-        name: '세무',
-        icon: Calculator,
-        children: [
-          {
-            name: '부가세',
-            children: [
-              { name: '부가세 납부관리', href: '/dashboard-group/tax/vat-payment' },
-              { name: '부가세 납부환급이력', href: '/dashboard-group/tax/vat-history' },
-              { name: '매입매출합계표', href: '/dashboard-group/tax/summary-table' },
-              { name: '국세청자료대사', href: '/dashboard-group/tax/nts-reconcile' },
-            ]
-          },
-          {
-            name: '세금과공과',
-            children: [
-              { name: '세금과공과 관리', href: '/dashboard-group/tax/taxes-dues' },
-            ]
-          },
-          {
-            name: '세무자료 다운로드',
-            children: [
-              { name: '세무자료 다운로드', href: '/dashboard-group/tax/download' },
-            ]
-          },
-        ]
-      },
-    ]
-  },
-  {
-    name: '급여관리',
-    icon: Wallet,
-    href: '/dashboard-group/payroll',
-    children: [
-      {
-        name: '급여',
-        children: [
-          {
-            name: '급여관리',
-            children: [
-              { name: '사원별 급여관리', href: '/dashboard-group/payroll/employee-salary' },
-              { name: '근로시간관리', href: '/dashboard-group/payroll/work-hours' },
-              { name: '급여대장(작성)', href: '/dashboard-group/payroll/salary-ledger' },
-              { name: '상여대장(작성)', href: '/dashboard-group/payroll/bonus-ledger' },
-            ]
-          },
-          {
-            name: '사회보험',
-            children: [
-              { name: '신고대상조회', href: '/dashboard-group/payroll/insurance-report' },
-              { name: '정산보험료', href: '/dashboard-group/payroll/insurance-settle' },
-            ]
-          },
-          {
-            name: '퇴직급여',
-            children: [
-              { name: '퇴직금대장(작성)', href: '/dashboard-group/payroll/severance-ledger' },
-              { name: '퇴직금추계액', href: '/dashboard-group/payroll/severance-estimate' },
-            ]
-          },
-          {
-            name: '급여리포트',
-            children: [
-              { name: '인건비현황', href: '/dashboard-group/payroll/labor-cost' },
-            ]
-          },
-        ]
-      },
-      {
-        name: '일용직',
-        children: [
-          {
-            name: '일용직관리',
-            children: [
-              { name: '일용직사원관리', href: '/dashboard-group/payroll/daily-workers' },
-              { name: '일용직급여대장', href: '/dashboard-group/payroll/daily-salary' },
-              { name: '일용근로지급명세서', href: '/dashboard-group/payroll/daily-statement' },
-            ]
-          },
-        ]
-      },
-    ]
-  },
-  {
-    name: '경비관리',
-    icon: CreditCard,
-    href: '/dashboard-group/expenses',
-    children: [
-      {
-        name: '경비',
-        children: [
-          {
-            name: '경비관리',
-            children: [
-              { name: '경비청구현황', href: '/dashboard-group/expense/claims' },
-              { name: '경비예산관리', href: '/dashboard-group/expense/budget' },
-              { name: '경비예산운영자 설정', href: '/dashboard-group/expense/budget-admin' },
-            ]
-          },
-          {
-            name: '경비리포트',
-            children: [
-              { name: '경비사용현황', href: '/dashboard-group/expense/usage-report' },
-            ]
-          },
-          {
-            name: '경비 사용용도',
-            children: [
-              { name: '사용용도 설정', href: '/dashboard-group/expense/purpose-settings' },
-            ]
-          },
-          {
-            name: '카드관리',
-            children: [
-              { name: '법인카드관리', href: '/dashboard-group/expense/corp-card' },
-              { name: '개인카드관리', href: '/dashboard-group/expense/personal-card' },
-            ]
-          },
-        ]
-      },
-      {
-        name: '차량운행일지',
-        icon: Car,
-        children: [
-          {
-            name: '차량관리',
-            children: [
-              { name: '차량관리', href: '/dashboard-group/expense/vehicles' },
-            ]
-          },
-          {
-            name: '운행일지관리',
-            children: [
-              { name: '차량운행일지', href: '/dashboard-group/expense/drive-log' },
-            ]
-          },
-        ]
-      },
-    ]
-  },
-  {
-    name: '리포트',
-    icon: ClipboardList,
-    href: '/dashboard-group/reports',
-    children: [
-      {
-        name: '리포트',
-        children: [
-          {
-            name: '주간리포트 관리',
-            children: [
-              { name: '주간리포트 설정', href: '/dashboard-group/reports/weekly-settings' },
-            ]
-          },
-        ]
-      },
-    ]
-  },
-  {
-    name: '정부지원사업',
-    icon: RxRocket,
-    href: '/dashboard-group/company/government-programs',
-    children: [
-      // 0) 대시보드
-      {
-        name: '대시보드',
-        href: '/dashboard-group/company/government-programs',
-        icon: LayoutDashboard
-      },
-      { name: '전체목록', href: '/dashboard-group/company/government-programs?view=list', icon: Search },
-      { name: 'AI 매칭', href: '/dashboard-group/company/government-programs?view=matches', icon: Target },
-      { name: '북마크', href: '/dashboard-group/company/government-programs/bookmarks', icon: BookmarkCheck },
-      { name: '알림 설정', href: '/dashboard-group/company/government-programs/alerts', icon: Bell },
-      // 2) 신청 준비
-      {
-        name: '신청 준비',
-        icon: FileCheck,
-        children: [
-          { name: '준비 체크리스트', href: '/dashboard-group/company/government-programs/checklist', icon: ClipboardCheck },
-          { name: '구비 서류', href: '/dashboard-group/company/government-programs/documents', icon: FolderOpen },
-          { name: 'AI 자격진단', href: '/dashboard-group/company/government-programs/ai-diagnosis', icon: Bot },
-          { name: '회사 프로필', href: '/dashboard-group/company/government-programs/profile', icon: Building2 },
-          { name: '사업계획서 빌더', href: '/dashboard-group/company/government-programs/business-plan/builder', icon: FileText },
-        ]
-      },
-      // 3) 제출/접수
-      {
-        name: '제출/접수',
-        icon: Upload,
-        children: [
-          { name: '신청서 작성', href: '/dashboard-group/company/government-programs/application', icon: FileSignature },
-          { name: '제출 이력', href: '/dashboard-group/company/government-programs/submissions', icon: ScrollText },
-        ]
-      },
-      // 4) 선정/협약
-      {
-        name: '선정/협약',
-        icon: HeartHandshake,
-        children: [
-          { name: '선정 결과', href: '/dashboard-group/company/government-programs/results', icon: BadgeCheck },
-          { name: '협약서 관리', href: '/dashboard-group/company/government-programs/contracts', icon: FileSpreadsheet },
-        ]
-      },
-      // 5) 수행 관리
-      {
-        name: '수행 관리',
-        icon: GanttChart,
-        children: [
-          { name: '마일스톤', href: '/dashboard-group/company/government-programs/milestones', icon: Milestone },
-          { name: '진행 현황', href: '/dashboard-group/company/government-programs/progress', icon: Activity },
-          { name: '위험 관리', href: '/dashboard-group/company/government-programs/risks', icon: AlertTriangle },
-          { name: '자료 보관함', href: '/dashboard-group/company/government-programs/archive', icon: FolderArchive },
-        ]
-      },
-      // 6) 예산/보고
-      {
-        name: '예산/보고',
-        icon: Banknote,
-        children: [
-          { name: '예산 현황', href: '/dashboard-group/company/government-programs/budget', icon: PieChart },
-          { name: '지출 내역', href: '/dashboard-group/company/government-programs/expenses', icon: DollarSign },
-          { name: '보고서 관리', href: '/dashboard-group/company/government-programs/reports', icon: FileSpreadsheet },
-        ]
-      },
-      // 7) 성과/자산
-      {
-        name: '성과/자산',
-        icon: Award,
-        children: [
-          { name: '특허/IP', href: '/dashboard-group/company/government-programs/patents', icon: ShieldCheck },
-          { name: '논문/발표', href: '/dashboard-group/company/government-programs/publications', icon: BookOpen },
-          { name: '참여 연구원', href: '/dashboard-group/company/government-programs/researchers', icon: Users },
-        ]
-      },
-      // 8) 빠른 보기
-      {
-        name: '빠른 보기',
-        icon: Filter,
-        children: [
-          { name: '지원한 공고', href: '/dashboard-group/company/government-programs/applied', icon: Send },
-          { name: '선정된 공고', href: '/dashboard-group/company/government-programs/selected', icon: Trophy },
-          { name: '미선정 공고', href: '/dashboard-group/company/government-programs/rejected', icon: XCircle },
-        ]
-      },
-    ]
-  },
-]
-
-// 1단계: 카테고리 (아이콘만)
-const categories: Category[] = [
-  // 회사 - 클릭 시 사이드바 열림 + 회사 페이지 이동
-  {
-    id: 'company',
-    name: '회사',
-    icon: Building2,
-    items: companyMenuItems
-  },
-  // 워크스페이스 (마이 대시보드) - 요약만
-  {
-    id: 'workspace',
-    name: '워크스페이스',
-    icon: BsPersonWorkspace,
-    items: [
-      { name: '대시보드', href: '/dashboard-group', icon: LayoutDashboard },
-      { name: 'Works', href: '/dashboard-group/works', icon: Briefcase },
-      {
-        name: '빠른 액션',
-        icon: Zap,
-        children: [
-          { name: '프로젝트 생성', href: '/dashboard-group/project', icon: Plus },
-          { name: '업무 생성', href: '/dashboard-group/task-hub?action=create', icon: Plus },
-          { name: '에이전트 호출', href: '/dashboard-group/agents', icon: Bot },
-        ]
-      },
-      {
-        name: '프로젝트',
-        icon: IoRocketOutline,
-        children: [
-          { name: '전체 프로젝트', href: '/dashboard-group/project', icon: FolderKanban },
-          { name: '진행 중', href: '/dashboard-group/project?status=active', icon: Play },
-          { name: '완료', href: '/dashboard-group/project?status=completed', icon: CheckCircle },
-          { name: '보류', href: '/dashboard-group/project?status=on_hold', icon: Archive },
-        ]
-      },
-      { name: '태스크 허브', href: '/dashboard-group/task-hub', icon: LayoutGrid },
-      { name: '오늘 일정', href: '/dashboard-group/calendar?view=today', icon: CalendarDays },
-      { name: '간트차트', href: '/dashboard-group/gantt', icon: GanttChart },
-      { name: 'KPI 관리', href: '/dashboard-group/kpis', icon: Target },
-    ]
-  },
-  // 마이뉴런
-  {
-    id: 'neurons',
-    name: '마이뉴런',
-    icon: Brain,
-    items: [
-      { name: '마이뉴런', href: '/dashboard-group/neurons', icon: Brain },
-    ]
-  },
-  // 앱 (Apps) - 도구 모음
-  {
-    id: 'apps',
-    name: 'Apps',
-    icon: CgMenuGridO,
-    items: [
-      { name: '모든 앱', href: '/dashboard-group/apps', icon: CgMenuGridO },
-      {
-        name: '업무',
-        icon: Briefcase,
-        children: [
-          { name: 'AI 실시간 요약', href: '/dashboard-group/apps/ai-summary', icon: Sparkles },
-          { name: '유튜브 영상 요약', href: '/dashboard-group/apps/ai-summary', icon: FileText },
-          { name: 'PPT 초안', href: '/dashboard-group/apps/ppt-draft', icon: FileText },
-          { name: '기사 초안', href: '/dashboard-group/apps/article-draft', icon: FileText },
-          { name: '상세페이지', href: '/dashboard-group/apps/detail-page', icon: FileText },
-          { name: '이미지 제작', href: '/dashboard-group/apps/image-gen', icon: Sparkles },
-          { name: '카피라이팅', href: '/dashboard-group/apps/copywriting', icon: FileText },
-        ]
-      },
-      {
-        name: '학업',
-        icon: GraduationCap,
-        children: [
-          { name: 'AI 탐지 방어', href: '/dashboard-group/apps/ai-detection', icon: ShieldCheck },
-          { name: '독후감', href: '/dashboard-group/apps/book-report', icon: FileText },
-          { name: '레포트', href: '/dashboard-group/apps/report', icon: FileText },
-          { name: '발표 대본', href: '/dashboard-group/apps/presentation-script', icon: FileText },
-          { name: '생활기록부', href: '/dashboard-group/apps/school-record', icon: FileText },
-          { name: '코딩 과제', href: '/dashboard-group/apps/coding-task', icon: FileText },
-        ]
-      },
-      {
-        name: '취업',
-        icon: UserCog,
-        children: [
-          { name: '면접 준비', href: '/dashboard-group/apps/interview-prep', icon: Users },
-          { name: '이력서', href: '/dashboard-group/apps/resume', icon: FileText },
-          { name: '자기소개서', href: '/dashboard-group/apps/cover-letter', icon: FileText },
-        ]
-      },
-      {
-        name: '부업',
-        icon: Wallet,
-        children: [
-          { name: 'SNS 게시물', href: '/dashboard-group/apps/sns-post', icon: FileText },
-          { name: '블로그', href: '/dashboard-group/apps/blog', icon: FileText },
-          { name: '상품 리뷰', href: '/dashboard-group/apps/product-review', icon: FileText },
-          { name: '영상 시나리오', href: '/dashboard-group/apps/video-scenario', icon: FileText },
-          { name: '전자책', href: '/dashboard-group/apps/ebook', icon: FileText },
-        ]
-      },
-    ]
-  },
-  // 캘린더 - 일정 관리
-  {
-    id: 'calendar',
-    name: '캘린더',
-    icon: IoCalendarNumberOutline,
-    items: [
-      { name: '전체 일정', href: '/dashboard-group/calendar', icon: IoCalendarNumberOutline },
-      { name: '개인 일정', href: '/dashboard-group/calendar?view=personal', icon: User },
-      { name: '프로젝트 일정', href: '/dashboard-group/calendar?view=projects', icon: FolderKanban },
-      { name: '마감일', href: '/dashboard-group/calendar?view=deadlines', icon: AlertCircle },
-      { name: '회의', href: '/dashboard-group/calendar?view=meetings', icon: Users },
-      { name: 'AI 일정 제안', href: '/dashboard-group/calendar?view=ai', icon: Sparkles },
-    ]
-  },
-  // 파일·문서 - 내가 쓰는 모든 자료
-  {
-    id: 'files',
-    name: '파일·문서',
-    icon: CiHardDrive,
-    items: [
-      { name: '내 파일', href: '/dashboard-group/files', icon: FolderOpen },
-      { name: '프로젝트별 문서', href: '/dashboard-group/files?view=projects', icon: FolderKanban },
-      { name: '최근 사용', href: '/dashboard-group/files?view=recent', icon: Clock },
-      { name: 'AI 정리 문서', href: '/dashboard-group/files?view=ai', icon: Sparkles },
-    ]
-  },
-
-  // 이메일 - 외부 커뮤니케이션
-  {
-    id: 'email',
-    name: '이메일',
-    icon: Mail,
-    items: [
-      { name: '수신함', href: '/dashboard-group/email', icon: Inbox },
-      { name: '발신함', href: '/dashboard-group/email?view=sent', icon: Send },
-      { name: '메일 → 업무', href: '/dashboard-group/email?view=to-task', icon: ArrowRightFromLine },
-      { name: 'AI 요약', href: '/dashboard-group/email?view=ai-summary', icon: Sparkles },
-    ]
-  },
-  // 메신저 - 회의/토론/발표/자유채팅 (세션룸 연동)
-  {
-    id: 'messenger',
-    name: '메신저',
-    icon: TbBrandWechat,
-    items: [
-      {
-        name: '회의실',
-        icon: Users,
-        children: [
-          { name: '새 회의', href: '/dashboard-group/messenger?action=new&mode=meeting', icon: Plus },
-          { name: '진행중', href: '/dashboard-group/messenger?mode=meeting&status=active', icon: Play },
-          { name: '예정', href: '/dashboard-group/messenger?mode=meeting&status=scheduled', icon: CalendarDays },
-          { name: '완료', href: '/dashboard-group/messenger?mode=meeting&status=completed', icon: CheckCircle },
-          { name: '회의록', href: '/dashboard-group/messenger/meetings', icon: FileText },
-        ]
-      },
-      {
-        name: '진영 토론방',
-        icon: Target,
-        children: [
-          { name: '새 토론', href: '/dashboard-group/messenger?action=new&mode=debate', icon: Plus },
-          { name: '진행중', href: '/dashboard-group/messenger?mode=debate&status=active', icon: Play },
-          { name: '예정', href: '/dashboard-group/messenger?mode=debate&status=scheduled', icon: CalendarDays },
-          { name: '완료', href: '/dashboard-group/messenger?mode=debate&status=completed', icon: CheckCircle },
-          { name: '리포트', href: '/dashboard-group/messenger/debates', icon: FileText },
-        ]
-      },
-      {
-        name: '발표실',
-        icon: Zap,
-        children: [
-          { name: '새 발표', href: '/dashboard-group/messenger?action=new&mode=presentation', icon: Plus },
-          { name: '진행중', href: '/dashboard-group/messenger?mode=presentation&status=active', icon: Play },
-          { name: '예정', href: '/dashboard-group/messenger?mode=presentation&status=scheduled', icon: CalendarDays },
-          { name: '완료', href: '/dashboard-group/messenger?mode=presentation&status=completed', icon: CheckCircle },
-          { name: '리포트', href: '/dashboard-group/messenger/presentations', icon: FileText },
-        ]
-      },
-      { name: '자유채팅', href: '/dashboard-group/messenger', icon: TbBrandWechat },
-    ]
-  },
-  // 팀 - 클릭 시 사이드바 열림
-  {
-    id: 'team',
-    name: '팀',
-    icon: GoPeople,
-    items: [
-      { name: '팀 생성', href: '#create-team', icon: Plus },
-      { name: '팀목록', href: '/dashboard-group/team/list', icon: List },
-      { name: '팀 관리', href: '/dashboard-group/team', icon: Users },
-      { name: '팀원', href: '/dashboard-group/team/members', icon: User },
-      { name: '역할 설정', href: '/dashboard-group/team/roles', icon: Settings },
-    ]
-  },
-  // AI 에이전트
-  {
-    id: 'agents',
-    name: 'AI 에이전트',
-    icon: Bot,
-    items: [
-      { name: '에이전트 목록', href: '/dashboard-group/agents', icon: Bot },
-      { name: '슈퍼 에이전트 생성', href: '/dashboard-group/agents/create', icon: Plus },
-      { name: '워크플로우', href: '/dashboard-group/workflows', icon: Workflow },
-    ]
-  },
-  // AI 코딩
-  {
-    id: 'ai-coding',
-    name: 'AI 코딩',
-    icon: FaLaptopCode,
-    items: [
-      { name: 'AI 코딩', href: '/dashboard-group/ai-coding', icon: FaLaptopCode },
-      { name: '새 프로젝트', href: '/dashboard-group/ai-coding/new', icon: Plus },
-    ]
-  },
-  // 마이페이지 - 클릭 시 사이드바 열림
-  {
-    id: 'mypage',
-    name: '마이페이지',
-    icon: GoPerson,
-    items: [
-      { name: '소개', href: '/dashboard-group/mypage', icon: User },
-      { name: '이력', href: '/dashboard-group/mypage/resume', icon: Briefcase },
-      { name: '포트폴리오', href: '/dashboard-group/mypage/portfolio', icon: FolderKanban },
-      { name: '활동', href: '/dashboard-group/mypage/activity', icon: Activity },
-      { name: '연락처', href: '/dashboard-group/mypage/contact', icon: Phone },
-    ]
-  },
-]
-
-const investorCategories: Category[] = [
-  {
-    id: 'investor',
-    name: '투자',
-    icon: Globe,
-    items: [
-      { name: '스타트업 탐색', href: '/dashboard-group/investor/explore', icon: Globe },
-      { name: '파이프라인', href: '/dashboard-group/investor/pipeline', icon: BarChart3 },
-    ]
-  },
-]
 
 // 상위 메뉴 카드 컴포넌트 (2열 그리드용 - Bold & Clean Redesign)
 function TopLevelCardMenu({
@@ -890,19 +74,12 @@ function TopLevelCardMenu({
   const IconComponent = item.icon
   const { accentColor } = useThemeStore()
 
-  const handleClick = () => {
-    // 하위 메뉴 토글
-    onToggle()
+  // 페이지 이동 경로 결정
+  const targetHref = item.href || (item.children && item.children.length > 0 ? item.children[0].href : null)
 
-    // 페이지 이동: href가 있으면 그 href로, 없으면 첫번째 자식의 href로
-    if (item.href) {
-      router.push(item.href)
-    } else if (item.children && item.children.length > 0) {
-      const firstChildHref = item.children[0].href
-      if (firstChildHref) {
-        router.push(firstChildHref)
-      }
-    }
+  const handleClick = (e: React.MouseEvent) => {
+    // Link가 처리하므로 하위 메뉴 토글만
+    onToggle()
   }
 
   // 테마 색상 클래스 생성기
@@ -1002,19 +179,8 @@ function TopLevelCardMenu({
 
   const theme = getThemeClasses()
 
-  return (
-    <button
-      onClick={handleClick}
-      className={cn(
-        'group w-full aspect-[4/5] rounded-xl border transition-all duration-200 flex flex-col items-center justify-center gap-3',
-        isDark
-          ? 'bg-zinc-900 border-zinc-700 hover:bg-zinc-800'
-          : 'bg-white border-zinc-200 hover:bg-zinc-50',
-        theme.border,
-        theme.bg,
-        isExpanded && cn(theme.activeBorder, theme.activeBg)
-      )}
-    >
+  const cardContent = (
+    <>
       <div className={cn(
         'w-14 h-14 rounded-2xl flex items-center justify-center transition-colors',
         isDark ? 'bg-zinc-800' : 'bg-zinc-100',
@@ -1032,10 +198,9 @@ function TopLevelCardMenu({
           />
         )}
       </div>
-
       <div className="flex flex-col items-center gap-0.5">
         <span className={cn(
-          'text-sm font-bold transition-colors', // 폰트 굵기 강화
+          'text-sm font-bold transition-colors',
           isDark ? 'text-zinc-300' : 'text-zinc-700',
           theme.text,
           isExpanded && theme.activeText
@@ -1051,6 +216,39 @@ function TopLevelCardMenu({
           </span>
         )}
       </div>
+    </>
+  )
+
+  const cardClassName = cn(
+    'group w-full aspect-[4/5] rounded-xl border transition-colors duration-100 flex flex-col items-center justify-center gap-3',
+    isDark
+      ? 'bg-zinc-900 border-zinc-700 hover:bg-zinc-800'
+      : 'bg-white border-zinc-200 hover:bg-zinc-50',
+    theme.border,
+    theme.bg,
+    isExpanded && cn(theme.activeBorder, theme.activeBg)
+  )
+
+  // Link가 있으면 Link 사용 (prefetch 활성화)
+  if (targetHref) {
+    return (
+      <Link
+        href={targetHref}
+        prefetch={true}
+        onClick={handleClick}
+        className={cardClassName}
+      >
+        {cardContent}
+      </Link>
+    )
+  }
+
+  return (
+    <button
+      onClick={handleClick}
+      className={cardClassName}
+    >
+      {cardContent}
     </button>
   )
 }
@@ -1071,6 +269,7 @@ function NestedMenuItemComponent({
   expandedItems: Set<string>
   toggleExpand: (name: string) => void
 }) {
+  const router = useRouter()
   const hasChildren = item.children && item.children.length > 0
   const isExpanded = expandedItems.has(item.name)
   const isActive = item.href && (pathname === item.href || pathname.startsWith(item.href + '/'))
@@ -1127,23 +326,41 @@ function NestedMenuItemComponent({
     )
   }
 
-  // 링크 아이템
+  // 링크 아이템 - Link 사용으로 prefetch 활성화
+  if (item.href && item.href !== '#') {
+    return (
+      <Link
+        href={item.href}
+        prefetch={true}
+        className={cn(
+          'w-full flex items-center gap-2 py-1.5 text-xs transition-colors duration-100 rounded-md',
+          isActive
+            ? 'bg-accent text-white font-medium'
+            : isDark
+              ? 'text-zinc-500 hover:bg-zinc-800/50 hover:text-zinc-300'
+              : 'text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900'
+        )}
+        style={{ paddingLeft: `${paddingLeft}px`, paddingRight: '8px' }}
+      >
+        {IconComponent && <IconComponent className="w-3 h-3 flex-shrink-0" />}
+        <span className="truncate">{item.name}</span>
+      </Link>
+    )
+  }
+
   return (
-    <Link
-      href={item.href || '#'}
+    <button
       className={cn(
-        'flex items-center gap-2 py-1.5 text-xs transition-all duration-200 rounded-md',
-        isActive
-          ? 'bg-accent text-white font-medium'
-          : isDark
-            ? 'text-zinc-500 hover:bg-zinc-800/50 hover:text-zinc-300'
-            : 'text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900'
+        'w-full flex items-center gap-2 py-1.5 text-xs transition-colors duration-100 rounded-md text-left',
+        isDark
+          ? 'text-zinc-500 hover:bg-zinc-800/50 hover:text-zinc-300'
+          : 'text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900'
       )}
       style={{ paddingLeft: `${paddingLeft}px`, paddingRight: '8px' }}
     >
       {IconComponent && <IconComponent className="w-3 h-3 flex-shrink-0" />}
       <span className="truncate">{item.name}</span>
-    </Link>
+    </button>
   )
 }
 
@@ -1162,7 +379,8 @@ export function TwoLevelSidebar({ hideLevel2 = false }: TwoLevelSidebarProps) {
     activeCategory, setActiveCategory, sidebarOpen, setSidebarOpen, toggleSidebar,
     level2Width, setLevel2Width, isResizingLevel2, setIsResizingLevel2,
     emailSidebarWidth, setEmailSidebarWidth, isResizingEmail, setIsResizingEmail,
-    level2Collapsed, toggleLevel2, setLevel2Collapsed
+    level2Collapsed, toggleLevel2, setLevel2Collapsed,
+    openTaskHistory, closeTaskHistory, taskHistoryOpen
   } = useUIStore()
 
   const { resolvedTheme } = useTheme()
@@ -1218,10 +436,13 @@ export function TwoLevelSidebar({ hideLevel2 = false }: TwoLevelSidebarProps) {
     setMounted(true)
   }, [])
 
-  // 정부지원사업 페이지 진입 시 자동으로 해당 메뉴 선택
+  // 정부지원사업 페이지 진입 시 자동으로 해당 메뉴 선택, 아니면 리셋
   useEffect(() => {
     if (pathname?.includes('/company/government-programs')) {
       setSelectedCompanyMenu('정부지원사업')
+    } else if (pathname === '/dashboard-group/company') {
+      // 회사 대시보드 메인으로 돌아가면 서브메뉴 리셋
+      setSelectedCompanyMenu(null)
     }
   }, [pathname])
 
@@ -1363,6 +584,7 @@ export function TwoLevelSidebar({ hideLevel2 = false }: TwoLevelSidebarProps) {
   }, [])
 
   // pathname에 따라 현재 카테고리 계산
+  // 🔥 캘린더/이메일은 이제 워크스페이스 하위 메뉴로 이동됨
   const currentCategory = (() => {
     if (pathname.startsWith('/dashboard-group/mypage')) return 'mypage'
     if (pathname.startsWith('/dashboard-group/company') ||
@@ -1374,9 +596,12 @@ export function TwoLevelSidebar({ hideLevel2 = false }: TwoLevelSidebarProps) {
       pathname.startsWith('/dashboard-group/expense') ||
       pathname.startsWith('/dashboard-group/erp')) return 'company'
     if (pathname.startsWith('/dashboard-group/project')) return 'workspace'
-    if (pathname.startsWith('/dashboard-group/files')) return 'files'
-    if (pathname.startsWith('/dashboard-group/calendar')) return 'calendar'
-    if (pathname.startsWith('/dashboard-group/email')) return 'email'
+    // 🔥 파일 → 워크스페이스
+    if (pathname.startsWith('/dashboard-group/files')) return 'workspace'
+    // 🔥 캘린더 → 워크스페이스
+    if (pathname.startsWith('/dashboard-group/calendar')) return 'workspace'
+    // 🔥 이메일 → 워크스페이스
+    if (pathname.startsWith('/dashboard-group/email')) return 'workspace'
     if (pathname.startsWith('/dashboard-group/messenger')) return 'messenger'
     if (pathname.startsWith('/dashboard-group/team')) return 'team'
     if (pathname.startsWith('/dashboard-group/agents') ||
@@ -1385,14 +610,16 @@ export function TwoLevelSidebar({ hideLevel2 = false }: TwoLevelSidebarProps) {
     if (pathname.startsWith('/dashboard-group/ai-coding')) return 'ai-coding'
     if (pathname.startsWith('/dashboard-group/neurons')) return 'neurons'
     if (pathname.startsWith('/dashboard-group/works')) {
-      const tab = searchParams.get('tab')
-      if (tab === 'tools') return 'apps'
-      return 'workspace'
+      return 'home'
     }
-    if (pathname.startsWith('/dashboard-group/apps') || pathname.includes('/tools/')) return 'apps'
-    if (pathname.startsWith('/dashboard-group/kpis') ||
-      pathname === '/dashboard-group') return 'workspace'
-    return activeCategory || 'workspace'
+    // 🔥 앱 → 홈
+    if (pathname.startsWith('/dashboard-group/apps') || pathname.includes('/tools/')) return 'home'
+    if (pathname.startsWith('/dashboard-group/kpis')) return 'workspace'
+    if (pathname.startsWith('/dashboard-group/gantt')) return 'workspace'
+    if (pathname.startsWith('/dashboard-group/task-hub')) return 'workspace'
+    // 🔥 /dashboard-group (정확히 일치)은 워크스페이스 대시보드
+    if (pathname === '/dashboard-group') return 'workspace'
+    return activeCategory || 'home'
   })()
 
   // activeCategory 동기화
@@ -1458,18 +685,7 @@ export function TwoLevelSidebar({ hideLevel2 = false }: TwoLevelSidebarProps) {
     }
   }
 
-  const worksItems: NestedMenuItem[] = [
-    { name: 'Works홈', href: '/dashboard-group/works?tab=home', icon: Home },
-    { name: '즐겨찾는 앱', href: '/dashboard-group/works?tab=favorites', icon: Star },
-    { name: '운영중인 앱', href: '/dashboard-group/works?tab=operating', icon: Wrench },
-
-    { name: '나의 폴더', href: '/dashboard-group/works?tab=folders', icon: FolderOpen },
-    { name: '앱 내보내기/가져오기', href: '/dashboard-group/works?tab=export', icon: ArrowRightFromLine },
-  ]
-
-  const activeItems = (pathname.startsWith('/dashboard-group/works') && currentCategory !== 'apps')
-    ? worksItems
-    : navCategories.find(cat => cat.id === currentCategory)?.items || []
+  const activeItems = navCategories.find(cat => cat.id === currentCategory)?.items || []
   const isCompanyMenu = currentCategory === 'company'
 
   const isDashboardRoot = pathname === '/dashboard-group'
@@ -1511,7 +727,9 @@ export function TwoLevelSidebar({ hideLevel2 = false }: TwoLevelSidebarProps) {
 
                   // 이동할 경로 결정
                   let targetPath = ''
-                  if (category.id === 'company') {
+                  if (category.id === 'home') {
+                    targetPath = '/dashboard-group/works'
+                  } else if (category.id === 'company') {
                     targetPath = '/dashboard-group/company'
                   } else if (category.id === 'workspace') {
                     targetPath = '/dashboard-group'
@@ -1529,8 +747,10 @@ export function TwoLevelSidebar({ hideLevel2 = false }: TwoLevelSidebarProps) {
                     targetPath = firstItem?.href || ''
                   }
 
-                  // 현재 경로와 다를 때만 이동
-                  if (targetPath && pathname !== targetPath) {
+                  // 페이지 이동
+                  if (category.id === 'home') {
+                    router.push('/dashboard-group/works')
+                  } else if (targetPath && pathname !== targetPath) {
                     router.push(targetPath)
                   }
                 }}
@@ -1564,31 +784,6 @@ export function TwoLevelSidebar({ hideLevel2 = false }: TwoLevelSidebarProps) {
 
         {/* Bottom Icons */}
         <div className="flex flex-col items-center gap-2 mt-auto">
-          {/* 사이드바 토글 버튼 */}
-          <button
-            onClick={toggleSidebar}
-            className={cn(
-              'w-10 h-10 rounded-xl flex items-center justify-center transition-all duration-200 group relative',
-              isDark
-                ? 'text-zinc-500 hover:bg-zinc-800 hover:text-zinc-300'
-                : 'text-zinc-500 hover:bg-zinc-200 hover:text-zinc-700'
-            )}
-          >
-            {sidebarOpen ? (
-              <PanelLeftClose className="w-5 h-5" />
-            ) : (
-              <PanelLeftOpen className="w-5 h-5" />
-            )}
-            <div className={cn(
-              'absolute left-full ml-2 px-2 py-1 text-xs rounded-md opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all whitespace-nowrap z-50',
-              isDark
-                ? 'bg-zinc-800 text-zinc-100 border border-zinc-700'
-                : 'bg-white text-zinc-900 border border-zinc-200 shadow-lg'
-            )}>
-              {sidebarOpen ? '메뉴 접기' : '메뉴 펼치기'}
-            </div>
-          </button>
-
           <ThemeDropdown
             align="left-start"
             trigger={
@@ -1634,6 +829,22 @@ export function TwoLevelSidebar({ hideLevel2 = false }: TwoLevelSidebarProps) {
           </button>
         </div>
       </motion.aside>
+
+      {/* 사이드바 펼치기 버튼 - 접혀있을 때 아이콘바 오른쪽 경계 중앙에 표시 */}
+      {!sidebarOpen && (
+        <button
+          onClick={toggleSidebar}
+          className={cn(
+            'absolute top-1/2 -translate-y-1/2 -right-2 w-4 h-4 rounded-full flex items-center justify-center z-30 transition-all',
+            isDark
+              ? 'bg-zinc-700 text-zinc-400 hover:text-zinc-100 hover:bg-zinc-600'
+              : 'bg-zinc-200 text-zinc-500 hover:text-zinc-900 hover:bg-zinc-300'
+          )}
+          title="메뉴 펼치기"
+        >
+          <ChevronRight className="w-2.5 h-2.5" />
+        </button>
+      )}
 
       {!pathname?.includes('/works/new') && (
         <AnimatePresence>
@@ -1850,22 +1061,33 @@ export function TwoLevelSidebar({ hideLevel2 = false }: TwoLevelSidebarProps) {
             </motion.aside>
           )}
 
-
-
-          {/* Regular menus (not email, not ai-coding page, not neurons page) */}
-          {sidebarOpen && activeItems.length > 0 && currentCategory !== 'email' && currentCategory !== 'neurons' && !(currentCategory === 'ai-coding' && pathname?.includes('/ai-coding')) && (
+          {/* Regular menus (not neurons page, not ai-coding page) */}
+          {sidebarOpen && activeItems.length > 0 && currentCategory !== 'neurons' && !(currentCategory === 'ai-coding' && pathname?.includes('/ai-coding')) && (
             <motion.aside
               initial={{ width: 0, opacity: 0 }}
               animate={{ width: 240, opacity: 1 }}
               exit={{ width: 0, opacity: 0 }}
               transition={{ duration: 0.2 }}
               className={cn(
-                'h-full border-r overflow-hidden bg-white dark:bg-zinc-950',
+                'h-full overflow-hidden bg-white dark:bg-zinc-950 relative border-r',
                 isDashboardRoot
                   ? (isDark ? 'border-white/10' : 'border-zinc-200/50')
                   : isDark ? 'border-zinc-800' : 'border-zinc-200'
               )}
             >
+              {/* 사이드바 접기 버튼 - 오른쪽 경계 중앙 */}
+              <button
+                onClick={toggleSidebar}
+                className={cn(
+                  'absolute top-1/2 -translate-y-1/2 -right-2 w-4 h-4 rounded-full flex items-center justify-center z-30 transition-all',
+                  isDark
+                    ? 'bg-zinc-700 text-zinc-400 hover:text-zinc-100 hover:bg-zinc-600'
+                    : 'bg-zinc-200 text-zinc-500 hover:text-zinc-900 hover:bg-zinc-300'
+                )}
+                title="메뉴 접기"
+              >
+                <ChevronRight className="w-2.5 h-2.5 rotate-180" />
+              </button>
               <div className="h-full flex flex-col" style={{ width: 240 }}>
                 {/* Category Header */}
                 <div className={cn(
@@ -1873,7 +1095,7 @@ export function TwoLevelSidebar({ hideLevel2 = false }: TwoLevelSidebarProps) {
                   isDark ? 'border-zinc-800' : 'border-zinc-200'
                 )}>
                   {currentCategory === 'apps' ? (
-                    <div className="flex items-center gap-2 w-full">
+                    <div className="flex items-center gap-2">
                       <h2 className={cn(
                         'text-lg font-bold',
                         isDark ? 'text-zinc-100' : 'text-zinc-900'
@@ -1882,7 +1104,7 @@ export function TwoLevelSidebar({ hideLevel2 = false }: TwoLevelSidebarProps) {
                       </h2>
                     </div>
                   ) : pathname.startsWith('/dashboard-group/works') ? (
-                    <div className="flex items-center gap-2 w-full">
+                    <div className="flex items-center gap-2">
                       <button
                         onClick={() => router.push('/dashboard-group')}
                         className={cn(
@@ -1950,7 +1172,7 @@ export function TwoLevelSidebar({ hideLevel2 = false }: TwoLevelSidebarProps) {
                       className="w-full py-2.5 px-4 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm font-semibold text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-700/50 transition-colors flex items-center justify-center gap-2 shadow-sm"
                     >
                       <Plus className="w-4 h-4" />
-                      <span>페이지 생성</span>
+                      <span>새 대화</span>
                     </button>
                   </div>
                 )}
@@ -2130,11 +1352,15 @@ export function TwoLevelSidebar({ hideLevel2 = false }: TwoLevelSidebarProps) {
                                     }
                                     const ChildIcon = child.icon
                                     return (
-                                      <Link
+                                      <button
                                         key={child.name}
-                                        href={child.href || '#'}
+                                        onClick={() => {
+                                          if (child.href && child.href !== '#') {
+                                            router.push(child.href)
+                                          }
+                                        }}
                                         className={cn(
-                                          'flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-all duration-200',
+                                          'w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-all duration-200 text-left',
                                           childActive
                                             ? 'bg-accent text-white'
                                             : isDark
@@ -2146,7 +1372,7 @@ export function TwoLevelSidebar({ hideLevel2 = false }: TwoLevelSidebarProps) {
                                           <ChildIcon className="w-3.5 h-3.5 flex-shrink-0" />
                                         )}
                                         <span>{child.name}</span>
-                                      </Link>
+                                      </button>
                                     )
                                   })}
                                 </motion.div>
@@ -2190,10 +1416,16 @@ export function TwoLevelSidebar({ hideLevel2 = false }: TwoLevelSidebarProps) {
                           animate={{ opacity: 1, x: 0 }}
                           transition={{ delay: index * 0.05 }}
                         >
-                          <Link
-                            href={item.href || '#'}
+                          <button
+                            onClick={() => {
+                              if (item.href === '#task-history') {
+                                openTaskHistory()
+                              } else if (item.href && item.href !== '#') {
+                                router.push(item.href)
+                              }
+                            }}
                             className={cn(
-                              'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200',
+                              'w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 text-left',
                               isActive
                                 ? 'bg-accent text-white shadow-md shadow-accent/20'
                                 : isDark
@@ -2208,7 +1440,7 @@ export function TwoLevelSidebar({ hideLevel2 = false }: TwoLevelSidebarProps) {
                               )} />
                             )}
                             <span>{item.name}</span>
-                          </Link>
+                          </button>
                         </motion.div>
                       )
                     })
@@ -2231,6 +1463,12 @@ export function TwoLevelSidebar({ hideLevel2 = false }: TwoLevelSidebarProps) {
       <CreateWorkModal
         isOpen={isWorkModalOpen}
         onClose={() => setIsWorkModalOpen(false)}
+      />
+
+      {/* Global Task History Sidebar */}
+      <TaskHistorySidebar
+        isOpen={taskHistoryOpen}
+        onClose={closeTaskHistory}
       />
     </div >
   )

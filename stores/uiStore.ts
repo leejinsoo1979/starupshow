@@ -12,6 +12,7 @@ interface UIState {
   level2Width: number
   isResizingLevel2: boolean
   level2Collapsed: boolean
+  taskHistoryOpen: boolean
   toggleSidebar: () => void
   setSidebarOpen: (open: boolean) => void
   setActiveCategory: (category: string | null) => void
@@ -26,6 +27,8 @@ interface UIState {
   setIsResizingLevel2: (resizing: boolean) => void
   toggleLevel2: () => void
   setLevel2Collapsed: (collapsed: boolean) => void
+  openTaskHistory: () => void
+  closeTaskHistory: () => void
 }
 
 export const useUIStore = create<UIState>((set) => ({
@@ -40,6 +43,7 @@ export const useUIStore = create<UIState>((set) => ({
   level2Width: 280,
   isResizingLevel2: false,
   level2Collapsed: false,
+  taskHistoryOpen: false,
   toggleSidebar: () => set((state) => ({ sidebarOpen: !state.sidebarOpen })),
   setSidebarOpen: (open) => set({ sidebarOpen: open }),
   setActiveCategory: (category) => set({ activeCategory: category }),
@@ -54,4 +58,6 @@ export const useUIStore = create<UIState>((set) => ({
   setIsResizingLevel2: (resizing) => set({ isResizingLevel2: resizing }),
   toggleLevel2: () => set((state) => ({ level2Collapsed: !state.level2Collapsed })),
   setLevel2Collapsed: (collapsed) => set({ level2Collapsed: collapsed }),
+  openTaskHistory: () => set({ taskHistoryOpen: true }),
+  closeTaskHistory: () => set({ taskHistoryOpen: false }),
 }))

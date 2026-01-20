@@ -1,5 +1,6 @@
 // GlowUS Credit System
 import { createAdminClient } from '@/lib/supabase/admin'
+import { isDevMode } from '@/lib/dev-user'
 
 // 크레딧 가격표
 export const CREDIT_PRICING: Record<string, number> = {
@@ -132,6 +133,12 @@ export async function checkCredits(userId: string, amount: number): Promise<{
   dailyBalance: number
   tier: string
 }> {
+  // 🔥 개발 모드에서는 무조건 허용
+  if (isDevMode()) {
+    console.log('[Credits] DEV MODE: Bypassing credit check')
+    return { canUse: true, balance: 999999, dailyBalance: 999999, tier: 'enterprise' }
+  }
+
   const credits = await getUserCredits(userId)
 
   if (!credits) {
@@ -167,6 +174,12 @@ export async function deductCredits(
     tokensOutput?: number
   } = {}
 ): Promise<{ success: boolean; balance: number; error?: string }> {
+  // 🔥 개발 모드에서는 차감 스킵
+  if (isDevMode()) {
+    console.log('[Credits] DEV MODE: Skipping credit deduction')
+    return { success: true, balance: 999999 }
+  }
+
   const supabase = createAdminClient()
 
   const credits = await getUserCredits(userId)

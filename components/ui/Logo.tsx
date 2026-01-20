@@ -32,7 +32,7 @@ const sizeConfig = {
 export function Logo({
   size = 'md',
   collapsed = false,
-  href = '/dashboard-group',
+  href = '/dashboard-group/works',  // 🔥 G 클릭 → AI 워크스페이스 바로 이동
   className,
   animated = true,
 }: LogoProps) {

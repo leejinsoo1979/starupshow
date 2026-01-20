@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useRef } from "react"
+import { useState, useRef, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import Image from "next/image"
 import { motion, AnimatePresence } from "framer-motion"
@@ -35,9 +35,12 @@ import {
     X,
     Check,
     Upload,
-    Landmark
+    Landmark,
+    Bot,
+    Trash2
 } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { getCustomAgents, deleteCustomAgent, CustomAgentConfig } from "@/lib/agent-builder"
 
 // Tool Data Interface
 interface ToolItem {
@@ -320,7 +323,7 @@ const INITIAL_TOOLS_DATA: ToolItem[] = [
     }
 ]
 
-const CATEGORIES = ["전체", "즐겨찾기", "취업", "부업", "학업", "업무", "지원사업"]
+const CATEGORIES = ["전체", "즐겨찾기", "커스텀 에이전트", "취업", "부업", "학업", "업무", "지원사업"]
 
 // 구현된 앱 ID 목록
 const IMPLEMENTED_APPS = [
@@ -336,15 +339,37 @@ const IMPLEMENTED_APPS = [
 export default function AppsPage() {
     const router = useRouter()
     const [tools, setTools] = useState(INITIAL_TOOLS_DATA)
+    const [customAgents, setCustomAgents] = useState<CustomAgentConfig[]>([])
     const [activeFilter, setActiveFilter] = useState("전체")
     const [editingTool, setEditingTool] = useState<ToolItem | null>(null)
     const [showNewProjectModal, setShowNewProjectModal] = useState(false)
     const [comingSoonApp, setComingSoonApp] = useState<string | null>(null)
 
+    // Load custom agents on mount
+    useEffect(() => {
+        const loadedAgents = getCustomAgents()
+        setCustomAgents(loadedAgents)
+    }, [])
+
+    // Handle custom agent deletion
+    const handleDeleteCustomAgent = (agentId: string) => {
+        if (confirm('이 에이전트를 삭제하시겠습니까?')) {
+            deleteCustomAgent(agentId)
+            setCustomAgents(prev => prev.filter(a => a.id !== agentId))
+        }
+    }
+
     const filteredTools = tools.filter(tool => {
         if (activeFilter === "전체") return true
         if (activeFilter === "즐겨찾기") return tool.isFavorite
+        if (activeFilter === "커스텀 에이전트") return false // Custom agents are shown separately
         return tool.category === activeFilter
+    })
+
+    const filteredCustomAgents = customAgents.filter(agent => {
+        if (activeFilter === "전체") return true
+        if (activeFilter === "커스텀 에이전트") return true
+        return agent.category === activeFilter
     })
 
     const handleSaveTool = (updatedTool: ToolItem) => {
@@ -404,6 +429,15 @@ export default function AppsPage() {
                                 </p>
                             </div>
                         </motion.div>
+
+                        {/* Custom Agent Cards */}
+                        {filteredCustomAgents.map((agent) => (
+                            <CustomAgentCard
+                                key={agent.id}
+                                agent={agent}
+                                onDelete={() => handleDeleteCustomAgent(agent.id)}
+                            />
+                        ))}
 
                         {filteredTools.map((tool) => (
                             <ToolCard
@@ -853,5 +887,121 @@ function ComingSoonModal({ appName, onClose }: { appName: string, onClose: () =>
                 </button>
             </motion.div>
         </div>
+    )
+}
+
+function CustomAgentCard({ agent, onDelete }: { agent: CustomAgentConfig, onDelete: () => void }) {
+    const [isMenuOpen, setIsMenuOpen] = useState(false)
+
+    return (
+        <motion.div
+            whileHover={{ y: -4 }}
+            onClick={() => {
+                window.location.href = `/dashboard-group/apps/custom-agent/${agent.id}`
+            }}
+            onMouseLeave={() => setIsMenuOpen(false)}
+            className="group relative flex flex-col h-full bg-white dark:bg-zinc-900 border border-zinc-300 dark:border-zinc-800 rounded-2xl transition-all duration-300 hover:shadow-xl hover:shadow-violet-500/10 hover:border-violet-400/40 cursor-pointer"
+        >
+            {/* Thumbnail Area */}
+            <div className={cn(
+                "relative h-44 w-full flex items-center justify-center overflow-hidden rounded-t-2xl",
+                agent.iconBg || "bg-gradient-to-br from-violet-500 to-purple-600"
+            )}>
+                <div className="absolute inset-0 bg-gradient-to-br from-violet-500/20 to-purple-600/20" />
+                <Bot className={cn("w-16 h-16 transition-transform duration-500 group-hover:scale-110 drop-shadow-lg", agent.iconColor || "text-white")} />
+
+                {/* Custom Agent Badge */}
+                <div className="absolute top-3 left-3 px-2 py-1 bg-violet-500/80 backdrop-blur-sm text-white text-[10px] font-semibold rounded-full flex items-center gap-1">
+                    <Bot className="w-3 h-3" />
+                    커스텀 에이전트
+                </div>
+            </div>
+
+            {/* Menu Button */}
+            <div className="absolute top-3 right-3 z-50">
+                <button
+                    onClick={(e) => {
+                        e.stopPropagation()
+                        setIsMenuOpen(!isMenuOpen)
+                    }}
+                    className="p-2 text-zinc-600 dark:text-zinc-300 bg-white/60 dark:bg-black/40 backdrop-blur-md hover:bg-white dark:hover:bg-black rounded-lg transition-colors opacity-0 group-hover:opacity-100 focus:opacity-100 shadow-sm"
+                >
+                    <MoreHorizontal className="w-5 h-5" />
+                </button>
+
+                <AnimatePresence>
+                    {isMenuOpen && (
+                        <motion.div
+                            initial={{ opacity: 0, scale: 0.95, y: 10 }}
+                            animate={{ opacity: 1, scale: 1, y: 0 }}
+                            exit={{ opacity: 0, scale: 0.95, y: 10 }}
+                            transition={{ duration: 0.1 }}
+                            onClick={(e) => e.stopPropagation()}
+                            className="absolute right-0 top-full mt-2 w-36 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-xl shadow-xl p-1.5 z-50"
+                        >
+                            <button
+                                onClick={(e) => {
+                                    e.stopPropagation()
+                                    setIsMenuOpen(false)
+                                    onDelete()
+                                }}
+                                className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-medium text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors text-left"
+                            >
+                                <Trash2 className="w-3.5 h-3.5" />
+                                <span>삭제</span>
+                            </button>
+                            <button className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-medium text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg transition-colors text-left">
+                                <Settings className="w-3.5 h-3.5" />
+                                <span>설정</span>
+                            </button>
+                            <button className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-medium text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg transition-colors text-left">
+                                <Share2 className="w-3.5 h-3.5" />
+                                <span>공유</span>
+                            </button>
+                        </motion.div>
+                    )}
+                </AnimatePresence>
+            </div>
+
+            {/* Content Body */}
+            <div className="flex-1 flex flex-col p-5">
+                <div className="flex items-start justify-between mb-2">
+                    <h3 className="text-lg font-bold text-zinc-900 dark:text-zinc-100 group-hover:text-violet-500 transition-colors line-clamp-1">
+                        {agent.name}
+                    </h3>
+                </div>
+
+                <p className="text-sm text-zinc-500 dark:text-zinc-400 leading-relaxed line-clamp-2 mb-4 flex-1">
+                    {agent.description}
+                </p>
+
+                {/* Capabilities Tags */}
+                <div className="flex flex-wrap gap-1 mb-3">
+                    {agent.capabilities.filter(c => c.enabled).slice(0, 3).map((cap) => (
+                        <span
+                            key={cap.id}
+                            className="text-[9px] px-1.5 py-0.5 bg-violet-100 dark:bg-violet-900/20 text-violet-600 dark:text-violet-400 rounded"
+                        >
+                            {cap.name}
+                        </span>
+                    ))}
+                    {agent.capabilities.filter(c => c.enabled).length > 3 && (
+                        <span className="text-[9px] px-1.5 py-0.5 bg-zinc-100 dark:bg-zinc-800 text-zinc-500 rounded">
+                            +{agent.capabilities.filter(c => c.enabled).length - 3}
+                        </span>
+                    )}
+                </div>
+
+                {/* Footer Tag */}
+                <div className="flex items-center mt-auto">
+                    <span className="text-[10px] font-semibold px-2.5 py-1 rounded-full bg-violet-100 dark:bg-violet-900/20 text-violet-600 dark:text-violet-400 group-hover:bg-violet-200 dark:group-hover:bg-violet-900/30 transition-colors">
+                        {agent.category}
+                    </span>
+                    <span className="ml-auto text-[10px] text-zinc-400">
+                        v{agent.version}
+                    </span>
+                </div>
+            </div>
+        </motion.div>
     )
 }

@@ -23,6 +23,7 @@ import {
   Settings2,
   Folder,
 } from 'lucide-react'
+import { MainAssistantButton } from '@/components/notifications/MainAssistantButton'
 
 export function Header() {
   const router = useRouter()
@@ -238,6 +239,9 @@ export function Header() {
 
       {/* Right: Profile & Agent Toggle */}
       <div className="flex items-center gap-2">
+        {/* AI Assistant Button */}
+        <MainAssistantButton />
+
         {/* Profile Widget */}
         <div className="relative">
           <button
@@ -325,7 +329,12 @@ export function Header() {
                 <div className={cn("p-2 border-t", isDark ? "border-white/5" : "border-zinc-100")}>
                   <button
                     onClick={handleLogout}
-                    className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-rose-400 hover:bg-rose-500/10 hover:text-rose-300 transition-colors text-xs"
+                    className={cn(
+                      "w-full flex items-center gap-2 px-3 py-2 rounded-lg transition-colors text-xs",
+                      isDark
+                        ? "text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200"
+                        : "text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900"
+                    )}
                   >
                     <LogOut className="w-3.5 h-3.5" />
                     <span>로그아웃</span>

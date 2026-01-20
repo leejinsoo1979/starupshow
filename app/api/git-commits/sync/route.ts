@@ -21,34 +21,6 @@ interface GitCommit {
   branch: string
 }
 
-// Parse git log output
-function parseGitLog(output: string): GitCommit[] {
-  const commits: GitCommit[] = []
-  const lines = output.trim().split('\n')
-
-  for (const line of lines) {
-    if (!line.trim()) continue
-
-    // Format: hash|message|author_name|author_email|date|files|insertions|deletions
-    const parts = line.split('|')
-    if (parts.length >= 5) {
-      commits.push({
-        hash: parts[0],
-        message: parts[1] || 'No message',
-        author_name: parts[2] || 'Unknown',
-        author_email: parts[3] || '',
-        date: parts[4],
-        files_changed: parseInt(parts[5]) || 0,
-        insertions: parseInt(parts[6]) || 0,
-        deletions: parseInt(parts[7]) || 0,
-        branch: 'main'
-      })
-    }
-  }
-
-  return commits
-}
-
 // Get current branch name
 async function getCurrentBranch(repoPath: string): Promise<string> {
   try {
@@ -59,7 +31,7 @@ async function getCurrentBranch(repoPath: string): Promise<string> {
   }
 }
 
-// Get commits from a git repository
+// 🔥 최적화된 git log - 한 번의 명령으로 모든 정보 가져오기
 async function getGitCommits(repoPath: string, limit: number = 50): Promise<GitCommit[]> {
   try {
     // Check if directory exists and is a git repo
@@ -76,34 +48,58 @@ async function getGitCommits(repoPath: string, limit: number = 50): Promise<GitC
 
     const branch = await getCurrentBranch(repoPath)
 
-    // Get commit log with stats
+    // 🔥 --shortstat으로 한 번에 통계 포함 (N+1 쿼리 제거)
     // Format: hash|subject|author_name|author_email|date
     const format = '%H|%s|%an|%ae|%aI'
     const { stdout: logOutput } = await execAsync(
-      `git log --format="${format}" -n ${limit}`,
+      `git log --format="${format}|STATS:" --shortstat -n ${limit}`,
       { cwd: repoPath, maxBuffer: 10 * 1024 * 1024 }
     )
 
-    const commits = parseGitLog(logOutput)
+    const commits: GitCommit[] = []
+    const lines = logOutput.trim().split('\n')
 
-    // Get stats for each commit (files changed, insertions, deletions)
-    for (const commit of commits) {
-      commit.branch = branch
-      try {
-        const { stdout: statsOutput } = await execAsync(
-          `git show --stat --format="" ${commit.hash} | tail -1`,
-          { cwd: repoPath }
-        )
-        // Parse: "X files changed, Y insertions(+), Z deletions(-)"
-        const statsMatch = statsOutput.match(/(\d+) files? changed(?:, (\d+) insertions?\(\+\))?(?:, (\d+) deletions?\(-\))?/)
-        if (statsMatch) {
-          commit.files_changed = parseInt(statsMatch[1]) || 0
-          commit.insertions = parseInt(statsMatch[2]) || 0
-          commit.deletions = parseInt(statsMatch[3]) || 0
+    let currentCommit: GitCommit | null = null
+
+    for (const line of lines) {
+      if (!line.trim()) continue
+
+      if (line.includes('|STATS:')) {
+        // 새 커밋 라인
+        if (currentCommit) {
+          currentCommit.branch = branch
+          commits.push(currentCommit)
         }
-      } catch {
-        // Stats parsing failed, keep defaults
+
+        const parts = line.replace('|STATS:', '').split('|')
+        if (parts.length >= 5) {
+          currentCommit = {
+            hash: parts[0],
+            message: parts[1] || 'No message',
+            author_name: parts[2] || 'Unknown',
+            author_email: parts[3] || '',
+            date: parts[4],
+            files_changed: 0,
+            insertions: 0,
+            deletions: 0,
+            branch: branch
+          }
+        }
+      } else if (currentCommit) {
+        // 통계 라인: "X files changed, Y insertions(+), Z deletions(-)"
+        const statsMatch = line.match(/(\d+) files? changed(?:, (\d+) insertions?\(\+\))?(?:, (\d+) deletions?\(-\))?/)
+        if (statsMatch) {
+          currentCommit.files_changed = parseInt(statsMatch[1]) || 0
+          currentCommit.insertions = parseInt(statsMatch[2]) || 0
+          currentCommit.deletions = parseInt(statsMatch[3]) || 0
+        }
       }
+    }
+
+    // 마지막 커밋 추가
+    if (currentCommit) {
+      currentCommit.branch = branch
+      commits.push(currentCommit)
     }
 
     return commits

@@ -10,7 +10,6 @@ import { GlobalAgentSidebar } from '@/components/nav/GlobalAgentSidebar'
 import { ElectronHeader } from '@/components/nav/ElectronHeader'
 import { AgentNotificationProvider } from '@/lib/contexts/AgentNotificationContext'
 import { AgentNotificationPopup } from '@/components/notifications/AgentNotificationPopup'
-import { MainAssistantButton } from '@/components/notifications/MainAssistantButton'
 import { GovernmentProgramNotificationListener } from '@/components/notifications/GovernmentProgramNotificationListener'
 import { useAuthStore } from '@/stores/authStore'
 import { useUIStore } from '@/stores/uiStore'
@@ -95,7 +94,9 @@ export default function DashboardLayout({
 
     return () => unsubscribe?.()
   }, [router])
-  const isFullWidthPage = pathname?.includes('/messenger') || pathname?.includes('/agent-builder') || pathname?.includes('/email') || pathname?.includes('/project') || pathname?.includes('/task-hub') || pathname?.includes('/works/new') || pathname?.includes('/apps/ai-slides') || pathname?.includes('/apps/ai-sheet') || pathname?.includes('/apps/ai-docs') || pathname?.includes('/apps/ai-summary') || pathname?.includes('/apps/ai-blog') || pathname?.includes('/company/government-programs') || pathname?.includes('/ai-coding') || pathname?.includes('/neurons') || pathname?.includes('/gantt')
+  const isTaskHistoryPage = pathname?.includes('/task-history')
+  const isCodingWorkspace = pathname?.includes('/works/coding')
+  const isFullWidthPage = pathname?.includes('/messenger') || pathname?.includes('/agent-builder') || pathname?.includes('/email') || pathname?.includes('/project') || pathname?.includes('/task-hub') || pathname?.includes('/works/new') || pathname?.includes('/apps/ai-slides') || pathname?.includes('/apps/ai-sheet') || pathname?.includes('/apps/ai-docs') || pathname?.includes('/apps/ai-summary') || pathname?.includes('/apps/ai-blog') || pathname?.includes('/company/government-programs') || pathname?.includes('/ai-coding') || pathname?.includes('/neurons') || pathname?.includes('/gantt') || isTaskHistoryPage || isCodingWorkspace
 
   // Prevent hydration mismatch
   useEffect(() => {
@@ -202,6 +203,7 @@ export default function DashboardLayout({
   const isNeuronsPage = pathname?.includes('/neurons')
   // Neural Map: 동적 level2Width 사용
   // Neurons: 64px만 (자체 파일트리 렌더링)
+  // Coding Workspace: 64px (Level1만)
   // 기타: 304px (64 + 240)
   const sidebarWidth = sidebarOpen
     ? (isEmailPage ? 64 : (isNeuralMapPage ? 64 + (level2Collapsed ? 32 : level2Width) : (isNeuronsPage ? 64 : 304)))
@@ -222,8 +224,6 @@ export default function DashboardLayout({
         <GovernmentProgramNotificationListener />
         {/* 에이전트 알림 팝업 */}
         <AgentNotificationPopup />
-        {/* 우측하단 에이전트 비서 */}
-        <MainAssistantButton />
         <main
         className={cn(
           "flex flex-col",

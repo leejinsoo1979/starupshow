@@ -1,26 +1,22 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
-  CheckCircle2,
-  Circle,
-  Loader2,
-  AlertCircle,
-  Play,
-  ArrowRight,
-  Zap,
-  FileText,
-  Send,
+  ChevronDown,
+  ChevronRight,
   Search,
-  Calendar,
-  Mail,
-  Image,
-  Code,
-  Database,
   Globe,
+  Code,
+  FileText,
+  Image,
+  Mail,
+  Calendar,
+  Database,
   Bot,
-  Sparkles
+  Loader2,
+  Check,
+  X,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -48,286 +44,222 @@ interface WorkflowStepVisualizerProps {
   onStepClick?: (step: WorkflowStep) => void
 }
 
-// 단계 타입별 아이콘
-const stepIcons: Record<string, React.ComponentType<{ className?: string }>> = {
-  tool: Zap,
-  api: Globe,
-  condition: Code,
-  delay: Circle,
-  notify: Send,
-  ai: Bot,
-  search: Search,
-  email: Mail,
-  calendar: Calendar,
-  image: Image,
-  file: FileText,
-  database: Database,
+// 도구 타입별 아이콘 & 라벨
+const toolConfig: Record<string, { icon: React.ComponentType<{ className?: string }>; label: string }> = {
+  web_search: { icon: Search, label: '검색' },
+  browser_automation: { icon: Globe, label: '브라우저' },
+  search: { icon: Search, label: '검색' },
+  api: { icon: Globe, label: 'API' },
+  code: { icon: Code, label: '코드' },
+  file: { icon: FileText, label: '파일' },
+  image: { icon: Image, label: '이미지' },
+  email: { icon: Mail, label: '이메일' },
+  calendar: { icon: Calendar, label: '일정' },
+  database: { icon: Database, label: 'DB' },
+  ai: { icon: Bot, label: 'AI' },
+  tool: { icon: Bot, label: '도구' },
 }
 
-// 상태별 색상
-const statusColors = {
-  pending: 'bg-zinc-700 border-zinc-600 text-zinc-400',
-  running: 'bg-purple-500/20 border-purple-500 text-purple-400',
-  completed: 'bg-emerald-500/20 border-emerald-500 text-emerald-400',
-  failed: 'bg-red-500/20 border-red-500 text-red-400',
-  skipped: 'bg-zinc-600/50 border-zinc-500 text-zinc-500',
-}
-
-const statusGlows = {
-  pending: '',
-  running: 'shadow-[0_0_15px_rgba(168,85,247,0.5)]',
-  completed: 'shadow-[0_0_10px_rgba(16,185,129,0.3)]',
-  failed: 'shadow-[0_0_10px_rgba(239,68,68,0.3)]',
-  skipped: '',
-}
-
+/**
+ * 젠스파크 스타일 도구 사용 표시
+ * 미니멀하고 깔끔한 한 줄 디자인
+ */
 export function WorkflowStepVisualizer({
   steps,
-  title = '워크플로우 실행',
+  title,
   className,
   compact = false,
   onStepClick
 }: WorkflowStepVisualizerProps) {
-  const [expandedStep, setExpandedStep] = useState<string | null>(null)
+  const [isExpanded, setIsExpanded] = useState(false)
 
-  // 현재 실행 중인 단계 자동 확장
-  useEffect(() => {
-    const runningStep = steps.find(s => s.status === 'running')
-    if (runningStep) {
-      setExpandedStep(runningStep.id)
-    }
-  }, [steps])
+  // 도구 사용 정보 추출
+  const toolsUsed = steps
+    .filter(s => s.status === 'completed' || s.status === 'running')
+    .map(s => {
+      const toolName = s.name.toLowerCase().replace(/\s+/g, '_')
+      const config = toolConfig[toolName] || toolConfig[s.type] || toolConfig.tool
+      return {
+        ...s,
+        icon: config.icon,
+        label: config.label,
+      }
+    })
 
-  const completedCount = steps.filter(s => s.status === 'completed').length
-  const totalCount = steps.length
-  const progress = totalCount > 0 ? (completedCount / totalCount) * 100 : 0
   const isRunning = steps.some(s => s.status === 'running')
   const hasFailed = steps.some(s => s.status === 'failed')
+  const firstTool = toolsUsed[0]
 
-  if (compact) {
-    return (
-      <CompactVisualizer
-        steps={steps}
-        title={title}
-        progress={progress}
-        isRunning={isRunning}
-        hasFailed={hasFailed}
-      />
-    )
+  // 검색어/입력값 추출
+  const getInputPreview = (step: WorkflowStep) => {
+    if (!step.inputs) return ''
+    const query = step.inputs.query || step.inputs.search || step.inputs.url || step.inputs.text || ''
+    return typeof query === 'string' ? query.slice(0, 50) : ''
   }
 
+  if (!steps.length) return null
+
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
-      className={cn(
-        'rounded-xl border border-zinc-700/50 bg-zinc-900/80 backdrop-blur-sm overflow-hidden',
-        className
-      )}
-    >
-      {/* 헤더 */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-zinc-800">
-        <div className="flex items-center gap-2">
-          <div className={cn(
-            'w-8 h-8 rounded-lg flex items-center justify-center',
-            isRunning ? 'bg-purple-500/20' : hasFailed ? 'bg-red-500/20' : 'bg-emerald-500/20'
-          )}>
-            {isRunning ? (
-              <Loader2 className="w-4 h-4 text-purple-400 animate-spin" />
-            ) : hasFailed ? (
-              <AlertCircle className="w-4 h-4 text-red-400" />
-            ) : (
-              <Sparkles className="w-4 h-4 text-emerald-400" />
-            )}
-          </div>
-          <div>
-            <h4 className="text-sm font-medium text-white">{title}</h4>
-            <p className="text-xs text-zinc-500">
-              {completedCount}/{totalCount} 단계 완료
-            </p>
-          </div>
+    <div className={cn('my-2', className)}>
+      {/* 젠스파크 스타일: 한 줄 도구 표시 */}
+      <div
+        className={cn(
+          'flex items-center gap-3 px-4 py-2.5 rounded-lg transition-colors cursor-pointer',
+          'bg-zinc-800/60 hover:bg-zinc-800/80 border border-zinc-700/50'
+        )}
+        onClick={() => setIsExpanded(!isExpanded)}
+      >
+        {/* 상태 아이콘 */}
+        <div className="flex items-center gap-2 text-zinc-400 text-sm font-medium shrink-0">
+          {isRunning ? (
+            <Loader2 className="w-3.5 h-3.5 animate-spin text-blue-400" />
+          ) : hasFailed ? (
+            <X className="w-3.5 h-3.5 text-red-400" />
+          ) : (
+            <Check className="w-3.5 h-3.5 text-emerald-400" />
+          )}
+          <span>도구 사용</span>
         </div>
 
-        {/* 진행률 바 */}
-        <div className="w-24 h-1.5 bg-zinc-800 rounded-full overflow-hidden">
-          <motion.div
-            className={cn(
-              'h-full rounded-full',
-              hasFailed ? 'bg-red-500' : isRunning ? 'bg-purple-500' : 'bg-emerald-500'
-            )}
-            initial={{ width: 0 }}
-            animate={{ width: `${progress}%` }}
-            transition={{ duration: 0.5 }}
-          />
+        {/* 구분선 */}
+        <div className="w-px h-4 bg-zinc-700" />
+
+        {/* 도구 아이콘 & 쿼리 */}
+        <div className="flex items-center gap-2 flex-1 min-w-0 text-sm text-zinc-300">
+          {firstTool && (
+            <>
+              <firstTool.icon className="w-4 h-4 text-zinc-400 shrink-0" />
+              <span className="text-zinc-500">{firstTool.label}</span>
+              <span className="truncate text-zinc-300">
+                {getInputPreview(firstTool) || firstTool.name}
+              </span>
+            </>
+          )}
+          {toolsUsed.length > 1 && (
+            <span className="text-zinc-500 shrink-0">
+              +{toolsUsed.length - 1}
+            </span>
+          )}
         </div>
+
+        {/* 보기 버튼 */}
+        <button className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors shrink-0 flex items-center gap-1">
+          {isExpanded ? '접기' : '보기'}
+          {isExpanded ? (
+            <ChevronDown className="w-3.5 h-3.5" />
+          ) : (
+            <ChevronRight className="w-3.5 h-3.5" />
+          )}
+        </button>
       </div>
 
-      {/* 단계 목록 */}
-      <div className="p-3 space-y-2">
-        {steps.map((step, index) => {
-          const Icon = stepIcons[step.type] || Zap
-          const isExpanded = expandedStep === step.id
+      {/* 확장된 상세 정보 */}
+      <AnimatePresence>
+        {isExpanded && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="overflow-hidden"
+          >
+            <div className="mt-1 space-y-1 pl-4">
+              {steps.map((step, idx) => {
+                const config = toolConfig[step.type] || toolConfig.tool
+                const Icon = config.icon
 
-          return (
-            <motion.div
-              key={step.id}
-              initial={{ opacity: 0, x: -10 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: index * 0.1 }}
-            >
-              {/* 연결선 */}
-              {index > 0 && (
-                <div className="flex justify-center -my-1">
-                  <div className={cn(
-                    'w-0.5 h-3',
-                    steps[index - 1].status === 'completed' ? 'bg-emerald-500/50' : 'bg-zinc-700'
-                  )} />
-                </div>
-              )}
-
-              {/* 단계 카드 */}
-              <motion.div
-                className={cn(
-                  'relative rounded-lg border p-3 cursor-pointer transition-all duration-200',
-                  statusColors[step.status],
-                  statusGlows[step.status],
-                  'hover:border-zinc-500'
-                )}
-                onClick={() => {
-                  setExpandedStep(isExpanded ? null : step.id)
-                  onStepClick?.(step)
-                }}
-                whileHover={{ scale: 1.01 }}
-                whileTap={{ scale: 0.99 }}
-              >
-                <div className="flex items-center gap-3">
-                  {/* 상태 아이콘 */}
-                  <div className={cn(
-                    'w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0',
-                    step.status === 'running' ? 'bg-purple-500/30' :
-                    step.status === 'completed' ? 'bg-emerald-500/30' :
-                    step.status === 'failed' ? 'bg-red-500/30' : 'bg-zinc-800'
-                  )}>
-                    {step.status === 'running' ? (
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                    ) : step.status === 'completed' ? (
-                      <CheckCircle2 className="w-4 h-4" />
-                    ) : step.status === 'failed' ? (
-                      <AlertCircle className="w-4 h-4" />
-                    ) : (
-                      <Icon className="w-4 h-4" />
+                return (
+                  <div
+                    key={step.id}
+                    className={cn(
+                      'flex items-start gap-2 py-2 px-3 rounded-md text-sm',
+                      'bg-zinc-800/40 border border-zinc-700/30'
                     )}
-                  </div>
-
-                  {/* 단계 정보 */}
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm font-medium truncate">{step.name}</span>
-                      {step.status === 'running' && (
-                        <motion.span
-                          className="text-xs text-purple-400"
-                          animate={{ opacity: [1, 0.5, 1] }}
-                          transition={{ duration: 1.5, repeat: Infinity }}
-                        >
-                          실행 중...
-                        </motion.span>
+                  >
+                    {/* 상태 표시 */}
+                    <div className="shrink-0 mt-0.5">
+                      {step.status === 'running' ? (
+                        <Loader2 className="w-3.5 h-3.5 animate-spin text-blue-400" />
+                      ) : step.status === 'completed' ? (
+                        <Check className="w-3.5 h-3.5 text-emerald-400" />
+                      ) : step.status === 'failed' ? (
+                        <X className="w-3.5 h-3.5 text-red-400" />
+                      ) : (
+                        <div className="w-3.5 h-3.5 rounded-full border border-zinc-600" />
                       )}
                     </div>
-                    {step.description && (
-                      <p className="text-xs text-zinc-500 truncate">{step.description}</p>
-                    )}
+
+                    {/* 내용 */}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <Icon className="w-3.5 h-3.5 text-zinc-500" />
+                        <span className="text-zinc-400">{step.name}</span>
+                      </div>
+
+                      {/* 입력값 */}
+                      {step.inputs && Object.keys(step.inputs).length > 0 && (
+                        <div className="mt-1 text-xs text-zinc-500">
+                          {Object.entries(step.inputs).slice(0, 2).map(([key, val]) => (
+                            <div key={key} className="truncate">
+                              <span className="text-zinc-600">{key}:</span>{' '}
+                              {typeof val === 'string' ? val.slice(0, 100) : JSON.stringify(val).slice(0, 100)}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* 에러 */}
+                      {step.error && (
+                        <div className="mt-1 text-xs text-red-400">
+                          {step.error}
+                        </div>
+                      )}
+
+                      {/* 결과 미리보기 */}
+                      {step.result && step.status === 'completed' && (
+                        <div className="mt-1 text-xs text-zinc-500 truncate">
+                          ✓ 완료
+                        </div>
+                      )}
+                    </div>
                   </div>
-
-                  {/* 화살표 */}
-                  <ArrowRight className={cn(
-                    'w-4 h-4 transition-transform flex-shrink-0',
-                    isExpanded ? 'rotate-90' : ''
-                  )} />
-                </div>
-
-                {/* 확장된 상세 정보 */}
-                <AnimatePresence>
-                  {isExpanded && (step.result || step.error) && (
-                    <motion.div
-                      initial={{ height: 0, opacity: 0 }}
-                      animate={{ height: 'auto', opacity: 1 }}
-                      exit={{ height: 0, opacity: 0 }}
-                      className="mt-3 pt-3 border-t border-zinc-700/50"
-                    >
-                      {step.error ? (
-                        <div className="text-xs text-red-400 bg-red-500/10 rounded p-2">
-                          ❌ {step.error}
-                        </div>
-                      ) : step.result ? (
-                        <div className="text-xs text-zinc-400 bg-zinc-800/50 rounded p-2 max-h-32 overflow-auto">
-                          <pre className="whitespace-pre-wrap">
-                            {typeof step.result === 'string'
-                              ? step.result
-                              : JSON.stringify(step.result, null, 2)}
-                          </pre>
-                        </div>
-                      ) : null}
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-              </motion.div>
-            </motion.div>
-          )
-        })}
-      </div>
-    </motion.div>
+                )
+              })}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
   )
 }
 
-// 컴팩트 버전 (인라인 표시용)
+// 컴팩트 버전 (인라인 표시용) - 더 미니멀하게
 function CompactVisualizer({
   steps,
-  title,
-  progress,
   isRunning,
   hasFailed
 }: {
   steps: WorkflowStep[]
-  title: string
-  progress: number
+  title?: string
+  progress?: number
   isRunning: boolean
   hasFailed: boolean
 }) {
+  const toolNames = steps
+    .filter(s => s.status === 'completed')
+    .map(s => s.name)
+    .join(', ')
+
   return (
-    <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-zinc-800/50 border border-zinc-700/50">
-      {/* 상태 아이콘 */}
+    <div className="inline-flex items-center gap-2 text-xs text-zinc-500">
       {isRunning ? (
-        <Loader2 className="w-4 h-4 text-purple-400 animate-spin flex-shrink-0" />
+        <Loader2 className="w-3 h-3 animate-spin" />
       ) : hasFailed ? (
-        <AlertCircle className="w-4 h-4 text-red-400 flex-shrink-0" />
+        <X className="w-3 h-3 text-red-400" />
       ) : (
-        <CheckCircle2 className="w-4 h-4 text-emerald-400 flex-shrink-0" />
+        <Check className="w-3 h-3 text-emerald-400" />
       )}
-
-      {/* 단계 도트 */}
-      <div className="flex items-center gap-1">
-        {steps.map((step, i) => (
-          <motion.div
-            key={step.id}
-            className={cn(
-              'w-2 h-2 rounded-full',
-              step.status === 'completed' ? 'bg-emerald-500' :
-              step.status === 'running' ? 'bg-purple-500' :
-              step.status === 'failed' ? 'bg-red-500' : 'bg-zinc-600'
-            )}
-            animate={step.status === 'running' ? {
-              scale: [1, 1.3, 1],
-              opacity: [1, 0.7, 1]
-            } : {}}
-            transition={{ duration: 1, repeat: Infinity }}
-          />
-        ))}
-      </div>
-
-      {/* 진행률 텍스트 */}
-      <span className="text-xs text-zinc-400">
-        {steps.filter(s => s.status === 'completed').length}/{steps.length}
-      </span>
+      <span>사용된 도구: {toolNames || '없음'}</span>
     </div>
   )
 }

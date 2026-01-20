@@ -54,13 +54,21 @@ export default function LoginPage() {
   }
 
   const handleOAuthLogin = async (provider: 'google' | 'github') => {
-    const supabase = createClient()
-    await supabase.auth.signInWithOAuth({
-      provider,
-      options: {
-        redirectTo: `${window.location.origin}/auth/callback`,
-      },
-    })
+    setError('')
+    try {
+      const supabase = createClient()
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider,
+        options: {
+          redirectTo: `${window.location.origin}/auth/callback`,
+        },
+      })
+      if (error) {
+        setError(`OAuth 로그인 실패: ${error.message}`)
+      }
+    } catch (e) {
+      setError(`OAuth 오류: ${e instanceof Error ? e.message : '알 수 없는 오류'}`)
+    }
   }
 
   const handleDevLogin = async () => {

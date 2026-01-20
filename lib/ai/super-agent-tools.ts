@@ -2,13 +2,18 @@
 /**
  * Super Agent Tools - 모든 도구를 사용할 수 있는 슈퍼 에이전트 도구
  * Cursor/Claude Code급 에이전트 기능
- * TODO: Supabase 타입 재생성 필요 (npx supabase gen types)
+ * 🔥 서버에서 직접 파일 시스템 조작 가능!
  */
 
 import { DynamicStructuredTool } from '@langchain/core/tools'
 import { z } from 'zod'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getAgentExecutionContext } from './agent-business-tools'
+import * as fs from 'fs/promises'
+import * as path from 'path'
+
+// 🔥 서버 사이드 프로젝트 디렉토리 (실제 파일 생성용)
+const SERVER_PROJECTS_DIR = process.env.PROJECTS_DIR || '/tmp/glowus-projects'
 
 // 워크플로우 도구 임포트
 import {
@@ -288,25 +293,51 @@ export const readFileTool = new DynamicStructuredTool({
 })
 
 // ============================================
-// 3. 파일 쓰기 도구
+// 3. 파일 쓰기 도구 - 🔥 서버에서 직접 파일 생성!
 // ============================================
 export const writeFileTool = new DynamicStructuredTool({
   name: 'write_file',
-  description: '새 파일을 생성하거나 기존 파일을 완전히 덮어씁니다.',
+  description: '새 파일을 생성하거나 기존 파일을 완전히 덮어씁니다. 서버에서 직접 파일을 생성합니다!',
   schema: z.object({
-    path: z.string().describe('파일 경로'),
+    path: z.string().describe('파일 경로 (예: src/game.tsx, index.html)'),
     content: z.string().describe('파일 내용'),
   }),
-  func: async ({ path, content }) => {
-    return JSON.stringify({
-      success: true,
-      message: `파일 "${path}" 쓰기를 준비했습니다.`,
-      action: {
-        type: 'write_file',
-        data: { path, content },
-        requiresElectron: true
-      }
-    })
+  func: async ({ path: filePath, content }) => {
+    try {
+      const ctx = getAgentExecutionContext()
+      const projectId = ctx?.currentProjectId || 'default'
+
+      // 🔥 서버 사이드 프로젝트 디렉토리에 파일 생성
+      const projectDir = path.join(SERVER_PROJECTS_DIR, projectId)
+      const absolutePath = path.join(projectDir, filePath)
+
+      // 디렉토리 생성 (없으면)
+      const dirPath = path.dirname(absolutePath)
+      await fs.mkdir(dirPath, { recursive: true })
+
+      // 🔥 실제 파일 쓰기!
+      await fs.writeFile(absolutePath, content, 'utf-8')
+
+      console.log(`[write_file] ✅ 파일 생성됨: ${absolutePath}`)
+
+      return JSON.stringify({
+        success: true,
+        message: `✅ 파일 "${filePath}" 생성 완료!`,
+        filePath: absolutePath,
+        bytesWritten: content.length,
+        action: {
+          type: 'write_file',
+          data: { path: filePath, content, serverPath: absolutePath },
+        }
+      })
+    } catch (error: any) {
+      console.error(`[write_file] ❌ 오류:`, error)
+      return JSON.stringify({
+        success: false,
+        error: error.message,
+        message: `파일 "${filePath}" 생성 실패: ${error.message}`,
+      })
+    }
   },
 })
 
@@ -426,7 +457,18 @@ export const runTerminalTool = new DynamicStructuredTool({
 // ============================================
 export const webSearchTool = new DynamicStructuredTool({
   name: 'web_search',
-  description: '웹에서 정보를 검색합니다. 최신 문서, 라이브러리 사용법, 에러 해결책 등을 찾습니다.',
+  description: `🔍 정보 검색의 기본 도구 - 항상 이 도구를 먼저 사용하세요!
+
+웹에서 실시간 정보를 검색합니다. 브라우저를 열지 않고 빠르게 결과를 가져옵니다.
+
+✅ 이 도구를 사용해야 하는 경우:
+- 뉴스 조회 (예: "오늘 뉴스 알려줘", "최신 기술 뉴스")
+- 날씨 정보 (예: "오늘 날씨", "서울 날씨")
+- 맛집/장소 추천 (예: "역삼동 맛집", "강남역 카페 추천")
+- 정보 질문 (예: "비트코인 시세", "애플 주가")
+- 문서/라이브러리 정보 (예: "React 사용법", "Python 에러 해결")
+
+이 도구는 빠르고 효율적입니다. 정보 검색에는 항상 이 도구를 사용하세요!`,
   schema: z.object({
     query: z.string().describe('검색할 쿼리'),
   }),
@@ -1913,28 +1955,19 @@ export const agentBuilderClearTool = new DynamicStructuredTool({
 
 export const browserAutomationTool = new DynamicStructuredTool({
   name: 'browser_automation',
-  description: `실제 웹 브라우저를 제어하여 웹사이트를 탐색하고 자동화 작업을 수행합니다.
+  description: `⚠️ Electron 앱 전용 - 웹 브라우저에서는 사용 불가!
 
-🚀 Stagehand AI 브라우저 자동화 (NEW!)
-- 자연어로 복잡한 작업 수행 가능
-- 로그인, 예약, 폼 입력 등 고급 작업 지원
-- AI가 화면을 보고 판단하여 실행
+실제 브라우저 창을 열어 웹사이트를 직접 조작합니다. (로그인, 폼 입력, 버튼 클릭 등)
 
-사용 가능한 작업:
-- navigate: URL로 이동 (예: "네이버 열어줘", "https://google.com 가줘")
-- search: 검색 수행 (예: "구글에서 날씨 검색해줘", "네이버에서 맛집 찾아줘")
-- click: 요소 클릭 (예: "로그인 버튼 클릭해줘")
-- type: 텍스트 입력 (예: "검색창에 'AI' 입력해줘")
-- scroll: 페이지 스크롤 (예: "아래로 스크롤해줘")
-- extract: 페이지 내용 추출 (예: "페이지 내용 읽어줘")
-- screenshot: 현재 화면 캡처
-- 예약/로그인: 복잡한 다단계 작업 (예: "야놀자에서 강남 호텔 예약해줘")
+❌ 이 도구를 사용하지 마세요:
+- 뉴스, 날씨, 맛집 등 정보 조회 → web_search 사용!
+- 단순 정보 질문 → web_search 사용!
 
-예시:
-- "네이버 열어서 '오늘 날씨' 검색해줘"
-- "구글에서 'ChatGPT' 검색하고 결과 보여줘"
-- "야놀자에서 강남역 근처 호텔 검색해줘"
-- "유튜브 가서 첫 번째 영상 클릭해줘"`,
+✅ 이 도구를 사용해야 하는 경우만:
+- 로그인이 필요한 작업 (예: "네이버에 로그인해줘")
+- 폼 작성/제출 (예: "회원가입 폼 작성해줘")
+- 버튼 클릭 자동화 (예: "구매 버튼 클릭해줘")
+- 예약 시스템 조작 (예: "야놀자에서 호텔 예약해줘")`,
   schema: z.object({
     task: z.string().describe('수행할 브라우저 작업 (자연어로 설명). 예: "네이버 열어서 날씨 검색해줘"'),
     useStagehand: z.boolean().optional().describe('Stagehand AI 브라우저 사용 여부 (복잡한 작업에 권장)'),
