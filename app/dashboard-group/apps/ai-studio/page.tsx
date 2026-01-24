@@ -304,11 +304,8 @@ export default function AIStudioPage() {
   const [selectedSourceType, setSelectedSourceType] = useState<'pdf' | 'web' | 'youtube' | 'text' | null>(null)
 
   // Audio Overview state
-  const [audioOverview, setAudioOverview] = useState<AudioOverview>({
-    id: '',
-    title: 'Deep Dive conversation',
-    status: 'idle'
-  })
+  // 여러 개의 오디오 오버뷰를 유지하는 배열
+  const [audioOverviews, setAudioOverviews] = useState<AudioOverview[]>([])
 
   // Generated contents state
   const [generatedContents, setGeneratedContents] = useState<GeneratedContent[]>([])
@@ -661,11 +658,19 @@ export default function AIStudioPage() {
     }
   }, [inputValue, sources, messages])
 
-  // Audio Overview (Deep Dive) handler
+  // Audio Overview (Deep Dive) handler - 기존 오디오 유지하고 새로 추가
   const handleGenerateAudio = useCallback(async () => {
     if (sources.length === 0) return
 
-    setAudioOverview(prev => ({ ...prev, status: 'generating' }))
+    // 새 오디오 ID 생성
+    const newAudioId = crypto.randomUUID()
+
+    // 생성 중인 오디오를 배열에 추가
+    setAudioOverviews(prev => [...prev, {
+      id: newAudioId,
+      title: 'Deep Dive conversation',
+      status: 'generating'
+    }])
     setGeneratingTypes(prev => [...prev, 'audio-overview'])
     setShowCustomize(false)
 
@@ -688,19 +693,32 @@ export default function AIStudioPage() {
       const data = await response.json()
 
       if (response.ok) {
-        setAudioOverview({
-          id: crypto.randomUUID(),
-          title: 'Deep Dive conversation',
-          status: 'ready',
-          audioUrl: data.audioUrl,
-          duration: data.duration,
-          transcript: data.transcript
-        })
+        // 해당 ID의 오디오를 ready 상태로 업데이트
+        setAudioOverviews(prev => prev.map(audio =>
+          audio.id === newAudioId
+            ? {
+                ...audio,
+                status: 'ready' as const,
+                audioUrl: data.audioUrl,
+                duration: data.duration,
+                transcript: data.transcript
+              }
+            : audio
+        ))
       } else {
-        setAudioOverview(prev => ({ ...prev, status: 'error' }))
+        // 해당 ID의 오디오를 error 상태로 업데이트
+        setAudioOverviews(prev => prev.map(audio =>
+          audio.id === newAudioId
+            ? { ...audio, status: 'error' as const }
+            : audio
+        ))
       }
     } catch {
-      setAudioOverview(prev => ({ ...prev, status: 'error' }))
+      setAudioOverviews(prev => prev.map(audio =>
+        audio.id === newAudioId
+          ? { ...audio, status: 'error' as const }
+          : audio
+      ))
     } finally {
       setGeneratingTypes(prev => prev.filter(t => t !== 'audio-overview'))
     }
@@ -868,21 +886,23 @@ export default function AIStudioPage() {
   const studioContents: StudioContent[] = React.useMemo(() => {
     const contents: StudioContent[] = []
 
-    // Add audio overview - 생성 중이거나 완료된 경우 모두 표시
-    if (audioOverview.status === 'generating' || (audioOverview.status === 'ready' && audioOverview.audioUrl)) {
-      contents.push({
-        id: audioOverview.id || 'audio-overview',
-        type: 'audio-overview',
-        title: studioTitleMap['audio-overview'],
-        subtitle: audioOverview.status === 'generating' ? '생성 중...' : `소스 ${selectedSources.length}개 기반`,
-        content: audioOverview.transcript || '',
-        status: audioOverview.status,
-        createdAt: new Date(),
-        audioUrl: audioOverview.audioUrl,
-        duration: audioOverview.duration,
-        sourceCount: selectedSources.length
-      })
-    }
+    // Add all audio overviews - 여러 개의 오디오 오버뷰 지원
+    audioOverviews.forEach((audio, index) => {
+      if (audio.status === 'generating' || (audio.status === 'ready' && audio.audioUrl)) {
+        contents.push({
+          id: audio.id,
+          type: 'audio-overview',
+          title: `${studioTitleMap['audio-overview']}${audioOverviews.length > 1 ? ` #${index + 1}` : ''}`,
+          subtitle: audio.status === 'generating' ? '생성 중...' : `소스 ${selectedSources.length}개 기반`,
+          content: audio.transcript || '',
+          status: audio.status,
+          createdAt: new Date(),
+          audioUrl: audio.audioUrl,
+          duration: audio.duration,
+          sourceCount: selectedSources.length
+        })
+      }
+    })
 
     // 업로드된 이미지 소스들의 imageDataUrl 수집 (슬라이드로 사용)
     const sourceSlideImages: SlideImage[] = selectedSources
@@ -893,11 +913,18 @@ export default function AIStudioPage() {
         title: s.title
       }))
 
-    // Add other generated contents
-    generatedContents.filter(gc => gc.status === 'ready' && gc.content).forEach(gc => {
+    // Add other generated contents - 생성 중이거나 완료된 콘텐츠 모두 포함
+    generatedContents.filter(gc => gc.status === 'generating' || (gc.status === 'ready' && gc.content)).forEach(gc => {
       const typeMap: Record<string, StudioContent['type']> = {
         'slides': 'slides',
         'video-overview': 'video-overview',
+        'audio-overview': 'audio-overview',
+        'mindmap': 'mindmap',
+        'report': 'report',
+        'flashcard': 'flashcard',
+        'quiz': 'quiz',
+        'infographic': 'infographic',
+        'data-table': 'data-table',
         'faq': 'report',
         'study-guide': 'report',
         'briefing-doc': 'report',
@@ -937,7 +964,7 @@ export default function AIStudioPage() {
     })
 
     return contents
-  }, [audioOverview, generatedContents, selectedSources])
+  }, [audioOverviews, generatedContents, selectedSources])
 
   return (
     <div className={cn("h-full flex", isDark ? "bg-[#1a1a2e]" : "bg-gray-50")}>

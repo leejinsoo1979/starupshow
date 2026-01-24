@@ -342,77 +342,122 @@ function SlidesPreview({
 
   const slide = parsedSlides[currentSlide]
 
+  // 슬라이드 타입에 따른 배경 스타일
+  const isFirstSlide = currentSlide === 0
+  const isLastSlide = currentSlide === parsedSlides.length - 1
+
   return (
     <div className="h-full flex flex-col">
-      {/* Slide Preview */}
-      <div className={cn(
-        "flex-1 rounded-xl overflow-hidden relative mb-4 min-h-[300px]",
-        isDark
-          ? "bg-gradient-to-br from-slate-800 to-slate-900 border border-white/10"
-          : "bg-gradient-to-br from-slate-50 to-white border border-gray-200 shadow-sm"
-      )}>
-        <div className="p-6 h-full flex flex-col">
-          {/* Slide Title */}
-          <h3 className={cn(
-            "text-lg font-bold mb-4 pb-3 border-b",
-            isDark ? "text-white border-white/10" : "text-gray-900 border-gray-200"
-          )}>
+      {/* Slide Preview - 16:9 비율 */}
+      <div className="flex-1 mb-4">
+        <div
+          className={cn(
+            "w-full aspect-video rounded-2xl overflow-hidden relative",
+            "flex flex-col justify-center items-center text-center p-8"
+          )}
+          style={{
+            background: isFirstSlide
+              ? `linear-gradient(135deg, ${themeColor}ee 0%, ${themeColor}99 100%)`
+              : isLastSlide
+                ? `linear-gradient(135deg, ${themeColor}dd 0%, ${themeColor}88 100%)`
+                : isDark
+                  ? 'linear-gradient(180deg, #1e293b 0%, #0f172a 100%)'
+                  : 'linear-gradient(180deg, #ffffff 0%, #f8fafc 100%)',
+            boxShadow: isDark ? '0 8px 32px rgba(0,0,0,0.3)' : '0 8px 32px rgba(0,0,0,0.1)'
+          }}
+        >
+          {/* 슬라이드 번호 */}
+          <div
+            className={cn(
+              "absolute top-4 left-4 px-3 py-1 rounded-full text-xs font-semibold",
+              isFirstSlide || isLastSlide
+                ? "bg-white/20 text-white"
+                : isDark ? "bg-white/10 text-zinc-400" : "bg-gray-100 text-gray-500"
+            )}
+          >
+            {currentSlide + 1} / {parsedSlides.length}
+          </div>
+
+          {/* 슬라이드 제목 */}
+          <h2
+            className={cn(
+              "font-bold mb-6 leading-tight",
+              isFirstSlide || isLastSlide ? "text-white" : isDark ? "text-white" : "text-gray-900",
+              isFirstSlide ? "text-3xl" : "text-2xl"
+            )}
+          >
             {slide?.title}
-          </h3>
+          </h2>
 
-          {/* Slide Content */}
-          <ul className="space-y-3 flex-1 overflow-y-auto">
+          {/* 슬라이드 내용 */}
+          <div className={cn(
+            "w-full max-w-2xl",
+            isFirstSlide || isLastSlide ? "text-white/90" : isDark ? "text-zinc-300" : "text-gray-700"
+          )}>
             {(slide?.content || []).map((item, i) => (
-              <li
+              <div
                 key={i}
-                className={cn("text-sm flex items-start gap-3", isDark ? "text-zinc-300" : "text-gray-700")}
+                className={cn(
+                  "flex items-start gap-3 text-left mb-3",
+                  isFirstSlide && "justify-center text-center"
+                )}
               >
-                <span
-                  className="w-1.5 h-1.5 rounded-full mt-2 flex-shrink-0"
-                  style={{ backgroundColor: themeColor }}
-                />
-                <span className="flex-1">{item}</span>
-              </li>
+                {!isFirstSlide && (
+                  <span
+                    className="w-2 h-2 rounded-full mt-1.5 flex-shrink-0"
+                    style={{
+                      backgroundColor: isLastSlide ? 'rgba(255,255,255,0.6)' : themeColor
+                    }}
+                  />
+                )}
+                <span className={cn("text-base", isFirstSlide && "text-lg")}>{item}</span>
+              </div>
             ))}
-          </ul>
-        </div>
+          </div>
 
-        {/* Slide Number Badge */}
-        <div className={cn(
-          "absolute bottom-4 right-4 px-3 py-1.5 rounded-lg text-xs font-medium",
-          isDark ? "bg-white/10 text-white" : "bg-gray-100 text-gray-600"
-        )}>
-          {currentSlide + 1} / {parsedSlides.length}
+          {/* 장식 요소 */}
+          {(isFirstSlide || isLastSlide) && (
+            <>
+              <div
+                className="absolute top-0 right-0 w-32 h-32 rounded-full opacity-20"
+                style={{ background: 'white', transform: 'translate(30%, -30%)' }}
+              />
+              <div
+                className="absolute bottom-0 left-0 w-24 h-24 rounded-full opacity-10"
+                style={{ background: 'white', transform: 'translate(-30%, 30%)' }}
+              />
+            </>
+          )}
         </div>
       </div>
 
       {/* Navigation */}
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex items-center justify-center gap-4">
         <button
           onClick={() => setCurrentSlide(Math.max(0, currentSlide - 1))}
           disabled={currentSlide === 0}
           className={cn(
-            "p-2 rounded-lg transition-colors disabled:opacity-30",
-            isDark ? "hover:bg-white/10 text-zinc-400" : "hover:bg-gray-100 text-gray-500"
+            "p-2.5 rounded-xl transition-all disabled:opacity-30",
+            isDark ? "bg-white/10 hover:bg-white/20 text-white" : "bg-gray-100 hover:bg-gray-200 text-gray-700"
           )}
         >
           <ChevronLeft className="w-5 h-5" />
         </button>
 
         {/* Pagination dots */}
-        <div className="flex gap-1.5 overflow-x-auto px-2 max-w-[200px]">
+        <div className="flex gap-2 overflow-x-auto px-2 max-w-[250px]">
           {parsedSlides.map((_, idx) => (
             <button
               key={idx}
               onClick={() => setCurrentSlide(idx)}
               className={cn(
-                "h-2 rounded-full transition-all flex-shrink-0",
-                idx === currentSlide ? "w-6" : "w-2"
+                "h-2.5 rounded-full transition-all flex-shrink-0",
+                idx === currentSlide ? "w-8" : "w-2.5"
               )}
               style={{
                 backgroundColor: idx === currentSlide
                   ? themeColor
-                  : isDark ? 'rgba(255,255,255,0.2)' : '#d1d5db'
+                  : isDark ? 'rgba(255,255,255,0.3)' : '#d1d5db'
               }}
             />
           ))}
@@ -422,8 +467,8 @@ function SlidesPreview({
           onClick={() => setCurrentSlide(Math.min(parsedSlides.length - 1, currentSlide + 1))}
           disabled={currentSlide === parsedSlides.length - 1}
           className={cn(
-            "p-2 rounded-lg transition-colors disabled:opacity-30",
-            isDark ? "hover:bg-white/10 text-zinc-400" : "hover:bg-gray-100 text-gray-500"
+            "p-2.5 rounded-xl transition-all disabled:opacity-30",
+            isDark ? "bg-white/10 hover:bg-white/20 text-white" : "bg-gray-100 hover:bg-gray-200 text-gray-700"
           )}
         >
           <ChevronRight className="w-5 h-5" />
@@ -433,10 +478,10 @@ function SlidesPreview({
       {/* Notes */}
       {slide?.notes && (
         <div className={cn(
-          "p-3 rounded-lg text-sm",
+          "mt-4 p-4 rounded-xl text-sm",
           isDark ? "bg-white/5 text-zinc-400" : "bg-gray-50 text-gray-600"
         )}>
-          <span className="font-medium">📝 발표자 노트:</span> {slide.notes}
+          <span className="font-medium mr-2">발표자 노트:</span>{slide.notes}
         </div>
       )}
     </div>
