@@ -898,8 +898,8 @@ export default function AIStudioPage() {
         title: s.title
       }))
 
-    // Add other generated contents - 생성 중이거나 완료된 콘텐츠 모두 포함
-    generatedContents.filter(gc => gc.status === 'generating' || (gc.status === 'ready' && gc.content)).forEach(gc => {
+    // Add other generated contents - 완료된 콘텐츠만 포함 (생성 중인 건 위에 로딩 UI로 표시)
+    generatedContents.filter(gc => gc.status === 'ready' && gc.content).forEach(gc => {
       const typeMap: Record<string, StudioContent['type']> = {
         'slides': 'slides',
         'video-overview': 'video-overview',
