@@ -774,33 +774,29 @@ ${sourceContext.slice(0, 5000)}
         }
       }
 
-      // 최종 응답: 슬라이드 구조 + 대본 + 오디오
-      const formattedContent = `# ${slideStructure.title}
+      // 프론트엔드용 slides 형태로 변환 (단일 슬라이드 - 전체 대본 + 오디오)
+      const slides = [{
+        number: 1,
+        title: slideStructure.title,
+        narration: creatorScript,  // TTS용 정리된 대본
+        bulletPoints: slideStructure.slides.slice(0, 4).map(s => s.keyPoint),
+        audioUrl: audioUrl
+      }]
 
-## 영상 개요
+      // 화면 표시용 콘텐츠 (마크다운 기호 없이)
+      const formattedContent = `${slideStructure.title}
+
 ${slideStructure.summary}
 
----
-
-## 슬라이드 구조
-
-${slideStructure.slides.map(s => `### 슬라이드 ${s.slideNumber}: ${s.slideTitle}
-**핵심**: ${s.keyPoint}
-${s.details.length > 0 ? s.details.map(d => `- ${d}`).join('\n') : ''}
-`).join('\n')}
-
----
-
-## 크리에이터 대본
-
+대본:
 ${creatorScriptRaw}`
 
       return NextResponse.json({
         success: true,
         content: formattedContent,
         type,
-        slideStructure, // 프론트엔드에서 슬라이드 구조 활용 가능
-        script: creatorScriptRaw, // 화면 표시용 원본 대본
+        slides,  // 프론트엔드에서 사용할 슬라이드 데이터
+        script: creatorScriptRaw,
         audioUrl
       })
     }
