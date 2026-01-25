@@ -321,9 +321,9 @@ export default function AIStudioPage() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
 
-  // 생성된 콘텐츠를 작업 목록(company_tasks)에 저장하는 함수
-  const saveToTasks = useCallback(async (content: GeneratedContent) => {
-    if (!currentStartup?.id) return
+  // 생성된 콘텐츠를 ai_studio_sessions 테이블에 저장하는 함수
+  const saveSession = useCallback(async (content: GeneratedContent) => {
+    if (!user?.id) return
 
     try {
       const typeLabels: Record<string, string> = {
@@ -343,34 +343,36 @@ export default function AIStudioPage() {
         'data-table': '데이터 테이블'
       }
 
-      const { error } = await supabase.from('company_tasks' as any).insert({
-        company_id: currentStartup.id,
-        title: `[AI Studio] ${typeLabels[content.type] || content.type}`,
-        description: content.content?.slice(0, 500) || '',
+      const { error } = await supabase.from('ai_studio_sessions' as any).insert({
+        user_id: user.id,
+        company_id: currentStartup?.id || null,
+        title: typeLabels[content.type] || content.type,
+        type: content.type,
         status: 'completed',
-        priority: 'medium',
-        created_by: user?.id,
-        created_by_type: 'user',
-        tags: ['ai-studio', content.type],
+        content: content.content?.slice(0, 10000) || '',
+        sources: sources.filter(s => s.status === 'ready' && s.selected !== false).map(s => ({
+          id: s.id,
+          type: s.type,
+          title: s.title
+        })),
         metadata: {
-          source: 'ai-studio',
-          type: content.type,
-          contentId: content.id,
           hasSlides: !!content.slides,
-          hasAudio: !!content.podcastAudioUrl
-        },
-        completed_at: new Date().toISOString()
+          hasAudio: !!content.podcastAudioUrl,
+          slidesCount: content.slides?.length || 0
+        }
       })
 
       if (error) {
-        console.error('[AI Studio] Failed to save to tasks:', error)
+        console.error('[AI Studio] Failed to save session:', error)
       } else {
-        console.log('[AI Studio] Saved to tasks:', content.type)
+        console.log('[AI Studio] Saved session:', content.type)
+        // 사이드바 새로고침을 위해 이벤트 발생
+        window.dispatchEvent(new CustomEvent('ai-studio-session-saved'))
       }
     } catch (err) {
-      console.error('[AI Studio] Error saving to tasks:', err)
+      console.error('[AI Studio] Error saving session:', err)
     }
-  }, [currentStartup?.id, user?.id, supabase])
+  }, [user?.id, currentStartup?.id, supabase, sources])
 
   // Suggested questions based on sources
   const suggestedQuestions = React.useMemo(() => {
@@ -966,8 +968,8 @@ export default function AIStudioPage() {
         setGeneratedContents(prev => prev.map(c =>
           c.id === newContent.id ? completedContent : c
         ))
-        // 작업 목록에 저장
-        saveToTasks(completedContent)
+        // 세션 저장
+        saveSession(completedContent)
       } else {
         setGeneratedContents(prev => prev.map(c =>
           c.id === newContent.id ? { ...c, status: 'error' } : c
@@ -980,7 +982,7 @@ export default function AIStudioPage() {
     } finally {
       setGeneratingTypes(prev => prev.filter(t => t !== type))
     }
-  }, [sources, handleGenerateAudio, saveToTasks])
+  }, [sources, handleGenerateAudio, saveSession])
 
   const readySources = sources.filter(s => s.status === 'ready')
   const selectedSources = readySources.filter(s => s.selected !== false)
@@ -1070,7 +1072,7 @@ export default function AIStudioPage() {
   }, [audioOverviews, generatedContents, selectedSources])
 
   return (
-    <div className={cn("h-full flex", isDark ? "bg-zinc-900" : "bg-gray-50")}>
+    <div className={cn("h-full flex", isDark ? "bg-zinc-950" : "bg-zinc-50")}>
       {/* Hidden file input */}
       <input
         ref={fileInputRef}
