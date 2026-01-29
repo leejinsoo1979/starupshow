@@ -650,7 +650,10 @@ YouTube URL을 붙여넣으면 자동으로 영상 내용을 분석하여 PPT �
         setIsLoading(false)
     }, [slides, presentationTitle])
 
-    // Generate slides with AI (using PPT Pro)
+    // Pro Mode state for advanced slide generation
+    const [proMode, setProMode] = useState(true)
+
+    // Generate slides with AI (using Slide Designer Pro or PPT Pro)
     const generateSlides = useCallback(async (prompt: string) => {
         setIsLoading(true)
 
@@ -658,8 +661,23 @@ YouTube URL을 붙여넣으면 자동으로 영상 내용을 분석하여 PPT �
         const countMatch = prompt.match(/(\d+)\s*장/)
         const slideCount = countMatch ? parseInt(countMatch[1]) : 15
 
-        // Create initial todos
-        const initialTodos: TodoItem[] = [
+        // Determine theme based on prompt
+        let theme: 'modern' | 'creative' | 'corporate' | 'minimal' | 'nature' = 'modern'
+        if (prompt.includes('창의') || prompt.includes('creative')) theme = 'creative'
+        else if (prompt.includes('기업') || prompt.includes('corporate')) theme = 'corporate'
+        else if (prompt.includes('미니멀') || prompt.includes('minimal')) theme = 'minimal'
+        else if (prompt.includes('자연') || prompt.includes('nature')) theme = 'nature'
+
+        // Create initial todos based on mode
+        const initialTodos: TodoItem[] = proMode ? [
+            { id: '1', text: '📊 슬라이드 시스템 초기화', status: 'in_progress' },
+            { id: '2', text: '🔍 비즈니스 컨텍스트 분석', status: 'pending' },
+            { id: '3', text: `📝 ${slideCount}장 슬라이드 구조 생성`, status: 'pending' },
+            { id: '4', text: '🔷 아이콘 자동 매칭 (react-icons)', status: 'pending' },
+            { id: '5', text: '📷 스톡 이미지 검색 (Unsplash)', status: 'pending' },
+            { id: '6', text: '🎨 디자인 원칙 적용', status: 'pending' },
+            { id: '7', text: '📥 PPTX 파일 생성', status: 'pending' },
+        ] : [
             { id: '1', text: '📊 슬라이드 시스템 초기화', status: 'in_progress' },
             { id: '2', text: '🔍 비즈니스 컨텍스트 분석', status: 'pending' },
             { id: '3', text: `📝 ${slideCount}장 슬라이드 구조 생성`, status: 'pending' },
@@ -674,94 +692,182 @@ YouTube URL을 붙여넣으면 자동으로 영상 내용을 분석하여 PPT �
         setTodos(prev => prev.map((t, i) => i === 0 ? { ...t, status: 'completed' } : i === 1 ? { ...t, status: 'in_progress' } : t))
 
         try {
-            // Determine theme based on prompt
-            let theme = 'modern'
-            if (prompt.includes('창의') || prompt.includes('creative')) theme = 'creative'
-            else if (prompt.includes('기업') || prompt.includes('corporate')) theme = 'corporate'
-            else if (prompt.includes('미니멀') || prompt.includes('minimal')) theme = 'minimal'
+            let data: any
 
-            setTodos(prev => prev.map((t, i) =>
-                i <= 1 ? { ...t, status: 'completed' } :
-                i === 2 ? { ...t, status: 'in_progress' } : t
-            ))
+            if (proMode) {
+                // Use Slide Designer Pro API (with icons and images)
+                setMessages(prev => [...prev, {
+                    role: 'assistant',
+                    content: `🎨 **Pro 모드**: 아이콘 + 이미지 + 디자인 원칙 적용 중...`,
+                    type: 'progress'
+                }])
 
-            // Call PPT Pro API instead of basic slide API
-            const response = await fetch('/api/skills/ppt-pro', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    content: prompt,
-                    title: prompt.includes('IT') ? 'IT 스타트업 사업계획서' :
-                           prompt.includes('카페') ? '카페 창업 사업계획서' : '사업계획서',
-                    slideCount,
-                    theme,
-                    generateImages: false,
-                    language: 'ko'
+                const response = await fetch('/api/skills/slide-designer', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        content: prompt,
+                        slideCount,
+                        theme,
+                        generateImages: true,
+                        generateIcons: true,
+                        language: 'ko',
+                        purpose: 'pitch'
+                    })
                 })
-            })
 
-            const data = await response.json()
+                data = await response.json()
 
-            setTodos(prev => prev.map((t, i) =>
-                i <= 2 ? { ...t, status: 'completed' } :
-                i === 3 ? { ...t, status: 'in_progress' } : t
-            ))
+                // Update todos for pro mode steps
+                setTodos(prev => prev.map((t, i) =>
+                    i <= 2 ? { ...t, status: 'completed' } :
+                    i === 3 ? { ...t, status: 'in_progress' } : t
+                ))
 
-            if (data.success && data.presentation?.slides) {
-                // Convert to SlideContent format
-                const generatedSlides: SlideContent[] = data.presentation.slides.map((slide: any, idx: number) => ({
-                    id: `slide-${idx}`,
-                    type: idx === 0 ? 'cover' :
-                          slide.layout === 'conclusion' ? 'contact' :
-                          slide.title?.includes('문제') ? 'problem' :
-                          slide.title?.includes('솔루션') || slide.title?.includes('해결') ? 'solution' :
-                          slide.title?.includes('시장') ? 'market' :
-                          slide.title?.includes('팀') ? 'team' :
-                          slide.title?.includes('투자') ? 'investment' :
-                          'content',
-                    title: slide.title,
-                    subtitle: slide.subtitle || '',
-                    content: { points: slide.content || [] },
-                }))
-
-                setSlides(generatedSlides)
+                await new Promise(r => setTimeout(r, 300))
                 setTodos(prev => prev.map((t, i) =>
                     i <= 3 ? { ...t, status: 'completed' } :
                     i === 4 ? { ...t, status: 'in_progress' } : t
                 ))
 
-                // Update title
-                const titleMatch = prompt.match(/(IT\s*스타트업|카페|제조업|[가-힣]+)\s*(투자|대출|사업)/)
-                if (titleMatch) {
-                    setPresentationTitle(`${titleMatch[1]} ${titleMatch[2]} 사업계획서`)
-                } else {
+                await new Promise(r => setTimeout(r, 300))
+                setTodos(prev => prev.map((t, i) =>
+                    i <= 4 ? { ...t, status: 'completed' } :
+                    i === 5 ? { ...t, status: 'in_progress' } : t
+                ))
+
+                if (data.success && data.presentation?.slides) {
+                    // Convert designed slides to SlideContent format
+                    const generatedSlides: SlideContent[] = data.presentation.slides.map((slide: any, idx: number) => ({
+                        id: `slide-${idx}`,
+                        type: slide.type || (idx === 0 ? 'cover' : 'content'),
+                        title: slide.title,
+                        subtitle: slide.subtitle || '',
+                        content: {
+                            points: Array.isArray(slide.content) ? slide.content : [],
+                            icons: slide.icons || [],
+                        },
+                        images: slide.images?.map((img: any) => ({
+                            id: `img-${idx}-${Math.random().toString(36).slice(2)}`,
+                            dataUrl: img.url,
+                            width: img.width,
+                            height: img.height,
+                        })) || [],
+                        backgroundColor: slide.design?.backgroundColor,
+                    }))
+
+                    setSlides(generatedSlides)
+                    setTodos(prev => prev.map(t => ({ ...t, status: 'completed' })))
+
+                    // Count icons and images
+                    const iconCount = generatedSlides.reduce((acc, s) => acc + (s.content?.icons?.length || 0), 0)
+                    const imageCount = generatedSlides.reduce((acc, s) => acc + (s.images?.length || 0), 0)
+
                     setPresentationTitle(data.presentation.title || '사업계획서')
+
+                    setMessages(prev => [...prev, {
+                        role: 'assistant',
+                        content: `✅ **Pro 모드** 사업계획서 ${generatedSlides.length}장을 제작했습니다!
+
+🎨 **테마**: ${theme}
+📊 **슬라이드 수**: ${generatedSlides.length}장
+🔷 **아이콘**: ${iconCount}개 자동 매칭
+📷 **이미지**: ${imageCount}개 검색됨
+
+**디자인 원칙 적용:**
+• Rule of Three (핵심 포인트 3개)
+• 시각적 계층구조
+• 여백 30% 확보
+
+우측 미리보기에서 각 슬라이드를 확인하실 수 있습니다.`,
+                        type: 'complete',
+                    }])
+                } else {
+                    throw new Error(data.error || 'Failed to generate slides')
                 }
+            } else {
+                // Use basic PPT Pro API
+                setTodos(prev => prev.map((t, i) =>
+                    i <= 1 ? { ...t, status: 'completed' } :
+                    i === 2 ? { ...t, status: 'in_progress' } : t
+                ))
 
-                setTodos(prev => prev.map(t => ({ ...t, status: 'completed' })))
+                const response = await fetch('/api/skills/ppt-pro', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        content: prompt,
+                        title: prompt.includes('IT') ? 'IT 스타트업 사업계획서' :
+                               prompt.includes('카페') ? '카페 창업 사업계획서' : '사업계획서',
+                        slideCount,
+                        theme,
+                        generateImages: false,
+                        language: 'ko'
+                    })
+                })
 
-                // PPTX 자동 다운로드
-                if (data.pptxBase64) {
-                    const byteCharacters = atob(data.pptxBase64)
-                    const byteNumbers = new Array(byteCharacters.length)
-                    for (let i = 0; i < byteCharacters.length; i++) {
-                        byteNumbers[i] = byteCharacters.charCodeAt(i)
+                data = await response.json()
+
+                setTodos(prev => prev.map((t, i) =>
+                    i <= 2 ? { ...t, status: 'completed' } :
+                    i === 3 ? { ...t, status: 'in_progress' } : t
+                ))
+
+                if (data.success && data.presentation?.slides) {
+                    // Convert to SlideContent format
+                    const generatedSlides: SlideContent[] = data.presentation.slides.map((slide: any, idx: number) => ({
+                        id: `slide-${idx}`,
+                        type: idx === 0 ? 'cover' :
+                              slide.layout === 'conclusion' ? 'contact' :
+                              slide.title?.includes('문제') ? 'problem' :
+                              slide.title?.includes('솔루션') || slide.title?.includes('해결') ? 'solution' :
+                              slide.title?.includes('시장') ? 'market' :
+                              slide.title?.includes('팀') ? 'team' :
+                              slide.title?.includes('투자') ? 'investment' :
+                              'content',
+                        title: slide.title,
+                        subtitle: slide.subtitle || '',
+                        content: { points: slide.content || [] },
+                    }))
+
+                    setSlides(generatedSlides)
+                    setTodos(prev => prev.map((t, i) =>
+                        i <= 3 ? { ...t, status: 'completed' } :
+                        i === 4 ? { ...t, status: 'in_progress' } : t
+                    ))
+
+                    // Update title
+                    const titleMatch = prompt.match(/(IT\s*스타트업|카페|제조업|[가-힣]+)\s*(투자|대출|사업)/)
+                    if (titleMatch) {
+                        setPresentationTitle(`${titleMatch[1]} ${titleMatch[2]} 사업계획서`)
+                    } else {
+                        setPresentationTitle(data.presentation.title || '사업계획서')
                     }
-                    const byteArray = new Uint8Array(byteNumbers)
-                    const blob = new Blob([byteArray], { type: 'application/vnd.openxmlformats-officedocument.presentationml.presentation' })
-                    const url = URL.createObjectURL(blob)
-                    const a = document.createElement('a')
-                    a.href = url
-                    a.download = `${data.presentation.title || 'presentation'}.pptx`
-                    document.body.appendChild(a)
-                    a.click()
-                    document.body.removeChild(a)
-                    URL.revokeObjectURL(url)
-                }
 
-                setMessages(prev => [...prev, {
-                    role: 'assistant',
-                    content: `✅ 사업계획서 ${generatedSlides.length}장을 제작했습니다!
+                    setTodos(prev => prev.map(t => ({ ...t, status: 'completed' })))
+
+                    // PPTX 자동 다운로드
+                    if (data.pptxBase64) {
+                        const byteCharacters = atob(data.pptxBase64)
+                        const byteNumbers = new Array(byteCharacters.length)
+                        for (let i = 0; i < byteCharacters.length; i++) {
+                            byteNumbers[i] = byteCharacters.charCodeAt(i)
+                        }
+                        const byteArray = new Uint8Array(byteNumbers)
+                        const blob = new Blob([byteArray], { type: 'application/vnd.openxmlformats-officedocument.presentationml.presentation' })
+                        const url = URL.createObjectURL(blob)
+                        const a = document.createElement('a')
+                        a.href = url
+                        a.download = `${data.presentation.title || 'presentation'}.pptx`
+                        document.body.appendChild(a)
+                        a.click()
+                        document.body.removeChild(a)
+                        URL.revokeObjectURL(url)
+                    }
+
+                    setMessages(prev => [...prev, {
+                        role: 'assistant',
+                        content: `✅ 사업계획서 ${generatedSlides.length}장을 제작했습니다!
 
 🎨 **테마**: ${theme}
 📊 **슬라이드 수**: ${generatedSlides.length}장
@@ -773,10 +879,11 @@ ${data.pptxBase64 ? '📥 **PPTX 파일**: 자동 다운로드됨' : ''}
 • "3번 슬라이드 제목을 '핵심 문제'로 바꿔줘"
 • "팀 소개 슬라이드에 CTO 추가해줘"
 • "시장 규모를 200조원으로 수정해줘"`,
-                    type: 'complete',
-                }])
-            } else {
-                throw new Error(data.error || 'Failed to generate slides')
+                        type: 'complete',
+                    }])
+                } else {
+                    throw new Error(data.error || 'Failed to generate slides')
+                }
             }
         } catch (error: any) {
             console.error('Slide generation error:', error)
@@ -788,7 +895,7 @@ ${data.pptxBase64 ? '📥 **PPTX 파일**: 자동 다운로드됨' : ''}
         }
 
         setIsLoading(false)
-    }, [])
+    }, [proMode])
 
     // Edit slide with AI
     const editSlide = useCallback(async (slideIndex: number, instruction: string) => {
@@ -1300,24 +1407,42 @@ ${coverImageUrl ? '🎨 **커버 디자인**: 나노바나나로 생성됨' : ''
                 </div>
 
                 {/* Chat Tabs */}
-                <div className="flex items-center gap-2 px-4 py-2 border-b border-zinc-200 dark:border-zinc-800">
+                <div className="flex items-center justify-between px-4 py-2 border-b border-zinc-200 dark:border-zinc-800">
+                    <div className="flex items-center gap-2">
+                        <button
+                            onClick={() => setChatTab('ai')}
+                            className={cn(
+                                "px-3 py-1.5 rounded-lg text-xs font-medium transition-colors",
+                                chatTab === 'ai' ? "bg-zinc-200 dark:bg-zinc-700 text-zinc-900 dark:text-white" : "text-zinc-500 hover:text-zinc-900 dark:hover:text-white"
+                            )}
+                        >
+                            AI 채팅
+                        </button>
+                        <button
+                            onClick={() => setChatTab('team')}
+                            className={cn(
+                                "px-3 py-1.5 rounded-lg text-xs font-medium transition-colors",
+                                chatTab === 'team' ? "bg-zinc-200 dark:bg-zinc-700 text-zinc-900 dark:text-white" : "text-zinc-500 hover:text-zinc-900 dark:hover:text-white"
+                            )}
+                        >
+                            팀 채팅
+                        </button>
+                    </div>
+                    {/* Pro Mode Toggle */}
                     <button
-                        onClick={() => setChatTab('ai')}
+                        onClick={() => setProMode(!proMode)}
                         className={cn(
-                            "px-3 py-1.5 rounded-lg text-xs font-medium transition-colors",
-                            chatTab === 'ai' ? "bg-zinc-200 dark:bg-zinc-700 text-zinc-900 dark:text-white" : "text-zinc-500 hover:text-zinc-900 dark:hover:text-white"
+                            "flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium transition-all",
+                            proMode
+                                ? "bg-gradient-to-r from-violet-500 to-purple-500 text-white shadow-sm"
+                                : "bg-zinc-100 dark:bg-zinc-800 text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300"
                         )}
+                        title={proMode ? "Pro 모드: 아이콘 + 이미지 + 디자인 원칙" : "기본 모드"}
                     >
-                        AI 채팅
-                    </button>
-                    <button
-                        onClick={() => setChatTab('team')}
-                        className={cn(
-                            "px-3 py-1.5 rounded-lg text-xs font-medium transition-colors",
-                            chatTab === 'team' ? "bg-zinc-200 dark:bg-zinc-700 text-zinc-900 dark:text-white" : "text-zinc-500 hover:text-zinc-900 dark:hover:text-white"
-                        )}
-                    >
-                        팀 채팅
+                        <span className={cn("w-3 h-3 rounded-full transition-colors", proMode ? "bg-white/30" : "bg-zinc-400")}>
+                            {proMode && <span className="block w-full h-full rounded-full bg-white animate-pulse" />}
+                        </span>
+                        Pro
                     </button>
                 </div>
 
