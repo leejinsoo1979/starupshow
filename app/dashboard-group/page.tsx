@@ -39,6 +39,7 @@ import {
   GitCommitsWidget,
   GanttWidget
 } from '@/components/dashboard'
+import { ActivityFeed } from '@/components/activity-feed'
 import { cn } from '@/lib/utils'
 import { formatDistanceToNow } from 'date-fns'
 import { ko } from 'date-fns/locale'
@@ -539,6 +540,19 @@ export default function DashboardPage() {
         <motion.div variants={item} className="col-span-12 md:col-span-6 h-[400px]">
           <TiltCard className="h-full p-5">
             <TasksChart />
+          </TiltCard>
+        </motion.div>
+
+        {/* Row 5: Telegram Work Activity Feed */}
+        <motion.div variants={item} className="col-span-12">
+          <TiltCard className="p-5">
+            <div className="mb-4 flex items-center justify-between">
+              <h3 className="text-lg font-medium tracking-tight text-zinc-800 dark:text-white">
+                텔레그램 작업 기록
+              </h3>
+              <span className="text-xs text-zinc-400 font-mono">ACTIVITY FEED</span>
+            </div>
+            <ActivityFeed limit={10} />
           </TiltCard>
         </motion.div>
 

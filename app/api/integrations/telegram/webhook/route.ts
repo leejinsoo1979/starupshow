@@ -6,6 +6,13 @@ import { isDevMode, DEV_USER } from '@/lib/dev-user'
 import { createUnifiedMemory } from '@/lib/memory/unified-agent-memory'
 
 /**
+ * 디버그 메시지 표시 여부
+ * false: 사용자에게 최종 응답만 표시 (프로덕션)
+ * true: 에이전트 시작, LLM 응답 등 내부 상태 표시 (개발용)
+ */
+const SHOW_DEBUG_MESSAGES = false
+
+/**
  * In-memory chat history storage (fallback when Supabase tables don't exist)
  * Key: session_id, Value: array of chat messages
  */
@@ -781,9 +788,11 @@ async function executeSimpleChat(
 
     console.log(`[Telegram Chat] Created ${tools.length} tools for agent ${agent.name}`)
 
-    // 🔥 디버깅: 시작 알림
-    const taskMode = isCodingTask ? ' [코딩 모드]' : isShoppingTask ? ' [쇼핑 모드]' : ''
-    await sendTelegramMessage(chatId, `🤖 ${agent.name} 에이전트 시작 (도구 ${tools.length}개)${taskMode}`)
+    // 디버그 모드에서만 시작 알림 표시
+    if (SHOW_DEBUG_MESSAGES) {
+      const taskMode = isCodingTask ? ' [코딩 모드]' : isShoppingTask ? ' [쇼핑 모드]' : ''
+      await sendTelegramMessage(chatId, `🤖 ${agent.name} 에이전트 시작 (도구 ${tools.length}개)${taskMode}`)
+    }
 
     // Create GPT-4o model with tools - SMARTER, follows multi-step instructions better
     const model = new ChatOpenAI({
@@ -1271,16 +1280,20 @@ START ACTING LIKE THE POWERFUL AGENT YOU ARE. NO MORE EXCUSES.`
     console.log(`[Telegram Chat] Response received`)
     console.log(`[Telegram Chat] Tool calls:`, response.tool_calls?.length || 0)
 
-    // 🔥 디버깅: LLM 응답 정보
-    await sendTelegramMessage(chatId, `📡 LLM 응답 받음 - 도구 호출: ${response.tool_calls?.length || 0}개`)
+    // 디버그 모드에서만 LLM 응답 정보 표시
+    if (SHOW_DEBUG_MESSAGES) {
+      await sendTelegramMessage(chatId, `📡 LLM 응답 받음 - 도구 호출: ${response.tool_calls?.length || 0}개`)
+    }
 
     let toolResults: any[] = []
     let finalResponse = ''
 
     // Check if tools were called
     if (response.tool_calls && response.tool_calls.length > 0) {
-      const toolNames = response.tool_calls.map((tc: any) => tc.name).join(', ')
-      await sendTelegramMessage(chatId, `🔧 도구 호출 중: ${toolNames}`)
+      if (SHOW_DEBUG_MESSAGES) {
+        const toolNames = response.tool_calls.map((tc: any) => tc.name).join(', ')
+        await sendTelegramMessage(chatId, `🔧 도구 호출 중: ${toolNames}`)
+      }
 
       // Execute tools and collect results
       for (const toolCall of response.tool_calls) {
@@ -1291,8 +1304,8 @@ START ACTING LIKE THE POWERFUL AGENT YOU ARE. NO MORE EXCUSES.`
 
         if (tool) {
           try {
-            // 🔥 디버깅: AppleScript의 경우 실행 전에 스크립트 내용 표시
-            if (toolCall.name === 'run_applescript') {
+            // AppleScript 디버그 (개발 모드에서만)
+            if (SHOW_DEBUG_MESSAGES && toolCall.name === 'run_applescript') {
               const scriptPreview = toolCall.args.script?.substring(0, 300) || 'NO SCRIPT'
               console.log(`[Telegram Chat] 🍎 AppleScript 실행 예정:\n${scriptPreview}`)
               await sendTelegramMessage(chatId, `🍎 AppleScript 실행 중...\n\`\`\`\n${scriptPreview}\n\`\`\``)
@@ -1308,35 +1321,39 @@ START ACTING LIKE THE POWERFUL AGENT YOU ARE. NO MORE EXCUSES.`
               tool_call_id: toolCall.id,
             })
 
-            // Parse result to show user
-            try {
-              const parsed = JSON.parse(result)
-              if (parsed.success) {
-                // 🔥 AppleScript 결과는 더 자세히 표시
-                if (toolCall.name === 'run_applescript' && parsed.scriptPreview) {
-                  await sendTelegramMessage(
-                    chatId,
-                    `✅ ${toolCall.name} 성공\n출력: ${parsed.output || '(없음)'}`
-                  )
+            // Parse result to show user (디버그 모드에서만)
+            if (SHOW_DEBUG_MESSAGES) {
+              try {
+                const parsed = JSON.parse(result)
+                if (parsed.success) {
+                  // AppleScript 결과는 더 자세히 표시
+                  if (toolCall.name === 'run_applescript' && parsed.scriptPreview) {
+                    await sendTelegramMessage(
+                      chatId,
+                      `✅ ${toolCall.name} 성공\n출력: ${parsed.output || '(없음)'}`
+                    )
+                  } else {
+                    await sendTelegramMessage(
+                      chatId,
+                      `✅ ${toolCall.name}: ${parsed.message || '완료'}`
+                    )
+                  }
                 } else {
                   await sendTelegramMessage(
                     chatId,
-                    `✅ ${toolCall.name}: ${parsed.message || '완료'}`
+                    `❌ ${toolCall.name}: ${parsed.error || '실패'}`
                   )
                 }
-              } else {
-                await sendTelegramMessage(
-                  chatId,
-                  `❌ ${toolCall.name}: ${parsed.error || '실패'}`
-                )
+              } catch {
+                // Not JSON, show raw result
+                await sendTelegramMessage(chatId, `📝 ${toolCall.name} 결과:\n${result.substring(0, 500)}`)
               }
-            } catch {
-              // Not JSON, show raw result
-              await sendTelegramMessage(chatId, `📝 ${toolCall.name} 결과:\n${result.substring(0, 500)}`)
             }
           } catch (error: any) {
             console.error(`[Telegram Chat] Tool execution error:`, error)
-            await sendTelegramMessage(chatId, `❌ ${toolCall.name} 실행 중 오류: ${error.message}`)
+            if (SHOW_DEBUG_MESSAGES) {
+              await sendTelegramMessage(chatId, `❌ ${toolCall.name} 실행 중 오류: ${error.message}`)
+            }
           }
         }
       }
@@ -1362,8 +1379,10 @@ START ACTING LIKE THE POWERFUL AGENT YOU ARE. NO MORE EXCUSES.`
 
       // Check if model wants to call more tools
       if (nextActionResponse.tool_calls && nextActionResponse.tool_calls.length > 0) {
-        const additionalToolNames = nextActionResponse.tool_calls.map((tc: any) => tc.name).join(', ')
-        await sendTelegramMessage(chatId, `🔧 추가 도구 호출: ${additionalToolNames}`)
+        if (SHOW_DEBUG_MESSAGES) {
+          const additionalToolNames = nextActionResponse.tool_calls.map((tc: any) => tc.name).join(', ')
+          await sendTelegramMessage(chatId, `🔧 추가 도구 호출: ${additionalToolNames}`)
+        }
 
         // Collect additional tool results
         const additionalToolResults: any[] = []
@@ -1385,16 +1404,18 @@ START ACTING LIKE THE POWERFUL AGENT YOU ARE. NO MORE EXCUSES.`
                 tool_call_id: toolCall.id,
               })
 
-              // Parse result to show user
-              try {
-                const parsed = JSON.parse(result)
-                if (parsed.success) {
-                  await sendTelegramMessage(chatId, `✅ ${toolCall.name}: ${parsed.message || '완료'}`)
-                } else {
-                  await sendTelegramMessage(chatId, `❌ ${toolCall.name}: ${parsed.error || '실패'}`)
+              // Parse result to show user (디버그 모드에서만)
+              if (SHOW_DEBUG_MESSAGES) {
+                try {
+                  const parsed = JSON.parse(result)
+                  if (parsed.success) {
+                    await sendTelegramMessage(chatId, `✅ ${toolCall.name}: ${parsed.message || '완료'}`)
+                  } else {
+                    await sendTelegramMessage(chatId, `❌ ${toolCall.name}: ${parsed.error || '실패'}`)
+                  }
+                } catch {
+                  await sendTelegramMessage(chatId, `📝 ${toolCall.name} 결과:\n${result.substring(0, 500)}`)
                 }
-              } catch {
-                await sendTelegramMessage(chatId, `📝 ${toolCall.name} 결과:\n${result.substring(0, 500)}`)
               }
             } catch (error: any) {
               console.error(`[Telegram Chat] Tool execution error:`, error)
@@ -1402,7 +1423,9 @@ START ACTING LIKE THE POWERFUL AGENT YOU ARE. NO MORE EXCUSES.`
                 result: `Error: ${error.message}`,
                 tool_call_id: toolCall.id,
               })
-              await sendTelegramMessage(chatId, `❌ ${toolCall.name} 실행 중 오류: ${error.message}`)
+              if (SHOW_DEBUG_MESSAGES) {
+                await sendTelegramMessage(chatId, `❌ ${toolCall.name} 실행 중 오류: ${error.message}`)
+              }
             }
           }
         }
@@ -1427,7 +1450,9 @@ START ACTING LIKE THE POWERFUL AGENT YOU ARE. NO MORE EXCUSES.`
 
         // Check if finalSummary still has tool calls (3rd round)
         if (finalSummary.tool_calls && finalSummary.tool_calls.length > 0) {
-          await sendTelegramMessage(chatId, `🔧 3단계 도구 호출: ${finalSummary.tool_calls.map((tc: any) => tc.name).join(', ')}`)
+          if (SHOW_DEBUG_MESSAGES) {
+            await sendTelegramMessage(chatId, `🔧 3단계 도구 호출: ${finalSummary.tool_calls.map((tc: any) => tc.name).join(', ')}`)
+          }
 
           // Collect 3rd round tool results
           const round3ToolResults: any[] = []
@@ -1448,18 +1473,22 @@ START ACTING LIKE THE POWERFUL AGENT YOU ARE. NO MORE EXCUSES.`
                   tool_call_id: toolCall.id,
                 })
 
-                try {
-                  const parsed = JSON.parse(result)
-                  if (parsed.success) {
-                    await sendTelegramMessage(chatId, `✅ ${toolCall.name}: ${parsed.message || '완료'}`)
-                  } else {
-                    await sendTelegramMessage(chatId, `❌ ${toolCall.name}: ${parsed.error || '실패'}`)
+                if (SHOW_DEBUG_MESSAGES) {
+                  try {
+                    const parsed = JSON.parse(result)
+                    if (parsed.success) {
+                      await sendTelegramMessage(chatId, `✅ ${toolCall.name}: ${parsed.message || '완료'}`)
+                    } else {
+                      await sendTelegramMessage(chatId, `❌ ${toolCall.name}: ${parsed.error || '실패'}`)
+                    }
+                  } catch {
+                    await sendTelegramMessage(chatId, `📝 ${toolCall.name} 완료`)
                   }
-                } catch {
-                  await sendTelegramMessage(chatId, `📝 ${toolCall.name} 완료`)
                 }
               } catch (error: any) {
-                await sendTelegramMessage(chatId, `❌ ${toolCall.name} 오류: ${error.message}`)
+                if (SHOW_DEBUG_MESSAGES) {
+                  await sendTelegramMessage(chatId, `❌ ${toolCall.name} 오류: ${error.message}`)
+                }
                 round3ToolResults.push({
                   result: `Error: ${error.message}`,
                   tool_call_id: toolCall.id,
@@ -1490,7 +1519,9 @@ START ACTING LIKE THE POWERFUL AGENT YOU ARE. NO MORE EXCUSES.`
           ])
 
           if (round4Response.tool_calls && round4Response.tool_calls.length > 0) {
-            await sendTelegramMessage(chatId, `🔧 4단계 도구 호출: ${round4Response.tool_calls.map((tc: any) => tc.name).join(', ')}`)
+            if (SHOW_DEBUG_MESSAGES) {
+              await sendTelegramMessage(chatId, `🔧 4단계 도구 호출: ${round4Response.tool_calls.map((tc: any) => tc.name).join(', ')}`)
+            }
 
             for (const toolCall of round4Response.tool_calls) {
               console.log(`[Telegram Chat] Executing 4th round tool: ${toolCall.name}`)
@@ -1501,18 +1532,22 @@ START ACTING LIKE THE POWERFUL AGENT YOU ARE. NO MORE EXCUSES.`
                   const result = await tool.invoke(toolCall.args)
                   console.log(`[Telegram Chat] 4th round tool result:`, result?.substring ? result.substring(0, 200) : result)
 
-                  try {
-                    const parsed = JSON.parse(result)
-                    if (parsed.success) {
-                      await sendTelegramMessage(chatId, `✅ ${toolCall.name}: ${parsed.message || '완료'}`)
-                    } else {
-                      await sendTelegramMessage(chatId, `❌ ${toolCall.name}: ${parsed.error || '실패'}`)
+                  if (SHOW_DEBUG_MESSAGES) {
+                    try {
+                      const parsed = JSON.parse(result)
+                      if (parsed.success) {
+                        await sendTelegramMessage(chatId, `✅ ${toolCall.name}: ${parsed.message || '완료'}`)
+                      } else {
+                        await sendTelegramMessage(chatId, `❌ ${toolCall.name}: ${parsed.error || '실패'}`)
+                      }
+                    } catch {
+                      await sendTelegramMessage(chatId, `📝 ${toolCall.name} 완료`)
                     }
-                  } catch {
-                    await sendTelegramMessage(chatId, `📝 ${toolCall.name} 완료`)
                   }
                 } catch (error: any) {
-                  await sendTelegramMessage(chatId, `❌ ${toolCall.name} 오류: ${error.message}`)
+                  if (SHOW_DEBUG_MESSAGES) {
+                    await sendTelegramMessage(chatId, `❌ ${toolCall.name} 오류: ${error.message}`)
+                  }
                 }
               }
             }
@@ -1531,8 +1566,10 @@ START ACTING LIKE THE POWERFUL AGENT YOU ARE. NO MORE EXCUSES.`
     } else {
       // No tool calls, just use the response
       finalResponse = response.content as string
-      // 🔥 디버깅: 도구 호출 없음
-      await sendTelegramMessage(chatId, `⚠️ LLM이 도구를 호출하지 않음. 텍스트 응답만 생성됨.`)
+      // 디버그 모드에서만 경고 표시
+      if (SHOW_DEBUG_MESSAGES) {
+        await sendTelegramMessage(chatId, `⚠️ LLM이 도구를 호출하지 않음. 텍스트 응답만 생성됨.`)
+      }
     }
 
     // Convert finalResponse to string if needed
