@@ -1420,45 +1420,47 @@ ${coverImageUrl ? '🎨 **커버 디자인**: 나노바나나로 생성됨' : ''
                     <h2 className="font-semibold text-zinc-900 dark:text-white text-sm">슬라이드 AI</h2>
                 </div>
 
-                {/* Chat Tabs */}
-                <div className="flex items-center justify-between px-4 py-2 border-b border-zinc-200 dark:border-zinc-800">
-                    <div className="flex items-center gap-2">
+                {/* Chat Tabs - 슬라이드 생성 후에만 표시 */}
+                {(slides.length > 0 || presentationV2) && (
+                    <div className="flex items-center justify-between px-4 py-2 border-b border-zinc-200 dark:border-zinc-800">
+                        <div className="flex items-center gap-2">
+                            <button
+                                onClick={() => setChatTab('ai')}
+                                className={cn(
+                                    "px-3 py-1.5 rounded-lg text-xs font-medium transition-colors",
+                                    chatTab === 'ai' ? "bg-zinc-200 dark:bg-zinc-700 text-zinc-900 dark:text-white" : "text-zinc-500 hover:text-zinc-900 dark:hover:text-white"
+                                )}
+                            >
+                                AI 채팅
+                            </button>
+                            <button
+                                onClick={() => setChatTab('team')}
+                                className={cn(
+                                    "px-3 py-1.5 rounded-lg text-xs font-medium transition-colors",
+                                    chatTab === 'team' ? "bg-zinc-200 dark:bg-zinc-700 text-zinc-900 dark:text-white" : "text-zinc-500 hover:text-zinc-900 dark:hover:text-white"
+                                )}
+                            >
+                                팀 채팅
+                            </button>
+                        </div>
+                        {/* Pro Mode Toggle */}
                         <button
-                            onClick={() => setChatTab('ai')}
+                            onClick={() => setProMode(!proMode)}
                             className={cn(
-                                "px-3 py-1.5 rounded-lg text-xs font-medium transition-colors",
-                                chatTab === 'ai' ? "bg-zinc-200 dark:bg-zinc-700 text-zinc-900 dark:text-white" : "text-zinc-500 hover:text-zinc-900 dark:hover:text-white"
+                                "flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium transition-all",
+                                proMode
+                                    ? "bg-gradient-to-r from-violet-500 to-purple-500 text-white shadow-sm"
+                                    : "bg-zinc-100 dark:bg-zinc-800 text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300"
                             )}
+                            title={proMode ? "Pro 모드: 아이콘 + 이미지 + 디자인 원칙" : "기본 모드"}
                         >
-                            AI 채팅
-                        </button>
-                        <button
-                            onClick={() => setChatTab('team')}
-                            className={cn(
-                                "px-3 py-1.5 rounded-lg text-xs font-medium transition-colors",
-                                chatTab === 'team' ? "bg-zinc-200 dark:bg-zinc-700 text-zinc-900 dark:text-white" : "text-zinc-500 hover:text-zinc-900 dark:hover:text-white"
-                            )}
-                        >
-                            팀 채팅
+                            <span className={cn("w-3 h-3 rounded-full transition-colors", proMode ? "bg-white/30" : "bg-zinc-400")}>
+                                {proMode && <span className="block w-full h-full rounded-full bg-white animate-pulse" />}
+                            </span>
+                            Pro
                         </button>
                     </div>
-                    {/* Pro Mode Toggle */}
-                    <button
-                        onClick={() => setProMode(!proMode)}
-                        className={cn(
-                            "flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium transition-all",
-                            proMode
-                                ? "bg-gradient-to-r from-violet-500 to-purple-500 text-white shadow-sm"
-                                : "bg-zinc-100 dark:bg-zinc-800 text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300"
-                        )}
-                        title={proMode ? "Pro 모드: 아이콘 + 이미지 + 디자인 원칙" : "기본 모드"}
-                    >
-                        <span className={cn("w-3 h-3 rounded-full transition-colors", proMode ? "bg-white/30" : "bg-zinc-400")}>
-                            {proMode && <span className="block w-full h-full rounded-full bg-white animate-pulse" />}
-                        </span>
-                        Pro
-                    </button>
-                </div>
+                )}
 
                 {/* Chat Content - Single Scroll Container */}
                 <div className="flex-1 overflow-y-auto p-4 space-y-4">
