@@ -6,7 +6,12 @@
 
 import { GoogleGenerativeAI } from '@google/generative-ai'
 
-const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY || '')
+// GOOGLE_API_KEY 또는 GOOGLE_GENERATIVE_AI_API_KEY 사용
+const apiKey = process.env.GOOGLE_API_KEY || process.env.GOOGLE_GENERATIVE_AI_API_KEY || ''
+if (!apiKey) {
+  console.warn('[ContentService] ⚠️ Google API Key not found! Set GOOGLE_API_KEY in .env.local')
+}
+const genAI = new GoogleGenerativeAI(apiKey)
 
 export interface SlideContent {
   slideNumber: number
@@ -35,6 +40,11 @@ export async function generateSlideStructure(
   theme: string,
   language: string = 'ko'
 ): Promise<GeneratedPresentation> {
+  if (!apiKey) {
+    throw new Error('Google API Key가 설정되지 않았습니다. GOOGLE_API_KEY 환경변수를 확인하세요.')
+  }
+
+  console.log('[ContentService] Generating slides with Gemini...')
   const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash-exp' })
 
   const prompt = `당신은 세계 최고의 프레젠테이션 디자이너입니다.
@@ -98,10 +108,13 @@ export async function generateSlideContent(
   language: string
 ): Promise<SlideContent[]> {
   try {
+    console.log(`[ContentService] Generating ${slideCount} slides for theme: ${themeName}`)
     const presentation = await generateSlideStructure(prompt, slideCount, themeName, language)
+    console.log(`[ContentService] ✅ Generated ${presentation.slides.length} slides`)
     return presentation.slides
   } catch (error) {
-    console.error('[ContentService] Content generation error:', error)
-    return []
+    console.error('[ContentService] ❌ Content generation error:', error)
+    // 에러를 상위로 전파하여 사용자에게 명확한 에러 메시지 표시
+    throw error
   }
 }

@@ -463,11 +463,20 @@ export async function POST(request: NextRequest) {
 
     // 1. 슬라이드 콘텐츠 생성 (직접 함수 호출)
     console.log('[SlideDesigner] Step 1: Generating slide content...')
-    const rawSlides = await generateSlideContent(content, slideCount, theme.name.toLowerCase(), language)
-
-    if (rawSlides.length === 0) {
+    let rawSlides
+    try {
+      rawSlides = await generateSlideContent(content, slideCount, theme.name.toLowerCase(), language)
+    } catch (genError: any) {
+      console.error('[SlideDesigner] Content generation failed:', genError)
       return NextResponse.json(
-        { success: false, error: '슬라이드 콘텐츠 생성에 실패했습니다.' },
+        { success: false, error: genError.message || '슬라이드 콘텐츠 생성에 실패했습니다.' },
+        { status: 500 }
+      )
+    }
+
+    if (!rawSlides || rawSlides.length === 0) {
+      return NextResponse.json(
+        { success: false, error: '슬라이드 콘텐츠가 생성되지 않았습니다. 다시 시도해주세요.' },
         { status: 500 }
       )
     }
