@@ -2,7 +2,9 @@ import { ChatOpenAI } from '@langchain/openai'
 import { ChatOllama } from '@langchain/ollama'
 import { HumanMessage, SystemMessage, AIMessage, ToolMessage, BaseMessage } from '@langchain/core/messages'
 import { DynamicStructuredTool } from '@langchain/core/tools'
-import { getToolsByNames, getAllToolNames, MCPToolName, ALL_TOOLS } from './tools'
+import { getToolsByNames, getAllToolNames, MCPToolName, ALL_TOOLS, getToolsForAgent } from './tools'
+import { createClaudeCodeTool, isClaudeCodeAvailable } from './claude-code-tool'
+import { getAllTerminalTools } from './terminal-tool'
 import { loadAgentApiConnections, createAllApiTools, generateApiToolsDescription } from './api-tool'
 import { createPythonTools, checkPythonBackendHealth } from './python-tools'
 import { createIntegrationTools, type IntegrationConfig } from './integration-executor'
@@ -131,8 +133,60 @@ export async function executeAgentWithTools(
       }
     }
 
-    // Combine MCP tools, API tools, Python tools, and Integration tools
-    const tools: DynamicStructuredTool[] = [...mcpTools, ...apiTools, ...pythonTools, ...integrationTools]
+    // 🔥 Terminal Tools & Claude Code (for engineer agents like Jeremy)
+    let terminalTools: DynamicStructuredTool[] = []
+    let terminalToolsDescription = ''
+    let claudeCodeTool: DynamicStructuredTool | null = null
+    let claudeCodeDescription = ''
+
+    // Determine agent role based on name or capabilities
+    const agentNameLower = agent.name.toLowerCase()
+    const isEngineer = hasCapability('engineer', 'developer', 'coding', 'terminal', '개발', '엔지니어', '코딩')
+      || agentNameLower.includes('jeremy')
+      || agentNameLower.includes('제레미')
+    const isAnalyst = hasCapability('analyst', 'data', 'analysis', '분석', '데이터')
+      || agentNameLower.includes('rachel')
+      || agentNameLower.includes('레이첼')
+    const isAdmin = hasCapability('admin', 'system', 'devops', '관리자', '시스템')
+      || agentNameLower.includes('antigravity')
+      || agentNameLower.includes('앤티그래비티')
+
+    // Assign terminal tools based on role
+    if (isEngineer) {
+      terminalTools = getAllTerminalTools('jeremy')
+      terminalToolsDescription = '\n\n### 터미널 도구 (Jeremy 권한)\n' +
+        terminalTools.map(t => `- ${t.name}: ${t.description.split('\n')[0]}`).join('\n')
+      console.log(`  - Terminal tools loaded for engineer: ${terminalTools.map(t => t.name).join(', ')}`)
+
+      // Also add Claude Code tool for complex coding tasks
+      const claudeCodeAvailable = await isClaudeCodeAvailable()
+      if (claudeCodeAvailable) {
+        claudeCodeTool = createClaudeCodeTool()
+        claudeCodeDescription = '\n\n### Claude Code (복잡한 개발 작업 위임)\n' +
+          `- use_claude_code: 대규모 리팩토링, 새 기능 구현, 복잡한 버그 수정 등을 Claude Code에 위임`
+        console.log(`  - Claude Code tool available`)
+      }
+    } else if (isAnalyst) {
+      terminalTools = getAllTerminalTools('rachel')
+      terminalToolsDescription = '\n\n### 터미널 도구 (Rachel 권한 - 읽기 전용)\n' +
+        terminalTools.map(t => `- ${t.name}: ${t.description.split('\n')[0]}`).join('\n')
+      console.log(`  - Terminal tools loaded for analyst: ${terminalTools.map(t => t.name).join(', ')}`)
+    } else if (isAdmin) {
+      terminalTools = getAllTerminalTools('antigravity')
+      terminalToolsDescription = '\n\n### 터미널 도구 (Admin 권한)\n' +
+        terminalTools.map(t => `- ${t.name}: ${t.description.split('\n')[0]}`).join('\n')
+      console.log(`  - Terminal tools loaded for admin: ${terminalTools.map(t => t.name).join(', ')}`)
+    }
+
+    // Combine MCP tools, API tools, Python tools, Integration tools, Terminal tools, and Claude Code
+    const tools: DynamicStructuredTool[] = [
+      ...mcpTools,
+      ...apiTools,
+      ...pythonTools,
+      ...integrationTools,
+      ...terminalTools,
+      ...(claudeCodeTool ? [claudeCodeTool] : []),
+    ]
 
     console.log(`Agent "${agent.name}" executing with tools:`, tools.map(t => t.name))
     if (apiTools.length > 0) {
@@ -143,6 +197,12 @@ export async function executeAgentWithTools(
     }
     if (integrationTools.length > 0) {
       console.log(`  - Integration tools: ${integrationTools.map(t => t.name).join(', ')}`)
+    }
+    if (terminalTools.length > 0) {
+      console.log(`  - Terminal tools: ${terminalTools.map(t => t.name).join(', ')}`)
+    }
+    if (claudeCodeTool) {
+      console.log(`  - Claude Code tool: available`)
     }
 
     // 🔥 RAG 지식베이스 컨텍스트 가져오기
@@ -223,6 +283,8 @@ ${tools.map(t => `- ${t.name}: ${t.description}`).join('\n')}
 ${apiToolsDescription}
 ${pythonToolsDescription}
 ${integrationToolsDescription}
+${terminalToolsDescription}
+${claudeCodeDescription}
 
 ## 📋 현재 업무
 - 제목: ${task.title}

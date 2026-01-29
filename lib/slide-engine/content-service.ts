@@ -4,14 +4,11 @@
  * LLM을 사용하여 슬라이드 구조와 콘텐츠를 생성
  */
 
-import { GoogleGenerativeAI } from '@google/generative-ai'
+import OpenAI from 'openai'
 
-// GOOGLE_API_KEY 또는 GOOGLE_GENERATIVE_AI_API_KEY 사용
-const apiKey = process.env.GOOGLE_API_KEY || process.env.GOOGLE_GENERATIVE_AI_API_KEY || ''
-if (!apiKey) {
-  console.warn('[ContentService] ⚠️ Google API Key not found! Set GOOGLE_API_KEY in .env.local')
-}
-const genAI = new GoogleGenerativeAI(apiKey)
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY || '',
+})
 
 export interface SlideContent {
   slideNumber: number
@@ -32,7 +29,7 @@ export interface GeneratedPresentation {
 }
 
 /**
- * AI로 슬라이드 구조 생성 (서버 사이드 직접 호출)
+ * AI로 슬라이드 구조 생성 (OpenAI 사용)
  */
 export async function generateSlideStructure(
   content: string,
@@ -40,12 +37,11 @@ export async function generateSlideStructure(
   theme: string,
   language: string = 'ko'
 ): Promise<GeneratedPresentation> {
-  if (!apiKey) {
-    throw new Error('Google API Key가 설정되지 않았습니다. GOOGLE_API_KEY 환경변수를 확인하세요.')
+  if (!process.env.OPENAI_API_KEY) {
+    throw new Error('OpenAI API Key가 설정되지 않았습니다. OPENAI_API_KEY 환경변수를 확인하세요.')
   }
 
-  console.log('[ContentService] Generating slides with Gemini...')
-  const model = genAI.getGenerativeModel({ model: 'gemini-pro' })
+  console.log('[ContentService] Generating slides with OpenAI...')
 
   const prompt = `당신은 세계 최고의 프레젠테이션 디자이너입니다.
 다음 내용을 기반으로 ${slideCount}장의 전문적인 프레젠테이션 슬라이드를 설계해주세요.
@@ -84,8 +80,17 @@ JSON 형식으로 출력:
 - imagePrompt는 영어로, 슬라이드 내용과 관련된 전문적인 이미지 설명
 - JSON만 출력`
 
-  const result = await model.generateContent(prompt)
-  const text = result.response.text()
+  const response = await openai.chat.completions.create({
+    model: 'gpt-4o-mini',
+    messages: [
+      { role: 'system', content: 'You are a professional presentation designer. Always respond with valid JSON only.' },
+      { role: 'user', content: prompt }
+    ],
+    temperature: 0.7,
+    max_tokens: 4000,
+  })
+
+  const text = response.choices[0]?.message?.content || ''
 
   const jsonMatch = text.match(/\{[\s\S]*\}/)
   if (!jsonMatch) {
@@ -114,7 +119,6 @@ export async function generateSlideContent(
     return presentation.slides
   } catch (error) {
     console.error('[ContentService] ❌ Content generation error:', error)
-    // 에러를 상위로 전파하여 사용자에게 명확한 에러 메시지 표시
     throw error
   }
 }
