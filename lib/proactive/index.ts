@@ -36,3 +36,29 @@ export {
   onTaskComplete,
   onWorkflowComplete,
 } from './heartbeat-service'
+
+// Pattern Analyzer
+export {
+  analyzePatterns,
+  getActivePatterns,
+  onMemorySaved,
+  onLearningCreated,
+} from './pattern-analyzer'
+
+// Suggestion Generator
+export {
+  generateFromPattern,
+  generateReversePrompt,
+  generateRelationshipNudge,
+  generateErrorAlert,
+  generateSkillSuggestion,
+  generateBatchSuggestions,
+} from './suggestion-generator'
+
+// Trigger Evaluator
+export {
+  evaluateTriggers,
+  evaluateTaskCompletion,
+  evaluateWorkflowCompletion,
+  evaluateScheduledTriggers,
+} from './trigger-evaluator'
