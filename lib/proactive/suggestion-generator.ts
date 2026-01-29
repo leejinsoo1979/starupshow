@@ -59,7 +59,7 @@ export async function generateFromPattern(
 
     // 제안 저장
     const { data, error } = await supabase
-      .from('proactive_suggestions')
+      .from('proactive_suggestions' as any)
       .insert({
         agent_id: context.agentId,
         user_id: context.userId,
@@ -74,7 +74,7 @@ export async function generateFromPattern(
         suggested_action: suggestedAction,
         expires_at: new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString(),
         context: context.additionalContext || {},
-      })
+      } as any)
       .select()
       .single()
 
@@ -98,7 +98,7 @@ export async function generateReversePrompt(
   try {
     // 에이전트의 학습 내용 조회
     const { data: learnings } = await supabase
-      .from('agent_learnings')
+      .from('agent_learnings' as any)
       .select('category, subject, insight, confidence')
       .eq('agent_id', context.agentId)
       .gte('confidence', 70)
@@ -111,22 +111,23 @@ export async function generateReversePrompt(
     let relationshipContext = ''
     if (context.userId) {
       const { data: relationship } = await supabase
-        .from('agent_relationships')
+        .from('agent_relationships' as any)
         .select('rapport, trust, interaction_count, communication_style')
         .eq('agent_id', context.agentId)
         .eq('partner_user_id', context.userId)
         .single()
 
       if (relationship) {
-        relationshipContext = `Rapport: ${relationship.rapport}, Trust: ${relationship.trust}, Interactions: ${relationship.interaction_count}`
+        const rel = relationship as any
+        relationshipContext = `Rapport: ${rel.rapport}, Trust: ${rel.trust}, Interactions: ${rel.interaction_count}`
       }
     }
 
     // 최근 작업 패턴 기반 제안 생성
-    const topLearning = learnings[0]
+    const topLearning = (learnings as any[])[0]
 
     const { data, error } = await supabase
-      .from('proactive_suggestions')
+      .from('proactive_suggestions' as any)
       .insert({
         agent_id: context.agentId,
         user_id: context.userId,
@@ -135,7 +136,7 @@ export async function generateReversePrompt(
         title_kr: `${getCategoryKr(topLearning.category)} 기반 제안`,
         message: `Based on what I've learned about you: "${topLearning.insight}". Would you like me to help with something related?`,
         message_kr: `제가 배운 내용에 따르면: "${topLearning.insight}". 관련해서 도와드릴까요?`,
-        source_learning_ids: [learnings[0].id],
+        source_learning_ids: [(learnings as any[])[0].id],
         priority: 'medium',
         confidence_score: topLearning.confidence,
         expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
@@ -144,7 +145,7 @@ export async function generateReversePrompt(
           relationshipContext,
           learningCategory: topLearning.category,
         },
-      })
+      } as any)
       .select()
       .single()
 
@@ -170,15 +171,17 @@ export async function generateRelationshipNudge(
   try {
     // 마지막 상호작용 시간 확인
     const { data: relationship } = await supabase
-      .from('agent_relationships')
+      .from('agent_relationships' as any)
       .select('last_interaction_at, interaction_count, rapport')
       .eq('agent_id', context.agentId)
       .eq('partner_user_id', context.userId)
       .single()
 
-    if (!relationship || !relationship.last_interaction_at) return null
+    if (!relationship) return null
+    const rel = relationship as any
+    if (!rel.last_interaction_at) return null
 
-    const lastInteraction = new Date(relationship.last_interaction_at)
+    const lastInteraction = new Date(rel.last_interaction_at)
     const daysSinceInteraction = Math.floor(
       (Date.now() - lastInteraction.getTime()) / (24 * 60 * 60 * 1000)
     )
@@ -187,7 +190,7 @@ export async function generateRelationshipNudge(
     if (daysSinceInteraction < 5) return null
 
     const { data, error } = await supabase
-      .from('proactive_suggestions')
+      .from('proactive_suggestions' as any)
       .insert({
         agent_id: context.agentId,
         user_id: context.userId,
@@ -201,10 +204,10 @@ export async function generateRelationshipNudge(
         expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
         context: {
           daysSinceInteraction,
-          totalInteractions: relationship.interaction_count,
-          rapport: relationship.rapport,
+          totalInteractions: rel.interaction_count,
+          rapport: rel.rapport,
         },
-      })
+      } as any)
       .select()
       .single()
 
@@ -231,7 +234,7 @@ export async function generateErrorAlert(
 
   try {
     const { data, error } = await supabase
-      .from('proactive_suggestions')
+      .from('proactive_suggestions' as any)
       .insert({
         agent_id: context.agentId,
         user_id: context.userId,
@@ -247,7 +250,7 @@ export async function generateErrorAlert(
           errorType: context.errorType,
           severity: context.severity,
         },
-      })
+      } as any)
       .select()
       .single()
 
@@ -273,7 +276,7 @@ export async function generateSkillSuggestion(
 
   try {
     const { data, error } = await supabase
-      .from('proactive_suggestions')
+      .from('proactive_suggestions' as any)
       .insert({
         agent_id: context.agentId,
         user_id: context.userId,
@@ -295,7 +298,7 @@ export async function generateSkillSuggestion(
           skillName: context.skillName,
           reason: context.reason,
         },
-      })
+      } as any)
       .select()
       .single()
 

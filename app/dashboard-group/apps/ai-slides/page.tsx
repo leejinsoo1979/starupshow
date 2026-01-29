@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useRef, useEffect, useCallback } from "react"
+import dynamic from "next/dynamic"
 import { motion, AnimatePresence } from "framer-motion"
 import {
     Send,
@@ -31,7 +32,6 @@ import {
     GripVertical
 } from "lucide-react"
 import { cn } from "@/lib/utils"
-import { parsePptxFile, convertToSlideContent } from "./lib/pptx-parser"
 
 // Helper functions for file type detection (inline to avoid SSR issues with pdfjs-dist)
 const isPdfFile = (file: File): boolean => {
@@ -43,7 +43,16 @@ const isPptxFile = (file: File): boolean => {
          file.name.toLowerCase().endsWith('.pptx') ||
          file.name.toLowerCase().endsWith('.ppt')
 }
-import { SlideEditor, extractPresentationText } from "./components/slide-editor"
+
+// ⚡ Dynamic imports for heavy libraries (fabric.js ~500KB, JSZip ~100KB)
+// 초기 번들에서 제외하여 페이지 로딩 속도 대폭 개선
+const SlideEditor = dynamic(
+  () => import("./components/slide-editor").then(mod => mod.SlideEditor),
+  { ssr: false, loading: () => <div className="flex items-center justify-center h-full"><Loader2 className="w-8 h-8 animate-spin text-zinc-400" /></div> }
+)
+
+// extractPresentationText는 SlideThumbnail에서 직접 import (가벼운 파일, fabric 미포함)
+import { extractPresentationText } from "./components/slide-editor/SlideThumbnail"
 import { ParsedPresentationV2, ParsedSlideV2, AnySlideElement, TextElement, CANVAS_WIDTH, CANVAS_HEIGHT, createPosition, createSize } from "./types/slide-elements"
 import { Edit2, Eye as EyeIcon } from "lucide-react"
 
@@ -1545,6 +1554,59 @@ ${textPreview}
 
                 {/* Chat Content - Single Scroll Container */}
                 <div className="flex-1 overflow-y-auto p-4 space-y-4">
+                    {/* Source Upload Drop Zone (NotebookLM 스타일) */}
+                    {sources.length === 0 && slides.length === 0 && !presentationV2 && (
+                        <div
+                            onClick={() => fileInputRef.current?.click()}
+                            onDragOver={(e) => {
+                                e.preventDefault()
+                                e.stopPropagation()
+                                e.currentTarget.classList.add('border-accent', 'bg-accent/5')
+                            }}
+                            onDragLeave={(e) => {
+                                e.preventDefault()
+                                e.stopPropagation()
+                                e.currentTarget.classList.remove('border-accent', 'bg-accent/5')
+                            }}
+                            onDrop={(e) => {
+                                e.preventDefault()
+                                e.stopPropagation()
+                                e.currentTarget.classList.remove('border-accent', 'bg-accent/5')
+                                const files = e.dataTransfer.files
+                                if (files.length > 0 && fileInputRef.current) {
+                                    const dataTransfer = new DataTransfer()
+                                    dataTransfer.items.add(files[0])
+                                    fileInputRef.current.files = dataTransfer.files
+                                    fileInputRef.current.dispatchEvent(new Event('change', { bubbles: true }))
+                                }
+                            }}
+                            className="flex flex-col items-center justify-center p-8 border-2 border-dashed border-zinc-300 dark:border-zinc-700 rounded-2xl cursor-pointer hover:border-accent hover:bg-accent/5 transition-all mb-4"
+                        >
+                            <div className="w-16 h-16 bg-zinc-100 dark:bg-zinc-800 rounded-2xl flex items-center justify-center mb-4">
+                                <Upload className="w-8 h-8 text-zinc-400" />
+                            </div>
+                            <h3 className="text-lg font-medium text-zinc-900 dark:text-white mb-2">
+                                소스 파일 업로드
+                            </h3>
+                            <p className="text-sm text-zinc-500 dark:text-zinc-400 text-center mb-4">
+                                클릭하여 선택하거나 파일을 여기로 드래그하세요
+                            </p>
+                            <div className="flex items-center gap-4 text-xs text-zinc-400">
+                                <span className="flex items-center gap-1">
+                                    <FileText className="w-3.5 h-3.5" />
+                                    PDF
+                                </span>
+                                <span className="flex items-center gap-1">
+                                    <FileText className="w-3.5 h-3.5" />
+                                    PPTX
+                                </span>
+                            </div>
+                            <p className="text-xs text-zinc-400 mt-3">
+                                소스를 모은 후 AI에게 슬라이드 생성을 요청하세요
+                            </p>
+                        </div>
+                    )}
+
                     {/* Todo Progress */}
                     {todos.length > 0 && (
                         <div className="bg-zinc-100 dark:bg-zinc-800/50 rounded-xl p-4 mb-4">

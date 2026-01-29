@@ -21,7 +21,7 @@ export async function POST(
 
     // 제안 조회
     const { data: suggestion, error: fetchError } = await supabase
-      .from('proactive_suggestions')
+      .from('proactive_suggestions' as any)
       .select('*')
       .eq('id', id)
       .single()
@@ -33,10 +33,12 @@ export async function POST(
       )
     }
 
+    const suggestionData = suggestion as any
+
     // 이미 처리된 제안인지 확인
-    if (suggestion.status !== 'pending' && suggestion.status !== 'delivered') {
+    if (suggestionData.status !== 'pending' && suggestionData.status !== 'delivered') {
       return NextResponse.json(
-        { error: `Suggestion already ${suggestion.status}` },
+        { error: `Suggestion already ${suggestionData.status}` },
         { status: 400 }
       )
     }
@@ -44,23 +46,22 @@ export async function POST(
     let actionResult: Record<string, unknown> | null = null
 
     // 액션 실행 (옵션)
-    if (executeAction && suggestion.suggested_action) {
+    if (executeAction && suggestionData.suggested_action) {
       actionResult = await executeSuggestedAction(
-        suggestion.suggested_action,
-        suggestion.agent_id,
-        suggestion.user_id
+        suggestionData.suggested_action,
+        suggestionData.agent_id,
+        suggestionData.user_id
       )
     }
 
     // 제안 상태 업데이트
-    const { error: updateError } = await supabase
-      .from('proactive_suggestions')
-      .update({
-        status: executeAction ? 'executed' : 'accepted',
-        responded_at: new Date().toISOString(),
-        action_result: actionResult,
-      })
-      .eq('id', id)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const updateQuery = supabase.from('proactive_suggestions' as any)
+    const { error: updateError } = await (updateQuery.update as any)({
+      status: executeAction ? 'executed' : 'accepted',
+      responded_at: new Date().toISOString(),
+      action_result: actionResult,
+    }).eq('id', id)
 
     if (updateError) throw updateError
 
@@ -93,19 +94,19 @@ async function executeSuggestedAction(
       case 'create_task': {
         // 태스크 생성
         const { data: task, error } = await supabase
-          .from('tasks')
+          .from('tasks' as any)
           .insert({
             title: action.params?.title || 'New task from suggestion',
             description: action.params?.description || '',
             agent_id: agentId,
             status: 'pending',
             priority: action.params?.priority || 'medium',
-          })
+          } as any)
           .select()
           .single()
 
         if (error) throw error
-        return { type: 'create_task', taskId: task?.id, success: true }
+        return { type: 'create_task', taskId: (task as any)?.id, success: true }
       }
 
       case 'send_message': {

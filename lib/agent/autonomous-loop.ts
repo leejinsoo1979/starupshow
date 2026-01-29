@@ -17,6 +17,9 @@ import { HumanMessage, SystemMessage } from '@langchain/core/messages'
 import type { DeployedAgent, AgentTask } from '@/types/database'
 import { executeAgentWithTools } from './executor'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { diagnosePotentialIssues } from '@/lib/proactive/self-healing/diagnosis-engine'
+import { startHealingSession } from '@/lib/proactive/self-healing/healing-executor'
+import { canExecuteWithoutApproval } from '@/lib/proactive/self-healing/healing-actions'
 
 export interface AutonomousLoopConfig {
   maxIterations?: number // Max iterations for fix loop (default: 3)
@@ -143,6 +146,34 @@ export async function executeWithAutonomousLoop(
       fixIterations++
     }
 
+    // Self-Healing: 검증 실패 시 진단 (Proactive Engine Integration)
+    if (!verifyResult.success) {
+      try {
+        console.log('[Autonomous Loop] Verification failed after max iterations, initiating diagnosis...')
+        const diagnosis = await diagnosePotentialIssues(agent.id, {
+          taskId: task.id,
+          error: `Task verification failed after ${fixIterations} fix attempts: ${verifyResult.issues?.join(', ')}`,
+          executionSteps: executionSteps.map(s => ({
+            phase: s.phase,
+            success: s.success,
+            error: s.error,
+          })),
+        })
+        if (diagnosis) {
+          console.log('[Autonomous Loop] Diagnosis completed:', diagnosis.issueType, `(confidence: ${diagnosis.confidence})`)
+          // 자동 치유 세션 시작 (높은 확신도 + 낮은 위험도)
+          if (diagnosis.confidence > 70 && diagnosis.recommendedActions.length > 0) {
+            const firstAction = diagnosis.recommendedActions[0]
+            if (canExecuteWithoutApproval(firstAction)) {
+              await startHealingSession(agent.id, diagnosis)
+            }
+          }
+        }
+      } catch (diagnosisError) {
+        console.warn('[Autonomous Loop] Verification failure diagnosis failed:', diagnosisError)
+      }
+    }
+
     // Phase 5: Commit (if verification passed and autoCommit enabled)
     let finalCommit: string | undefined
     if (verifyResult.success && autoCommit) {
@@ -175,6 +206,36 @@ export async function executeWithAutonomousLoop(
 
   } catch (error) {
     console.error('[Autonomous Loop] Unexpected error:', error)
+
+    // 자가치유 진단 시도 (Proactive Engine Integration)
+    try {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+      console.log('[Autonomous Loop] Initiating self-healing diagnosis...')
+
+      const diagnosis = await diagnosePotentialIssues(agent.id, {
+        taskId: task.id,
+        error: `Autonomous loop failed: ${errorMessage}`,
+        executionSteps: executionSteps.map(s => ({
+          phase: s.phase,
+          success: s.success,
+          error: s.error,
+        })),
+      })
+
+      if (diagnosis && diagnosis.confidence > 70) {
+        console.log(`[Autonomous Loop] High-confidence diagnosis found: ${diagnosis.issueType}`)
+        // 자동 치유 시도 (낮은 위험도 액션만)
+        if (diagnosis.recommendedActions.length > 0) {
+          const firstAction = diagnosis.recommendedActions[0]
+          if (canExecuteWithoutApproval(firstAction)) {
+            await startHealingSession(agent.id, diagnosis)
+          }
+        }
+      }
+    } catch (diagnosisError) {
+      console.warn('[Autonomous Loop] Self-healing diagnosis failed:', diagnosisError)
+    }
+
     return {
       success: false,
       output: '',

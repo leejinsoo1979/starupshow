@@ -227,6 +227,8 @@ import {
 } from './agent-relationship-service'
 import { onConversationComplete, onMeetingComplete as onMeetingCompleteStats } from './agent-stats-service'
 import { learnFromConversation } from './agent-learning-service'
+import { evaluateTriggers } from '@/lib/proactive/trigger-evaluator'
+import type { TriggerContext } from '@/lib/proactive/types'
 
 /**
  * 1:1 대화 후 전체 처리
@@ -290,6 +292,26 @@ export async function processConversation(params: {
       result.learnings = saved
     }
 
+    // 5. 능동적 트리거 평가 (Proactive Engine Integration)
+    try {
+      const triggerContext: TriggerContext = {
+        agentId: params.agentId,
+        userId: params.userId,
+        eventType: 'conversation_complete',
+        eventData: {
+          memoryCount: result.memoryIds.length,
+          learningsExtracted: result.learnings,
+          wasHelpful: params.wasHelpful,
+          topicDomain: params.topicDomain,
+        },
+        timestamp: new Date().toISOString(),
+      }
+      await evaluateTriggers(triggerContext)
+    } catch (triggerError) {
+      // 트리거 평가 실패해도 메인 플로우는 계속
+      console.warn('[AgentOS] Proactive trigger evaluation failed:', triggerError)
+    }
+
     return result
   } catch (error) {
     console.error('[AgentOS] Process conversation failed:', error)
@@ -330,6 +352,24 @@ export async function processMeetingParticipation(params: {
       topicDomain: params.topicDomain,
     })
     result.statsUpdated = true
+
+    // 3. 능동적 트리거 평가 (Proactive Engine Integration)
+    try {
+      const triggerContext: TriggerContext = {
+        agentId: params.agentId,
+        eventType: 'meeting_complete',
+        eventData: {
+          meetingId: params.meetingId,
+          roomId: params.roomId,
+          wasLeading: params.wasLeading,
+          topicDomain: params.topicDomain,
+        },
+        timestamp: new Date().toISOString(),
+      }
+      await evaluateTriggers(triggerContext)
+    } catch (triggerError) {
+      console.warn('[AgentOS] Proactive trigger evaluation failed:', triggerError)
+    }
 
     return result
   } catch (error) {

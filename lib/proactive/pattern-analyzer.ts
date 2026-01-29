@@ -115,7 +115,7 @@ async function analyzeRecurringTasks(
   try {
     // agent_work_logs에서 반복되는 작업 찾기
     const { data: logs } = await supabase
-      .from('agent_work_logs')
+      .from('agent_work_logs' as any)
       .select('log_type, title, created_at, tags')
       .eq('agent_id', agentId)
       .gte('created_at', lookbackDate)
@@ -127,11 +127,11 @@ async function analyzeRecurringTasks(
     const dayOfWeekCounts: Record<number, Record<string, number>> = {}
     const hourCounts: Record<number, Record<string, number>> = {}
 
-    for (const log of logs) {
-      const date = new Date(log.created_at)
+    for (const logRow of logs as any[]) {
+      const date = new Date(logRow.created_at)
       const dayOfWeek = date.getDay()
       const hour = date.getHours()
-      const title = log.title?.toLowerCase() || ''
+      const title = logRow.title?.toLowerCase() || ''
 
       // 요일별 카운트
       if (!dayOfWeekCounts[dayOfWeek]) dayOfWeekCounts[dayOfWeek] = {}
@@ -188,7 +188,7 @@ async function analyzeTimePreferences(
   try {
     // 시간대별 상호작용 빈도 분석
     const { data: memories } = await supabase
-      .from('agent_memories')
+      .from('agent_memories' as any)
       .select('created_at, importance')
       .eq('agent_id', agentId)
       .gte('created_at', lookbackDate)
@@ -198,11 +198,11 @@ async function analyzeTimePreferences(
     // 시간대별 카운트
     const hourCounts: Record<number, { count: number; importance: number }> = {}
 
-    for (const memory of memories) {
-      const hour = new Date(memory.created_at).getHours()
+    for (const memoryRow of memories as any[]) {
+      const hour = new Date(memoryRow.created_at).getHours()
       if (!hourCounts[hour]) hourCounts[hour] = { count: 0, importance: 0 }
       hourCounts[hour].count++
-      hourCounts[hour].importance += memory.importance || 5
+      hourCounts[hour].importance += memoryRow.importance || 5
     }
 
     // 피크 시간대 찾기
@@ -261,7 +261,7 @@ async function analyzeErrorPatterns(
   try {
     // 실패한 워크플로우 분석
     const { data: failures } = await supabase
-      .from('workflow_executions')
+      .from('workflow_executions' as any)
       .select('workflow_id, error, created_at')
       .eq('agent_id', agentId)
       .eq('status', 'failed')
@@ -272,11 +272,11 @@ async function analyzeErrorPatterns(
     // 워크플로우별 실패 횟수
     const workflowFailures: Record<string, { count: number; errors: string[] }> = {}
 
-    for (const failure of failures) {
-      const wfId = failure.workflow_id
+    for (const failureRow of failures as any[]) {
+      const wfId = failureRow.workflow_id
       if (!workflowFailures[wfId]) workflowFailures[wfId] = { count: 0, errors: [] }
       workflowFailures[wfId].count++
-      if (failure.error) workflowFailures[wfId].errors.push(failure.error)
+      if (failureRow.error) workflowFailures[wfId].errors.push(failureRow.error)
     }
 
     // 3회 이상 실패한 워크플로우에 대해 패턴 생성
@@ -327,7 +327,7 @@ async function analyzeRelationshipMilestones(
   try {
     // 관계 정보 가져오기
     const { data: relationship } = await supabase
-      .from('agent_relationships')
+      .from('agent_relationships' as any)
       .select('interaction_count, rapport, trust, milestones')
       .eq('agent_id', agentId)
       .eq('partner_user_id', userId)
@@ -335,8 +335,9 @@ async function analyzeRelationshipMilestones(
 
     if (!relationship) return patterns
 
-    const interactionCount = relationship.interaction_count || 0
-    const existingMilestones = (relationship.milestones as any[]) || []
+    const rel = relationship as any
+    const interactionCount = rel.interaction_count || 0
+    const existingMilestones = (rel.milestones as any[]) || []
 
     // 마일스톤 체크 (10, 50, 100, 500, 1000)
     const milestones = [10, 50, 100, 500, 1000]
@@ -401,7 +402,7 @@ async function upsertPattern(
   try {
     // 동일한 패턴이 있는지 확인
     const { data: existing } = await supabase
-      .from('proactive_patterns')
+      .from('proactive_patterns' as any)
       .select('*')
       .eq('agent_id', agentId)
       .eq('pattern_name', input.patternName)
@@ -410,23 +411,28 @@ async function upsertPattern(
 
     if (existing) {
       // 기존 패턴 업데이트 (confidence 증가)
-      const newConfidence = Math.min(95, (existing.confidence_score || 50) + 5)
+      const existingData = existing as any
+      const newConfidence = Math.min(95, (existingData.confidence_score || 50) + 5)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const patternQuery = supabase.from('proactive_patterns' as any)
+      await (patternQuery.update as any)({
+        confidence_score: newConfidence,
+        occurrence_count: (existingData.occurrence_count || 0) + 1,
+        detection_rules: input.detectionRules,
+      }).eq('id', existingData.id)
+
+      // Refetch updated pattern
       const { data: updated } = await supabase
-        .from('proactive_patterns')
-        .update({
-          confidence_score: newConfidence,
-          occurrence_count: (existing.occurrence_count || 0) + 1,
-          detection_rules: input.detectionRules,
-        })
-        .eq('id', existing.id)
-        .select()
+        .from('proactive_patterns' as any)
+        .select('*')
+        .eq('id', existingData.id)
         .single()
 
       return { pattern: updated as any, created: false, updated: true }
     } else {
       // 새 패턴 생성
       const { data: created } = await supabase
-        .from('proactive_patterns')
+        .from('proactive_patterns' as any)
         .insert({
           agent_id: agentId,
           pattern_type: input.patternType,
@@ -436,7 +442,7 @@ async function upsertPattern(
           pattern_description_kr: input.patternDescriptionKr,
           detection_rules: input.detectionRules,
           confidence_score: input.confidenceScore || 50,
-        })
+        } as any)
         .select()
         .single()
 
@@ -455,7 +461,7 @@ export async function getActivePatterns(agentId: string): Promise<ProactivePatte
   const supabase = createAdminClient()
 
   const { data, error } = await supabase
-    .from('proactive_patterns')
+    .from('proactive_patterns' as any)
     .select('*')
     .eq('agent_id', agentId)
     .eq('is_active', true)
@@ -483,17 +489,18 @@ export async function onLearningCreated(agentId: string, learningId: string): Pr
   try {
     // 학습 내용 조회
     const { data: learning } = await supabase
-      .from('agent_learnings')
+      .from('agent_learnings' as any)
       .select('*')
       .eq('id', learningId)
       .single()
 
     if (!learning) return
 
+    const learningData = learning as any
     // 학습 카테고리에 따른 패턴 생성 가능성 체크
-    if (learning.category === 'preference' && learning.confidence >= 70) {
+    if (learningData.category === 'preference' && learningData.confidence >= 70) {
       // 선호도 관련 학습 → user_behavior 패턴 후보
-      console.log(`[PatternAnalyzer] High-confidence preference learning detected: ${learning.insight}`)
+      console.log(`[PatternAnalyzer] High-confidence preference learning detected: ${learningData.insight}`)
     }
   } catch (error) {
     console.error('[PatternAnalyzer] Learning trigger failed:', error)

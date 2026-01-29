@@ -38,14 +38,14 @@ export async function evaluateTriggers(
   try {
     // 1. 이벤트 타입에 따른 패턴 평가
     const { data: patterns } = await supabase
-      .from('proactive_patterns')
+      .from('proactive_patterns' as any)
       .select('*')
       .eq('agent_id', context.agentId)
       .eq('is_active', true)
 
     if (patterns) {
-      for (const pattern of patterns) {
-        const rules = pattern.detection_rules as any
+      for (const patternRow of patterns as any[]) {
+        const rules = patternRow.detection_rules as any
 
         // 이벤트 기반 트리거 체크
         if (rules.trigger === 'event_based' && rules.event === context.eventType) {
@@ -57,12 +57,12 @@ export async function evaluateTriggers(
 
           if (conditionsMet) {
             // 쿨다운 체크
-            const isInCooldown = await checkCooldown(pattern)
+            const isInCooldown = await checkCooldown(patternRow)
             if (!isInCooldown) {
-              matchedPatterns.push(pattern as any)
+              matchedPatterns.push(patternRow as any)
 
               // 제안 생성
-              const suggestion = await generateFromPattern(pattern as any, {
+              const suggestion = await generateFromPattern(patternRow as any, {
                 agentId: context.agentId,
                 userId: context.userId,
                 trigger: context.eventType,
@@ -71,13 +71,12 @@ export async function evaluateTriggers(
 
               if (suggestion) {
                 // 패턴 업데이트
-                await supabase
-                  .from('proactive_patterns')
-                  .update({
-                    occurrence_count: (pattern.occurrence_count || 0) + 1,
-                    last_occurrence_at: new Date().toISOString(),
-                  })
-                  .eq('id', pattern.id)
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                const patternQuery = supabase.from('proactive_patterns' as any)
+                await (patternQuery.update as any)({
+                  occurrence_count: (patternRow.occurrence_count || 0) + 1,
+                  last_occurrence_at: new Date().toISOString(),
+                }).eq('id', patternRow.id)
               }
             }
           }
@@ -234,21 +233,22 @@ async function evaluateConversationCompletion(context: TriggerContext): Promise<
     // 관계 상호작용 횟수 업데이트 후 마일스톤 체크
     if (context.userId) {
       const { data: relationship } = await supabase
-        .from('agent_relationships')
+        .from('agent_relationships' as any)
         .select('interaction_count, milestones')
         .eq('agent_id', context.agentId)
         .eq('partner_user_id', context.userId)
         .single()
 
       if (relationship) {
-        const count = relationship.interaction_count || 0
+        const rel = relationship as any
+        const count = rel.interaction_count || 0
         const milestones = [10, 50, 100, 500, 1000]
 
         // 마일스톤 도달 체크
         for (const milestone of milestones) {
           if (count === milestone) {
             // 마일스톤 제안 생성
-            await supabase.from('proactive_suggestions').insert({
+            await supabase.from('proactive_suggestions' as any).insert({
               agent_id: context.agentId,
               user_id: context.userId,
               suggestion_type: 'relationship_nudge',
@@ -259,7 +259,7 @@ async function evaluateConversationCompletion(context: TriggerContext): Promise<
               priority: 'high',
               confidence_score: 100,
               context: { milestone, totalInteractions: count },
-            })
+            } as any)
 
             console.log(`[TriggerEvaluator] Milestone ${milestone} reached for agent ${context.agentId}`)
           }
@@ -323,7 +323,7 @@ export async function evaluateScheduledTriggers(agentId: string): Promise<number
 
     // 시간 기반 패턴 조회
     const { data: patterns } = await supabase
-      .from('proactive_patterns')
+      .from('proactive_patterns' as any)
       .select('*')
       .eq('agent_id', agentId)
       .eq('is_active', true)
@@ -331,30 +331,29 @@ export async function evaluateScheduledTriggers(agentId: string): Promise<number
 
     if (!patterns) return 0
 
-    for (const pattern of patterns) {
-      const rules = pattern.detection_rules as any
+    for (const patternRow of patterns as any[]) {
+      const rules = patternRow.detection_rules as any
 
       // cron 스케줄 평가
       if (rules.schedule && evaluateCronSchedule(rules.schedule, now)) {
         // 쿨다운 체크
-        const isInCooldown = await checkCooldown(pattern)
+        const isInCooldown = await checkCooldown(patternRow)
         if (!isInCooldown) {
           triggersEvaluated++
 
           // 제안 생성
-          await generateFromPattern(pattern as any, {
+          await generateFromPattern(patternRow as any, {
             agentId,
             trigger: 'scheduled',
           })
 
           // 패턴 업데이트
-          await supabase
-            .from('proactive_patterns')
-            .update({
-              occurrence_count: (pattern.occurrence_count || 0) + 1,
-              last_occurrence_at: now.toISOString(),
-            })
-            .eq('id', pattern.id)
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const schedulePatternQuery = supabase.from('proactive_patterns' as any)
+          await (schedulePatternQuery.update as any)({
+            occurrence_count: (patternRow.occurrence_count || 0) + 1,
+            last_occurrence_at: now.toISOString(),
+          }).eq('id', patternRow.id)
         }
       }
     }

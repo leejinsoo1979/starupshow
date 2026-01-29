@@ -9,6 +9,9 @@
  * - 프로페셔널 레이아웃 템플릿
  */
 
+// Force Node.js runtime for react-dom/server support (via icon-service)
+export const runtime = 'nodejs'
+
 import { NextRequest, NextResponse } from 'next/server'
 import { searchIcons } from '@/lib/slide-engine/icon-service'
 import { fetchSlideImage } from '@/lib/slide-engine/image-service'

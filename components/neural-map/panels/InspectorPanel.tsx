@@ -40,6 +40,7 @@ import {
 import { ChatInput } from '@/components/chat/ChatInput'
 import { useChatStore } from '@/stores/chatStore'
 import { AgentTeamTabs } from './AgentTeamTabs'
+import { MissionControlPanel } from '@/components/mission-control/MissionControlPanel'
 
 const tabs: { id: RightPanelTab; label: string; icon: typeof Info }[] = [
   { id: 'inspector', label: 'Inspector', icon: Info },
@@ -856,10 +857,14 @@ export function InspectorPanel() {
   const isDark = resolvedTheme === 'dark'
   const rightPanelTab = useNeuralMapStore((s) => s.rightPanelTab)
   const setRightPanelTab = useNeuralMapStore((s) => s.setRightPanelTab)
+  const mapId = useNeuralMapStore((s) => s.mapId) // 🔥 Neural Map ID for Mission Control
 
   // 사용자 테마 색상 사용
   const { accentColor } = useThemeStore()
   const currentAccent = accentColors.find((c) => c.id === accentColor) || accentColors[0]
+
+  // Orchestration Mode Toggle (Solo Agent vs Team Orchestration)
+  const [orchestrationMode, setOrchestrationMode] = useState(false)
 
   return (
     <div className="h-full flex flex-col">
@@ -897,7 +902,50 @@ export function InspectorPanel() {
       <div className="flex-1 overflow-hidden">
         {rightPanelTab === 'inspector' && <InspectorTab isDark={isDark} currentAccent={currentAccent} />}
         {rightPanelTab === 'actions' && <ActionsTab isDark={isDark} />}
-        {rightPanelTab === 'chat' && <AgentTeamTabs isDark={isDark} />}
+        {rightPanelTab === 'chat' && (
+          <div className="flex flex-col h-full">
+            {/* Mode Toggle Header */}
+            <div className={cn(
+              'flex items-center gap-1 px-2 py-1.5 border-b',
+              isDark ? 'border-zinc-800 bg-zinc-900/50' : 'border-zinc-200 bg-zinc-50'
+            )}>
+              <button
+                onClick={() => setOrchestrationMode(false)}
+                className={cn(
+                  'flex-1 px-2 py-1 text-[10px] font-medium rounded transition-all',
+                  !orchestrationMode
+                    ? 'bg-blue-500 text-white shadow-sm'
+                    : isDark
+                      ? 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800'
+                      : 'text-zinc-500 hover:text-zinc-700 hover:bg-zinc-100'
+                )}
+              >
+                Solo Agent
+              </button>
+              <button
+                onClick={() => setOrchestrationMode(true)}
+                className={cn(
+                  'flex-1 px-2 py-1 text-[10px] font-medium rounded transition-all',
+                  orchestrationMode
+                    ? 'bg-violet-500 text-white shadow-sm'
+                    : isDark
+                      ? 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800'
+                      : 'text-zinc-500 hover:text-zinc-700 hover:bg-zinc-100'
+                )}
+              >
+                Team Orchestration
+              </button>
+            </div>
+
+            {/* Conditional Render: Solo or Orchestration */}
+            <div className="flex-1 overflow-hidden">
+              {orchestrationMode
+                ? <MissionControlPanel isDark={isDark} mapId={mapId} />
+                : <AgentTeamTabs isDark={isDark} />
+              }
+            </div>
+          </div>
+        )}
         {rightPanelTab === 'settings' && <SettingsTab isDark={isDark} currentAccent={currentAccent} />}
       </div>
     </div>

@@ -21,6 +21,7 @@ import {
   MissionAnalysis,
   TaskCreateInput,
 } from './types'
+import type { ProactiveSuggestion, SuggestionStatus } from '@/lib/proactive/types'
 
 // ============================================================================
 // Initial States
@@ -47,6 +48,7 @@ const initialSettings: MissionControlSettings = {
   defaultModel: 'gemini-2.0-flash-exp',
   showThinking: true,
   soundEnabled: false,
+  linkedMapId: undefined, // 🔥 Neural Map 연결 ID
 }
 
 // ============================================================================
@@ -61,6 +63,7 @@ interface MissionControlStore {
   isLoading: boolean
   error: string | null
   settings: MissionControlSettings
+  proactiveSuggestions: ProactiveSuggestion[]  // 🆕 능동적 제안 상태
 
   // Mission Actions
   createMission: (userRequest: string) => Mission
@@ -106,6 +109,16 @@ interface MissionControlStore {
   // Settings Actions
   updateSettings: (updates: Partial<MissionControlSettings>) => void
 
+  // Proactive Suggestion Actions (능동적 제안)
+  addProactiveSuggestion: (suggestion: ProactiveSuggestion) => void
+  setProactiveSuggestions: (suggestions: ProactiveSuggestion[]) => void
+  updateSuggestionStatus: (suggestionId: string, status: SuggestionStatus) => void
+  acceptSuggestion: (suggestionId: string) => void
+  dismissSuggestion: (suggestionId: string) => void
+  clearExpiredSuggestions: () => void
+  getActiveSuggestions: () => ProactiveSuggestion[]
+  getSuggestionsByType: (type: string) => ProactiveSuggestion[]
+
   // Utility Actions
   setLoading: (loading: boolean) => void
   setError: (error: string | null) => void
@@ -139,6 +152,7 @@ export const useMissionControlStore = create<MissionControlStore>()(
         isLoading: false,
         error: null,
         settings: initialSettings,
+        proactiveSuggestions: [],  // 🆕 능동적 제안 초기화
 
         // ========================================================================
         // Mission Actions
@@ -587,6 +601,78 @@ export const useMissionControlStore = create<MissionControlStore>()(
         },
 
         // ========================================================================
+        // Proactive Suggestion Actions (능동적 제안)
+        // ========================================================================
+
+        addProactiveSuggestion: (suggestion: ProactiveSuggestion) => {
+          set((state) => {
+            // 중복 체크
+            const exists = state.proactiveSuggestions.some((s) => s.id === suggestion.id)
+            if (!exists) {
+              state.proactiveSuggestions.push(suggestion)
+            }
+          })
+
+          get().addEvent({
+            type: 'proactive:suggestion',
+            missionId: get().currentMission?.id || 'global',
+            data: { suggestion },
+          })
+        },
+
+        setProactiveSuggestions: (suggestions: ProactiveSuggestion[]) => {
+          set((state) => {
+            state.proactiveSuggestions = suggestions
+          })
+        },
+
+        updateSuggestionStatus: (suggestionId: string, status: SuggestionStatus) => {
+          set((state) => {
+            const suggestion = state.proactiveSuggestions.find((s) => s.id === suggestionId)
+            if (suggestion) {
+              suggestion.status = status
+              suggestion.respondedAt = new Date().toISOString()
+            }
+          })
+        },
+
+        acceptSuggestion: (suggestionId: string) => {
+          get().updateSuggestionStatus(suggestionId, 'accepted')
+          get().addEvent({
+            type: 'proactive:accepted',
+            missionId: get().currentMission?.id || 'global',
+            data: { suggestionId },
+          })
+        },
+
+        dismissSuggestion: (suggestionId: string) => {
+          get().updateSuggestionStatus(suggestionId, 'dismissed')
+          get().addEvent({
+            type: 'proactive:dismissed',
+            missionId: get().currentMission?.id || 'global',
+            data: { suggestionId },
+          })
+        },
+
+        clearExpiredSuggestions: () => {
+          set((state) => {
+            state.proactiveSuggestions = state.proactiveSuggestions.filter(
+              (s) => s.status === 'pending' || s.status === 'delivered'
+            )
+          })
+        },
+
+        getActiveSuggestions: () => {
+          return get().proactiveSuggestions.filter(
+            (s) => s.status === 'pending' || s.status === 'delivered'
+          )
+        },
+
+        getSuggestionsByType: (type: string) => {
+          return get().proactiveSuggestions.filter((s) => s.suggestionType === type)
+        },
+
+        // ========================================================================
         // Utility Actions
         // ========================================================================
 
@@ -609,6 +695,7 @@ export const useMissionControlStore = create<MissionControlStore>()(
             state.events = []
             state.isLoading = false
             state.error = null
+            state.proactiveSuggestions = []  // 🆕 제안 초기화
           })
         },
 
@@ -683,3 +770,10 @@ export const selectAgentByRole = (role: AgentRole) => (state: MissionControlStor
 export const selectMissionProgress = (state: MissionControlStore) => state.getMissionProgress()
 export const selectReadyTasks = (state: MissionControlStore) => state.getReadyTasks()
 export const selectActiveAgents = (state: MissionControlStore) => state.getActiveAgents()
+
+// 🆕 Proactive Suggestion Selectors
+export const selectProactiveSuggestions = (state: MissionControlStore) => state.proactiveSuggestions
+export const selectActiveSuggestions = (state: MissionControlStore) => state.getActiveSuggestions()
+export const selectSuggestionsByType = (type: string) => (state: MissionControlStore) => state.getSuggestionsByType(type)
+export const selectPendingSuggestionsCount = (state: MissionControlStore) =>
+  state.proactiveSuggestions.filter((s) => s.status === 'pending' || s.status === 'delivered').length

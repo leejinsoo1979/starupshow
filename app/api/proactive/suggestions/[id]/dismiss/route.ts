@@ -21,7 +21,7 @@ export async function POST(
 
     // 제안 조회
     const { data: suggestion, error: fetchError } = await supabase
-      .from('proactive_suggestions')
+      .from('proactive_suggestions' as any)
       .select('id, status')
       .eq('id', id)
       .single()
@@ -33,23 +33,24 @@ export async function POST(
       )
     }
 
+    const suggestionData = suggestion as any
+
     // 이미 처리된 제안인지 확인
-    if (suggestion.status !== 'pending' && suggestion.status !== 'delivered') {
+    if (suggestionData.status !== 'pending' && suggestionData.status !== 'delivered') {
       return NextResponse.json(
-        { error: `Suggestion already ${suggestion.status}` },
+        { error: `Suggestion already ${suggestionData.status}` },
         { status: 400 }
       )
     }
 
     // 제안 상태 업데이트
-    const { error: updateError } = await supabase
-      .from('proactive_suggestions')
-      .update({
-        status: 'dismissed',
-        responded_at: new Date().toISOString(),
-        metadata: reason ? { dismissReason: reason } : undefined,
-      })
-      .eq('id', id)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const updateQuery = supabase.from('proactive_suggestions' as any)
+    const { error: updateError } = await (updateQuery.update as any)({
+      status: 'dismissed',
+      responded_at: new Date().toISOString(),
+      metadata: reason ? { dismissReason: reason } : undefined,
+    }).eq('id', id)
 
     if (updateError) throw updateError
 

@@ -21,6 +21,7 @@ import {
   TaskPlanItem,
 } from './types'
 import { executeAction, AgentAction, ActionResult } from '@/lib/ai/agent-actions'
+import type { ToolAction } from '@/lib/ai/super-agent-tools'
 
 // ============================================================================
 // Constants
@@ -223,6 +224,7 @@ interface AgentResponse {
   response: string
   artifacts?: Artifact[]
   toolsUsed?: string[]
+  actions?: ToolAction[] // 🔥 도구 실행 결과 액션
   tokenUsage: {
     input: number
     output: number
@@ -703,7 +705,7 @@ export class OrchestrationEngine {
     const model = options.model ||
       (settingsModel.startsWith('deepseek') ? 'gemini-2.0-flash-exp' : settingsModel)
 
-    // API 호출
+    // API 호출 - agentMode로 도구 호출 활성화
     const response = await fetch('/api/mission-control/agent', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -715,6 +717,10 @@ export class OrchestrationEngine {
         instruction,
         context,
         model,
+        // 🔥 Tool Calling 활성화
+        agentMode: true,
+        projectPath: this.store().settings.linkedMapId ? `/neural-map/${this.store().settings.linkedMapId}` : undefined,
+        workContext: `Mission Control Orchestration - Task: ${taskId}`,
       }),
       signal: this.abortController?.signal,
     })
@@ -726,10 +732,19 @@ export class OrchestrationEngine {
 
     const data = await response.json()
 
+    // 🔥 도구 실행 결과 로깅
+    if (data.toolsUsed && data.toolsUsed.length > 0) {
+      console.log(`[Orchestrator] ${role} 에이전트가 ${data.toolsUsed.length}개 도구 사용:`, data.toolsUsed)
+    }
+    if (data.actions && data.actions.length > 0) {
+      console.log(`[Orchestrator] ${role} 에이전트가 ${data.actions.length}개 액션 생성`)
+    }
+
     return {
       response: data.response || data.message || '',
       artifacts: data.artifacts,
       toolsUsed: data.toolsUsed,
+      actions: data.actions, // 🔥 도구 실행 액션
       tokenUsage: data.tokenUsage || { input: 0, output: 0, total: 0 },
     }
   }

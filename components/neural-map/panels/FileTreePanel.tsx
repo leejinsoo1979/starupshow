@@ -2780,7 +2780,7 @@ export function FileTreePanel({ mapId }: FileTreePanelProps) {
         {/* agents 폴더는 이제 프로젝트별로 저장되어 파일 트리에 자동으로 표시됨 */}
 
         {/* 파일 트리 목록 - 프로젝트가 있을 때만 */}
-        {hasProject && (
+        {hasProject ? (
         <AnimatePresence>
           {isExpanded && (
             <motion.div
@@ -2841,6 +2841,43 @@ export function FileTreePanel({ mapId }: FileTreePanelProps) {
             </motion.div>
           )}
         </AnimatePresence>
+        ) : (
+          /* 프로젝트가 없을 때 - 프로젝트 생성 버튼 표시 */
+          <div className="flex flex-col items-center justify-center py-12 px-4">
+            <div className={cn(
+              'w-16 h-16 rounded-2xl flex items-center justify-center mb-4',
+              isDark ? 'bg-zinc-800' : 'bg-zinc-100'
+            )}>
+              <FolderPlus className={cn(
+                'w-8 h-8',
+                isDark ? 'text-zinc-500' : 'text-zinc-400'
+              )} />
+            </div>
+            <p className={cn(
+              'text-sm font-medium mb-1',
+              isDark ? 'text-zinc-300' : 'text-zinc-700'
+            )}>
+              프로젝트가 없습니다
+            </p>
+            <p className={cn(
+              'text-xs mb-6 text-center',
+              isDark ? 'text-zinc-500' : 'text-zinc-400'
+            )}>
+              새 프로젝트를 생성하거나<br />기존 폴더를 열어보세요
+            </p>
+            <button
+              onClick={() => {
+                setIsCreatingProject(true)
+                setNewProjectName('')
+                setTimeout(() => projectNameInputRef.current?.focus(), 100)
+              }}
+              className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-medium text-white transition-all hover:brightness-110 hover:scale-105"
+              style={{ backgroundColor: currentAccent.color }}
+            >
+              <Plus className="w-4 h-4" />
+              프로젝트 생성
+            </button>
+          </div>
         )}
       </div>
 

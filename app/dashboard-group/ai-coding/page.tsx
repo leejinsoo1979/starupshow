@@ -415,33 +415,32 @@ export default function NeuralMapPage() {
         })
     }
 
-    // URL에 projectId가 없고, 스토어에도 프로젝트가 없는 경우에만 초기화
-    // (즉, 완전히 새로운 진입인 경우만)
-    if (!projectIdFromUrl && !hasLinkedProject) {
-      console.log('[NeuralMap] Fresh start - no project linked')
-    }
+    // 🔥 URL에 projectId가 없으면 프로젝트 정보 초기화 (새로운 시작)
+    if (!projectIdFromUrl) {
+      console.log('[NeuralMap] No project in URL - clearing linked project')
+      clearLinkedProject()
+      setProjectPath(null)
 
-    // 기존 localStorage의 projectPath 캐시만 제거 (linkedProject는 유지)
-    if (typeof window !== 'undefined') {
-      try {
-        const stored = localStorage.getItem('neural-map-storage')
-        if (stored) {
-          const parsed = JSON.parse(stored)
-          let changed = false
-          if (parsed.state?.projectPath) {
-            delete parsed.state.projectPath
-            changed = true
+      // localStorage에서도 프로젝트 정보 제거
+      if (typeof window !== 'undefined') {
+        try {
+          const stored = localStorage.getItem('neural-map-storage')
+          if (stored) {
+            const parsed = JSON.parse(stored)
+            if (parsed.state) {
+              delete parsed.state.projectPath
+              delete parsed.state.linkedProjectId
+              delete parsed.state.linkedProjectName
+              localStorage.setItem('neural-map-storage', JSON.stringify(parsed))
+              console.log('[NeuralMap] Cleared project info from localStorage')
+            }
           }
-          if (changed) {
-            localStorage.setItem('neural-map-storage', JSON.stringify(parsed))
-            console.log('[NeuralMap] Cleared cached projectPath from localStorage')
-          }
+        } catch (e) {
+          // ignore
         }
-      } catch (e) {
-        // ignore
       }
     }
-  }, [setLinkedProject])
+  }, [setLinkedProject, clearLinkedProject, setProjectPath])
 
   // Expose store to window for debugging + keyboard shortcut
   useEffect(() => {

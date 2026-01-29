@@ -59,17 +59,18 @@ export async function runHeartbeat(config: HeartbeatConfig): Promise<HeartbeatRe
   try {
     // 1. 에이전트 스탯 스냅샷 가져오기
     const { data: stats } = await supabase
-      .from('agent_stats')
+      .from('agent_stats' as any)
       .select('trust_score, success_rate, total_interactions, level')
       .eq('agent_id', config.agentId)
       .single()
 
     if (stats) {
+      const statsData = stats as any
       statsSnapshot = {
-        trustScore: stats.trust_score ?? 0,
-        successRate: stats.success_rate ?? 0,
-        totalInteractions: stats.total_interactions ?? 0,
-        level: stats.level ?? 1,
+        trustScore: statsData.trust_score ?? 0,
+        successRate: statsData.success_rate ?? 0,
+        totalInteractions: statsData.total_interactions ?? 0,
+        level: statsData.level ?? 1,
       }
     }
 
@@ -97,7 +98,7 @@ export async function runHeartbeat(config: HeartbeatConfig): Promise<HeartbeatRe
       patternsDetected,
       suggestionsGenerated,
       issuesDetected,
-      statsSnapshot,
+      statsSnapshot: statsSnapshot as Record<string, unknown> | undefined,
       durationMs,
     })
 
@@ -133,7 +134,7 @@ export async function runBatchHeartbeat(): Promise<{
   try {
     // 활성 에이전트 목록 가져오기
     const { data: agents, error } = await supabase
-      .from('deployed_agents')
+      .from('deployed_agents' as any)
       .select('id')
       .eq('status', 'active')
 
@@ -147,17 +148,17 @@ export async function runBatchHeartbeat(): Promise<{
     console.log(`[Heartbeat] Running batch heartbeat for ${agents.length} agents`)
 
     // 각 에이전트에 대해 하트비트 실행
-    for (const agent of agents) {
+    for (const agentRow of agents as any[]) {
       try {
         const result = await runHeartbeat({
-          agentId: agent.id,
+          agentId: agentRow.id,
           heartbeatType: 'scheduled',
         })
         results.push(result)
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : 'Unknown error'
-        errors.push(`Agent ${agent.id}: ${errorMessage}`)
-        console.error(`[Heartbeat] Failed for agent ${agent.id}:`, errorMessage)
+        errors.push(`Agent ${agentRow.id}: ${errorMessage}`)
+        console.error(`[Heartbeat] Failed for agent ${agentRow.id}:`, errorMessage)
       }
     }
 
@@ -192,7 +193,7 @@ async function evaluateActivePatterns(agentId: string): Promise<PatternEvaluatio
   try {
     // 활성 패턴 가져오기
     const { data: patterns, error } = await supabase
-      .from('proactive_patterns')
+      .from('proactive_patterns' as any)
       .select('*')
       .eq('agent_id', agentId)
       .eq('is_active', true)
@@ -201,12 +202,12 @@ async function evaluateActivePatterns(agentId: string): Promise<PatternEvaluatio
 
     const now = new Date()
 
-    for (const pattern of patterns) {
-      const rules = pattern.detection_rules as any
+    for (const patternRow of patterns as any[]) {
+      const rules = patternRow.detection_rules as any
 
       // 쿨다운 체크
-      if (rules.cooldownMinutes && pattern.last_occurrence_at) {
-        const lastOccurrence = new Date(pattern.last_occurrence_at)
+      if (rules.cooldownMinutes && patternRow.last_occurrence_at) {
+        const lastOccurrence = new Date(patternRow.last_occurrence_at)
         const cooldownEnd = new Date(lastOccurrence.getTime() + rules.cooldownMinutes * 60 * 1000)
         if (now < cooldownEnd) continue
       }
@@ -227,23 +228,22 @@ async function evaluateActivePatterns(agentId: string): Promise<PatternEvaluatio
       }
 
       if (shouldTrigger) {
-        matchedPatterns.push(pattern as any)
+        matchedPatterns.push(patternRow as any)
 
         // 제안 생성
-        const suggestion = await createSuggestionFromPattern(agentId, pattern as any)
+        const suggestion = await createSuggestionFromPattern(agentId, patternRow as any)
         if (suggestion) {
           suggestionsCreated++
         }
 
         // 패턴 발생 횟수 업데이트
-        await supabase
-          .from('proactive_patterns')
-          .update({
-            occurrence_count: (pattern.occurrence_count || 0) + 1,
-            last_occurrence_at: now.toISOString(),
-            confidence_score: Math.min(95, (pattern.confidence_score || 50) + 2),
-          })
-          .eq('id', pattern.id)
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const patternUpdateQuery = supabase.from('proactive_patterns' as any)
+        await (patternUpdateQuery.update as any)({
+          occurrence_count: (patternRow.occurrence_count || 0) + 1,
+          last_occurrence_at: now.toISOString(),
+          confidence_score: Math.min(95, (patternRow.confidence_score || 50) + 2),
+        }).eq('id', patternRow.id)
       }
     }
 
@@ -315,7 +315,7 @@ async function evaluateThresholdTrigger(
       case 'success_rate':
       case 'total_interactions': {
         const { data } = await supabase
-          .from('agent_stats')
+          .from('agent_stats' as any)
           .select(threshold.metric)
           .eq('agent_id', agentId)
           .single()
@@ -324,7 +324,7 @@ async function evaluateThresholdTrigger(
       }
       case 'pending_suggestions': {
         const { count } = await supabase
-          .from('proactive_suggestions')
+          .from('proactive_suggestions' as any)
           .select('*', { count: 'exact', head: true })
           .eq('agent_id', agentId)
           .eq('status', 'pending')
@@ -381,7 +381,7 @@ async function createSuggestionFromPattern(
 
     // 제안 생성
     const { data, error } = await supabase
-      .from('proactive_suggestions')
+      .from('proactive_suggestions' as any)
       .insert({
         agent_id: agentId,
         suggestion_type: suggestionType,
@@ -393,7 +393,7 @@ async function createSuggestionFromPattern(
         confidence_score: pattern.confidenceScore,
         priority: pattern.confidenceScore >= 80 ? 'high' : 'medium',
         expires_at: new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString(), // 48시간 후 만료
-      })
+      } as any)
       .select()
       .single()
 
@@ -426,7 +426,7 @@ async function checkAgentHealth(agentId: string): Promise<HealthCheckResult> {
   try {
     // 1. 최근 실패한 워크플로우 체크
     const { data: failedWorkflows, error: workflowError } = await supabase
-      .from('workflow_executions')
+      .from('workflow_executions' as any)
       .select('id, error, workflow_id')
       .eq('agent_id', agentId)
       .eq('status', 'failed')
@@ -436,7 +436,7 @@ async function checkAgentHealth(agentId: string): Promise<HealthCheckResult> {
     if (!workflowError && failedWorkflows && failedWorkflows.length >= 3) {
       issuesFound++
       // 자가치유 레코드 생성
-      await supabase.from('agent_healing_records').insert({
+      await supabase.from('agent_healing_records' as any).insert({
         agent_id: agentId,
         issue_type: 'workflow_failure',
         issue_description: `${failedWorkflows.length} workflow failures in last 24 hours`,
@@ -459,28 +459,28 @@ async function checkAgentHealth(agentId: string): Promise<HealthCheckResult> {
           confidence: 75,
           analyzedAt: new Date().toISOString(),
         },
-      })
+      } as any)
       healingRecordsCreated++
     }
 
     // 2. 성공률 체크
     const { data: stats } = await supabase
-      .from('agent_stats')
+      .from('agent_stats' as any)
       .select('success_rate')
       .eq('agent_id', agentId)
       .single()
 
-    if (stats && stats.success_rate !== null && stats.success_rate < 70) {
+    if (stats && (stats as any).success_rate !== null && (stats as any).success_rate < 70) {
       issuesFound++
-      await supabase.from('agent_healing_records').insert({
+      await supabase.from('agent_healing_records' as any).insert({
         agent_id: agentId,
         issue_type: 'performance_degradation',
-        issue_description: `Success rate dropped to ${stats.success_rate}%`,
-        issue_description_kr: `성공률이 ${stats.success_rate}%로 하락`,
-        issue_severity: stats.success_rate < 50 ? 'high' : 'medium',
+        issue_description: `Success rate dropped to ${(stats as any).success_rate}%`,
+        issue_description_kr: `성공률이 ${(stats as any).success_rate}%로 하락`,
+        issue_severity: (stats as any).success_rate < 50 ? 'high' : 'medium',
         status: 'detected',
         requires_approval: true,
-      })
+      } as any)
       healingRecordsCreated++
     }
 
@@ -502,9 +502,9 @@ async function expireOldSuggestions(agentId: string): Promise<number> {
   const supabase = createAdminClient()
 
   try {
-    const { data, error } = await supabase
-      .from('proactive_suggestions')
-      .update({ status: 'expired' })
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const suggestionsQuery = supabase.from('proactive_suggestions' as any)
+    const { data } = await (suggestionsQuery.update as any)({ status: 'expired' })
       .eq('agent_id', agentId)
       .eq('status', 'pending')
       .lt('expires_at', new Date().toISOString())
@@ -523,7 +523,7 @@ async function saveHeartbeatLog(log: Omit<HeartbeatLog, 'id' | 'createdAt'>): Pr
   const supabase = createAdminClient()
 
   try {
-    await supabase.from('agent_heartbeat_log').insert({
+    await supabase.from('agent_heartbeat_log' as any).insert({
       agent_id: log.agentId,
       heartbeat_type: log.heartbeatType,
       patterns_detected: log.patternsDetected,
@@ -531,7 +531,7 @@ async function saveHeartbeatLog(log: Omit<HeartbeatLog, 'id' | 'createdAt'>): Pr
       issues_detected: log.issuesDetected,
       stats_snapshot: log.statsSnapshot,
       duration_ms: log.durationMs,
-    })
+    } as any)
   } catch (error) {
     console.error('[Heartbeat] Failed to save log:', error)
   }

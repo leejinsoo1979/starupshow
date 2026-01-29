@@ -260,6 +260,22 @@ export interface CreateHealingRecordInput {
   requiresApproval?: boolean
 }
 
+/**
+ * 진단 결과 (healing-executor에서 사용)
+ */
+export interface DiagnosisResult {
+  issueType: IssueType
+  severity: IssueSeverity
+  description: string
+  descriptionKr: string
+  recommendedActions: HealingAction[]
+  rootCause?: string
+  rootCauseKr?: string
+  affectedComponents?: string[]
+  confidence: number
+  analyzedAt: string
+}
+
 // ============================================================================
 // Heartbeat Types (하트비트)
 // ============================================================================
@@ -307,6 +323,7 @@ export interface HeartbeatLog {
 
 export type TriggerEventType =
   | 'conversation_complete'
+  | 'meeting_complete'  // 🆕 회의 완료
   | 'task_complete'
   | 'task_failed'
   | 'workflow_complete'

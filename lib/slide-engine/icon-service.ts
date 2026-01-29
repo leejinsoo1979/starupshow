@@ -4,8 +4,17 @@
  * API 라우트에서 다른 API를 fetch하는 대신 직접 함수 호출
  */
 
-import { renderToStaticMarkup } from 'react-dom/server'
 import { createElement } from 'react'
+
+// Dynamic import to avoid webpack bundling issues with react-dom/server
+let renderToStaticMarkup: typeof import('react-dom/server').renderToStaticMarkup
+async function getRenderFn() {
+  if (!renderToStaticMarkup) {
+    const mod = await import('react-dom/server')
+    renderToStaticMarkup = mod.renderToStaticMarkup
+  }
+  return renderToStaticMarkup
+}
 
 // 한글 키워드 → 아이콘 이름 매핑
 const KEYWORD_ICON_MAP: Record<string, string[]> = {
@@ -186,7 +195,8 @@ export async function searchIcons(
 
     if (IconComponent) {
       try {
-        const svgString = renderToStaticMarkup(
+        const render = await getRenderFn()
+        const svgString = render(
           createElement(IconComponent, { size, color })
         )
 

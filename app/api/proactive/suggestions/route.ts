@@ -24,7 +24,7 @@ export async function GET(request: NextRequest) {
 
   try {
     let query = supabase
-      .from('proactive_suggestions')
+      .from('proactive_suggestions' as any)
       .select('*', { count: 'exact' })
       .order('created_at', { ascending: false })
       .range(offset, offset + limit - 1)
@@ -38,7 +38,7 @@ export async function GET(request: NextRequest) {
     if (error) throw error
 
     // snake_case → camelCase 변환
-    const suggestions = (data || []).map((s) => ({
+    const suggestions = ((data || []) as any[]).map((s) => ({
       id: s.id,
       agentId: s.agent_id,
       userId: s.user_id,
@@ -110,7 +110,7 @@ export async function POST(request: NextRequest) {
     }
 
     const { data, error } = await supabase
-      .from('proactive_suggestions')
+      .from('proactive_suggestions' as any)
       .insert({
         agent_id: agentId,
         user_id: userId,
@@ -124,7 +124,7 @@ export async function POST(request: NextRequest) {
         suggested_action: suggestedAction,
         expires_at: expiresAt || new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString(),
         context: context || {},
-      })
+      } as any)
       .select()
       .single()
 

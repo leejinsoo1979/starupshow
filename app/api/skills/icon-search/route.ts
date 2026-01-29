@@ -7,9 +7,22 @@
  * - SVG/Base64 포맷 반환
  */
 
+// Force Node.js runtime for react-dom/server support
+export const runtime = 'nodejs'
+export const dynamic = 'force-dynamic'
+
 import { NextRequest, NextResponse } from 'next/server'
-import { renderToStaticMarkup } from 'react-dom/server'
 import { createElement } from 'react'
+
+// Dynamic import to avoid webpack bundling issues
+let renderToStaticMarkup: typeof import('react-dom/server').renderToStaticMarkup
+async function getRenderFn() {
+  if (!renderToStaticMarkup) {
+    const mod = await import('react-dom/server')
+    renderToStaticMarkup = mod.renderToStaticMarkup
+  }
+  return renderToStaticMarkup
+}
 
 // 동적 import를 위한 아이콘 라이브러리 매핑
 const ICON_LIBRARIES = {
@@ -310,7 +323,8 @@ export async function POST(request: NextRequest) {
       if (IconComponent) {
         try {
           // React 컴포넌트 → SVG 문자열
-          const svgString = renderToStaticMarkup(
+          const render = await getRenderFn()
+          const svgString = render(
             createElement(IconComponent, { size, color })
           )
 

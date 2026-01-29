@@ -188,6 +188,9 @@ export type MissionEventType =
   | 'agent:status'
   | 'agent:message'
   | 'artifact:created'
+  | 'proactive:suggestion'   // 🆕 능동적 제안
+  | 'proactive:accepted'     // 🆕 제안 수락
+  | 'proactive:dismissed'    // 🆕 제안 무시
   | 'error'
 
 export interface MissionEvent {
@@ -294,6 +297,7 @@ export interface MissionControlSettings {
   defaultModel: string
   showThinking: boolean       // 에이전트 사고 과정 표시
   soundEnabled: boolean       // 알림음
+  linkedMapId?: string        // 🔥 Neural Map 연결 ID
 }
 
 // ============================================================================

@@ -62,3 +62,40 @@ export {
   evaluateWorkflowCompletion,
   evaluateScheduledTriggers,
 } from './trigger-evaluator'
+
+// Self-Healing
+export {
+  // Diagnosis
+  diagnose,
+  diagnosePotentialIssues,
+  determineIssueType,
+  determineSeverity,
+  // Healing Actions
+  HEALING_ACTION_REGISTRY,
+  createRetryAction,
+  createRefreshConnectionAction,
+  createClearCacheAction,
+  createResetStateAction,
+  createUseFallbackAction,
+  createNotifyAdminAction,
+  createAutoRestartAction,
+  validateHealingAction,
+  canExecuteWithoutApproval,
+  prioritizeActions,
+  // Healing Executor
+  startHealingSession,
+  approveHealingSession,
+  rejectHealingSession,
+  quickHeal,
+  getHealingStatus,
+  getActiveHealingSessions,
+} from './self-healing'
+
+// Realtime Subscription
+export {
+  subscribeToProactiveEvents,
+  unsubscribeFromProactiveEvents,
+  createProactiveSubscriptionEffect,
+  type ProactiveRealtimeCallbacks,
+  type ProactiveSubscription,
+} from './realtime-subscription'
