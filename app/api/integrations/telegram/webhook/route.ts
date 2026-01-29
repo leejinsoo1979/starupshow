@@ -791,17 +791,23 @@ async function executeSimpleChat(
 {
   "app": "앱 이름 (Pages, Keynote, Numbers, Notes 등)",
   "action": "write" | "open" | "create",
-  "content": "작성할 내용 (있으면)",
-  "contentDescription": "내용 설명 (가사 적어, 편지 써 등 - content가 없으면 이걸로 생성)"
+  "content": "직접 작성할 완성된 문장/텍스트 (예: 안녕하세요, Hello World)",
+  "contentDescription": "AI가 생성해야 할 내용 설명 (예: 가사, 에세이, 생각, 편지 등)"
 }
 
+중요 규칙:
+- "X에 대한 생각/의견" → contentDescription (AI가 생성해야 함)
+- "X 가사 적어" → contentDescription (AI가 생성해야 함)
+- "X 써줘" (X가 주제일 때) → contentDescription
+- "안녕하세요 적어" (완성된 문장) → content
+
 예시:
-- "pages실행해서 yesterday 가사 영문으로 쓰고 한글로 번역도 해서 적어놔"
-  → {"app": "Pages", "action": "write", "content": "", "contentDescription": "yesterday 가사 영문으로 쓰고 한글로 번역"}
-- "pages 열어서 안녕하세요 적어"
-  → {"app": "Pages", "action": "write", "content": "안녕하세요", "contentDescription": ""}
-- "메모 앱 열어서 오늘 할일 적어"
-  → {"app": "Notes", "action": "write", "content": "", "contentDescription": "오늘 할일"}
+- "pages 열어서 moltbot에 대한 생각 적어줘"
+  → {"app": "Pages", "action": "write", "content": "", "contentDescription": "moltbot에 대한 생각을 자세히 작성해줘"}
+- "pages 열어서 yesterday 가사 적어"
+  → {"app": "Pages", "action": "write", "content": "", "contentDescription": "Beatles의 Yesterday 가사 전체"}
+- "메모에 안녕하세요 적어"
+  → {"app": "Notes", "action": "write", "content": "안녕하세요", "contentDescription": ""}
 
 JSON만 반환하세요.`
           },
