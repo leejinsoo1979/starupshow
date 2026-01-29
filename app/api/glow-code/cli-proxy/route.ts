@@ -138,12 +138,11 @@ ${lastUserMessage.content}
 
         // 세션 이어가기
         if (options.sessionId) {
-          args.push('--continue', '--session-id', options.sessionId)
+          args.push('--resume', options.sessionId)
         }
 
         args.push('-p', prompt)
         args.push('--output-format', 'stream-json')
-        args.push('--verbose')  // Required for stream-json with -p
         args.push('--dangerously-skip-permissions')  // 비대화형으로 권한 스킵
 
         // 모델 지정
@@ -190,9 +189,21 @@ ${lastUserMessage.content}
         console.log('[Claude CLI] Spawned with PID:', claude.pid)
         controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: 'status', content: `CLI PID: ${claude.pid}` })}\n\n`))
 
+        // 🔥 stdin 즉시 닫기 (비대화형 모드)
+        claude.stdin.end()
+
+        // 🔥 타임아웃 설정 (5분)
+        const timeoutId = setTimeout(() => {
+          console.log('[Claude CLI] Timeout - killing process')
+          controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: 'error', content: 'Timeout: Claude CLI took too long' })}\n\n`))
+          claude.kill('SIGTERM')
+        }, 5 * 60 * 1000)
+
         let buffer = ''
+        let hasReceivedData = false
 
         claude.stdout.on('data', (data) => {
+          hasReceivedData = true
           console.log('[Claude CLI] stdout data received:', data.toString().substring(0, 100))
           buffer += data.toString()
           const lines = buffer.split('\n')
@@ -320,7 +331,11 @@ ${lastUserMessage.content}
         })
 
         claude.on('close', (code) => {
-          console.log('[Claude CLI] Exit code:', code)
+          clearTimeout(timeoutId)
+          console.log('[Claude CLI] Exit code:', code, 'hasReceivedData:', hasReceivedData)
+          if (!hasReceivedData && code !== 0) {
+            controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: 'error', content: `Claude CLI exited with code ${code} without response` })}\n\n`))
+          }
           controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: 'done', code })}\n\n`))
           controller.close()
         })
