@@ -37,35 +37,36 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    // Check cache first if enabled
+    // Check cache first if enabled (optimized: check sync time before fetching events)
     if (useCache && timeMin && timeMax) {
-      const { data: cachedEvents } = await (supabase as any)
-        .from('google_calendar_events_cache')
-        .select('*')
+      // First check if last sync is recent (fast single row query)
+      const { data: connection } = await (supabase as any)
+        .from('google_calendar_connections')
+        .select('last_sync_at')
         .eq('user_id', user.id)
-        .gte('start_time', timeMin)
-        .lte('end_time', timeMax)
-        .order('start_time', { ascending: true })
+        .single()
 
-      // Return cached if we have recent data (within 5 minutes)
-      if (cachedEvents && cachedEvents.length > 0) {
-        const { data: connection } = await (supabase as any)
-          .from('google_calendar_connections')
-          .select('last_sync_at')
+      const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000)
+      const lastSyncDate = connection?.last_sync_at
+        ? new Date(connection.last_sync_at)
+        : null
+
+      // Only fetch cached events if sync is recent
+      if (lastSyncDate && lastSyncDate > fiveMinutesAgo) {
+        const { data: cachedEvents } = await (supabase as any)
+          .from('google_calendar_events_cache')
+          .select('*')
           .eq('user_id', user.id)
-          .single()
+          .gte('start_time', timeMin)
+          .lte('end_time', timeMax)
+          .order('start_time', { ascending: true })
 
-        if (connection?.last_sync_at) {
-          const lastSync = new Date(connection.last_sync_at)
-          const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000)
-
-          if (lastSync > fiveMinutesAgo) {
-            return NextResponse.json({
-              events: cachedEvents,
-              fromCache: true,
-              lastSync: connection.last_sync_at,
-            })
-          }
+        if (cachedEvents && cachedEvents.length > 0) {
+          return NextResponse.json({
+            events: cachedEvents,
+            fromCache: true,
+            lastSync: connection.last_sync_at,
+          })
         }
       }
     }
@@ -83,41 +84,47 @@ export async function GET(request: NextRequest) {
       transformGoogleEvent(event, calendarId)
     )
 
-    // Get connection ID for caching
-    const { data: connection } = await (supabase as any)
-      .from('google_calendar_connections')
-      .select('id')
-      .eq('user_id', user.id)
-      .single()
+    // Return events immediately, update cache in background
+    const lastSync = new Date().toISOString()
 
-    if (connection) {
-      // Update cache
-      for (const event of transformedEvents) {
-        await (supabase as any)
-          .from('google_calendar_events_cache')
-          .upsert(
-            {
-              ...event,
-              connection_id: connection.id,
-              user_id: user.id,
-            },
-            {
+    // Fire-and-forget cache update (non-blocking)
+    ;(async () => {
+      try {
+        const { data: connection } = await (supabase as any)
+          .from('google_calendar_connections')
+          .select('id')
+          .eq('user_id', user.id)
+          .single()
+
+        if (connection && transformedEvents.length > 0) {
+          // Bulk upsert all events at once (instead of N separate calls)
+          const eventsWithMetadata = transformedEvents.map((event) => ({
+            ...event,
+            connection_id: connection.id,
+            user_id: user.id,
+          }))
+
+          await (supabase as any)
+            .from('google_calendar_events_cache')
+            .upsert(eventsWithMetadata, {
               onConflict: 'connection_id,google_event_id',
-            }
-          )
-      }
+            })
 
-      // Update last sync time
-      await (supabase as any)
-        .from('google_calendar_connections')
-        .update({ last_sync_at: new Date().toISOString() })
-        .eq('id', connection.id)
-    }
+          // Update last sync time
+          await (supabase as any)
+            .from('google_calendar_connections')
+            .update({ last_sync_at: lastSync })
+            .eq('id', connection.id)
+        }
+      } catch (cacheError) {
+        console.error('Background cache update failed:', cacheError)
+      }
+    })()
 
     return NextResponse.json({
       events: transformedEvents,
       fromCache: false,
-      lastSync: new Date().toISOString(),
+      lastSync,
     })
   } catch (error) {
     console.error('Google Calendar events error:', error)
