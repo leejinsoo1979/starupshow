@@ -10,6 +10,9 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server'
+import { searchIcons } from '@/lib/slide-engine/icon-service'
+import { fetchSlideImage } from '@/lib/slide-engine/image-service'
+import { generateSlideContent } from '@/lib/slide-engine/content-service'
 
 // 디자인 원칙 20가지 (NotebookLM 스타일)
 const DESIGN_PRINCIPLES = `
@@ -286,28 +289,20 @@ export interface SlideDesignerResponse {
   error?: string
 }
 
-// 아이콘 가져오기
+// 아이콘 가져오기 (직접 함수 호출)
 async function fetchIcon(keyword: string, color: string, size: number): Promise<SlideIcon | null> {
   try {
-    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
-    const response = await fetch(`${baseUrl}/api/skills/icon-search`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ keyword, color, size, limit: 1 }),
-    })
+    const icons = await searchIcons(keyword, { size, color, limit: 1 })
 
-    if (response.ok) {
-      const data = await response.json()
-      if (data.success && data.icons?.[0]) {
-        const icon = data.icons[0]
-        return {
-          name: icon.name,
-          svg: icon.svg,
-          base64: icon.base64,
-          color,
-          size,
-          position: { x: 0, y: 0 },
-        }
+    if (icons.length > 0) {
+      const icon = icons[0]
+      return {
+        name: icon.name,
+        svg: icon.svg,
+        base64: icon.base64,
+        color,
+        size,
+        position: { x: 0, y: 0 },
       }
     }
   } catch (error) {
@@ -316,70 +311,19 @@ async function fetchIcon(keyword: string, color: string, size: number): Promise<
   return null
 }
 
-// 이미지 검색
+// 이미지 검색 (직접 함수 호출)
 async function fetchImage(query: string, orientation: string = 'landscape'): Promise<SlideImage | null> {
   try {
-    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
-    const response = await fetch(`${baseUrl}/api/skills/image-search`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ query, count: 1, orientation }),
-    })
-
-    if (response.ok) {
-      const data = await response.json()
-      if (data.success && data.images?.[0]) {
-        const img = data.images[0]
-        return {
-          url: img.url,
-          position: 'right',
-          width: img.width,
-          height: img.height,
-          alt: img.description || query,
-          source: img.source,
-        }
-      }
-    }
+    const image = await fetchSlideImage(query, orientation)
+    return image
   } catch (error) {
     console.error(`[SlideDesigner] Image fetch error:`, error)
   }
   return null
 }
 
-// 슬라이드 콘텐츠 생성 (LLM 호출)
-async function generateSlideContent(
-  prompt: string,
-  slideCount: number,
-  theme: typeof THEMES[keyof typeof THEMES],
-  language: string
-): Promise<any[]> {
-  // LLM API 호출 (기존 PPT-Pro 로직 재사용)
-  try {
-    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
-    const response = await fetch(`${baseUrl}/api/skills/ppt-pro`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        content: prompt,
-        slideCount,
-        theme: theme.name.toLowerCase(),
-        generateImages: false,
-        language,
-      }),
-    })
-
-    if (response.ok) {
-      const data = await response.json()
-      if (data.success && data.presentation?.slides) {
-        return data.presentation.slides
-      }
-    }
-  } catch (error) {
-    console.error('[SlideDesigner] Content generation error:', error)
-  }
-
-  return []
-}
+// 슬라이드 콘텐츠 생성 함수는 content-service에서 import
+// generateSlideContent from '@/lib/slide-engine/content-service'
 
 // 슬라이드 디자인 적용
 async function designSlides(
@@ -514,9 +458,9 @@ export async function POST(request: NextRequest) {
 
     const theme = THEMES[themeName] || THEMES.modern
 
-    // 1. 슬라이드 콘텐츠 생성
+    // 1. 슬라이드 콘텐츠 생성 (직접 함수 호출)
     console.log('[SlideDesigner] Step 1: Generating slide content...')
-    const rawSlides = await generateSlideContent(content, slideCount, theme, language)
+    const rawSlides = await generateSlideContent(content, slideCount, theme.name.toLowerCase(), language)
 
     if (rawSlides.length === 0) {
       return NextResponse.json(
